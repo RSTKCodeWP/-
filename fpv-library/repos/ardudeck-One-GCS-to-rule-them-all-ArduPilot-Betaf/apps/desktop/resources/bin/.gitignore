@@ -1,0 +1,8 @@
+# Downloaded binaries — fetched per-platform on demand (media engine) or for
+# flashing; never committed (50-90MB each). README documents how to obtain them.
+*/ffmpeg
+*/ffmpeg.exe
+*/mediamtx
+*/mediamtx.exe
+*/avrdude
+*/avrdude.exe

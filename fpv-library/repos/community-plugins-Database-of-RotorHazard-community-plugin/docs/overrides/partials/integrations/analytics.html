@@ -1,0 +1,62 @@
+{#
+  Custom analytics and meta tags
+  This partial gets included in the head section
+#}
+
+<!-- PWA Meta Tags -->
+<link rel="manifest" href="{{ base_url }}/assets/manifest.json">
+<link rel="apple-touch-icon" sizes="180x180" href="{{ base_url }}/assets/img/apple-touch-icon.png">
+<meta name="theme-color" content="#ff9800">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="RH Plugins">
+
+<!-- SEO Meta Tags -->
+{% if page and page.meta is defined and page.meta.description is defined %}
+{% set page_description = page.meta.description %}
+{% else %}
+{% set page_description = config.site_description %}
+{% endif %}
+<meta name="keywords" content="RotorHazard, FPV, drone racing, timing system, plugins, community, open source">
+<meta name="author" content="{{ config.site_author }}">
+<meta name="robots" content="index, follow">
+{% if page %}
+<link rel="canonical" href="{{ page.canonical_url }}">
+{% endif %}
+
+<!-- Open Graph / Facebook -->
+<meta property="og:type" content="website">
+{% if page %}
+<meta property="og:url" content="{{ page.canonical_url }}">
+<meta property="og:title" content="{{ page.title }} - {{ config.site_name }}">
+<meta property="og:description" content="{{ page_description }}">
+{% else %}
+<meta property="og:url" content="{{ config.site_url }}">
+<meta property="og:title" content="{{ config.site_name }}">
+<meta property="og:description" content="{{ config.site_description }}">
+{% endif %}
+<meta property="og:image" content="{{ config.site_url }}assets/img/og-image.svg">
+<meta property="og:image:type" content="image/svg+xml">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="RotorHazard Community Plugins - Discover, install and publish powerful plugins for your FPV race timer">
+<meta property="og:site_name" content="{{ config.site_name }}">
+
+<!-- Twitter Card -->
+<meta name="twitter:card" content="summary_large_image">
+{% if page %}
+<meta name="twitter:url" content="{{ page.canonical_url }}">
+<meta name="twitter:title" content="{{ page.title }} - {{ config.site_name }}">
+<meta name="twitter:description" content="{{ page_description }}">
+{% else %}
+<meta name="twitter:url" content="{{ config.site_url }}">
+<meta name="twitter:title" content="{{ config.site_name }}">
+<meta name="twitter:description" content="{{ config.site_description }}">
+{% endif %}
+<meta name="twitter:image" content="{{ config.site_url }}assets/img/og-image.svg">
+<meta name="twitter:image:alt" content="RotorHazard Community Plugins - Discover, install and publish powerful plugins for your FPV race timer">
+
+<!-- Additional Meta Tags -->
+<meta name="application-name" content="{{ config.site_name }}">
+<meta name="msapplication-TileColor" content="#ff9800">
+<meta name="msapplication-config" content="{{ base_url }}/assets/browserconfig.xml">

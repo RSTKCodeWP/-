@@ -1,0 +1,110 @@
+defaults nosave
+
+
+# version
+# Betaflight / STM32F7X2 (S7X2) 4.5.1 Jul 27 2024 / 04:29:14 (77d01ba3b) MSP API: 1.46
+# config rev: fb15bf8
+
+# start the command batch
+batch start
+
+# reset configuration to default settings
+defaults nosave
+
+board_name HOBBYWING_XROTORF7CONV
+manufacturer_id HOWI
+mcu_id 0051002c3233511839373734
+signature 
+
+# feature
+feature INFLIGHT_ACC_CAL
+feature RSSI_ADC
+feature LED_STRIP
+feature OSD
+
+# serial
+serial 0 64 115200 57600 0 115200
+
+# aux
+aux 0 0 0 1700 2100 0 0
+aux 1 13 1 1700 2100 0 0
+aux 2 35 2 1700 2100 0 0
+
+# master
+set gyro_lpf1_static_hz = 0
+set dyn_notch_count = 2
+set dyn_notch_q = 450
+set dyn_notch_min_hz = 125
+set dyn_notch_max_hz = 650
+set gyro_lpf1_dyn_min_hz = 500
+set gyro_lpf1_dyn_max_hz = 1000
+set acc_calibration = -12,43,54,1
+set dshot_bidir = ON
+set ibata_offset = -350
+set simplified_gyro_filter = OFF
+set osd_tim2 = 2563
+set osd_vbat_pos = 14657
+set osd_link_quality_pos = 2100
+set osd_tim_1_pos = 3310
+set osd_tim_2_pos = 3246
+set osd_flymode_pos = 2389
+set osd_vtx_channel_pos = 2081
+set osd_current_pos = 404
+set osd_warnings_pos = 14865
+set osd_avg_cell_voltage_pos = 2433
+set osd_disarmed_pos = 2389
+set rpm_filter_fade_range_hz = 100
+
+profile 0
+
+# profile 0
+set dterm_lpf1_dyn_expo = 7
+set iterm_relax_cutoff = 45
+set iterm_limit = 500
+set pidsum_limit_yaw = 1000
+set throttle_boost = 2
+set p_pitch = 41
+set i_pitch = 89
+set d_pitch = 40
+set f_pitch = 137
+set p_roll = 38
+set i_roll = 81
+set d_roll = 35
+set f_roll = 125
+set d_min_roll = 21
+set d_min_pitch = 23
+set feedforward_max_rate_limit = 100
+set dyn_idle_min_rpm = 40
+set dyn_idle_p_gain = 35
+set simplified_pids_mode = RP
+set simplified_i_gain = 120
+set simplified_d_gain = 70
+set simplified_pi_gain = 85
+set simplified_dmax_gain = 200
+set simplified_feedforward_gain = 105
+set simplified_pitch_pi_gain = 105
+set tpa_rate = 70
+set tpa_breakpoint = 1250
+set ez_landing_limit = 5
+
+profile 1
+
+profile 2
+
+profile 3
+
+# restore original profile selection
+profile 0
+
+rateprofile 0
+
+rateprofile 1
+
+rateprofile 2
+
+rateprofile 3
+
+# restore original rateprofile selection
+rateprofile 0
+
+# save configuration

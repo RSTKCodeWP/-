@@ -1,0 +1,10 @@
+{
+  "n": 90,
+  "p50_ms": 1.9,
+  "p95_ms": 22.4,
+  "max_ms": 33.6,
+  "mean_ms": 4.5,
+  "budget_ms": 120,
+  "measurement": "floor",
+  "note": "Dev/CI floor under software GL; on-device field measurement pending."
+}

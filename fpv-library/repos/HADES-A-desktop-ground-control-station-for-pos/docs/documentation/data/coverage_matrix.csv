@@ -1,0 +1,9 @@
+name,coverage,mean_nees,median_r95_m,n_frames,n_trials,kind
+matched_control,0.995,1.16,3.63,30,200,sim
+sigma_underestimate,0.95,1.9,3.37,30,200,sim
+sigma_overestimate,0.985,1.0,3.55,30,200,sim
+heading_bias_crab,0.955,1.75,2.99,30,200,sim
+gps_heavy_tail,1.0,1.12,3.66,30,200,sim
+time_sync_50ms,0.965,1.65,3.82,30,200,sim
+time_sync_100ms,0.85,3.01,3.72,30,200,sim
+time_sync_200ms,0.255,11.93,3.28,30,200,sim

@@ -1,0 +1,16 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Schema for a categories file",
+  "description": "This schema validates the structure of a categories file for plugins.",
+  "type": "object",
+  "patternProperties": {
+    "^[\\w\\s&.\\-]+$": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[\\w-]+\\/[\\w.-]+$"
+      }
+    }
+  },
+  "additionalProperties": false
+}

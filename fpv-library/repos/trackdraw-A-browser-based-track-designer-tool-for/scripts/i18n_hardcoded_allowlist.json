@@ -1,0 +1,227 @@
+[
+  {
+    "file": "src/app/embed/EmbedUnavailable.tsx",
+    "kind": "JSX prop alt",
+    "text": "TrackDraw",
+    "count": 2,
+    "group": "intentional-brand-alt",
+    "priority": "exception",
+    "note": "Brand-only alt text is intentionally stable unless the image needs descriptive alt copy."
+  },
+  {
+    "file": "src/app/login/page.tsx",
+    "kind": "JSX prop alt",
+    "text": "TrackDraw",
+    "count": 2,
+    "group": "intentional-brand-alt",
+    "priority": "exception",
+    "note": "Brand-only alt text is intentionally stable unless the image needs descriptive alt copy."
+  },
+  {
+    "file": "src/app/login/magic-link/MagicLinkConfirm.tsx",
+    "kind": "JSX prop alt",
+    "text": "TrackDraw",
+    "count": 2,
+    "group": "intentional-brand-alt",
+    "priority": "exception",
+    "note": "Brand-only alt text is intentionally stable unless the image needs descriptive alt copy."
+  },
+  {
+    "file": "src/app/share/[token]/not-found.tsx",
+    "kind": "JSX prop alt",
+    "text": "TrackDraw",
+    "count": 2,
+    "group": "intentional-brand-alt",
+    "priority": "exception",
+    "note": "Brand-only alt text is intentionally stable unless the image needs descriptive alt copy."
+  },
+  {
+    "file": "src/app/share/ShareError.tsx",
+    "kind": "JSX prop alt",
+    "text": "TrackDraw",
+    "count": 2,
+    "group": "intentional-brand-alt",
+    "priority": "exception",
+    "note": "Brand-only alt text is intentionally stable unless the image needs descriptive alt copy."
+  },
+  {
+    "file": "src/app/share/ShareExpired.tsx",
+    "kind": "JSX prop alt",
+    "text": "TrackDraw",
+    "count": 2,
+    "group": "intentional-brand-alt",
+    "priority": "exception",
+    "note": "Brand-only alt text is intentionally stable unless the image needs descriptive alt copy."
+  },
+  {
+    "file": "src/components/canvas/editor/TrackCanvas.tsx",
+    "kind": "JSX text",
+    "text": "Esc",
+    "count": 1,
+    "group": "keyboard-or-unit",
+    "priority": "exception",
+    "note": "Keyboard shortcut token; not natural-language copy."
+  },
+  {
+    "file": "src/components/dialogs/ImportDialog.tsx",
+    "kind": "JSX text",
+    "text": ".json",
+    "count": 1,
+    "group": "technical-token",
+    "priority": "exception",
+    "note": "Unit, file extension, coordinate label, or visual separator."
+  },
+  {
+    "file": "src/components/dialogs/ImportDialog.tsx",
+    "kind": "JSX text",
+    "text": "&nbsp;·&nbsp;",
+    "count": 1,
+    "group": "technical-token",
+    "priority": "exception",
+    "note": "Unit, file extension, coordinate label, or visual separator."
+  },
+  {
+    "file": "src/components/editor/Header.tsx",
+    "kind": "JSX prop alt",
+    "text": "TrackDraw",
+    "count": 2,
+    "group": "intentional-brand-alt",
+    "priority": "exception",
+    "note": "Brand-only alt text is intentionally stable unless the image needs descriptive alt copy."
+  },
+  {
+    "file": "src/components/editor/Header.tsx",
+    "kind": "JSX text",
+    "text": "⌃Y",
+    "count": 1,
+    "group": "keyboard-or-unit",
+    "priority": "exception",
+    "note": "Keyboard shortcut token; not natural-language copy."
+  },
+  {
+    "file": "src/components/editor/Header.tsx",
+    "kind": "JSX text",
+    "text": "⌃Z",
+    "count": 1,
+    "group": "keyboard-or-unit",
+    "priority": "exception",
+    "note": "Keyboard shortcut token; not natural-language copy."
+  },
+  {
+    "file": "src/components/editor/Header.tsx",
+    "kind": "JSX text",
+    "text": "⌘S",
+    "count": 1,
+    "group": "keyboard-or-unit",
+    "priority": "exception",
+    "note": "Keyboard shortcut token; not natural-language copy."
+  },
+  {
+    "file": "src/components/editor/Toolbar.tsx",
+    "kind": "JSX prop alt",
+    "text": "TrackDraw",
+    "count": 1,
+    "group": "intentional-brand-alt",
+    "priority": "exception",
+    "note": "Brand-only alt text is intentionally stable unless the image needs descriptive alt copy."
+  },
+  {
+    "file": "src/components/editor/viewer/Header.tsx",
+    "kind": "JSX prop alt",
+    "text": "TrackDraw",
+    "count": 2,
+    "group": "intentional-brand-alt",
+    "priority": "exception",
+    "note": "Brand-only alt text is intentionally stable unless the image needs descriptive alt copy."
+  },
+  {
+    "file": "src/components/inspector/ElevationChart.tsx",
+    "kind": "JSX text",
+    "text": "m",
+    "count": 2,
+    "group": "technical-token",
+    "priority": "exception",
+    "note": "Unit, file extension, coordinate label, or visual separator."
+  },
+  {
+    "file": "src/components/inspector/ElevationPanel.tsx",
+    "kind": "JSX text",
+    "text": "m",
+    "count": 1,
+    "group": "technical-token",
+    "priority": "exception",
+    "note": "Unit, file extension, coordinate label, or visual separator."
+  },
+  {
+    "file": "src/components/inspector/views/polyline/PolylineWaypointList.tsx",
+    "kind": "JSX text",
+    "text": "x, y",
+    "count": 1,
+    "group": "technical-token",
+    "priority": "exception",
+    "note": "Unit, file extension, coordinate label, or visual separator."
+  },
+  {
+    "file": "src/components/inspector/views/project-layout.tsx",
+    "kind": "JSX text",
+    "text": "px/m",
+    "count": 1,
+    "group": "technical-token",
+    "priority": "exception",
+    "note": "Unit, file extension, coordinate label, or visual separator."
+  },
+  {
+    "file": "src/components/inspector/views/single-shape.tsx",
+    "kind": "JSX text",
+    "text": "X (",
+    "count": 1,
+    "group": "technical-token",
+    "priority": "exception",
+    "note": "Unit, file extension, coordinate label, or visual separator."
+  },
+  {
+    "file": "src/components/inspector/views/single-shape.tsx",
+    "kind": "JSX text",
+    "text": "Y (",
+    "count": 1,
+    "group": "technical-token",
+    "priority": "exception",
+    "note": "Unit, file extension, coordinate label, or visual separator."
+  },
+  {
+    "file": "src/components/landing/Footer.tsx",
+    "kind": "JSX prop alt",
+    "text": "TrackDraw",
+    "count": 2,
+    "group": "intentional-brand-alt",
+    "priority": "exception",
+    "note": "Brand-only alt text is intentionally stable unless the image needs descriptive alt copy."
+  },
+  {
+    "file": "src/components/landing/PublicSiteHeader.tsx",
+    "kind": "JSX prop alt",
+    "text": "TrackDraw",
+    "count": 2,
+    "group": "intentional-brand-alt",
+    "priority": "exception",
+    "note": "Brand-only alt text is intentionally stable unless the image needs descriptive alt copy."
+  },
+  {
+    "file": "src/components/ui/breadcrumb.tsx",
+    "kind": "JSX prop aria-label",
+    "text": "breadcrumb",
+    "count": 1,
+    "group": "design-system-exception",
+    "priority": "exception",
+    "note": "Design-system primitive default; only translate when the primitive gets app-level i18n context."
+  },
+  {
+    "file": "src/components/ui/spinner.tsx",
+    "kind": "JSX prop aria-label",
+    "text": "Loading",
+    "count": 1,
+    "group": "design-system-exception",
+    "priority": "exception",
+    "note": "Design-system primitive default; only translate when the primitive gets app-level i18n context."
+  }
+]

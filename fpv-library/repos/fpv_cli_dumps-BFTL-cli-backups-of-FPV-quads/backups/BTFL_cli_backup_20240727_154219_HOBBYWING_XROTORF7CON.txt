@@ -1,0 +1,65 @@
+defaults nosave
+
+
+# version
+# Betaflight / STM32F7X2 (S7X2) 4.3.0 Jun 14 2022 / 00:50:37 (229ac66) MSP API: 1.44
+# config: manufacturer_id: HOWI, board_name: HOBBYWING_XROTORF7CO, version: 7f1abbf7, date: 2023-05-18T14:53:48Z
+
+# start the command batch
+batch start
+
+# reset configuration to default settings
+defaults nosave
+
+board_name HOBBYWING_XROTORF7CON
+manufacturer_id HOWI
+mcu_id 0051002c3233511839373734
+signature 
+
+# feature
+feature -RX_PARALLEL_PWM
+feature INFLIGHT_ACC_CAL
+feature RX_SERIAL
+feature RSSI_ADC
+feature LED_STRIP
+feature OSD
+
+# serial
+serial 0 64 115200 57600 0 115200
+
+# aux
+aux 0 0 0 1600 2100 0 0
+
+# master
+set acc_calibration = -3,-93,70,1
+set serialrx_provider = SBUS
+set motor_pwm_protocol = DSHOT600
+set ibata_offset = -350
+set osd_vbat_pos = 14570
+set osd_current_pos = 14740
+
+profile 0
+
+profile 1
+
+profile 2
+
+# restore original profile selection
+profile 0
+
+rateprofile 0
+
+rateprofile 1
+
+rateprofile 2
+
+rateprofile 3
+
+rateprofile 4
+
+rateprofile 5
+
+# restore original rateprofile selection
+rateprofile 0
+
+# save configuration

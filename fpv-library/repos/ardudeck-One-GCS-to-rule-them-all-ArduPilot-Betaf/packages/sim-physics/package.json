@@ -1,0 +1,27 @@
+{
+  "name": "@ardudeck/sim-physics",
+  "version": "0.1.0",
+  "description": "Pure 6DOF flight dynamics engine for the in-app simulator (ArduPilot JSON FDM backend)",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3",
+    "@types/node": "^20.10.5",
+    "vitest": "^2.1.9"
+  },
+  "keywords": ["sitl", "simulator", "physics", "6dof", "flight-dynamics", "ardupilot"],
+  "license": "MIT"
+}

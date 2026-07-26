@@ -1,0 +1,31 @@
+# systemd unit for the fpv-sim-mcp Streamable HTTP server.
+# Install: see deploy/DEPLOY.md. Assumes a dedicated non-root user "fpvsim"
+# and a checkout at /opt/fpv-sim-mcp. Reads MCP_AUTH_TOKEN from the
+# environment file so the secret never appears in `systemctl show` output
+# visible to other users.
+
+[Unit]
+Description=fpv-sim-mcp MCP server (Streamable HTTP)
+After=network.target
+
+[Service]
+Type=simple
+User=fpvsim
+Group=fpvsim
+WorkingDirectory=/opt/fpv-sim-mcp
+EnvironmentFile=/etc/fpv-sim-mcp/env
+ExecStart=/usr/bin/node dist/src/server/http.js
+Restart=on-failure
+RestartSec=2
+
+# Hardening: the process needs nothing but CPU and the checkout.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadOnlyPaths=/opt/fpv-sim-mcp
+MemoryMax=1G
+CPUQuota=200%
+
+[Install]
+WantedBy=multi-user.target

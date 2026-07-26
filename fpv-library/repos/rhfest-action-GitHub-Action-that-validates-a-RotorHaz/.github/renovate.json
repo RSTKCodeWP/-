@@ -1,0 +1,60 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "timezone": "Europe/Amsterdam",
+  "schedule": ["before 6am every weekday"],
+  "rebaseWhen": "behind-base-branch",
+  "dependencyDashboard": true,
+  "labels": ["dependencies"],
+  "lockFileMaintenance": {
+    "enabled": true,
+    "automerge": true
+  },
+  "commitMessagePrefix": "⬆️",
+  "ignoreDeps": ["ghcr.io/astral-sh/uv"],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^Dockerfile$/"],
+      "matchStrings": ["ARG PYTHON_VERSION=(?<currentValue>\\d+\\.\\d+)"],
+      "datasourceTemplate": "github-tags",
+      "depNameTemplate": "python/cpython"
+    }
+  ],
+  "packageRules": [
+    {
+      "matchManagers": ["pep621"],
+      "addLabels": ["python"]
+    },
+    {
+      "matchManagers": ["pep621"],
+      "matchDepTypes": ["tool.uv.dependency-groups"],
+      "rangeStrategy": "pin"
+    },
+    {
+      "matchManagers": ["pep621"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "automerge": true
+    },
+    {
+      "matchManagers": ["github-actions"],
+      "addLabels": ["github_actions"],
+      "rangeStrategy": "pin",
+      "extractVersion": "^(?<version>v\\d+\\.\\d+\\.\\d+)$",
+      "versioning": "regex:^v(?<major>\\d+)(\\.(?<minor>\\d+)\\.(?<patch>\\d+))?$"
+    },
+    {
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "automerge": true
+    },
+    {
+      "matchDepNames": ["python/cpython"],
+      "extractVersion": "^v(?<version>\\d+\\.\\d+)"
+    },
+    {
+      "matchDepNames": ["python/cpython"],
+      "groupName": "Python base version",
+      "matchUpdateTypes": ["minor", "patch"]
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+    "domain": "interface_laprf",
+    "name": "LapRF Interface",
+    "author": "RotorHazard Team",
+    "author_uri": "https://github.com/RotorHazard/RotorHazard/",
+    "description": "Control and data connection to Orqa/ImmersionRC LapRF 8-way",
+    "documentation_uri": "https://github.com/RotorHazard/LapRF-Interface",
+    "license": "RotorHazard",
+    "license_uri": "https://github.com/RotorHazard/RotorHazard/blob/main/LICENSE",
+    "version": "1.0.0",
+    "required_rhapi_version": "1.4"
+}

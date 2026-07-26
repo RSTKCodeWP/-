@@ -1,0 +1,29 @@
+<RCC>
+    <qresource prefix="/Icons">
+        <file>images/refresh.svg</file>
+        <file>images/Icon256.png</file>
+        <file>images/IconFile.ico</file>
+        <file>images/check.svg</file>
+        <file>images/x.svg</file>
+        <file>images/chviewico.svg</file>
+        <file>images/calibrate.svg</file>
+        <file>images/connect.svg</file>
+        <file>images/disconnect.svg</file>
+        <file>images/download.svg</file>
+        <file>images/reboot.svg</file>
+        <file>images/save.svg</file>
+        <file>images/send.svg</file>
+        <file>images/Pinout.png</file>
+        <file>images/center.svg</file>
+        <file>images/components_down.png</file>
+        <file>images/components_up.png</file>
+        <file>images/edge_left.png</file>
+        <file>images/edge_right.png</file>
+        <file>images/USB_down.png</file>
+        <file>images/USB_up.png</file>
+        <file>images/Background.svg</file>
+    </qresource>
+    <qresource prefix="/">
+        <file>css/stylesheet.css</file>
+    </qresource>
+</RCC>

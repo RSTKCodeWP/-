@@ -1,0 +1,172 @@
+#ifndef OTA_H
+#define OTA_H
+
+#include <Arduino.h>
+#include <vector>
+
+class Config;
+class LapTimer;
+class AsyncEventSource;
+class MultiNodeManager;
+class Webserver;
+
+// Drives the GitHub-based OTA update flow.
+//
+// Two phases, both initiated from the web UI:
+//   1. Check  — connects to the user's home WiFi (STA, alongside the AP),
+//               queries the GitHub Releases API for the latest tag, and reports
+//               whether an update is available.  Caller then prompts the user.
+//   2. Apply  — re-connects to home WiFi, streams the LittleFS image into the
+//               SPIFFS partition, then streams the firmware image into the
+//               inactive OTA app slot.  Reboots once at the end.
+//
+// All state-changes emit `updateProgress` SSE events so the UI can render a
+// progress bar without polling.  `loop()` must be called from the parallel
+// task; the actual download work runs there (blocking) when `requestApply()`
+// has been called.
+class OtaManager {
+public:
+    enum State {
+        STATE_IDLE              = 0,
+        STATE_CONNECTING        = 1,  // associating with home WiFi
+        STATE_CHECKING          = 2,  // hitting GitHub API
+        STATE_UPDATE_AVAILABLE  = 3,  // newer release found, waiting on user
+        STATE_UP_TO_DATE        = 4,  // already on latest
+        STATE_DOWNLOADING_FS    = 5,  // streaming littlefs.bin into SPIFFS partition
+        STATE_DOWNLOADING_FW    = 6,  // streaming firmware.bin into OTA app partition
+        STATE_REBOOTING         = 7,  // both flashes complete; about to ESP.restart()
+        STATE_ERROR             = 99
+    };
+
+    // One installable version returned by checkForUpdate.  The check now
+    // surfaces up to the most-recent 5 entries from GitHub so the UI can
+    // present an inline picker — letting the user upgrade, downgrade, or
+    // re-install the current version.  `kind` is computed by semver-comparing
+    // each entry's tag against the running FIRMWARE_VERSION.
+    struct ReleaseOption {
+        enum Kind { UPGRADE = 0, CURRENT = 1, DOWNGRADE = 2 };
+        String tag;             // e.g. "v0.1.2-beta.14"
+        String firmwareUrl;     // browser_download_url for firmware asset
+        String filesystemUrl;   // browser_download_url for littlefs asset
+        Kind   kind;
+    };
+
+    struct UpdateInfo {
+        String currentVersion;   // FIRMWARE_VERSION
+        String latestVersion;    // tag_name of the first option (newest non-draft)
+        bool   available;        // first option is an UPGRADE
+        String releaseNotes;     // release body (markdown, may be empty)
+        String firmwareUrl;      // browser_download_url for firmware asset (first option)
+        String filesystemUrl;    // browser_download_url for littlefs asset (first option)
+        std::vector<ReleaseOption> options;   // up to 5, newest-first; populated on pre-release channel
+    };
+
+    // multinode is optional — if provided, the check/apply flows pause it
+    // (disconnect clients on master, drop master STA on client) for the
+    // duration of the home-WiFi excursion to free TCP slots and the STA radio,
+    // then resume automatically.  Pass nullptr to skip the pause.
+    //
+    // webserver is also optional but strongly recommended in master mode: it
+    // lets OTA fully tear down the AP during a home-WiFi excursion (master's
+    // AP+STA mode + active client traffic reliably starves the new STA
+    // association on the C6) and restart it afterwards via the canonical
+    // startAP() helper.  Without it, master OTA falls back to AP+STA and
+    // may fail under client-mesh load.
+    void init(Config* config, LapTimer* timer, AsyncEventSource* events,
+              MultiNodeManager* multinode = nullptr,
+              Webserver* webserver = nullptr);
+    void loop();  // call from parallel task — drains pending apply work
+
+    // Synchronous: connects, queries GitHub, fills `out`.
+    // Returns false on error and sets `errorMessage`.
+    // **Must run on Core 0 (the parallel task), not on the AsyncWebServer
+    // request thread** — the WiFi mode changes inside (especially the
+    // master-mode AP teardown) tear down the TCP connection the handler is
+    // running on, and ESPAsyncWebServer panics if it can't flush its
+    // response.  Web handlers should call `requestCheck()` instead.
+    bool checkForUpdate(UpdateInfo& out, String& errorMessage);
+
+    // Schedules a check.  Returns immediately; the actual work happens on
+    // Core 0 from `loop()`.  Subscribe to /events or poll /api/update/status
+    // for the result.
+    void requestCheck();
+
+    // Schedules the apply phase.  Returns immediately; actual work happens in
+    // loop().  Caller should have already received URLs from a check.
+    void requestApply(const String& fwUrl, const String& fsUrl);
+
+    State   getState()           const { return _state; }
+    int     getProgressPercent() const { return _progressPercent; }
+    String  getStatusMessage()   const { return _statusMessage; }
+    bool    isInProgress()       const {
+        return _state == STATE_CONNECTING || _state == STATE_CHECKING ||
+               _state == STATE_DOWNLOADING_FS || _state == STATE_DOWNLOADING_FW ||
+               _state == STATE_REBOOTING;
+    }
+    // Returns the cached result of the last successful check.  Used by the
+    // /api/update/status endpoint so the browser can recover from a dropped
+    // HTTP response on the original /api/update/check call (the device's AP
+    // retunes during home-WiFi association, briefly losing client connections
+    // while the check itself runs to completion server-side).
+    const UpdateInfo& getLastInfo() const { return _lastInfo; }
+    bool   hasLastInfo() const { return _lastInfoValid; }
+
+    // True if a previous filesystem update did not complete (interrupted mid-write
+    // or failed its download). Set at init() from an NVS sentinel. Re-running the
+    // update clears it. Lets the UI/status surface "web assets may be incomplete".
+    bool   isFsRecoveryPending() const { return _fsRecoveryPending; }
+
+    // Static, NVS-backed equivalent of the above, safe to call before init() and
+    // from any context (reads NVS directly). The boot filesystem-mount path uses
+    // this to avoid auto-formatting a partition that re-running the update can still
+    // restore.
+    static bool filesystemUpdateIncomplete();
+
+    // Exposed so the webserver's /api/update/resume-multinode endpoint can
+    // call it from the frontend's cancel path without reaching into multinode
+    // directly (keeps the dependency one-way: webserver → ota → multinode).
+    void resumeMultinodeIfPaused();
+
+private:
+    Config*           _config    = nullptr;
+    LapTimer*         _timer     = nullptr;
+    AsyncEventSource* _events    = nullptr;
+    MultiNodeManager* _multinode = nullptr;
+    Webserver*        _webserver = nullptr;
+
+    State   _state           = STATE_IDLE;
+    int     _progressPercent = 0;
+    String  _statusMessage;
+
+    // Pending check / apply requests — set by requestCheck() / requestApply(),
+    // consumed by loop() on Core 0.  Keeping these out of the AsyncWebServer
+    // thread is critical: the WiFi mode changes during check/apply tear down
+    // the TCP connection the request handler is on, and ESPAsyncWebServer
+    // panics if it can't flush its response.
+    bool    _pendingCheck = false;
+    bool    _pendingApply = false;
+    String  _pendingFwUrl;
+    String  _pendingFsUrl;
+
+    // Cached result of the last successful check.  Persists across the
+    // AP-retune disconnect that drops the original HTTP response.
+    UpdateInfo _lastInfo;
+    bool       _lastInfoValid = false;
+
+    bool connectToHomeWifi(uint32_t timeoutMs, String& errorMessage);
+    void disconnectFromHomeWifi();
+    bool downloadAndFlash(const String& url, int target, const char* label, String& errorMessage);
+    // Verify both release assets are reachable & plausibly sized before any flash
+    // write, so we never wipe the filesystem and then find the firmware is missing.
+    bool preflightCheck(const String& fwUrl, const String& fsUrl, String& errorMessage);
+
+    bool _fsRecoveryPending = false;  // set at init() from the NVS filesystem sentinel
+
+    void setState(State s, const String& msg);
+    void setProgress(int percent);
+    void emitProgress();
+};
+
+extern OtaManager otaManager;
+
+#endif // OTA_H

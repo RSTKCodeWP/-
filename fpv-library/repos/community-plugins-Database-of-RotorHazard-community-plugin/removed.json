@@ -1,0 +1,7 @@
+[
+  {
+    "repository": "dutchdronesquad/rh-plugin-template",
+    "reason": "This is a demo plugin for developers",
+    "removal_type": "critical"
+  }
+]

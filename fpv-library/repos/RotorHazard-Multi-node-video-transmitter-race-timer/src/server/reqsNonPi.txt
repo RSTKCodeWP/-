@@ -1,0 +1,29 @@
+# System
+pip
+
+# Flask
+Flask==3.1.*
+itsdangerous==2.2.*
+Jinja2==3.1.*
+Werkzeug==3.1.*
+MarkupSafe==3.0.*
+
+# Socket
+Flask-SocketIO==5.6.*
+python-socketio==5.14.*
+python-engineio==4.12.*
+websocket-client==1.9.*
+
+# Database
+SQLAlchemy==2.0.*
+
+# gevent
+gevent==24.11.*
+gevent-websocket==0.10.*
+greenlet==3.1.*
+cffi==1.17.*
+
+# Other
+pyserial==3.5.*
+requests==2.34.*
+packaging==24.*

@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npm test
+
+  # The registry's data invariants are dev-import-gated (they must never 500
+  # the production worker), and lint/tsc/build never evaluate module bodies —
+  # this job is the ONLY automated place the asserts actually execute.
+  # No `npm ci`: the registry module is dependency-free by design and runs
+  # under Node's type stripping.
+  registry:
+    name: Registry invariants
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+      - run: npm run check:registry
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Build (with stub env)
+        env:
+          SESSION_SECRET: "ci-stub-secret-for-build-only"
+          PUBLIC_STORE_DOMAIN: "example.myshopify.com"
+          PUBLIC_STOREFRONT_API_TOKEN: "ci-stub"
+          PUBLIC_STOREFRONT_ID: "0"
+          PUBLIC_CHECKOUT_DOMAIN: "example.com"
+          PUBLIC_CUSTOMER_ACCOUNT_API_CLIENT_ID: "ci-stub"
+          PUBLIC_CUSTOMER_ACCOUNT_API_URL: "https://example.com"
+          PRIVATE_STOREFRONT_API_TOKEN: "ci-stub"
+          SHOP_ID: "0"
+        run: npm run build

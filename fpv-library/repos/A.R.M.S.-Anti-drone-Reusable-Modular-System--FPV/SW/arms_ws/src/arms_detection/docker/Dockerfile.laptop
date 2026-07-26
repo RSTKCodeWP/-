@@ -1,0 +1,44 @@
+# ============================================================
+# A.R.M.S. Detection Container — Laptop (x86, CPU or CUDA)
+# Base: ros:humble (Ubuntu 22.04 Jammy)
+# Model: YOLOv11 .pt (PyTorch)
+#
+# Build context: arms_ws/src/
+#   docker compose -f docker-compose.laptop.yml up --build
+# ============================================================
+FROM ros:humble
+
+# ---- ROS2 추가 패키지 ----
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ros-humble-sensor-msgs \
+        ros-humble-rosidl-default-generators \
+        ros-humble-rosidl-default-runtime \
+        python3-colcon-common-extensions \
+        python3-rosdep \
+        python3-pip \
+    && rm -rf /var/lib/apt/lists/*
+
+# ---- ML 패키지 (pip) ----
+# ultralytics: YOLO 추론 (.pt 파일을 PyTorch로 직접 실행)
+# opencv-python-headless: GUI 없는 컨테이너용 opencv
+RUN pip3 install --no-cache-dir \
+        ultralytics \
+ && pip3 install --no-cache-dir --force-reinstall \
+        opencv-python-headless
+
+# ---- Build arms_msgs inside the container ----
+WORKDIR /ros_ws/src
+COPY arms_msgs/ arms_msgs/
+
+WORKDIR /ros_ws
+RUN bash -c "source /opt/ros/humble/setup.bash && \
+    colcon build --packages-select arms_msgs --cmake-args -DCMAKE_BUILD_TYPE=Release"
+
+# ---- Copy detection node ----
+COPY arms_detection/docker/arms_yolo_detection_node.py /ros_ws/arms_yolo_detection_node.py
+
+# ---- Entry point ----
+CMD ["bash", "-c", \
+    "source /opt/ros/humble/setup.bash && \
+     source /ros_ws/install/setup.bash && \
+     python3 /ros_ws/arms_yolo_detection_node.py"]

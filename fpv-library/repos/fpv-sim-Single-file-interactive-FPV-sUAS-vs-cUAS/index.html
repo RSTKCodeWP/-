@@ -1,0 +1,1599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FPV sUAS vs cUAS // Force-on-Force Demonstration</title>
+<style>
+  :root{
+    --bg:#0b0e10; --panel:#10161a; --panel2:#0d1216; --border:#1d2930;
+    --text:#c4d0d4; --dim:#6d7f86; --blufor:#57c7ff; --opfor:#ff5d5d;
+    --rf:#ffb454; --ok:#69d18c; --unclass:#2e7d32;
+    --mono:ui-monospace,"Cascadia Mono","JetBrains Mono","SF Mono",Consolas,"Liberation Mono",monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:var(--bg); color:var(--text); font-family:var(--mono);
+    display:flex; flex-direction:column; overflow:hidden; font-size:13px;
+  }
+  .banner{
+    background:var(--unclass); color:#eaf5ea; text-align:center;
+    font-size:11px; letter-spacing:.25em; padding:2px 0; flex:0 0 auto;
+    text-transform:uppercase; user-select:none;
+  }
+  header{
+    flex:0 0 auto; display:flex; align-items:center; gap:18px;
+    padding:8px 14px; background:var(--panel); border-bottom:1px solid var(--border);
+  }
+  header .title{font-size:15px; letter-spacing:.12em; white-space:nowrap}
+  header .title b{color:#e8f2f5; font-weight:600}
+  header .title span{color:var(--dim)}
+  header .clock{
+    margin-left:auto; display:flex; align-items:baseline; gap:14px; white-space:nowrap;
+  }
+  header .clock #simclock{font-size:16px; color:#e8f2f5; letter-spacing:.08em}
+  header .clock #phase{font-size:11px; color:var(--rf); letter-spacing:.15em}
+  header .brand{
+    font-size:11px; letter-spacing:.35em; color:var(--dim);
+    border-left:1px solid var(--border); padding-left:14px; user-select:none;
+  }
+  header .hdr-link{
+    font-size:11px; letter-spacing:.15em; color:var(--text); text-decoration:none;
+    border:1px solid var(--border); padding:4px 10px; white-space:nowrap;
+  }
+  header .hdr-link:hover{border-color:var(--dim); color:#e8f2f5}
+  main{flex:1 1 auto; display:flex; min-height:0}
+  #mapwrap{flex:1 1 auto; position:relative; min-width:0; background:#060a0c}
+  #map{position:absolute; inset:0; width:100%; height:100%; cursor:crosshair}
+  aside{
+    flex:0 0 372px; display:flex; flex-direction:column; min-height:0;
+    border-left:1px solid var(--border); background:var(--panel2);
+  }
+  aside section{display:flex; flex-direction:column; min-height:0}
+  aside h3{
+    font-size:10px; letter-spacing:.28em; color:var(--dim); font-weight:600;
+    padding:7px 12px; border-bottom:1px solid var(--border); background:var(--panel);
+    text-transform:uppercase; flex:0 0 auto;
+  }
+  #detail{flex:0 0 auto; border-bottom:1px solid var(--border)}
+  #detailBody{padding:10px 12px; min-height:132px; font-size:12px; line-height:1.65}
+  #detailBody .kv{display:flex; justify-content:space-between; gap:10px}
+  #detailBody .kv .k{color:var(--dim)}
+  #detailBody .hdr{font-size:12px; letter-spacing:.12em; margin-bottom:6px; padding-bottom:5px; border-bottom:1px solid var(--border)}
+  #detailBody .none{color:var(--dim); font-size:11px; letter-spacing:.06em}
+  #logsec{flex:1 1 auto}
+  #log{flex:1 1 auto; overflow-y:auto; padding:6px 0; scrollbar-width:thin}
+  #log .row{
+    display:flex; gap:8px; padding:2px 12px; font-size:11px; line-height:1.5;
+    align-items:baseline;
+  }
+  #log .row:hover{background:rgba(255,255,255,.03)}
+  #log .lt{color:var(--dim); flex:0 0 58px}
+  #log .chip{flex:0 0 52px; font-size:9px; letter-spacing:.1em; text-align:center; border:1px solid; border-radius:2px; padding:0 2px}
+  #log .chip.B{color:var(--blufor); border-color:rgba(87,199,255,.45)}
+  #log .chip.O{color:var(--opfor); border-color:rgba(255,93,93,.45)}
+  #log .chip.S{color:var(--dim); border-color:var(--border)}
+  #log .tx{flex:1}
+  button{
+    font-family:var(--mono); font-size:13px; letter-spacing:.12em; color:var(--text);
+    background:#151d22; border:1px solid var(--border); border-radius:3px;
+    padding:10px 14px; cursor:pointer; text-transform:uppercase;
+  }
+  button:hover{border-color:#33454f; color:#e8f2f5}
+  button.active{border-color:var(--rf); color:var(--rf)}
+  button:focus-visible{outline:1px solid var(--rf); outline-offset:1px}
+  #ctrlsec{flex:0 0 auto; border-bottom:1px solid var(--border)}
+  #ctrlBody{padding:12px; display:flex; flex-direction:column; gap:10px}
+  .ctl-row{display:flex; gap:8px}
+  .ctl-row button{flex:1 1 0; min-width:0}
+  .ctl-lbl{
+    font-size:10px; letter-spacing:.2em; color:var(--dim);
+    text-transform:uppercase; user-select:none; margin-bottom:-4px;
+  }
+  #ctrlBody select{
+    font-family:var(--mono); font-size:12px; letter-spacing:.08em; color:var(--text);
+    background:#151d22; border:1px solid var(--border); border-radius:3px;
+    padding:9px 8px; cursor:pointer; text-transform:uppercase; width:100%;
+  }
+  #ctrlBody select:hover{border-color:#33454f; color:#e8f2f5}
+  #ctrlBody select:focus-visible{outline:1px solid var(--rf); outline-offset:1px}
+  .toggles{display:grid; grid-template-columns:1fr 1fr; gap:9px 12px; padding:2px 0}
+  .toggles label{
+    display:flex; align-items:center; gap:7px; font-size:12px; letter-spacing:.08em;
+    color:var(--dim); cursor:pointer; text-transform:uppercase; user-select:none;
+  }
+  .toggles label:hover{color:var(--text)}
+  .toggles input[type=checkbox]{accent-color:var(--rf); width:15px; height:15px; cursor:pointer; flex:none}
+  .seedrow{align-items:center}
+  .seedrow .seed{flex:1 1 auto; font-size:11px; color:var(--dim); letter-spacing:.08em}
+  .seedrow button{flex:0 0 auto}
+  #endcard{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    background:rgba(6,10,12,.72); backdrop-filter:blur(2px); z-index:5;
+  }
+  #endcard.hidden{display:none}
+  #endcard .card{
+    background:var(--panel); border:1px solid var(--border); border-radius:4px;
+    padding:26px 40px; text-align:center; box-shadow:0 12px 50px rgba(0,0,0,.6);
+  }
+  #endcard .card h2{font-size:20px; letter-spacing:.2em; margin-bottom:8px; font-weight:600}
+  #endcard .card p{font-size:12px; color:var(--dim); letter-spacing:.08em; margin-bottom:18px}
+  #endcard .card .btns{display:flex; gap:10px; justify-content:center}
+  @media (max-width: 920px){
+    aside{flex:0 0 300px}
+  }
+  @media (max-width: 700px){
+    main{flex-direction:column}
+    #mapwrap{flex:1 1 55%}
+    aside{flex:1 1 45%; border-left:none; border-top:1px solid var(--border); overflow-y:auto}
+    #ctrlsec,#detail,#logsec{flex:0 0 auto}
+    #log{max-height:200px}
+  }
+  @media (prefers-reduced-motion: reduce){
+    #endcard{backdrop-filter:none}
+  }
+</style>
+</head>
+<body>
+  <div class="banner">Unclassified // Notional Demonstration</div>
+  <header>
+    <div class="title"><b>FPV sUAS vs cUAS</b> <span>// FORCE-ON-FORCE</span></div>
+    <div class="clock">
+      <span id="simclock">T+00:00</span>
+      <span id="phase">PHASE I // EMPLACEMENT</span>
+    </div>
+    <a class="hdr-link" href="dashboard.html" title="Monte Carlo results dashboard">RESULTS</a>
+    <div class="brand">ONEARC</div>
+  </header>
+  <main>
+    <div id="mapwrap">
+      <canvas id="map"></canvas>
+      <div id="endcard" class="hidden">
+        <div class="card">
+          <h2 id="endTitle">ENDEX</h2>
+          <p id="endSub"></p>
+          <div class="btns">
+            <button id="btnReplay2">Replay</button>
+            <button id="btnNewSeed2">Random</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <aside>
+      <section id="ctrlsec">
+        <h3>Controls</h3>
+        <div id="ctrlBody">
+          <div class="ctl-row">
+            <button id="btnPlay">Play</button>
+            <button id="btnReset">Reset</button>
+          </div>
+          <div class="ctl-row" id="speedGrp">
+            <button data-spd="1">1x</button>
+            <button data-spd="2">2x</button>
+            <button data-spd="4" class="active">4x</button>
+            <button data-spd="8">8x</button>
+          </div>
+          <div class="ctl-lbl"><label for="scenario" style="cursor:pointer">Scenario</label></div>
+          <select id="scenario" title="Featured engagements">
+            <option value="20260719">Standard Engagement (BLUFOR)</option>
+            <option value="66">Discipline Wins, Fast (BLUFOR)</option>
+            <option value="57">Deliberate Fix (BLUFOR)</option>
+            <option value="41">OPFOR Prevails</option>
+            <option value="59">Close Race (OPFOR)</option>
+            <option value="custom" hidden>Custom Seed</option>
+          </select>
+          <div class="ctl-lbl">Map Layers</div>
+          <div class="toggles">
+            <label><input type="checkbox" id="tglRF"> RF Coverage</label>
+            <label><input type="checkbox" id="tglLOB" checked> LOBs</label>
+            <label><input type="checkbox" id="tglELL" checked> Ellipses</label>
+            <label><input type="checkbox" id="tglPATH" checked> Flight Paths</label>
+            <label><input type="checkbox" id="tglCAN" checked> Canopy</label>
+            <label><input type="checkbox" id="tglHUD" checked> Status HUD</label>
+          </div>
+          <div class="ctl-row seedrow">
+            <span class="seed">SEED <span id="seedVal"></span></span>
+            <button id="btnNewSeed">Random</button>
+          </div>
+        </div>
+      </section>
+      <section id="detail">
+        <h3>Unit Detail</h3>
+        <div id="detailBody"><div class="none">SELECT A UNIT ON THE MAP</div></div>
+      </section>
+      <section id="logsec">
+        <h3>Event Log</h3>
+        <div id="log"></div>
+      </section>
+    </aside>
+  </main>
+  <div class="banner">Unclassified // Notional Demonstration</div>
+
+<script>
+"use strict";
+/* =====================================================================
+   FPV sUAS vs cUAS FORCE-ON-FORCE DEMONSTRATION
+   Single-file interactive visualization. Notional data only.
+
+   TUNING: All key simulation parameters are in CONFIG directly below.
+   Distances in meters, speeds in m/s, times in simulated seconds,
+   angles in degrees true (converted to radians internally).
+   ===================================================================== */
+
+const CONFIG = {
+  SEED: 20260719,          // Deterministic seed. Same seed -> same engagement.
+  WORLD_M: 4000,           // Map is WORLD_M x WORLD_M meters.
+  SIM_DT: 0.1,             // Physics step, sim seconds.
+  DEFAULT_SPEED: 4,        // Playback multiplier at load.
+
+  DRONE: {
+    CRUISE_MPS: 18,        // Transit / search airspeed (approx 35 kts).
+    LOITER_MPS: 12,        // Holding-orbit airspeed (approx 23 kts, endurance-optimal).
+    DASH_MPS: 36,          // Attack-run airspeed.
+    TERMINAL_MPS: 45,      // Terminal homing airspeed (approx 87 kts).
+    TURN_DPS: 70,          // Max turn rate, deg/sec.
+    ALT_TRANSIT_AGL: 70,   // Transit altitude AGL, above canopy.
+    ALT_LOITER_AGL: 55,    // Holding-orbit altitude AGL.
+    ALT_TERMINAL_AGL: 12,  // Terminal dive-to altitude AGL.
+    CLIMB_MPS: 8,          // Altitude change rate.
+    ENDURANCE_S: 1200,     // Battery endurance at cruise, sim seconds.
+    LOITER_DRAIN: 0.62,    // Battery drain multiplier while holding (slower speed).
+    PUSH_BATT_PCT: 45,     // Bingo fuel: commit on best available fix at or below this.
+    HOLD_STANDOFF_M: 600,  // Holding orbit sits this far forward of own GCS toward the NAI.
+    HOLD_RADIUS_M: 130,    // Holding-orbit radius.
+    ACQ_RANGE_M: 220,      // Range at which FPV operator visually IDs the GCS.
+    TERMINAL_SEARCH_GROW: 22, // Expanding-search radius growth, m/s, when no joy at fix.
+    IMPACT_RANGE_M: 9,     // Detonation range.
+    WPT_RADIUS_M: 70       // Waypoint capture radius.
+  },
+
+  CUAS: {
+    SCAN_S: 1.5,           // DF scan revisit interval.
+    MAX_RANGE_M: 3600,     // Max detection range vs this emitter class.
+    BRG_SIGMA_DEG: 4.0,    // 1-sigma bearing error, clean conditions.
+    P_DETECT_UL: 0.40,     // Base per-scan detect prob, C2 uplink.
+    P_DETECT_DL: 0.65,     // Base per-scan detect prob, FPV video downlink.
+    MAX_MEAS: 140,         // LOB history cap per collection effort.
+    CANOPY_HGT_M: 18       // Canopy top height above ground for masking.
+  },
+
+  FIX: {
+    FIX_CEP_M: 240,        // "FIX ESTABLISHED" threshold.
+    COMMIT_CEP_M: 120,     // Attack-commit threshold.
+    PUSH_CEP_M: 260,       // Looser fix acceptable on a low-battery final push.
+    MIN_LOBS_SOLVE: 6,     // Min LOBs (from 2+ nodes) before a cut is attempted.
+    MIN_LOBS_2ND: 3,       // Min LOBs required from the second collector for a balanced fix.
+    MIN_LOBS_FIX: 10,      // Min LOBs before FIX can be declared.
+    MIN_LOBS_COMMIT: 12,   // Min LOBs before attack commit (operator confidence).
+    CEP_FLOOR_M: 35,       // Sensor-limited best-case CEP.
+    GOOD_CUT_DEG: 35       // LOB crossing angle giving full-confidence geometry.
+  },
+
+  // EMCON posture per side. Uplink pattern: on/off seconds (duty cycle).
+  // videoOff = 0 means continuous FPV downlink (poor discipline).
+  TEAMS: {
+    BLUFOR: { uplinkOn: 4,  uplinkOff: 13, videoOn: 3, videoOff: 7, launchT: 20,
+              emconLabel: "INTERMITTENT" },
+    OPFOR:  { uplinkOn: 10, uplinkOff: 4,  videoOn: 1, videoOff: 0, launchT: 26,
+              emconLabel: "CONTINUOUS" }
+  },
+
+  COLORS: {
+    BLUFOR: "#57c7ff", OPFOR: "#ff5d5d", RF: "#ffb454",
+    TEXT: "#c4d0d4", DIM: "#6d7f86"
+  }
+};
+
+/* ---------------------------- RNG ---------------------------------- */
+function mulberry32(a){
+  return function(){
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+let rng = mulberry32(CONFIG.SEED);
+function gauss(){
+  let u = 0, v = 0;
+  while (u === 0) u = rng();
+  while (v === 0) v = rng();
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+}
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const smooth01 = t => { t = clamp(t, 0, 1); return t * t * (3 - 2 * t); };
+const d2r = d => d * Math.PI / 180;
+const r2d = r => r * 180 / Math.PI;
+const dist = (ax, ay, bx, by) => Math.hypot(bx - ax, by - ay);
+// Bearing in radians, true north = 0, clockwise positive.
+const brgTo = (ax, ay, bx, by) => Math.atan2(bx - ax, by - ay);
+const normAng = a => { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; };
+const pad4 = n => String(Math.max(0, Math.min(9999, Math.round(n)))).padStart(4, "0");
+const gridRef = (x, y) => "GRID " + pad4(x / 10) + " " + pad4(y / 10);
+const fmtT = t => {
+  const s = Math.floor(t);
+  return "T+" + String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0");
+};
+
+/* -------------------------- TERRAIN -------------------------------- */
+// Seeded value-noise terrain: jungle interior, ridgelines, eastern coastline,
+// canopy field with clearings and one east-west trail.
+function makeNoise(seed){
+  const r = mulberry32(seed);
+  const G = 64, vals = new Float32Array(G * G);
+  for (let i = 0; i < G * G; i++) vals[i] = r();
+  return function(x, y){
+    x = ((x % G) + G) % G; y = ((y % G) + G) % G;
+    const x0 = Math.floor(x), y0 = Math.floor(y);
+    const x1 = (x0 + 1) % G, y1 = (y0 + 1) % G;
+    const fx = smooth01(x - x0), fy = smooth01(y - y0);
+    const v00 = vals[y0 * G + x0], v10 = vals[y0 * G + x1];
+    const v01 = vals[y1 * G + x0], v11 = vals[y1 * G + x1];
+    return lerp(lerp(v00, v10, fx), lerp(v01, v11, fx), fy);
+  };
+}
+
+const world = {
+  size: CONFIG.WORLD_M,
+  res: 200,                 // sample grid resolution
+  elevG: null, canG: null,  // Float32Array grids
+  trail: [], clearings: [],
+  built: false, seed: 0
+};
+
+function sampleGrid(grid, x, y){
+  const W = world.size, R = world.res;
+  const gx = clamp(x / W * (R - 1), 0, R - 1.0001);
+  const gy = clamp(y / W * (R - 1), 0, R - 1.0001);
+  const x0 = Math.floor(gx), y0 = Math.floor(gy);
+  const fx = gx - x0, fy = gy - y0;
+  const i = y0 * R + x0;
+  return lerp(
+    lerp(grid[i], grid[i + 1], fx),
+    lerp(grid[i + R], grid[i + R + 1], fx), fy);
+}
+const elevAt = (x, y) => sampleGrid(world.elevG, x, y);
+const canopyAt = (x, y) => sampleGrid(world.canG, x, y);
+
+function distToSeg(px, py, ax, ay, bx, by){
+  const dx = bx - ax, dy = by - ay;
+  const L2 = dx * dx + dy * dy;
+  let t = L2 ? ((px - ax) * dx + (py - ay) * dy) / L2 : 0;
+  t = clamp(t, 0, 1);
+  return Math.hypot(px - (ax + dx * t), py - (ay + dy * t));
+}
+
+function buildWorld(seed){
+  world.seed = seed;
+  const n1 = makeNoise(seed + 101);
+  const n2 = makeNoise(seed + 202);
+  const n3 = makeNoise(seed + 303);
+  const wr = mulberry32(seed + 404);
+  const W = world.size, R = world.res;
+  world.elevG = new Float32Array(R * R);
+  world.canG = new Float32Array(R * R);
+
+  // Clearings: seeded LZ-sized gaps in the canopy.
+  world.clearings = [];
+  for (let i = 0; i < 6; i++){
+    world.clearings.push({
+      x: 500 + wr() * 2600, y: 500 + wr() * 3000, r: 90 + wr() * 130
+    });
+  }
+  // Trail: winding east-west track through the interior.
+  world.trail = [];
+  let ty = 1500 + wr() * 900;
+  for (let tx = 0; tx <= 3400; tx += 340){
+    ty += (wr() - 0.5) * 420;
+    ty = clamp(ty, 800, 3100);
+    world.trail.push({ x: tx, y: ty });
+  }
+
+  for (let gy = 0; gy < R; gy++){
+    for (let gx = 0; gx < R; gx++){
+      const x = gx / (R - 1) * W, y = gy / (R - 1) * W;
+      const u = x / W, v = y / W;
+      // Elevation: fBm shaped into low jungle hills and a spine ridge.
+      let base = 0.52 * n1(u * 3.2, v * 3.2)
+               + 0.30 * n1(u * 6.4 + 7, v * 6.4 + 3)
+               + 0.18 * n1(u * 13 + 13, v * 13 + 9);
+      let e = Math.pow(base, 1.35) * 265 - 18;
+      // Eastern coastline with a shallow bay in the northeast.
+      const coast = smooth01((x - 3180) / 640);
+      const bay = smooth01((x - 2750) / 700) * smooth01((y - 2900) / 500);
+      e -= coast * 330 + bay * 200;
+      e = Math.max(e, -45);
+      world.elevG[gy * R + gx] = e;
+
+      // Canopy density 0..1.
+      let c = (0.6 * n2(u * 5, v * 5) + 0.4 * n2(u * 11 + 5, v * 11 + 2)) * 1.55 - 0.28;
+      c += 0.15 * n3(u * 23, v * 23) - 0.07;
+      c = clamp(c, 0, 1);
+      if (e < 3) c = 0;                       // beach / water
+      if (e > 195) c *= clamp(1 - (e - 195) / 60, 0.25, 1); // thin on crests
+      for (const cl of world.clearings){
+        const d = dist(x, y, cl.x, cl.y);
+        if (d < cl.r * 1.5) c *= smooth01((d - cl.r * 0.55) / (cl.r * 0.9));
+      }
+      for (let i = 0; i < world.trail.length - 1; i++){
+        const a = world.trail[i], b = world.trail[i + 1];
+        const d = distToSeg(x, y, a.x, a.y, b.x, b.y);
+        if (d < 20) { c *= 0.12; break; }
+        else if (d < 45) c *= 0.55;
+      }
+      world.canG[gy * R + gx] = c;
+    }
+  }
+  world.built = true;
+  renderTerrainLayers();
+}
+
+/* ------------------ TERRAIN OFFSCREEN RENDER ------------------------ */
+const terrainCv = document.createElement("canvas");
+const canopyCv = document.createElement("canvas");
+
+function renderTerrainLayers(){
+  const R = world.res, S = 600; // offscreen pixel size
+  terrainCv.width = S; terrainCv.height = S;
+  canopyCv.width = S; canopyCv.height = S;
+  const tc = terrainCv.getContext("2d");
+  const cc = canopyCv.getContext("2d");
+  const px = S / R;
+  const cellM = world.size / R;
+
+  for (let gy = 0; gy < R; gy++){
+    for (let gx = 0; gx < R; gx++){
+      const e = world.elevG[gy * R + gx];
+      // Screen y is flipped: north (high y world) at top.
+      const sy = (R - 1 - gy) * px;
+      const sx = gx * px;
+      if (e < 0){
+        const d = clamp(-e / 45, 0, 1);
+        tc.fillStyle = `rgb(${10 + 6 * (1 - d)},${22 + 12 * (1 - d)},${34 + 14 * (1 - d)})`;
+      } else {
+        // Hillshade from NW light.
+        const eR = world.elevG[gy * R + Math.min(gx + 1, R - 1)];
+        const eD = world.elevG[Math.min(gy + 1, R - 1) * R + gx];
+        const dzx = (eR - e) / cellM, dzy = (eD - e) / cellM;
+        const shade = clamp(0.62 + 0.9 * (-dzx * 0.7 + dzy * 0.7), 0.35, 1.05);
+        const h = clamp(e / 240, 0, 1);
+        const r0 = lerp(18, 44, h) * shade;
+        const g0 = lerp(30, 52, h) * shade;
+        const b0 = lerp(22, 38, h) * shade;
+        tc.fillStyle = `rgb(${r0 | 0},${g0 | 0},${b0 | 0})`;
+      }
+      tc.fillRect(sx, sy, px + 0.5, px + 0.5);
+
+      const c = world.canG[gy * R + gx];
+      if (c > 0.12){
+        cc.fillStyle = `rgba(16,46,28,${(c * 0.62).toFixed(3)})`;
+        cc.fillRect(sx, sy, px + 0.5, px + 0.5);
+      }
+    }
+  }
+  // Shoreline hint.
+  tc.strokeStyle = "rgba(150,190,200,0.16)"; tc.lineWidth = 1;
+  // Trail on terrain layer.
+  tc.strokeStyle = "rgba(120,110,80,0.55)"; tc.lineWidth = 1.6;
+  tc.beginPath();
+  world.trail.forEach((p, i) => {
+    const sx = p.x / world.size * S, sy = S - p.y / world.size * S;
+    i ? tc.lineTo(sx, sy) : tc.moveTo(sx, sy);
+  });
+  tc.stroke();
+  // Canopy speckle texture for depth.
+  const sr = mulberry32(world.seed + 909);
+  cc.fillStyle = "rgba(8,26,16,0.5)";
+  for (let i = 0; i < 2600; i++){
+    const x = sr() * world.size, y = sr() * world.size;
+    if (canopyAt(x, y) > 0.35){
+      cc.fillRect(x / world.size * S, S - y / world.size * S, 1.4, 1.4);
+    }
+  }
+}
+
+/* --------------------- RF PROPAGATION ------------------------------- */
+// Path attenuation factor between two points with antenna/flight heights (AGL).
+// Terrain blocking is heavy but not absolute (diffraction); canopy along the
+// path is a soft loss. Returns 0 (clean LOS) .. ~6 (severely masked).
+function pathAtten(ax, ay, aAgl, bx, by, bAgl){
+  const aZ = Math.max(elevAt(ax, ay), 0) + aAgl;
+  const bZ = Math.max(elevAt(bx, by), 0) + bAgl;
+  const K = 14;
+  let block = 0, veg = 0;
+  for (let i = 1; i < K; i++){
+    const t = i / K;
+    const x = lerp(ax, bx, t), y = lerp(ay, by, t);
+    const g = elevAt(x, y);
+    const losZ = lerp(aZ, bZ, t);
+    if (g > losZ + 2) block += 1;
+    else if (losZ < g + CONFIG.CUAS.CANOPY_HGT_M) veg += canopyAt(x, y);
+  }
+  return Math.min(6, (block / K) * 4.2 + veg * 0.14);
+}
+
+/* ----------------------- SIM STATE --------------------------------- */
+const state = {
+  t: 0, playing: false, speed: CONFIG.DEFAULT_SPEED,
+  seed: CONFIG.SEED,
+  teams: null, pulses: [], explosions: [],
+  winner: null, endT: null, endShown: false,
+  selected: null, nextScanT: 0, phase: "PHASE I // EMPLACEMENT"
+};
+
+function makeTeam(side, enemySide){
+  const P = CONFIG.TEAMS[side];
+  return {
+    side, enemy: enemySide, color: CONFIG.COLORS[side],
+    emcon: P, launchT: P.launchT,
+    ulPhase: rng() * 20, viPhase: rng() * 8,
+    gcs: { id: side + "-GCS", x: 0, y: 0, destroyed: false, transmitting: false },
+    nodes: [], // populated in resetSim
+    drone: null,
+    // Collection effort against the enemy GCS.
+    meas: [],                 // {sx,sy,brg,sig,r,t}
+    est: { p: null, cep: Infinity, s1: 0, s2: 0, ang: 0, solved: false },
+    estHist: [],
+    flags: { firstLOB: false, crossFix: false, fixed: false, committed: false,
+             terminal: false, acquired: false, dlFirst: false, lowBatt: false,
+             onStation: false },
+    droneTrack: null,         // noisy track of enemy drone from DL intercepts
+    searchBox: null, nai: "", holdPt: null
+  };
+}
+
+function makeDrone(team, x, y){
+  return {
+    id: team.side + "-sUAS-1", side: team.side,
+    x, y, agl: 0, hdg: 0, spd: 0,
+    state: "STANDBY", launched: false, airT: 0, batt: 100,
+    wps: [], wpi: 0, trail: [], trailAcc: 0,
+    videoOn: false, downed: false, linkLost: false, linkLostT: 0,
+    orbitA: 0, fixReached: false, searchR: 0
+  };
+}
+
+function lawnmower(box, r){
+  // North-south legs across the named area of interest.
+  const wps = [];
+  const legs = Math.max(3, Math.round(box.w / 320));
+  for (let i = 0; i <= legs; i++){
+    const x = box.x + (i / legs) * box.w;
+    const top = { x, y: box.y + box.h }, bot = { x, y: box.y };
+    if (i % 2 === 0){ wps.push(bot, top); } else { wps.push(top, bot); }
+  }
+  return wps;
+}
+
+function resetSim(seed){
+  state.seed = seed;
+  rng = mulberry32(seed);
+  buildWorld(seed);
+  state.t = 0; state.pulses = []; state.explosions = [];
+  state.winner = null; state.endT = null; state.endShown = false;
+  state.nextScanT = 0; state.selected = null;
+  state.phase = "PHASE I // EMPLACEMENT";
+  document.getElementById("endcard").classList.add("hidden");
+  document.getElementById("log").innerHTML = "";
+  document.getElementById("seedVal").textContent = seed;
+
+  const B = makeTeam("BLUFOR", "OPFOR");
+  const O = makeTeam("OPFOR", "BLUFOR");
+  state.teams = { BLUFOR: B, OPFOR: O };
+
+  const j = () => (rng() - 0.5) * 120; // emplacement jitter
+  // BLUFOR set in on the western side, OPFOR eastern interior short of the coast.
+  B.gcs.x = 640 + j();  B.gcs.y = 2050 + j();
+  O.gcs.x = 3020 + j(); O.gcs.y = 1900 + j();
+  // cUAS nodes are emplaced with a wide baseline PERPENDICULAR to the
+  // expected threat axis (east-west here). Separating the collectors in
+  // easting as well as northing gives well-crossed LOBs from both nodes,
+  // rather than two look angles down nearly the same bearing.
+  B.nodes = [
+    { id: "BLUFOR-cUAS-1", x: 1180 + j(), y: 2760 + j(), det: 0, lastBrg: null, lastT: -99, dl: 0 },
+    { id: "BLUFOR-cUAS-2", x: 1240 + j(), y: 1240 + j(), det: 0, lastBrg: null, lastT: -99, dl: 0 }
+  ];
+  O.nodes = [
+    { id: "OPFOR-cUAS-1", x: 2520 + j(), y: 2740 + j(), det: 0, lastBrg: null, lastT: -99, dl: 0 },
+    { id: "OPFOR-cUAS-2", x: 2560 + j(), y: 1220 + j(), det: 0, lastBrg: null, lastT: -99, dl: 0 }
+  ];
+  // Keep emplacements out of the water.
+  for (const t of [B, O]){
+    for (const u of [t.gcs, ...t.nodes]){
+      let guard = 0;
+      while (elevAt(u.x, u.y) < 4 && guard++ < 40){ u.x -= 60; }
+    }
+  }
+  B.drone = makeDrone(B, B.gcs.x, B.gcs.y);
+  O.drone = makeDrone(O, O.gcs.x, O.gcs.y);
+
+  // Suspected enemy locations drive each side's named area of interest.
+  B.searchBox = { x: 2450, y: 1250, w: 1050, h: 1400 }; B.nai = "NAI 2";
+  O.searchBox = { x: 350,  y: 1350, w: 1050, h: 1400 }; O.nai = "NAI 1";
+  // Holding point: forward of own GCS on the bearing to the NAI center, at
+  // standoff. The drone loiters here (close, slow) while the ground cUAS
+  // builds the fix, then dashes to the target once committed.
+  for (const T of [B, O]){
+    const cx = T.searchBox.x + T.searchBox.w / 2, cy = T.searchBox.y + T.searchBox.h / 2;
+    const b = brgTo(T.gcs.x, T.gcs.y, cx, cy);
+    T.holdPt = {
+      x: clamp(T.gcs.x + Math.sin(b) * CONFIG.DRONE.HOLD_STANDOFF_M, 60, world.size - 60),
+      y: clamp(T.gcs.y + Math.cos(b) * CONFIG.DRONE.HOLD_STANDOFF_M, 60, world.size - 60)
+    };
+    T.drone.wps = [T.holdPt];
+  }
+
+  addLog("SYS", "SIMULATION INITIALIZED // SEED " + seed + " // AO KATANA (NOTIONAL)");
+  addLog("BLUFOR", "GCS AND cUAS DF NODES EMPLACED " + gridRef(B.gcs.x, B.gcs.y) + " // EMCON " + B.emcon.emconLabel);
+  addLog("OPFOR", "GCS AND cUAS DF NODES EMPLACED " + gridRef(O.gcs.x, O.gcs.y) + " // EMCON " + O.emcon.emconLabel);
+  renderPanel();
+}
+
+/* ----------------------- EMISSIONS --------------------------------- */
+function uplinkActive(team){
+  const d = team.drone;
+  if (!d.launched || d.downed || d.state === "IMPACT" || team.gcs.destroyed) return false;
+  const p = team.emcon;
+  const per = p.uplinkOn + p.uplinkOff;
+  return ((state.t + team.ulPhase) % per) < p.uplinkOn;
+}
+function videoActive(team){
+  const d = team.drone;
+  if (!d.launched || d.downed || d.linkLost || d.state === "IMPACT") return false;
+  if (team.emcon.videoOff === 0) return true;                    // continuous
+  if (d.state === "COMMIT" || d.state === "TERMINAL") return true; // needs eyes on
+  const per = team.emcon.videoOn + team.emcon.videoOff;
+  return ((state.t + team.viPhase) % per) < team.emcon.videoOn;
+}
+
+/* --------------------- DF COLLECT AND FIX --------------------------- */
+function doScans(){
+  for (const side of ["BLUFOR", "OPFOR"]){
+    const T = state.teams[side];
+    const E = state.teams[T.enemy];
+    if (T.gcs.destroyed) continue;
+    // C2 uplink intercepts: LOBs terminate at the enemy GCS.
+    if (uplinkActive(E)){
+      for (const nd of T.nodes){
+        const r = dist(nd.x, nd.y, E.gcs.x, E.gcs.y);
+        if (r > CONFIG.CUAS.MAX_RANGE_M) continue;
+        const att = pathAtten(nd.x, nd.y, 4, E.gcs.x, E.gcs.y, 2.5);
+        const p = CONFIG.CUAS.P_DETECT_UL * clamp(1.15 - r / CONFIG.CUAS.MAX_RANGE_M, 0, 1) * Math.exp(-att);
+        if (rng() < p){
+          const sig = d2r(CONFIG.CUAS.BRG_SIGMA_DEG) * (1 + 0.5 * att);
+          const brg = brgTo(nd.x, nd.y, E.gcs.x, E.gcs.y) + gauss() * sig;
+          T.meas.push({ sx: nd.x, sy: nd.y, brg, sig, t: state.t });
+          if (T.meas.length > CONFIG.CUAS.MAX_MEAS) T.meas.shift();
+          nd.det++; nd.lastBrg = brg; nd.lastT = state.t;
+          if (!T.flags.firstLOB){
+            T.flags.firstLOB = true;
+            addLog(side, nd.id.replace(side + "-", "") + " INITIAL LOB " +
+              String(Math.round((r2d(brg) + 360) % 360)).padStart(3, "0") +
+              "T // C2 UPLINK 915 MHZ // HOSTILE GCS EMITTING");
+          }
+        }
+      }
+      updateFix(T, E);
+    }
+    // FPV video downlink intercepts: track on the enemy air vehicle.
+    if (videoActive(E)){
+      const d = E.drone;
+      for (const nd of T.nodes){
+        const r = dist(nd.x, nd.y, d.x, d.y);
+        if (r > CONFIG.CUAS.MAX_RANGE_M) continue;
+        const att = pathAtten(nd.x, nd.y, 4, d.x, d.y, Math.max(d.agl, 5));
+        const p = CONFIG.CUAS.P_DETECT_DL * clamp(1.2 - r / CONFIG.CUAS.MAX_RANGE_M, 0, 1) * Math.exp(-att);
+        if (rng() < p){
+          nd.dl++;
+          T.droneTrack = { x: d.x + gauss() * 55, y: d.y + gauss() * 55, t: state.t };
+          if (!T.flags.dlFirst){
+            T.flags.dlFirst = true;
+            addLog(side, "FPV VIDEO DOWNLINK DETECTED 5.8 GHZ // HOSTILE sUAS AIRBORNE");
+          }
+        }
+      }
+    }
+  }
+}
+
+// Weighted least-squares intersection of accumulated LOBs.
+// Measurement model: perpendicular offset from each bearing line,
+// noise sigma_perp = sig * range. Covariance = inverse normal matrix.
+function updateFix(T, E){
+  const M = T.meas;
+  if (M.length < CONFIG.FIX.MIN_LOBS_SOLVE) return;
+  // Require genuine multi-sensor geometry. A cut dominated by one collector
+  // (many looks from one node, a single crossing LOB from another) is close
+  // to a single-sensor solution: the along-range position slides freely.
+  // Count LOBs per sensor and require the SECOND-strongest to carry weight.
+  const perSensor = {};
+  for (const m of M){
+    const key = Math.round(m.sx) + "_" + Math.round(m.sy);
+    perSensor[key] = (perSensor[key] || 0) + 1;
+  }
+  const counts = Object.values(perSensor).sort((a, b) => b - a);
+  if (counts.length < 2 || counts[1] < CONFIG.FIX.MIN_LOBS_2ND) return;
+  let p0 = T.est.p || { x: T.searchBox.x + T.searchBox.w / 2, y: T.searchBox.y + T.searchBox.h / 2 };
+  for (let iter = 0; iter < 2; iter++){
+    let A11 = 0, A12 = 0, A22 = 0, b1 = 0, b2 = 0;
+    for (const m of M){
+      const r = Math.max(300, dist(m.sx, m.sy, p0.x, p0.y));
+      const w = 1 / Math.pow(m.sig * r, 2);
+      const nx = Math.cos(m.brg), ny = -Math.sin(m.brg); // perpendicular to LOB
+      const c = nx * m.sx + ny * m.sy;
+      A11 += w * nx * nx; A12 += w * nx * ny; A22 += w * ny * ny;
+      b1 += w * nx * c; b2 += w * ny * c;
+    }
+    const det = A11 * A22 - A12 * A12;
+    if (Math.abs(det) < 1e-12) return; // near-parallel geometry, no cut yet
+    const px = (A22 * b1 - A12 * b2) / det;
+    const py = (A11 * b2 - A12 * b1) / det;
+    p0 = { x: px, y: py };
+    if (iter === 1){
+      // Residual-based covariance inflation keeps the ellipse honest when
+      // the small-sample geometry makes the formal covariance optimistic.
+      let chi2 = 0;
+      for (const m of M){
+        const r = Math.max(300, dist(m.sx, m.sy, p0.x, p0.y));
+        const w = 1 / Math.pow(m.sig * r, 2);
+        const nx = Math.cos(m.brg), ny = -Math.sin(m.brg);
+        const res = nx * p0.x + ny * p0.y - (nx * m.sx + ny * m.sy);
+        chi2 += w * res * res;
+      }
+      const scale = Math.max(1, chi2 / Math.max(1, M.length - 2));
+      // Covariance = scale * A^-1; eigen-decompose for the error ellipse.
+      const C11 = scale * A22 / det, C12 = scale * -A12 / det, C22 = scale * A11 / det;
+      const tr = C11 + C22, dd = C11 * C22 - C12 * C12;
+      const disc = Math.sqrt(Math.max(0, tr * tr / 4 - dd));
+      const l1 = tr / 2 + disc, l2 = Math.max(1, tr / 2 - disc);
+      const s1 = Math.sqrt(l1), s2 = Math.sqrt(l2);
+      const ang = Math.atan2(l1 - C11, C12 || 1e-9); // eigvec of l1, math-frame
+      const cep = Math.max(CONFIG.FIX.CEP_FLOOR_M, 0.59 * (s1 + s2));
+      // Geometric quality from genuine multi-sensor crossing. Group LOBs by
+      // sensor; take the two strongest collectors, compute the crossing angle
+      // between their mean bearings, and weight by how balanced the evidence
+      // is. A fix leaning on one sensor (few crossing LOBs from the other)
+      // has weak along-range constraint and must report a large CEP.
+      const byS = {};
+      for (const m of M){
+        const key = Math.round(m.sx) + "_" + Math.round(m.sy);
+        (byS[key] = byS[key] || { n: 0, sx: m.sx, sy: m.sy }).n++;
+      }
+      const grp = Object.values(byS).sort((a, b) => b.n - a.n);
+      const s0 = grp[0], sB = grp[1] || grp[0];
+      const b0 = Math.atan2(p0.x - s0.sx, p0.y - s0.sy);
+      const bB = Math.atan2(p0.x - sB.sx, p0.y - sB.sy);
+      let cross = Math.abs(normAng(b0 - bB));
+      const angFactor = clamp(Math.sin(cross) / Math.sin(d2r(CONFIG.FIX.GOOD_CUT_DEG)), 0.05, 1);
+      // Balance: share of LOBs held by the weaker of the two collectors,
+      // normalized so a 50/50 split scores 1.0 and a lopsided split scores low.
+      const balance = clamp((sB.n / (s0.n + sB.n)) / 0.5, 0.12, 1);
+      const geomCep = cep / (angFactor * balance);
+      T.estHist = T.estHist || [];
+      T.estHist.push({ x: p0.x, y: p0.y, t: state.t });
+      while (T.estHist.length > 6) T.estHist.shift();
+      let jitter = 0;
+      if (T.estHist.length >= 4){
+        const n = T.estHist.length, mx = T.estHist.reduce((s, e) => s + e.x, 0) / n,
+              my = T.estHist.reduce((s, e) => s + e.y, 0) / n;
+        jitter = Math.sqrt(T.estHist.reduce((s, e) => s + (e.x - mx) ** 2 + (e.y - my) ** 2, 0) / n);
+      } else {
+        jitter = 9999;
+      }
+      const effCep = Math.max(cep, geomCep, jitter);
+      T.est = { p: p0, s1, s2, ang, cep: effCep, formalCep: cep,
+                geomCep, jitter, cutDeg: r2d(cross), balance, solved: true };
+    }
+  }
+  if (!T.flags.crossFix && T.est.solved){
+    T.flags.crossFix = true;
+    addLog(T.side, "CROSS-FIX FORMING ON HOSTILE C2 EMITTER // " + M.length + " LOBS HELD");
+  }
+  if (!T.flags.fixed && M.length >= CONFIG.FIX.MIN_LOBS_FIX && T.est.cep < CONFIG.FIX.FIX_CEP_M){
+    T.flags.fixed = true;
+    addLog(T.side, "FIX ESTABLISHED HOSTILE GCS " + gridRef(T.est.p.x, T.est.p.y) +
+      " // CEP " + Math.round(T.est.cep) + "M // " + M.length + " LOBS");
+  }
+}
+
+/* ----------------------- DRONE FSM ---------------------------------- */
+function steerToward(d, tx, ty, dt){
+  const want = brgTo(d.x, d.y, tx, ty);
+  const diff = normAng(want - d.hdg);
+  const maxTurn = d2r(CONFIG.DRONE.TURN_DPS) * dt;
+  d.hdg = normAng(d.hdg + clamp(diff, -maxTurn, maxTurn));
+}
+
+function stepDrone(T, dt){
+  const d = T.drone, E = state.teams[T.enemy], D = CONFIG.DRONE;
+
+  if (!d.launched){
+    if (state.t >= T.launchT && !T.gcs.destroyed){
+      d.launched = true; d.state = "TRANSIT"; d.agl = 2;
+      d.hdg = brgTo(d.x, d.y, d.wps[0].x, d.wps[0].y);
+      addLog(T.side, "sUAS-1 LAUNCH " + gridRef(d.x, d.y) + " // KINETIC PAYLOAD // HOLDING FWD OF FLOT PENDING FIX");
+    }
+    return;
+  }
+  if (d.downed || d.state === "IMPACT") return;
+
+  // Battery. Drain scales with flight regime: holding at loiter speed is
+  // far cheaper than transit, dash, or terminal.
+  const drainMult = (d.state === "HOLD") ? D.LOITER_DRAIN : 1.0;
+  d.airT += dt * drainMult;
+  d.batt = clamp(100 * (1 - d.airT / D.ENDURANCE_S), 0, 100);
+  if (d.batt < 30 && !T.flags.lowBatt){
+    T.flags.lowBatt = true;
+    addLog(T.side, "sUAS-1 BATTERY 30 PCT // ENDURANCE LIMITED");
+  }
+  if (d.batt <= 0){
+    d.downed = true; d.state = "DOWN";
+    addLog(T.side, "sUAS-1 DOWN // BATTERY EXHAUSTED " + gridRef(d.x, d.y));
+    return;
+  }
+
+  // Own GCS destroyed: C2 severed.
+  if (T.gcs.destroyed && !d.linkLost){
+    d.linkLost = true; d.linkLostT = state.t; d.state = "LINK LOST";
+    addLog(T.side, "sUAS-1 C2 LINK LOST // NO OPERATOR IN THE LOOP");
+  }
+  if (d.linkLost){
+    d.spd = Math.max(0, d.spd - 2 * dt);
+    d.agl = Math.max(0, d.agl - 4 * dt);
+    if (state.t - d.linkLostT > 8 && d.state !== "DOWN"){
+      d.downed = true; d.state = "DOWN";
+      addLog(T.side, "sUAS-1 DOWN " + gridRef(d.x, d.y));
+    }
+    moveDrone(d, dt);
+    return;
+  }
+
+  // Attack commit: own fix quality inside threshold.
+  if (!T.flags.committed && T.est.solved && T.flags.fixed &&
+      T.meas.length >= CONFIG.FIX.MIN_LOBS_COMMIT &&
+      T.est.cep < CONFIG.FIX.COMMIT_CEP_M &&
+      (d.state === "TRANSIT" || d.state === "HOLD")){
+    T.flags.committed = true; d.state = "COMMIT";
+    addLog(T.side, "ATTACK COMMIT // sUAS-1 EGRESS HOLD // TASKED HOSTILE GCS " +
+      gridRef(T.est.p.x, T.est.p.y) + " // CEP " + Math.round(T.est.cep) + "M");
+  }
+  // Final-push commit: low battery forces the decision. Accept a looser fix
+  // (terminal visual acquisition will refine the last few hundred meters)
+  // rather than expend the drone holding on station.
+  else if (!T.flags.committed && T.est.solved && T.est.cep < CONFIG.FIX.PUSH_CEP_M &&
+      d.batt <= CONFIG.DRONE.PUSH_BATT_PCT &&
+      (d.state === "TRANSIT" || d.state === "HOLD")){
+    T.flags.committed = true; d.state = "COMMIT";
+    addLog(T.side, "FINAL PUSH // BINGO FUEL // sUAS-1 COMMITTING ON BEST FIX " +
+      gridRef(T.est.p.x, T.est.p.y) + " // CEP " + Math.round(T.est.cep) + "M");
+  }
+
+  let targetX = 0, targetY = 0, wantSpd = D.CRUISE_MPS, wantAgl = D.ALT_TRANSIT_AGL;
+
+  if (d.state === "TRANSIT"){
+    const hp = T.holdPt;
+    targetX = hp.x; targetY = hp.y;
+    if (dist(d.x, d.y, hp.x, hp.y) < D.WPT_RADIUS_M && !T.flags.onStation){
+      T.flags.onStation = true; d.state = "HOLD";
+      addLog(T.side, "sUAS-1 ESTABLISHED HOLD " + gridRef(hp.x, hp.y) +
+        " // AWAITING FIX ON HOSTILE GCS");
+    }
+  } else if (d.state === "HOLD"){
+    // Endurance-optimal orbit around the holding point while ground cUAS
+    // builds the fix. Slow and low-ish to conserve battery.
+    d.orbitA += dt * (D.LOITER_MPS / D.HOLD_RADIUS_M);
+    targetX = T.holdPt.x + Math.sin(d.orbitA) * D.HOLD_RADIUS_M;
+    targetY = T.holdPt.y + Math.cos(d.orbitA) * D.HOLD_RADIUS_M;
+    wantSpd = D.LOITER_MPS; wantAgl = D.ALT_LOITER_AGL;
+  } else if (d.state === "COMMIT"){
+    targetX = T.est.p.x; targetY = T.est.p.y;
+    wantSpd = D.DASH_MPS;
+    if (dist(d.x, d.y, targetX, targetY) < 380){
+      d.state = "TERMINAL";
+      addLog(T.side, "sUAS-1 TERMINAL PHASE // DESCENDING BELOW CANOPY FOR VISUAL ID");
+    }
+  } else if (d.state === "TERMINAL"){
+    wantSpd = D.TERMINAL_MPS; wantAgl = D.ALT_TERMINAL_AGL;
+    const gr = dist(d.x, d.y, E.gcs.x, E.gcs.y);
+    if (!T.flags.acquired && gr < D.ACQ_RANGE_M){
+      T.flags.acquired = true;
+      addLog(T.side, "sUAS-1 VISUAL ACQ HOSTILE GCS // COMMENCING ATTACK RUN");
+    }
+    if (T.flags.acquired){
+      targetX = E.gcs.x; targetY = E.gcs.y;
+      if (gr < D.IMPACT_RANGE_M){
+        d.state = "IMPACT"; d.spd = 0;
+        E.gcs.destroyed = true;
+        state.explosions.push({ x: E.gcs.x, y: E.gcs.y, t0: state.t });
+        state.winner = T.side; state.endT = state.t;
+        addLog(T.side, "IMPACT // HOSTILE GCS DESTROYED " + gridRef(E.gcs.x, E.gcs.y));
+        addLog("SYS", "ENDEX // " + T.side + " VICTORY " + fmtT(state.t));
+        return;
+      }
+    } else {
+      // Drive to the fix center first. Only once the drone has reached the
+      // estimated point without acquiring (a fix error larger than sensor
+      // range) does the operator fly an expanding-square visual search
+      // outward. A modest error is recovered quickly; a gross error (a
+      // geometrically weak fix that slipped the commit gate) burns battery.
+      const d2fix = dist(d.x, d.y, T.est.p.x, T.est.p.y);
+      if (d2fix > D.WPT_RADIUS_M && !d.fixReached){
+        targetX = T.est.p.x; targetY = T.est.p.y;   // still inbound to the fix
+      } else {
+        d.fixReached = true;
+        d.searchR = (d.searchR || 0) + dt * D.TERMINAL_SEARCH_GROW;
+        d.orbitA += dt * (D.TERMINAL_MPS / Math.max(40, d.searchR));
+        targetX = T.est.p.x + Math.sin(d.orbitA) * d.searchR;
+        targetY = T.est.p.y + Math.cos(d.orbitA) * d.searchR;
+      }
+      wantSpd = D.TERMINAL_MPS; wantAgl = D.ALT_TERMINAL_AGL;
+    }
+  }
+
+  steerToward(d, targetX, targetY, dt);
+  d.spd = d.spd + clamp(wantSpd - d.spd, -6 * dt, 6 * dt);
+  d.agl = d.agl + clamp(wantAgl - d.agl, -D.CLIMB_MPS * dt, D.CLIMB_MPS * dt);
+  moveDrone(d, dt);
+}
+
+function moveDrone(d, dt){
+  d.x += Math.sin(d.hdg) * d.spd * dt;
+  d.y += Math.cos(d.hdg) * d.spd * dt;
+  d.x = clamp(d.x, 30, world.size - 30);
+  d.y = clamp(d.y, 30, world.size - 30);
+  d.trailAcc += dt;
+  if (d.trailAcc > 0.6 && d.spd > 1){
+    d.trailAcc = 0;
+    d.trail.push({ x: d.x, y: d.y });
+    if (d.trail.length > 2600) d.trail.shift();
+  }
+}
+
+/* ----------------------- MASTER STEP -------------------------------- */
+function stepSim(dt){
+  state.t += dt;
+  const B = state.teams.BLUFOR, O = state.teams.OPFOR;
+
+  for (const T of [B, O]){
+    T.gcs.transmitting = uplinkActive(T);
+    T.drone.videoOn = videoActive(T);
+    stepDrone(T, dt);
+  }
+  if (state.t >= state.nextScanT){
+    state.nextScanT = state.t + CONFIG.CUAS.SCAN_S;
+    doScans();
+    // RF pulse markers for transmitting emitters.
+    for (const T of [B, O]){
+      if (T.gcs.transmitting) state.pulses.push({ x: T.gcs.x, y: T.gcs.y, t0: state.t, c: T.color });
+      if (T.drone.videoOn) state.pulses.push({ x: T.drone.x, y: T.drone.y, t0: state.t, c: T.color });
+    }
+  }
+  state.pulses = state.pulses.filter(p => state.t - p.t0 < 2.2);
+
+  // Phase tracker.
+  const anyLaunch = B.drone.launched || O.drone.launched;
+  const anyFix = B.flags.fixed || O.flags.fixed;
+  const anyCommit = B.flags.committed || O.flags.committed;
+  if (state.winner) state.phase = "ENDEX";
+  else if (anyCommit) state.phase = "PHASE IV // ATTACK";
+  else if (anyFix) state.phase = "PHASE III // FIX";
+  else if (anyLaunch) state.phase = "PHASE II // SEARCH AND COLLECT";
+  else state.phase = "PHASE I // EMPLACEMENT";
+
+  // End-of-match handling.
+  if (state.winner && !state.endShown && state.t - state.endT > 5){
+    state.endShown = true; state.playing = false;
+    const W = state.winner, L = state.teams[W].enemy;
+    document.getElementById("endTitle").textContent = "ENDEX // " + W + " VICTORY";
+    document.getElementById("endTitle").style.color = CONFIG.COLORS[W];
+    const tagline = state.teams[W].emcon.emconLabel === "INTERMITTENT"
+      ? "EMISSIONS DISCIPLINE DECIDED THE FIGHT"
+      : "DETECTION TIMELINE DECIDED THE FIGHT";
+    document.getElementById("endSub").textContent =
+      L + " GCS DESTROYED BY " + W + " sUAS-1 AT " + fmtT(state.endT) + " // " + tagline;
+    document.getElementById("endcard").classList.remove("hidden");
+    updatePlayBtn();
+  }
+}
+
+/* ======================= RENDERING ================================== */
+const cvs = document.getElementById("map");
+const ctx = cvs.getContext("2d");
+let view = { ox: 0, oy: 0, scale: 1 };
+let hits = [];
+
+function resizeCanvas(){
+  const wrap = document.getElementById("mapwrap");
+  const dpr = window.devicePixelRatio || 1;
+  cvs.width = wrap.clientWidth * dpr;
+  cvs.height = wrap.clientHeight * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+window.addEventListener("resize", resizeCanvas);
+
+function fitView(){
+  const w = cvs.width / (window.devicePixelRatio || 1);
+  const h = cvs.height / (window.devicePixelRatio || 1);
+  // Cover fit: fill the pane and crop the world's empty top/bottom margins
+  // on wide panes, rather than letterboxing the square world. MIN_VIS_M caps
+  // the vertical crop so the emplacement band (GCS, DF nodes, NAIs, all
+  // within roughly 1000-3000 m northing) always stays in view.
+  const MIN_VIS_M = 2800;
+  view.scale = Math.min(Math.max(w / world.size, h / world.size), h / MIN_VIS_M);
+  view.ox = (w - world.size * view.scale) / 2;
+  view.oy = (h - world.size * view.scale) / 2;
+}
+const W2S = (x, y) => ({ x: view.ox + x * view.scale, y: view.oy + (world.size - y) * view.scale });
+
+function hexA(hex, a){
+  const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r},${g},${b},${a})`;
+}
+
+function draw(){
+  fitView();
+  const w = cvs.width / (window.devicePixelRatio || 1);
+  const h = cvs.height / (window.devicePixelRatio || 1);
+  ctx.fillStyle = "#060a0c"; ctx.fillRect(0, 0, w, h);
+  hits = [];
+  const S = world.size * view.scale;
+
+  ctx.drawImage(terrainCv, view.ox, view.oy, S, S);
+  if (document.getElementById("tglCAN").checked)
+    ctx.drawImage(canopyCv, view.ox, view.oy, S, S);
+
+  drawGrid();
+  drawNAIs();
+  if (document.getElementById("tglRF").checked) drawRFRings();
+  if (document.getElementById("tglPATH").checked) drawTrails();
+  drawPulses();
+  if (document.getElementById("tglLOB").checked) drawLOBs();
+  drawDroneTracks();
+  if (document.getElementById("tglELL").checked) drawEllipses();
+  drawUnits();
+  drawExplosions();
+  drawMapFurniture(w, h);
+  if (document.getElementById("tglHUD").checked) drawHUD(w, h);
+  drawSelection();
+}
+
+function drawGrid(){
+  ctx.save();
+  const h = cvs.height / (window.devicePixelRatio || 1);
+  // Pin edge labels to the visible pane; the world's own edges may be
+  // cropped offscreen by the cover fit.
+  const labelY = Math.min(W2S(0, 0).y, h) - 4;
+  const labelX = Math.max(W2S(0, 0).x, 0) + 3;
+  ctx.strokeStyle = "rgba(200,220,230,0.06)"; ctx.lineWidth = 1;
+  ctx.fillStyle = "rgba(160,185,195,0.30)"; ctx.font = "9px " + getComputedStyle(document.body).fontFamily;
+  for (let g = 0; g <= world.size; g += 500){
+    const a = W2S(g, 0), b = W2S(g, world.size);
+    ctx.beginPath(); ctx.moveTo(a.x, b.y); ctx.lineTo(a.x, a.y); ctx.stroke();
+    const c = W2S(0, g), d = W2S(world.size, g);
+    ctx.beginPath(); ctx.moveTo(c.x, c.y); ctx.lineTo(d.x, d.y); ctx.stroke();
+    if (g < world.size){
+      ctx.fillText(String(g / 100).padStart(2, "0"), a.x + 3, labelY);
+      ctx.fillText(String(g / 100).padStart(2, "0"), labelX, c.y - 3);
+    }
+  }
+  ctx.restore();
+}
+
+function drawNAIs(){
+  ctx.save();
+  ctx.setLineDash([6, 5]); ctx.lineWidth = 1;
+  for (const side of ["BLUFOR", "OPFOR"]){
+    const T = state.teams[side], b = T.searchBox;
+    const p1 = W2S(b.x, b.y + b.h), p2 = W2S(b.x + b.w, b.y);
+    ctx.strokeStyle = hexA(T.color, 0.28);
+    ctx.strokeRect(p1.x, p1.y, p2.x - p1.x, p2.y - p1.y);
+    ctx.fillStyle = hexA(T.color, 0.5);
+    ctx.font = "10px " + getComputedStyle(document.body).fontFamily;
+    ctx.fillText(T.nai, p1.x + 5, p1.y + 13);
+  }
+  ctx.restore();
+}
+
+function drawRFRings(){
+  ctx.save();
+  ctx.setLineDash([3, 6]); ctx.lineWidth = 1;
+  for (const side of ["BLUFOR", "OPFOR"]){
+    for (const nd of state.teams[side].nodes){
+      const p = W2S(nd.x, nd.y);
+      ctx.strokeStyle = hexA(CONFIG.COLORS.RF, 0.14);
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, CONFIG.CUAS.MAX_RANGE_M * view.scale, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
+function drawTrails(){
+  ctx.save(); ctx.lineWidth = 1.2;
+  for (const side of ["BLUFOR", "OPFOR"]){
+    const d = state.teams[side].drone;
+    if (d.trail.length < 2) continue;
+    ctx.strokeStyle = hexA(state.teams[side].color, 0.30);
+    ctx.beginPath();
+    d.trail.forEach((p, i) => {
+      const s = W2S(p.x, p.y);
+      i ? ctx.lineTo(s.x, s.y) : ctx.moveTo(s.x, s.y);
+    });
+    const cur = W2S(d.x, d.y); ctx.lineTo(cur.x, cur.y);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawPulses(){
+  ctx.save();
+  for (const p of state.pulses){
+    const age = (state.t - p.t0) / 2.2;
+    const s = W2S(p.x, p.y);
+    ctx.strokeStyle = hexA(p.c, 0.28 * (1 - age));
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, age * 240 * view.scale + 4, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawLOBs(){
+  ctx.save(); ctx.lineWidth = 1;
+  const FADE = 30;
+  for (const side of ["BLUFOR", "OPFOR"]){
+    const T = state.teams[side];
+    const recent = T.meas.slice(-16);
+    for (const m of recent){
+      const age = state.t - m.t;
+      if (age > FADE) continue;
+      const a = (1 - age / FADE) * 0.4;
+      const s = W2S(m.sx, m.sy);
+      const len = Math.min(CONFIG.CUAS.MAX_RANGE_M * 0.85,
+        T.est.p ? dist(m.sx, m.sy, T.est.p.x, T.est.p.y) * 1.25 : 2600) * view.scale;
+      ctx.strokeStyle = hexA(T.color, a);
+      ctx.beginPath();
+      ctx.moveTo(s.x, s.y);
+      ctx.lineTo(s.x + Math.sin(m.brg) * len, s.y - Math.cos(m.brg) * len);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
+function drawDroneTracks(){
+  ctx.save();
+  const fam = getComputedStyle(document.body).fontFamily;
+  for (const side of ["BLUFOR", "OPFOR"]){
+    const T = state.teams[side], tk = T.droneTrack;
+    if (!tk) continue;
+    const age = state.t - tk.t;
+    if (age > 8) continue;
+    const a = (1 - age / 8) * 0.75;
+    const s = W2S(tk.x, tk.y);
+    ctx.strokeStyle = hexA(T.color, a); ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath();
+    ctx.moveTo(s.x, s.y - 7); ctx.lineTo(s.x + 7, s.y);
+    ctx.lineTo(s.x, s.y + 7); ctx.lineTo(s.x - 7, s.y);
+    ctx.closePath(); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = hexA(T.color, a * 0.9);
+    ctx.font = "8px " + fam;
+    ctx.fillText("TRK", s.x + 10, s.y + 3);
+  }
+  ctx.restore();
+}
+
+function drawEllipses(){
+  ctx.save();
+  const fam = getComputedStyle(document.body).fontFamily;
+  for (const side of ["BLUFOR", "OPFOR"]){
+    const T = state.teams[side];
+    if (!T.est.solved || T.est.cep > 1600) continue;
+    const p = W2S(T.est.p.x, T.est.p.y);
+    const a1 = Math.min(T.est.s1 * 2.45, 1400) * view.scale;
+    const a2 = Math.min(T.est.s2 * 2.45, 1400) * view.scale;
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate(-T.est.ang);          // math-frame angle, y flipped on screen
+    ctx.strokeStyle = hexA(T.color, 0.65);
+    ctx.setLineDash([7, 5]); ctx.lineWidth = 1.3;
+    ctx.beginPath(); ctx.ellipse(0, 0, a1, a2, 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+    // Center cross + CEP readout.
+    ctx.strokeStyle = hexA(T.color, 0.8); ctx.setLineDash([]); ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(p.x - 6, p.y); ctx.lineTo(p.x + 6, p.y);
+    ctx.moveTo(p.x, p.y - 6); ctx.lineTo(p.x, p.y + 6);
+    ctx.stroke();
+    ctx.fillStyle = hexA(T.color, 0.85);
+    ctx.font = "9px " + fam;
+    ctx.fillText("CEP " + Math.round(T.est.cep) + "M", p.x + 10, p.y - 8);
+  }
+  ctx.restore();
+}
+
+/* ------- Unit symbols: MIL-STD-2525 inspired framing ---------------- */
+function frameGround(p, color, hostile, wHalf, hHalf){
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = color; ctx.fillStyle = hexA(color, 0.13);
+  ctx.beginPath();
+  if (hostile){
+    const r = wHalf + 3;
+    ctx.moveTo(p.x, p.y - r); ctx.lineTo(p.x + r, p.y);
+    ctx.lineTo(p.x, p.y + r); ctx.lineTo(p.x - r, p.y);
+    ctx.closePath();
+  } else {
+    ctx.roundRect(p.x - wHalf, p.y - hHalf, wHalf * 2, hHalf * 2, 2);
+  }
+  ctx.fill(); ctx.stroke();
+}
+
+function drawUnits(){
+  const fam = getComputedStyle(document.body).fontFamily;
+  for (const side of ["BLUFOR", "OPFOR"]){
+    const T = state.teams[side];
+    const hostileFrame = side === "OPFOR";
+    // cUAS DF nodes.
+    for (const nd of T.nodes){
+      const p = W2S(nd.x, nd.y);
+      frameGround(p, T.color, hostileFrame, 11, 8);
+      ctx.fillStyle = T.color; ctx.font = "8px " + fam; ctx.textAlign = "center";
+      ctx.fillText("EW", p.x, p.y + 3);
+      ctx.fillStyle = hexA(T.color, 0.75); ctx.font = "8px " + fam;
+      ctx.fillText(nd.id.replace(side + "-", ""), p.x, p.y + (hostileFrame ? 26 : 21));
+      ctx.textAlign = "left";
+      hits.push({ x: p.x, y: p.y, r: 16, type: "node", side, id: nd.id });
+    }
+    // GCS.
+    {
+      const p = W2S(T.gcs.x, T.gcs.y);
+      frameGround(p, T.color, hostileFrame, 14, 9);
+      ctx.fillStyle = T.color; ctx.font = "8px " + fam; ctx.textAlign = "center";
+      ctx.fillText("GCS", p.x, p.y + 3);
+      ctx.fillStyle = hexA(T.color, 0.9); ctx.font = "9px " + fam;
+      ctx.fillText(side + " GCS", p.x, p.y + (hostileFrame ? 30 : 24));
+      ctx.textAlign = "left";
+      if (T.gcs.transmitting && !T.gcs.destroyed){
+        ctx.fillStyle = hexA(CONFIG.COLORS.RF, 0.9);
+        ctx.font = "8px " + fam;
+        ctx.fillText("TX", p.x + 18, p.y - 10);
+      }
+      if (T.gcs.destroyed){
+        ctx.strokeStyle = "#ff5d5d"; ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(p.x - 12, p.y - 12); ctx.lineTo(p.x + 12, p.y + 12);
+        ctx.moveTo(p.x + 12, p.y - 12); ctx.lineTo(p.x - 12, p.y + 12);
+        ctx.stroke();
+      }
+      hits.push({ x: p.x, y: p.y, r: 18, type: "gcs", side, id: T.gcs.id });
+    }
+    // Drone.
+    {
+      const d = T.drone;
+      const p = W2S(d.x, d.y);
+      if (d.launched && d.state !== "IMPACT"){
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(d.hdg);
+        ctx.fillStyle = d.downed ? hexA(T.color, 0.35) : T.color;
+        ctx.beginPath();
+        ctx.moveTo(0, -8); ctx.lineTo(5.5, 6); ctx.lineTo(0, 2.5); ctx.lineTo(-5.5, 6);
+        ctx.closePath(); ctx.fill();
+        // Air-domain frame hint: arc for friendly, caret for hostile.
+        ctx.strokeStyle = hexA(T.color, 0.85); ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        if (side === "OPFOR"){
+          ctx.moveTo(-8, -6); ctx.lineTo(0, -13); ctx.lineTo(8, -6);
+        } else {
+          ctx.arc(0, -4, 9, Math.PI * 1.15, Math.PI * 1.85);
+        }
+        ctx.stroke();
+        ctx.restore();
+        ctx.fillStyle = hexA(T.color, 0.9);
+        ctx.font = "8px " + fam;
+        ctx.fillText("sUAS-1", p.x + 10, p.y + 3);
+        if (d.videoOn && !d.downed){
+          ctx.fillStyle = hexA(CONFIG.COLORS.RF, 0.9);
+          ctx.fillText("TX", p.x + 10, p.y - 8);
+        }
+        hits.push({ x: p.x, y: p.y, r: 15, type: "drone", side, id: d.id });
+      }
+    }
+  }
+}
+
+function drawExplosions(){
+  ctx.save();
+  for (const e of state.explosions){
+    const age = state.t - e.t0;
+    if (age > 3.2) continue;
+    const p = W2S(e.x, e.y);
+    if (age < 0.4){
+      ctx.fillStyle = `rgba(255,220,150,${0.85 * (1 - age / 0.4)})`;
+      ctx.beginPath(); ctx.arc(p.x, p.y, 16, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.strokeStyle = `rgba(255,150,80,${0.7 * (1 - age / 3.2)})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(p.x, p.y, age / 3.2 * 260 * view.scale + 6, 0, Math.PI * 2); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawMapFurniture(w, h){
+  const fam = getComputedStyle(document.body).fontFamily;
+  // Anchor furniture to the visible pane, not the world edges: the cover
+  // fit can push the world's top/bottom (or left/right) offscreen.
+  const topY = Math.max(view.oy, 0);
+  const botY = Math.min(view.oy + world.size * view.scale, h);
+  const leftX = Math.max(view.ox, 0);
+  ctx.save();
+  // Layout: the AO label owns the top-left corner (the HUD card sits below
+  // it); the map-reading aids (scale bar + north arrow) are grouped in the
+  // bottom-left, raised clear of the bottom-edge grid labels.
+  // AO label.
+  ctx.fillStyle = "rgba(200,220,230,0.28)";
+  ctx.font = "10px " + fam;
+  ctx.fillText("AO KATANA (NOTIONAL) // GRID 500M", leftX + 14, topY + 14);
+  // Scale bar: 500 m.
+  const bl = 500 * view.scale;
+  const bx = leftX + 14, by = botY - 20;
+  ctx.strokeStyle = "rgba(200,220,230,0.55)";
+  ctx.beginPath();
+  ctx.moveTo(bx, by); ctx.lineTo(bx + bl, by);
+  ctx.moveTo(bx, by - 4); ctx.lineTo(bx, by + 4);
+  ctx.moveTo(bx + bl, by - 4); ctx.lineTo(bx + bl, by + 4);
+  ctx.stroke();
+  ctx.fillStyle = "rgba(200,220,230,0.55)";
+  ctx.font = "9px " + fam;
+  ctx.fillText("500 M", bx + bl / 2 - 14, by - 8);
+  // North arrow, to the right of the scale bar.
+  ctx.strokeStyle = "rgba(200,220,230,0.5)"; ctx.fillStyle = "rgba(200,220,230,0.6)";
+  ctx.lineWidth = 1;
+  const nx = bx + bl + 30, ny = by - 6;
+  ctx.beginPath(); ctx.moveTo(nx, ny); ctx.lineTo(nx, ny - 16); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(nx, ny - 20); ctx.lineTo(nx - 4, ny - 12); ctx.lineTo(nx + 4, ny - 12); ctx.closePath(); ctx.fill();
+  ctx.fillText("N", nx - 3, ny + 11);
+  ctx.restore();
+}
+
+/* ------- Team status HUD: the race-to-fix, at a glance ---------------- */
+// Semi-transparent cards in the upper map corners (BLUFOR left, OPFOR
+// right) showing each side's collection progress, fix quality, and drone
+// status. The corners sit over terrain the cover fit keeps clear of the
+// NAIs and emplacement band at typical window sizes.
+function drawHUD(w, h){
+  const fam = getComputedStyle(document.body).fontFamily;
+  const topY = Math.max(view.oy, 0);
+  const leftX = Math.max(view.ox, 0);
+  const rightX = Math.min(view.ox + world.size * view.scale, w);
+  const cw = 212, ch = 92, pad = 10;
+  // Below the AO label line; indented 28 px so the left-edge northing grid
+  // labels stay readable beside the BLUFOR card (mirrored on the right for
+  // symmetry). Panes too narrow for two cards skip the HUD entirely.
+  const y0 = topY + 24;
+  if (rightX - leftX < cw * 2 + 84) return;
+  for (const side of ["BLUFOR", "OPFOR"]){
+    const T = state.teams[side], d = T.drone;
+    const x0 = side === "BLUFOR" ? leftX + 28 : rightX - cw - 28;
+    ctx.save();
+    ctx.fillStyle = "rgba(13,18,22,0.82)";
+    ctx.strokeStyle = hexA(T.color, 0.55); ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.roundRect(x0, y0, cw, ch, 3); ctx.fill(); ctx.stroke();
+    ctx.font = "10px " + fam;
+    // Header: side + EMCON posture.
+    ctx.fillStyle = T.color;
+    ctx.fillText(side, x0 + pad, y0 + 16);
+    ctx.textAlign = "right";
+    ctx.fillStyle = T.emcon.emconLabel === "CONTINUOUS" ? hexA(CONFIG.COLORS.RF, 0.9) : "rgba(109,127,134,1)";
+    ctx.fillText("EMCON " + T.emcon.emconLabel, x0 + cw - pad, y0 + 16);
+    ctx.textAlign = "left";
+    ctx.strokeStyle = hexA(T.color, 0.25);
+    ctx.beginPath(); ctx.moveTo(x0 + pad, y0 + 23); ctx.lineTo(x0 + cw - pad, y0 + 23); ctx.stroke();
+    const row = (y, k, v, vColor) => {
+      ctx.fillStyle = "rgba(109,127,134,1)"; ctx.fillText(k, x0 + pad, y);
+      ctx.textAlign = "right";
+      ctx.fillStyle = vColor || "rgba(196,208,212,1)";
+      ctx.fillText(v, x0 + cw - pad, y);
+      ctx.textAlign = "left";
+    };
+    // Drone status + battery.
+    const dState = !d.launched ? "PREFLIGHT" : d.downed ? "DOWN" : d.state;
+    const hot = d.state === "COMMIT" || d.state === "TERMINAL";
+    row(y0 + 40, "sUAS-1  " + dState,
+      d.launched && !d.downed ? "BATT " + Math.round(d.batt) + "%" : "--",
+      hot ? hexA(CONFIG.COLORS.RF, 0.95) : (d.batt < 30 && d.launched ? hexA(CONFIG.COLORS.OPFOR, 0.95) : null));
+    // Collection: LOBs held and fix CEP against the enemy GCS. Early
+    // solutions carry the jitter sentinel; hide CEP until it is meaningful
+    // (same 1600 m threshold the ellipse layer uses).
+    row(y0 + 58, "LOBS " + T.meas.length,
+      T.est.solved && T.est.cep < 1600 ? "CEP " + Math.round(T.est.cep) + "M" : "NO FIX");
+    // Bottom line: engagement status.
+    let st = "SEARCHING", sc = null;
+    if (T.gcs.destroyed){ st = "GCS DESTROYED"; sc = hexA(CONFIG.COLORS.OPFOR, 0.95); }
+    else if (T.flags.committed){ st = "ATTACK COMMITTED"; sc = hexA(CONFIG.COLORS.RF, 0.95); }
+    else if (T.flags.fixed) st = "FIX HELD";
+    else if (T.flags.crossFix) st = "CROSS-FIX FORMING";
+    else if (T.flags.firstLOB) st = "COLLECTING";
+    row(y0 + 76, "STATUS", st, sc);
+    ctx.restore();
+  }
+}
+
+function drawSelection(){
+  if (!state.selected) return;
+  const hit = hits.find(hh => hh.id === state.selected.id);
+  if (!hit) return;
+  ctx.save();
+  ctx.strokeStyle = "rgba(255,255,255,0.8)"; ctx.lineWidth = 1;
+  ctx.setLineDash([4, 3]);
+  ctx.beginPath(); ctx.arc(hit.x, hit.y, hit.r + 5, 0, Math.PI * 2); ctx.stroke();
+  ctx.restore();
+}
+
+/* ======================= UI / PANEL / LOG =========================== */
+function addLog(side, text){
+  const log = document.getElementById("log");
+  const nearBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 60;
+  const row = document.createElement("div");
+  row.className = "row";
+  const cls = side === "BLUFOR" ? "B" : side === "OPFOR" ? "O" : "S";
+  const chipTx = side === "SYS" ? "SYS" : side;
+  row.innerHTML = `<span class="lt">${fmtT(state.t)}</span><span class="chip ${cls}">${chipTx}</span><span class="tx">${text}</span>`;
+  log.appendChild(row);
+  if (nearBottom) log.scrollTop = log.scrollHeight;
+}
+
+function kv(k, v, vColor){
+  return `<div class="kv"><span class="k">${k}</span><span${vColor ? ` style="color:${vColor}"` : ""}>${v}</span></div>`;
+}
+
+function renderPanel(){
+  const el = document.getElementById("detailBody");
+  if (!state.selected){
+    el.innerHTML = `<div class="none">SELECT A UNIT ON THE MAP</div>`;
+    return;
+  }
+  const { type, side, id } = state.selected;
+  const T = state.teams[side], E = state.teams[T.enemy];
+  let html = "";
+  if (type === "drone"){
+    const d = T.drone;
+    const kts = Math.round(d.spd * 1.944);
+    html += `<div class="hdr" style="color:${T.color}">${id} // ARMED FPV sUAS</div>`;
+    html += kv("STATE", d.state, d.state === "TERMINAL" || d.state === "COMMIT" ? CONFIG.COLORS.RF : null);
+    html += kv("AIRSPEED", `${d.spd.toFixed(0)} M/S (${kts} KTS)`);
+    html += kv("ALT", `${Math.round(d.agl)} M AGL`);
+    html += kv("BATTERY", `${Math.round(d.batt)} PCT`, d.batt < 30 ? CONFIG.COLORS.OPFOR : null);
+    html += kv("C2 LINK", d.linkLost ? "LOST" : d.launched ? "UP" : "PREFLIGHT", d.linkLost ? CONFIG.COLORS.OPFOR : null);
+    html += kv("VIDEO DL", d.videoOn ? "TRANSMITTING" : "SILENT", d.videoOn ? CONFIG.COLORS.RF : null);
+    html += kv("HDG", String(Math.round((r2d(d.hdg) + 360) % 360)).padStart(3, "0") + "T");
+    html += kv("POSIT", gridRef(d.x, d.y));
+  } else if (type === "gcs"){
+    html += `<div class="hdr" style="color:${T.color}">${side} GCS // GROUND CONTROL STATION</div>`;
+    html += kv("STATUS", T.gcs.destroyed ? "DESTROYED" : "OPERATIONAL", T.gcs.destroyed ? CONFIG.COLORS.OPFOR : null);
+    html += kv("EMCON", T.emcon.emconLabel, T.emcon.emconLabel === "CONTINUOUS" ? CONFIG.COLORS.RF : null);
+    html += kv("C2 UPLINK", T.gcs.transmitting ? "TRANSMITTING" : "SILENT", T.gcs.transmitting ? CONFIG.COLORS.RF : null);
+    html += kv("CONTROLLING", T.drone.id);
+    html += kv("POSIT", gridRef(T.gcs.x, T.gcs.y));
+    html += kv("THREAT LOBS HELD", `${E.meas.length} (SIM TRUTH)`, E.meas.length > 20 ? CONFIG.COLORS.OPFOR : null);
+    html += kv("THREAT FIX CEP", E.est.solved ? Math.round(E.est.cep) + " M (SIM TRUTH)" : "NO FIX");
+  } else if (type === "node"){
+    const nd = T.nodes.find(n => n.id === id);
+    html += `<div class="hdr" style="color:${T.color}">${id} // cUAS DF NODE</div>`;
+    html += kv("C2 UL INTERCEPTS", nd.det);
+    html += kv("VIDEO DL INTERCEPTS", nd.dl);
+    html += kv("LAST LOB", nd.lastBrg !== null
+      ? String(Math.round((r2d(nd.lastBrg) + 360) % 360)).padStart(3, "0") + "T (" + Math.round(state.t - nd.lastT) + "S AGO)"
+      : "NONE");
+    html += kv("BRG ERROR 1-SIGMA", CONFIG.CUAS.BRG_SIGMA_DEG.toFixed(1) + " DEG");
+    html += kv("TEAM FIX", T.est.solved ? gridRef(T.est.p.x, T.est.p.y) + " CEP " + Math.round(T.est.cep) + "M" : "NO CUT");
+    html += kv("POSIT", gridRef(nd.x, nd.y));
+  }
+  el.innerHTML = html;
+}
+
+cvs.addEventListener("click", ev => {
+  const rect = cvs.getBoundingClientRect();
+  const x = ev.clientX - rect.left, y = ev.clientY - rect.top;
+  let best = null, bd = 22;
+  for (const hh of hits){
+    const d0 = Math.hypot(hh.x - x, hh.y - y);
+    if (d0 < bd){ bd = d0; best = hh; }
+  }
+  state.selected = best ? { type: best.type, side: best.side, id: best.id } : null;
+  renderPanel();
+});
+
+/* ---------------------- CONTROLS ------------------------------------ */
+function updatePlayBtn(){
+  document.getElementById("btnPlay").textContent = state.playing ? "Pause" : "Play";
+}
+document.getElementById("btnPlay").addEventListener("click", () => {
+  if (state.winner && state.endShown) return;
+  state.playing = !state.playing;
+  updatePlayBtn();
+});
+document.getElementById("btnReset").addEventListener("click", () => {
+  state.playing = false; updatePlayBtn(); resetSim(state.seed);
+});
+function newSeed(){
+  state.playing = false; updatePlayBtn();
+  resetSim(1000 + Math.floor(Math.random() * 899999));
+  const sel = document.getElementById("scenario");
+  // Random seed is not a featured scenario: show the hidden Custom entry.
+  sel.querySelector('option[value="custom"]').hidden = false;
+  sel.value = "custom";
+}
+document.getElementById("btnNewSeed").addEventListener("click", newSeed);
+document.getElementById("btnNewSeed2").addEventListener("click", () => { newSeed(); state.playing = true; updatePlayBtn(); });
+document.getElementById("btnReplay2").addEventListener("click", () => {
+  resetSim(state.seed); state.playing = true; updatePlayBtn();
+});
+document.getElementById("scenario").addEventListener("change", ev => {
+  const v = ev.target.value;
+  if (v === "custom") return;
+  state.playing = false; updatePlayBtn();
+  resetSim(Number(v));
+  state.playing = true; updatePlayBtn();  // auto-run the featured engagement
+});
+document.querySelectorAll("#speedGrp button").forEach(b => {
+  b.addEventListener("click", () => {
+    document.querySelectorAll("#speedGrp button").forEach(x => x.classList.remove("active"));
+    b.classList.add("active");
+    state.speed = Number(b.dataset.spd);
+  });
+});
+
+/* ---------------------- MAIN LOOP ----------------------------------- */
+let lastTs = performance.now(), acc = 0, frame = 0;
+function loop(ts){
+  const dtReal = Math.min(0.05, (ts - lastTs) / 1000);
+  lastTs = ts;
+  if (state.playing){
+    acc += dtReal * state.speed;
+    let guard = 0;
+    while (acc >= CONFIG.SIM_DT && guard++ < 400){
+      stepSim(CONFIG.SIM_DT);
+      acc -= CONFIG.SIM_DT;
+    }
+  }
+  document.getElementById("simclock").textContent = fmtT(state.t);
+  document.getElementById("phase").textContent = state.phase;
+  if (++frame % 10 === 0 && state.selected) renderPanel();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+/* ---------------------- INIT ---------------------------------------- */
+resizeCanvas();
+// Deep link: ?seed=<n> loads a specific engagement (&play=1 starts it), so
+// external pages — e.g. the results dashboard — can link any statistic
+// straight to the watchable battle behind it. Determinism makes the link a
+// complete reproduction, not an approximation.
+// Guarded so the file also loads in headless harnesses (the golden-fixture
+// generator runs this script in a Node vm with no location/URLSearchParams).
+let qsSeed = NaN, qsPlay = false;
+try {
+  const qs = new URLSearchParams(location.search);
+  qsSeed = Number.parseInt(qs.get("seed") ?? "", 10);
+  qsPlay = qs.get("play") === "1";
+} catch { /* not a browser: no deep link */ }
+if (Number.isFinite(qsSeed) && qsSeed >= 0){
+  resetSim(qsSeed);
+  const sel = document.getElementById("scenario");
+  if (sel.querySelector(`option[value="${qsSeed}"]`)) sel.value = String(qsSeed);
+  else { sel.querySelector('option[value="custom"]').hidden = false; sel.value = "custom"; }
+  if (qsPlay){ state.playing = true; updatePlayBtn(); }
+} else {
+  resetSim(CONFIG.SEED);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

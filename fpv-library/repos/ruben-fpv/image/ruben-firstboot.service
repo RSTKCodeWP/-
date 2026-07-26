@@ -1,0 +1,15 @@
+[Unit]
+Description=Ruben-FPV First Boot Configuration
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=!/opt/ruben-fpv/.setup-complete
+
+[Service]
+Type=oneshot
+ExecStart=/opt/ruben-fpv/firstboot.sh
+RemainAfterExit=yes
+StandardOutput=journal+console
+StandardError=journal+console
+
+[Install]
+WantedBy=multi-user.target

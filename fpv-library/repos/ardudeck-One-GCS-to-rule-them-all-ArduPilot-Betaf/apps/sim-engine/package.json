@@ -1,0 +1,27 @@
+{
+  "name": "@ardudeck/sim-engine",
+  "version": "0.1.0",
+  "description": "Headless flight simulator process: ArduPilot JSON FDM backend + state WebSocket",
+  "type": "module",
+  "main": "./dist/main.js",
+  "bin": {
+    "ardudeck-sim-engine": "./dist/main.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@ardudeck/sim-physics": "workspace:*",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3",
+    "@types/node": "^20.10.5",
+    "@types/ws": "^8.5.12",
+    "vitest": "^2.1.9"
+  },
+  "license": "MIT"
+}

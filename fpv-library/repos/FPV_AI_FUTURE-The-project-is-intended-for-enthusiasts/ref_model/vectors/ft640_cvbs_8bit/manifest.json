@@ -1,0 +1,112 @@
+{
+  "scene": "ft640_cvbs_8bit",
+  "note": "FT640LM CVBS-representative (8-bit AGC, ~720x480). Update grid/levels once the real ADV7280/TVP5150 decoder output is measured (migration doc open-Q #1).",
+  "width": 720,
+  "height": 480,
+  "dtype": "uint16_le",
+  "layout": "row_major_HxW",
+  "n_frames": 4,
+  "detect": {
+    "min_snr": 2.0,
+    "min_area_px": 2
+  },
+  "centroid_rmse_gate_px": 0.35,
+  "frames": [
+    {
+      "frame_id": 0,
+      "cam_temp_c": 25.0,
+      "ffc_state": "READY",
+      "expected": {
+        "n_blobs": 13,
+        "threshold_counts": 11.7065,
+        "best_centroid_px": [
+          359.956557,
+          239.987128
+        ],
+        "best_area_px": 40,
+        "best_snr": 53.1324
+      },
+      "ground_truth": {
+        "target_centroid_px": [
+          360.0,
+          240.0
+        ],
+        "target_area_px": 11.1509,
+        "is_target_visible": true
+      },
+      "file": "frame_0000.bin"
+    },
+    {
+      "frame_id": 1,
+      "cam_temp_c": 25.0314,
+      "ffc_state": "READY",
+      "expected": {
+        "n_blobs": 13,
+        "threshold_counts": 11.7065,
+        "best_centroid_px": [
+          360.280688,
+          240.1595
+        ],
+        "best_area_px": 43,
+        "best_snr": 52.678
+      },
+      "ground_truth": {
+        "target_centroid_px": [
+          360.3,
+          240.15
+        ],
+        "target_area_px": 11.1509,
+        "is_target_visible": true
+      },
+      "file": "frame_0001.bin"
+    },
+    {
+      "frame_id": 2,
+      "cam_temp_c": 25.0628,
+      "ffc_state": "READY",
+      "expected": {
+        "n_blobs": 13,
+        "threshold_counts": 11.7065,
+        "best_centroid_px": [
+          360.622857,
+          240.327347
+        ],
+        "best_area_px": 40,
+        "best_snr": 50.5629
+      },
+      "ground_truth": {
+        "target_centroid_px": [
+          360.6,
+          240.3
+        ],
+        "target_area_px": 11.1509,
+        "is_target_visible": true
+      },
+      "file": "frame_0002.bin"
+    },
+    {
+      "frame_id": 3,
+      "cam_temp_c": 25.0942,
+      "ffc_state": "READY",
+      "expected": {
+        "n_blobs": 13,
+        "threshold_counts": 11.7065,
+        "best_centroid_px": [
+          360.882726,
+          240.456418
+        ],
+        "best_area_px": 41,
+        "best_snr": 51.7611
+      },
+      "ground_truth": {
+        "target_centroid_px": [
+          360.9,
+          240.45
+        ],
+        "target_area_px": 11.1509,
+        "is_target_visible": true
+      },
+      "file": "frame_0003.bin"
+    }
+  ]
+}

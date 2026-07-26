@@ -1,0 +1,21 @@
+# editor / OS cruft
+.vscode/
+.DS_Store
+Thumbs.db
+
+# python
+__pycache__/
+*.pyc
+.venv/
+
+# raw blackbox flight logs — large binaries; only the derived flights.csv is committed
+blackbox/
+*.BBL
+*.bbl
+*.BFL
+*.bfl
+
+# fpv-orders-update: purchase ledger + its transient staging file.
+# orders.csv holds personal purchase history (prices, order numbers) — kept local, never committed.
+orders.csv
+orders_new.csv

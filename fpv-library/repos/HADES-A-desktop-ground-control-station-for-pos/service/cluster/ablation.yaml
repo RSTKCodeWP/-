@@ -1,0 +1,20 @@
+# HADES P2.5 — shared ablation config (BOTH arms load this byte-identically).
+# The ONLY thing that differs between Arm A {HERIDAL+SARD} and Arm B {VisDrone-pretrain ->
+# HERIDAL+SARD} is `weights`, supplied per-arm on the command line / overridden by the
+# submit wrapper. Everything below is pinned so a recall delta is attributable to the
+# pretrain weights and not to RNG, batch, or image size (ablation fairness, ultraplan P2-f/g).
+#
+# These keys are the constructor args of hades.train.config.TrainConfig.
+
+weights: yolo11s.pt              # Arm A default; Arm B overrides to the VisDrone-pretrain best.pt
+data: /work/ajain1/hades/datasets/hades-finetune/dataset.yaml
+imgsz: 960                       # P1.5 feasible set {640,960,1280}; 960 = balance, 2.5.5 finalizes
+epochs: 100
+batch: 64                        # FIXED int — never -1/AutoBatch (non-deterministic, unfair)
+seed: 0
+deterministic: true
+patience: 0                      # no early-stop -> both arms train the same #epochs
+lr0: 0.01
+scale: 0.5                       # scale-jitter (Ultralytics built-in; Task 2.5.2). Motion-blur
+                                 # is Ultralytics' auto Albumentations default (not a train() knob).
+workers: 8                       # matches --cpus-per-task=8 so the H200 dataloader never starves

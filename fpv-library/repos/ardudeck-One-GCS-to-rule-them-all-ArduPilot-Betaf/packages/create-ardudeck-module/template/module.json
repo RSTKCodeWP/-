@@ -1,0 +1,9 @@
+{
+  "manifestVersion": 1,
+  "slug": "__SLUG__",
+  "name": "__NAME__",
+  "version": "__VERSION__",
+  "entry": { "main": "main.js", "renderer": "renderer.js" },
+  "mountPoints": ["floatingOverlay"],
+  __PERMISSIONS__"minArduDeckVersion": "0.1.0"
+}

@@ -1,0 +1,5 @@
+# pnpm reads the build-script allowlist here (no longer from package.json).
+# electron + esbuild need their postinstall scripts to fetch native binaries.
+allowBuilds:
+  electron: true
+  esbuild: true

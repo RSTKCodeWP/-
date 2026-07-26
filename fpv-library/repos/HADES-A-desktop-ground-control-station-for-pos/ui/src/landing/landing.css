@@ -1,0 +1,1044 @@
+/* HADES demonstration site.
+ * Two families (Urbanist display, Archivo body), one accent (the logo teal), warm tinted
+ * neutrals, hairlines over borders. Motion: a static floating-drone hero with scroll parallax
+ * (GSAP + Lenis), once-only reveals, and a growing footer panel. Everything honors
+ * prefers-reduced-motion. */
+
+.landing {
+  --paper: #fcfdfd;
+  --paper-alt: #f4f7f6;
+  --ink: #101513;
+  /* secondary text is always the ink at fixed alphas, one rule for the whole site */
+  --ink-soft: rgba(16, 21, 19, 0.55);
+  --ink-faint: rgba(16, 21, 19, 0.38);
+  --line: #e6ebe9;
+  --teal: #01a08c;
+  --black: #0b100f;
+  --ring: 0 0 0 1px rgba(16, 21, 19, 0.07);
+
+  background: var(--paper);
+  color: var(--ink);
+  font-family: "Archivo Variable", "Archivo", system-ui, sans-serif;
+  font-size: 16.5px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.landing .ink-faint {
+  color: var(--ink-faint);
+}
+.landing img {
+  max-width: 100%;
+  display: block;
+}
+/* display voice: Urbanist carries every heading (the Cubo grammar: weight over tracking),
+ * Archivo stays on body and interface text */
+.landing h1,
+.landing h2,
+.landing h3 {
+  font-family: "Urbanist Variable", "Urbanist", "Archivo Variable", sans-serif;
+  font-weight: 660;
+  letter-spacing: -0.01em;
+  line-height: 1.08;
+}
+
+/* ---------------- nav ---------------- */
+.site-nav {
+  position: fixed;
+  inset-inline: 0;
+  top: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px clamp(20px, 4vw, 56px);
+  transition: background 0.3s ease, box-shadow 0.3s ease, padding 0.3s ease;
+  animation: nav-in 0.8s cubic-bezier(0.28, 0.41, 0.56, 1) 0.6s both;
+}
+@keyframes nav-in {
+  from {
+    opacity: 0;
+    transform: translateY(-40px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.site-nav.is-scrolled {
+  padding-block: 11px;
+  background: color-mix(in srgb, var(--paper) 84%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 1px 0 var(--line);
+}
+.nav-brand {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: var(--ink);
+}
+.nav-brand img {
+  height: 30px;
+  width: auto;
+}
+.nav-brand span {
+  font-family: "Urbanist Variable", "Urbanist", sans-serif;
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--ink);
+}
+.nav-links {
+  display: flex;
+  gap: clamp(18px, 3vw, 36px);
+}
+.nav-link {
+  position: relative;
+  font-size: 15px;
+  color: var(--ink-soft);
+  text-decoration: none;
+  padding-block: 4px;
+  transition: color 0.2s ease;
+}
+.nav-link:hover {
+  color: var(--ink);
+}
+.nav-link.is-active {
+  color: var(--ink);
+}
+.nav-link.is-active::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -2px;
+  height: 2px;
+  background: var(--teal);
+}
+
+/* ---------------- pill ---------------- */
+.landing .pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 999px;
+  padding: 13px 26px;
+  font-size: 15px;
+  font-weight: 560;
+  text-decoration: none;
+  transition: transform 0.3s cubic-bezier(0.19, 1, 0.22, 1), box-shadow 0.3s ease,
+    background 0.3s ease;
+}
+.landing .pill:hover {
+  transform: translateY(-2px);
+}
+.landing .pill:active {
+  transform: translateY(0) scale(0.98);
+}
+/* the arrow slides forward on hover (the Cubo button tell) */
+.landing .pill svg {
+  transition: transform 0.3s cubic-bezier(0.19, 1, 0.22, 1);
+}
+.landing .pill:hover svg {
+  transform: translateX(4px);
+}
+.pill-light {
+  background: var(--paper);
+  color: var(--ink);
+}
+
+/* ---------------- hero (static floating drone, Cubo grammar) ---------------- */
+/* One full-viewport section on the page's own background. No sticky wrapper, no canvas, no
+ * WebGL: the drone is a single static render centered and lifted by a soft drop-shadow. The copy
+ * column is parallaxed by JS (drone drifts down, copy lifts up) on scroll. */
+.hero {
+  position: relative;
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: clamp(96px, 14vh, 160px) clamp(20px, 4vw, 56px) clamp(64px, 10vh, 120px);
+  background: var(--paper);
+  overflow: hidden;
+}
+.hero-copy {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  text-align: center;
+  width: min(1000px, 100%);
+}
+/* the wordmark sits above the drone with clean breathing room — no overlap. The drone is the
+ * focal object; the wordmark anchors the brand above it. */
+.hero-word {
+  font-family: "Urbanist Variable", "Urbanist", sans-serif;
+  font-size: clamp(64px, 12vw, 200px);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 0.9;
+  color: var(--ink);
+  margin-bottom: clamp(16px, 3vh, 40px);
+  animation: hero-rise 1s cubic-bezier(0.22, 1, 0.36, 1) 0.15s both;
+}
+/* the floating airframe: a static PNG on the matching bg + a soft drop-shadow for lift. Never
+ * upscaled past its native crispness; sized to the viewport. Rises + settles on load. */
+.hero-drone {
+  position: relative;
+  z-index: 2;
+  width: auto;
+  height: clamp(240px, 42vh, 520px);
+  filter: drop-shadow(0 30px 34px rgba(16, 21, 19, 0.26));
+  animation: hero-float-in 1.2s cubic-bezier(0.22, 1, 0.36, 1) 0.3s both;
+  will-change: transform;
+}
+@keyframes hero-float-in {
+  from {
+    opacity: 0;
+    transform: translateY(48px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes hero-rise {
+  from {
+    opacity: 0;
+    transform: translateY(34px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.hero-desc {
+  margin-top: clamp(24px, 4vh, 44px);
+  font-size: clamp(15px, 1.2vw, 18px);
+  line-height: 1.55;
+  color: var(--ink-soft);
+  animation: hero-rise 1s cubic-bezier(0.22, 1, 0.36, 1) 0.5s both;
+}
+/* the four-step verb list, centered under the drone: one word bold+ink at a time on an 8s loop
+ * (font-variation-settings weight interpolation via Urbanist Variable), the rest gray. */
+.hero-steps {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: clamp(16px, 3vw, 40px);
+  margin-top: clamp(28px, 4vh, 48px);
+  font-family: "Urbanist Variable", "Urbanist", sans-serif;
+  font-size: clamp(18px, 1.5vw, 26px);
+  list-style: none;
+  pointer-events: none;
+  animation: hero-rise 1s cubic-bezier(0.22, 1, 0.36, 1) 0.65s both;
+}
+.hero-steps li {
+  font-variation-settings: "wght" 500;
+  color: var(--ink-faint);
+  animation: step-sweep 8s ease-in-out infinite;
+  animation-delay: calc(var(--si, 0) * -2s);
+  will-change: font-variation-settings, color;
+}
+@keyframes step-sweep {
+  0%,
+  25%,
+  100% {
+    font-variation-settings: "wght" 500;
+    color: var(--ink-faint);
+  }
+  6%,
+  19% {
+    font-variation-settings: "wght" 800;
+    color: var(--ink);
+  }
+}
+
+/* ---------------- statement ---------------- */
+/* the mission statement: a big claim on the left, three tight proof points on the right, so
+ * the row fills the width instead of leaving a sparse gap */
+.statement {
+  padding: clamp(96px, 14vh, 180px) clamp(20px, 4vw, 56px);
+  max-width: 1280px;
+  margin-inline: auto;
+  display: grid;
+  gap: clamp(40px, 6vw, 96px);
+  align-items: start;
+}
+@media (min-width: 940px) {
+  .statement {
+    grid-template-columns: 1.35fr 1fr;
+    align-items: center;
+  }
+}
+.statement-kick {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--teal);
+  margin-bottom: 22px;
+}
+.statement-text {
+  font-size: clamp(28px, 3.4vw, 50px);
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 1.14;
+  color: var(--ink);
+}
+.statement-points {
+  list-style: none;
+  display: grid;
+  gap: 4px;
+}
+.statement-points li {
+  display: grid;
+  gap: 6px;
+  padding: 22px 0;
+  border-top: 1px solid var(--line);
+}
+.statement-points li:last-child {
+  border-bottom: 1px solid var(--line);
+}
+.statement-points strong {
+  font-size: 17px;
+  font-weight: 640;
+  letter-spacing: -0.01em;
+}
+.statement-points span {
+  font-size: 15.5px;
+  color: var(--ink-soft);
+  line-height: 1.5;
+}
+
+/* ---------------- logo strip ---------------- */
+.logo-strip {
+  padding: 72px clamp(20px, 4vw, 56px) 80px;
+  background: var(--paper-alt);
+}
+.logo-strip-label {
+  text-align: center;
+  font-size: 13.5px;
+  color: var(--ink-faint);
+  margin-bottom: 36px;
+}
+.logo-strip-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(36px, 6vw, 84px);
+  flex-wrap: wrap;
+}
+.logo-strip-row img {
+  width: auto;
+  opacity: 0.92;
+  transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.19, 1, 0.22, 1);
+}
+.logo-strip-row img:hover {
+  opacity: 1;
+  transform: translateY(-2px);
+}
+
+/* ---------------- sections ---------------- */
+.section {
+  padding: clamp(88px, 12vh, 160px) clamp(20px, 4vw, 56px);
+  max-width: 1280px;
+  margin-inline: auto;
+}
+.section-tight {
+  padding-block: clamp(64px, 9vh, 120px);
+}
+.section-head {
+  max-width: 760px;
+  margin-bottom: clamp(36px, 6vh, 64px);
+}
+.section-title {
+  font-size: clamp(36px, 5vw, 64px);
+}
+.section-lede {
+  margin-top: 22px;
+  font-size: 18px;
+  color: var(--ink-soft);
+  max-width: 62ch;
+}
+
+/* ---------------- before/after ---------------- */
+.ba-wrap {
+  position: relative;
+  border-radius: 16px;
+  overflow: hidden;
+  cursor: ew-resize;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  box-shadow: var(--ring);
+}
+.ba-wrap img {
+  width: 100%;
+  height: auto;
+  pointer-events: none;
+}
+.ba-top {
+  position: absolute;
+  inset: 0;
+  will-change: clip-path;
+}
+.ba-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #fff;
+  transform: translateX(-1px);
+  box-shadow: 0 0 12px rgba(0, 0, 0, 0.45);
+}
+.ba-handle:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
+}
+.ba-grip {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+.ba-grip::before {
+  content: "◂ ▸";
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  color: var(--ink);
+  letter-spacing: 2px;
+}
+.ba-tag {
+  position: absolute;
+  bottom: 16px;
+  font-size: 12.5px;
+  font-weight: 560;
+  padding: 6px 12px;
+  border-radius: 8px;
+  backdrop-filter: blur(6px);
+}
+.ba-tag-left {
+  left: 16px;
+  background: rgba(255, 255, 255, 0.88);
+  color: var(--ink);
+}
+.ba-tag-right {
+  right: 16px;
+  background: rgba(11, 16, 15, 0.74);
+  color: #fff;
+}
+.ba-tag-right::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: var(--teal);
+}
+
+/* ---------------- pipeline flow diagram (frame -> found) ---------------- */
+.rail-section {
+  padding: clamp(96px, 13vh, 168px) clamp(20px, 4vw, 56px);
+  background: var(--paper);
+}
+/* header centered over the (centered) diagram so the whole block reads as one composition */
+.rail-head {
+  max-width: 640px;
+  margin: 0 auto clamp(56px, 8vh, 88px);
+  text-align: center;
+}
+.flow {
+  max-width: 1180px;
+  margin-inline: auto;
+}
+/* the numbered pipeline: four stages in a row, each led by a numbered node. A single connecting
+ * line runs THROUGH the node centers (a real spine) so it reads as one pipeline, not four cards. */
+.flow-track {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  column-gap: clamp(20px, 3vw, 48px);
+}
+.flow-node {
+  position: relative;
+  padding-top: 64px;
+}
+/* the numbered marker sits at the top of each column, on the spine */
+.flow-num {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--paper);
+  border: 1.5px solid var(--teal);
+  color: var(--teal);
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  z-index: 2;
+}
+/* the connecting spine: a hairline through the marker centers (22px = half the 44px marker),
+ * drawn from each node's marker to the next. The last node has none (nothing after it). */
+.flow-node::after {
+  content: "";
+  position: absolute;
+  top: 22px;
+  left: 44px;
+  right: calc(-1 * clamp(20px, 3vw, 48px));
+  height: 1.5px;
+  background: var(--line);
+  z-index: 1;
+}
+.flow-node:last-child::after {
+  display: none;
+}
+.flow-title {
+  margin-top: 24px;
+  font-size: clamp(20px, 1.6vw, 26px);
+}
+.flow-body {
+  margin-top: 12px;
+  color: var(--ink-soft);
+  font-size: 15px;
+  line-height: 1.6;
+}
+/* the foundation: the dark bar the whole loop rests on */
+.flow-base {
+  margin-top: clamp(40px, 6vh, 64px);
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: clamp(20px, 3vw, 48px);
+  background: var(--black);
+  color: #fff;
+  border-radius: 20px;
+  padding: clamp(26px, 3vw, 38px) clamp(28px, 3.5vw, 44px);
+}
+.flow-base-label {
+  font-family: "Urbanist Variable", "Urbanist", sans-serif;
+  font-size: clamp(19px, 1.6vw, 24px);
+  font-weight: 700;
+  color: var(--teal);
+  white-space: nowrap;
+}
+.flow-base-body {
+  font-size: 15px;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.74);
+  max-width: 62ch;
+}
+@media (max-width: 899px) {
+  .flow-track {
+    grid-template-columns: 1fr;
+    row-gap: 40px;
+  }
+  /* vertical stack: the spine runs DOWN from each marker to the next */
+  .flow-node {
+    padding-top: 0;
+    padding-left: 64px;
+  }
+  .flow-node::after {
+    top: 44px;
+    left: 22px;
+    right: auto;
+    bottom: calc(-40px);
+    width: 1.5px;
+    height: auto;
+  }
+  .flow-base {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+}
+
+/* ---------------- showcase ---------------- */
+/* the one shadow on the site: the product shot */
+.shot {
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: var(--ring);
+  filter: drop-shadow(0 24px 27px rgba(16, 21, 19, 0.18));
+}
+.shot img {
+  width: 100%;
+}
+.shot-notes {
+  display: grid;
+  gap: 28px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  margin-top: 40px;
+}
+.shot-notes > div {
+  border-top: 1px solid var(--line);
+  padding-top: 16px;
+}
+.shot-notes dt {
+  font-size: 15.5px;
+  font-weight: 620;
+}
+.shot-notes dd {
+  margin-top: 6px;
+  font-size: 15px;
+  color: var(--ink-soft);
+}
+
+/* ---------------- inspiration ---------------- */
+.inspo {
+  background: var(--paper-alt);
+  padding: clamp(88px, 12vh, 160px) clamp(20px, 4vw, 56px);
+}
+.inspo-grid {
+  display: grid;
+  gap: clamp(32px, 5vw, 72px);
+  max-width: 1280px;
+  margin-inline: auto;
+  align-items: center;
+}
+@media (min-width: 900px) {
+  .inspo-grid {
+    grid-template-columns: 1.05fr 0.95fr;
+  }
+}
+.inspo-copy p {
+  margin-top: 22px;
+  max-width: 56ch;
+  color: var(--ink-soft);
+}
+.inspo-copy p:first-of-type {
+  margin-top: 30px;
+}
+.inspo-photo img {
+  border-radius: 16px;
+  box-shadow: var(--ring);
+}
+.inspo-photo figcaption {
+  margin-top: 13px;
+  font-size: 13.5px;
+  color: var(--ink-faint);
+}
+
+/* ---------------- metrics ---------------- */
+.metric-grid {
+  display: grid;
+  gap: 44px 32px;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+}
+.metric {
+  border-top: 1px solid var(--ink);
+  padding-top: 20px;
+}
+.metric-num {
+  display: block;
+  font-size: clamp(44px, 4.8vw, 62px);
+  font-weight: 640;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.metric-unit {
+  display: block;
+  margin-top: 10px;
+  font-size: 15px;
+  font-weight: 600;
+}
+.metric-note {
+  display: block;
+  margin-top: 5px;
+  font-size: 14.5px;
+  color: var(--ink-faint);
+}
+
+/* ---------------- closing (light; the footer owns the black moment) ---------------- */
+.closing {
+  text-align: center;
+  padding: clamp(100px, 15vh, 190px) 24px;
+}
+.closing-title {
+  font-size: clamp(42px, 6.4vw, 92px);
+}
+.closing .pill {
+  margin-top: 44px;
+}
+.pill-dark {
+  background: var(--ink);
+  color: #fff;
+}
+
+/* ---------------- inner pages ---------------- */
+.page {
+  padding-top: 76px;
+}
+/* inner-page intros are centered (the sidebar-less pages read lopsided left-aligned) */
+.page-hero {
+  padding-bottom: clamp(36px, 5vh, 64px);
+  text-align: center;
+}
+.page-hero .section-lede {
+  margin-inline: auto;
+}
+.page-title {
+  font-size: clamp(44px, 7vw, 96px);
+}
+
+.tech-list {
+  list-style: none;
+  border-top: 1px solid var(--line);
+}
+/* editorial spec-sheet row: index + title on the left, description on the right — uses the FULL
+ * width instead of cramming everything into the left half */
+.tech-row {
+  display: grid;
+  grid-template-columns: 56px minmax(220px, 1fr) 1.5fr;
+  gap: clamp(24px, 4vw, 64px);
+  align-items: start;
+  padding: clamp(30px, 4vh, 44px) 0;
+  border-bottom: 1px solid var(--line);
+}
+.tech-num {
+  font-size: 14px;
+  font-weight: 560;
+  color: var(--teal);
+  font-variant-numeric: tabular-nums;
+  padding-top: 6px;
+}
+.tech-row h3 {
+  font-size: clamp(20px, 1.6vw, 26px);
+  line-height: 1.2;
+}
+.tech-row p {
+  color: var(--ink-soft);
+  font-size: 16px;
+  line-height: 1.65;
+}
+@media (max-width: 760px) {
+  .tech-row {
+    grid-template-columns: 40px 1fr;
+    gap: 8px 20px;
+  }
+  .tech-row p {
+    grid-column: 1 / -1;
+  }
+}
+
+/* aircraft component rows */
+.craft-list {
+  list-style: none;
+  border-top: 1px solid var(--line);
+  max-width: 980px;
+}
+.craft-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.85fr) 1.6fr;
+  gap: 24px;
+  padding: 26px 0 28px;
+  border-bottom: 1px solid var(--line);
+}
+.craft-row strong {
+  font-size: 18px;
+  font-weight: 640;
+  letter-spacing: -0.01em;
+}
+.craft-row span {
+  color: var(--ink-soft);
+  font-size: 16px;
+  max-width: 58ch;
+}
+@media (max-width: 700px) {
+  .craft-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+}
+
+.faq-grid {
+  display: grid;
+  gap: clamp(32px, 5vw, 72px);
+  align-items: start;
+}
+@media (min-width: 980px) {
+  .faq-grid {
+    grid-template-columns: 1.15fr 0.85fr;
+  }
+}
+.faq {
+  margin-top: 34px;
+  border-block: 1px solid var(--line);
+  list-style: none;
+}
+.faq li + li {
+  border-top: 1px solid var(--line);
+}
+.faq-q {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-block: 21px;
+  border: 0;
+  background: none;
+  text-align: left;
+  font: inherit;
+  font-size: 18.5px;
+  font-weight: 560;
+  letter-spacing: -0.015em;
+  color: var(--ink);
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+.faq-q:hover {
+  color: var(--teal);
+}
+.faq-a {
+  display: grid;
+  transition: grid-template-rows 0.5s cubic-bezier(0.19, 1, 0.22, 1);
+}
+.faq-a > div {
+  overflow: hidden;
+}
+.faq-a p {
+  padding: 0 40px 24px 0;
+  color: var(--ink-soft);
+}
+.faq-photo {
+  position: sticky;
+  top: 110px;
+}
+.faq-photo img {
+  border-radius: 16px;
+  box-shadow: var(--ring);
+}
+
+/* ---------------- team page ---------------- */
+/* face-in-circle team grid: consistent circular avatars, name + short role under each */
+.team-grid {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: clamp(28px, 4vw, 56px);
+  max-width: 1080px;
+  margin-inline: auto;
+}
+.team-member {
+  display: grid;
+  justify-items: center;
+  text-align: center;
+}
+.team-avatar {
+  display: block;
+  width: clamp(120px, 14vw, 180px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--paper-alt);
+  box-shadow: var(--ring), 0 12px 24px rgba(16, 21, 19, 0.12);
+  transition: transform 0.35s cubic-bezier(0.19, 1, 0.22, 1);
+}
+.team-member:hover .team-avatar {
+  transform: translateY(-4px);
+}
+.team-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.team-name {
+  margin-top: 18px;
+  font-family: "Urbanist Variable", "Urbanist", sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+}
+.team-role {
+  margin-top: 4px;
+  font-size: 14px;
+  color: var(--ink-soft);
+}
+.build-grid {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  align-items: start;
+}
+.build-shot img {
+  border-radius: 16px;
+  width: 100%;
+  box-shadow: 0 0 0 1px rgba(16, 21, 19, 0.06);
+}
+.build-shot figcaption {
+  margin-top: 11px;
+  font-size: 13.5px;
+  color: var(--ink-faint);
+}
+.honor-list {
+  max-width: 860px;
+  list-style: none;
+}
+.honor-row {
+  display: grid;
+  grid-template-columns: 128px 1fr auto;
+  align-items: center;
+  gap: 28px;
+  padding-block: 24px;
+  border-top: 1px solid var(--line);
+}
+.honor-row:last-child {
+  border-bottom: 1px solid var(--line);
+}
+.honor-row img {
+  max-height: 46px;
+  width: auto;
+  max-width: 128px;
+  object-fit: contain;
+}
+.honor-row strong {
+  display: block;
+  font-size: 17px;
+  font-weight: 620;
+  letter-spacing: -0.015em;
+}
+.honor-row span {
+  display: block;
+  font-size: 14.5px;
+  color: var(--ink-faint);
+}
+.honor-arrow {
+  color: var(--ink-faint);
+  transition: transform 0.3s cubic-bezier(0.19, 1, 0.22, 1), color 0.25s ease;
+}
+.honor-row:hover .honor-arrow {
+  transform: translate(3px, -3px);
+  color: var(--ink);
+}
+
+/* ---------------- footer: black panel inset in the gray strip ---------------- */
+.site-footer {
+  background: var(--paper-alt);
+  padding: 16px;
+}
+.footer-panel {
+  background: var(--black);
+  color: #fff;
+  border-radius: 24px;
+  padding: clamp(64px, 9vh, 110px) clamp(24px, 4vw, 64px) 0;
+  overflow: hidden;
+  /* grows 0.92 -> 1 on scroll-in (usePanelGrow); origin at the bottom so it "rises" into place */
+  transform-origin: center bottom;
+  will-change: transform;
+}
+.footer-grid {
+  display: grid;
+  gap: 48px;
+  max-width: 1280px;
+  margin-inline: auto;
+}
+@media (min-width: 760px) {
+  .footer-grid {
+    grid-template-columns: 1.6fr 1fr 1fr;
+  }
+}
+.footer-title {
+  font-size: clamp(36px, 4.6vw, 60px);
+}
+.footer-sub {
+  margin-top: 18px;
+  max-width: 340px;
+  color: rgba(255, 255, 255, 0.6);
+}
+.footer-col h3 {
+  font-size: 13.5px;
+  font-weight: 560;
+  letter-spacing: 0;
+  color: rgba(255, 255, 255, 0.42);
+  margin-bottom: 16px;
+}
+.footer-col a {
+  display: block;
+  color: rgba(255, 255, 255, 0.82);
+  text-decoration: none;
+  padding-block: 6px;
+  transition: color 0.2s ease;
+}
+.footer-col a:hover {
+  color: #fff;
+}
+.footer-base {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  max-width: 1280px;
+  margin: 56px auto 0;
+  padding-top: 26px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 13.5px;
+  color: rgba(255, 255, 255, 0.42);
+}
+/* the giant sign-off wordmark, centered, melting into the panel's bottom edge */
+.footer-word {
+  position: relative;
+  margin-top: clamp(28px, 6vh, 64px);
+  font-family: "Urbanist Variable", "Urbanist", sans-serif;
+  font-size: clamp(130px, 21vw, 330px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 0.78;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.92);
+  transform: translateY(0.1em);
+  user-select: none;
+}
+.footer-word::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 0%, rgba(11, 16, 15, 0.9) 78%, var(--black) 100%);
+}
+
+/* ---------------- reduced motion ---------------- */
+@media (prefers-reduced-motion: reduce) {
+  /* Only AUTOPLAY / looping motion is suppressed under reduced motion. The scroll-driven system
+   * (reveals, parallax, hero drift, panel grow, count-ups, the statement word-brighten) is
+   * user-initiated and runs regardless — it IS the site's experience, and gating it left the page
+   * dead for reduce-motion users. So here we ONLY: kill the CSS load-entrance keyframes (hero
+   * wordmark/drone/desc/steps rise+float on load) so those simply appear, stop the looping
+   * step-word weight sweep, and remove hover transforms. NOTE: we deliberately do NOT touch
+   * [data-reveal] or .statement-text — those are GSAP-driven and must keep their motion. */
+  .hero-word,
+  .hero-drone,
+  .hero-desc,
+  .hero-steps,
+  .site-nav {
+    animation: none;
+  }
+  .hero-steps li {
+    animation: none;
+    color: var(--ink);
+    font-variation-settings: "wght" 540;
+  }
+  .landing .pill:hover,
+  .honor-row:hover .honor-arrow,
+  .logo-strip-row img:hover,
+  .team-member:hover .team-avatar {
+    transform: none;
+  }
+  .faq-a {
+    transition: none;
+  }
+}

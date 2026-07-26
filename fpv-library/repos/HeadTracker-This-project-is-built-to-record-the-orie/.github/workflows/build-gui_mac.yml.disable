@@ -1,0 +1,151 @@
+name: MacOS GUI
+
+on:
+  push:
+    tags:
+      - '*'
+    branches:
+      - master
+      - v2.2x
+    paths:
+      - '.github/workflows/build-gui_mac.yml'
+      - 'gui/src/**'
+
+  pull_request:
+    branches:
+      - master
+    paths:
+      - '.github/workflows/build-gui_mac.yml'
+      - 'gui/src/**'
+
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - name: Select XCode version
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Check out the repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          aqtversion: '==3.1.*'
+          version: '6.4.1'
+          modules: 'qtserialport'
+
+      - name: Generate Icons
+        working-directory: ${{github.workspace}}
+        run: |
+          cd gui/src/images
+          bash -x svg2icns.bash IconFile.png
+
+      - name: Build
+        working-directory: ${{github.workspace}}
+        run: |
+          cd gui/src
+          ls
+          qmake HeadTracker.pro
+          make
+
+      - name: prepare output
+        working-directory: ${{github.workspace}}
+        run: |
+          mkdir output
+          cp -R gui/src/HeadTracker.app output/HeadTracker.app
+          # cp gui/src/css/stylesheet.css output/HeadTracker.app/Contents/MacOs
+          # cp gui/src/css/Background.svg output/HeadTracker.app/Contents/MacOs
+
+# https://docs.github.com/en/enterprise-server@3.4/actions/deployment/deploying-xcode-applications/installing-an-apple-certificate-on-macos-runners-for-xcode-development
+
+      - name: Install the Apple certificate and provisioning profile
+        env:
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+          BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_BASE64 }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          # create variables
+          CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
+          # PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+
+          # import certificate and provisioning profile from secrets
+          echo -n "$BUILD_CERTIFICATE_BASE64" | base64 --decode --output $CERTIFICATE_PATH
+          # echo -n "$BUILD_PROVISION_PROFILE_BASE64" | base64 --decode --output $PP_PATH
+
+          # create temporary keychain
+          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+
+          # import certificate to keychain
+          security import $CERTIFICATE_PATH -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+          security list-keychain -d user -s $KEYCHAIN_PATH
+
+          # apply provisioning profile
+          # mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          # cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles
+
+# https://localazy.com/blog/how-to-automatically-sign-macos-apps-using-github-actions
+# https://successfulsoftware.net/2018/11/16/how-to-notarize-your-software-on-macos/
+
+      - name: Notarize executable
+        working-directory: ${{github.workspace}}/output
+        env:
+          APPLE_DEV_IDENTITY: ${{ secrets.APPLE_DEV_IDENTITY }}
+          APPLE_DEV_USER: ${{ secrets.APPLE_DEV_USER }}
+          APPLE_DEV_PASS: ${{ secrets.APPLE_DEV_PASS }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          ENV_APP_NAME: HeadTracker
+          ENV_BUNDLE_ID: net.headtracker.gui
+
+        run: |
+          macdeployqt ${ENV_APP_NAME}.app -dmg -sign-for-notarization="${APPLE_DEV_IDENTITY}"
+          mkdir dmg
+
+          # take the latest tag as version
+          VERSION=$(git describe --tags --abbrev=0)
+          DMG_FILE=${ENV_APP_NAME}-${VERSION}.dmg
+          mv ${ENV_APP_NAME}.dmg dmg/${DMG_FILE}
+
+          echo "--> Start Notarization process"
+          NOTARYTOOL_PROFILE=notary-profile
+          xcrun notarytool store-credentials "$NOTARYTOOL_PROFILE" \
+            --apple-id "${APPLE_DEV_USER}" \
+            --password "${APPLE_DEV_PASS}" \
+            --team-id "${APPLE_TEAM_ID}"
+
+          echo "--> Submitting for notarization"
+          xcrun notarytool submit dmg/${DMG_FILE} \
+            --keychain-profile "$NOTARYTOOL_PROFILE" \
+            --wait
+
+          echo "--> Stapling"
+          xcrun stapler staple -v dmg/${DMG_FILE}
+
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
+        if: ${{ failure() }}
+        timeout-minutes: 15
+
+      - name: Archive production artifacts
+        uses: actions/upload-artifact@v4
+        id: artifact-upload-step
+        with:
+          name: HeadTracker_macOS
+          path: ${{github.workspace}}/output/dmg
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: Output artifact ID
+        run:  echo 'Artifact ID is ${{ steps.artifact-upload-step.outputs.artifact-id }}'
+  

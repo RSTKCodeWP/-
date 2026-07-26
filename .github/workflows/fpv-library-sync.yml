@@ -1,0 +1,53 @@
+name: FPV Library Sync
+
+on:
+  schedule:
+    # Daily at 06:00 UTC — discover new repos and pull upstream updates
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+    inputs:
+      discover_pages:
+        description: "Search page range (e.g. 1-3 or 4)"
+        required: false
+        default: "1-3"
+      min_score:
+        description: "Minimum relevance score"
+        required: false
+        default: "2.0"
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Discover FPV repositories
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 fpv-library/scripts/discover.py \
+            --search Fpv \
+            --pages "${{ github.event.inputs.discover_pages || '1-3' }}" \
+            --min-score "${{ github.event.inputs.min_score || '2.0' }}" \
+            --expand-owners \
+            --owner-limit 5
+
+      - name: Sync tracked repositories
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 fpv-library/scripts/sync.py --all
+
+      - name: Commit updates
+        run: |
+          git config user.name "fpv-library-bot"
+          git config user.email "fpv-library-bot@users.noreply.github.com"
+          git add fpv-library/
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "fpv-library: automated discover + sync"
+            git push
+          fi

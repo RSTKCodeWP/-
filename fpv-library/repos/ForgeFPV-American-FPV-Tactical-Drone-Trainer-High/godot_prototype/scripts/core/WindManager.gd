@@ -1,0 +1,1 @@
+Updated WindManager with stronger urban wind application

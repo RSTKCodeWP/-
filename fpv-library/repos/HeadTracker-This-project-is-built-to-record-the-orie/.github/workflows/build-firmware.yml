@@ -1,0 +1,113 @@
+name: Firmware Build
+
+on:
+  push:
+    branches:
+      - master
+      - v2.2x
+    paths:
+      - '.github/workflows/build-firmware.yml'
+      - 'firmware/src/**'
+
+  pull_request:
+    branches:
+      - master
+    paths:
+      - '.github/workflows/build-firmware.yml'
+      - 'firmware/src/**'
+
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: docker.io/dlktdr/ht_zephyr:3.7.1
+      volumes:
+        - ${{ github.workspace }}:/src
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: 'true'
+      - name: Activate Python VirtualEnv
+        run: |
+          . /root/zephyr_py_env/.venv/bin/activate
+          echo PATH=$PATH >> $GITHUB_ENV
+      - name: Set Zephyr Base Environment Variable
+        run: |
+          echo "ZEPHYR_BASE=/root/zephyr/zephyr" >> "$GITHUB_ENV"
+      - name: Change User Permissions
+        run: |
+          chown -R $(id -u):$(id -g) /src
+      - name: Create a binary output folder
+        run: |
+          mkdir /src/firmware/src/build_bins
+      - name: Register Zephyr CMAKE Package
+        run: |
+          cd /root/zephyr-sdk
+          ./setup.sh -c
+      - name: Build Firmware Arduino Nano 33 BLE (Sense)
+        run: |
+          cd /src/firmware/src
+          west build -p -b arduino_nano_33_ble
+          cp ./build/zephyr/*.bin build_bins/
+      - name: Build Firmware Arduino Nano 33 BLE (Sense) Rev 2
+        run: |
+          cd /src/firmware/src
+          west build -p -b arduino_nano_33_ble -- -DBOARD_REV2=y
+          cp ./build/zephyr/*.bin build_bins/
+      - name: Build Firmware XIAO NRF52840 Sense
+        run: |
+          cd /src/firmware/src
+          west build -p -b xiao_ble/nrf52840/sense
+          cp ./build/zephyr/*.uf2 build_bins/
+      - name: Build Firmware XIAO NRF52840
+        run: |
+          cd /src/firmware/src
+          west build -p -b xiao_ble/nrf52840
+          cp ./build/zephyr/*.uf2 build_bins/
+      - name: Build Firmware ESP32C3 DevkitM
+        run: |
+          cd /src/firmware/src
+          west build -p -b esp32c3_devkitm
+          cp ./build/zephyr/*.bin build_bins/
+      - name: Build Firmware M5StickC Plus
+        run: |
+          cd /src/firmware/src
+          west build -p -b m5stickc_plus/esp32/procpu
+          cp ./build/zephyr/*.bin build_bins/
+      - name: Build Firmware DTQSYS Ht
+        run: |
+          cd /src/firmware/src
+          west build -p -b dtqsys_ht
+          cp ./build/zephyr/*.bin build_bins/
+      - name: Build Firmware Licardo Ht
+        run: |
+          cd /src/firmware/src
+          west build -p -b licardo_ht
+          cp ./build/zephyr/*.bin build_bins/
+
+      # - name: Setup tmate session
+      #   uses: mxschmitt/action-tmate@v3
+      #   if: ${{ failure() }}
+      #   timeout-minutes: 15
+
+      # Runs a set of commands using the runners shell
+      - name: Package Firmware
+        uses: 'actions/upload-artifact@v4'
+        id: artifact-upload-step
+        with:
+          name: Firmware_Binaries
+          path: |
+            /src/firmware/src/build_bins/*.bin
+            /src/firmware/src/build_bins/*.uf2
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: Output artifact ID
+        run:  echo 'Artifact ID is ${{ steps.artifact-upload-step.outputs.artifact-id }}'
+

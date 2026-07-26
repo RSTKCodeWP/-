@@ -1,0 +1,19 @@
+{
+  "pt": {
+    "recall": 0.509,
+    "precision": 0.624,
+    "tp": 732,
+    "fp": 442,
+    "fn": 706
+  },
+  "fp16": {
+    "recall": 0.551,
+    "precision": 0.676,
+    "tp": 793,
+    "fp": 380,
+    "fn": 645
+  },
+  "recall_gain": 0.042,
+  "precision_gain": 0.052,
+  "note": "FP16 Core ML did not degrade vs float32; shipped model is the FP16 .mlpackage."
+}

@@ -1,0 +1,73 @@
+defaults nosave
+
+
+# version
+# Betaflight / STM32F411 (S411) 4.5.2 Mar 20 2025 / 04:38:11 (024f8e13d) MSP API: 1.46
+# config rev: 0f78778
+
+# start the command batch
+batch start
+
+# reset configuration to default settings
+defaults nosave
+
+board_name GEPRCF411_AIO
+manufacturer_id GEPR
+mcu_id 006500423030511737393838
+signature 
+
+# name: cinelog-flyfish
+
+# feature
+feature SOFTSERIAL
+feature TELEMETRY
+feature LED_STRIP
+feature OSD
+
+# serial
+serial 1 64 115200 57600 0 115200
+serial 30 0 115200 19200 0 19200
+
+# master
+set acc_calibration = 54,-31,103,1
+set small_angle = 180
+set osd_units = 
+###ERROR IN diff: CORRUPTED CONFIG: osd_units = 9###
+set osd_rssi_alarm = 0
+set osd_cap_alarm = 768
+set osd_alt_alarm = 0
+set osd_tim2 = 2563
+set osd_vbat_pos = 2434
+set osd_rssi_dbm_pos = 2071
+set osd_tim_1_pos = 3341
+set osd_tim_2_pos = 3309
+set osd_craft_name_pos = 2613
+set osd_pilot_name_pos = 2598
+set osd_warnings_pos = 14936
+set osd_avg_cell_voltage_pos = 2370
+set craft_name = cinelog-flyfish
+set pilot_name = papfpv
+
+profile 0
+
+profile 1
+
+profile 2
+
+profile 3
+
+# restore original profile selection
+profile 0
+
+rateprofile 0
+
+rateprofile 1
+
+rateprofile 2
+
+rateprofile 3
+
+# restore original rateprofile selection
+rateprofile 0
+
+# save configuration

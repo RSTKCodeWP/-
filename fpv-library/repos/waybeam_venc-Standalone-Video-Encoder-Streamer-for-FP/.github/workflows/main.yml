@@ -1,0 +1,89 @@
+name: Build & Test
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  # ── Unit tests (x86_64, host compiler) ──────────────────────────────
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Unit tests
+        run: make test
+
+  test-asan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Unit tests (ASAN + UBSAN)
+        run: make test-asan
+
+  test-tsan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Unit tests (ThreadSanitizer)
+        run: make test-tsan
+
+  # ── Cross-compile lint (ARM toolchain) ──────────────────────────────
+
+  lint-star6e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch Star6E toolchain
+        run: make toolchain
+      - name: Lint Star6E backend
+        run: make lint SOC_BUILD=star6e
+
+  lint-maruko:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch Maruko toolchain
+        run: make toolchain-maruko
+      - name: Lint Maruko backend
+        run: make lint SOC_BUILD=maruko
+
+  # ── Full build + artifact upload ────────────────────────────────────
+
+  build:
+    runs-on: ubuntu-latest
+    needs: [test, lint-star6e]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch Star6E toolchain
+        run: make toolchain
+      - name: Build standalone binaries
+        run: make build
+      - name: Verify outputs
+        run: |
+          test -x out/star6e/waybeam
+      - name: Upload binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: star6e-standalone-binaries
+          path: |
+            out/star6e/waybeam
+
+  build-maruko:
+    runs-on: ubuntu-latest
+    needs: [test, lint-maruko]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch Maruko toolchain
+        run: make toolchain-maruko
+      - name: Build Maruko binary
+        run: make build SOC_BUILD=maruko
+      - name: Verify output
+        run: test -x out/maruko/waybeam
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: maruko-binary
+          path: out/maruko/waybeam

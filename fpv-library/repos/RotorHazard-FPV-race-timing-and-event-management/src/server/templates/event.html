@@ -1,0 +1,418 @@
+{% extends "layout.html" %} {% block title %}{{ __('Event') }}{% endblock %} {% block head %}
+
+<script src="./static/showdown-1.9.1/showdown.min.js"></script>
+
+{% endblock %} {% block content %}
+<script type="text/javascript" charset="utf-8">
+	var data_dependencies = [
+		'all_languages',
+		'language',
+		'frequency_data',
+		'pilot_data',
+		'class_data',
+		'format_data',
+		'heat_data'
+	];
+
+	$(document).ready(function () {
+		socket.on('language', function (msg) {
+			if (msg.language) {
+				rotorhazard.interface_language = msg.language;
+			}
+		});
+
+		// set up node local store
+		for (var i = 0; i < {{ num_nodes }}; i++) {
+			rotorhazard.nodes[i] = new nodeModel();
+		}
+
+		// set up markdown converter
+		var event_converter = new showdown.Converter({
+			ghCodeBlocks: true,
+			ghCompatibleHeaderId: true,
+			literalMidWordUnderscores: true,
+			simpleLineBreaks: true,
+			headerLevelStart: 3
+		});
+
+		var class_converter = new showdown.Converter({
+			ghCodeBlocks: true,
+			ghCompatibleHeaderId: true,
+			literalMidWordUnderscores: true,
+			simpleLineBreaks: true,
+			headerLevelStart: 4
+		});
+
+		md_output = event_converter.makeHtml({{ getOption('eventDescription')|tojson }});
+		if (!md_output) {
+			md_output = '<p><em>(' + __('no description provided') + ')</em></p>';
+		}
+		$('#description').html($(md_output));
+
+		socket.on('frequency_data', function (msg) {
+			if (msg.fdata.length) {
+				for (var i in msg.fdata) {
+					var fObj = freq.getFObjbyFData(msg.fdata[i]);
+					rotorhazard.nodes[i].fObj = fObj;
+					$('#s_channel_' + i).val(fObj.frequency);
+					$('#f_table_' + i).val(fObj.fString);
+					freq.updateBlock(fObj, i);
+				}
+			}
+		});
+
+		socket.on('pilot_data', function (msg) {
+			rotorhazard.event.pilots = msg.pilots;
+			rotorhazard.options.pilotSort = msg.pilotSort;
+			display_heats();
+		});
+
+		socket.on('heat_data', function (msg) {
+			rotorhazard.event.heats = msg.heats;
+			display_heats();
+		});
+
+		socket.on('class_data', function (msg) {
+			rotorhazard.event.classes = msg.classes;
+			display_classes()
+		});
+
+		socket.on('format_data', function (msg) {
+			rotorhazard.event.formats = msg.formats;
+			display_classes()
+		});
+
+		function display_heats() {
+			if (rotorhazard.event.heats &&
+				rotorhazard.event.pilots &&
+				rotorhazard.event.classes) {
+				$(".pilots").empty();
+				$("#heat_list").empty();
+				$('#pilot_list').empty();
+
+				var heats_by_class = {}
+				var active_pilot_ids = []
+
+				if (rotorhazard.event.heats.length == 0) {
+					$('#heat_list').append('<p><em>(' + __('no heats created') + ')</em></p>');
+					$('#section-pilots').hide();
+					return
+				}
+
+				for (var h in rotorhazard.event.heats) {
+					var heat = rotorhazard.event.heats[h];
+
+					// assemble heats by class
+					if (!(heat.class_id in heats_by_class)) {
+						heats_by_class[heat.class_id] = [];
+					}
+					heats_by_class[heat.class_id].push(heat)
+
+					// assemble active pilot list
+					for (p in heat.slots) {
+						var pilot_id = heat.slots[p].pilot_id;
+						if (!active_pilot_ids.includes(pilot_id)) {
+							active_pilot_ids.push(pilot_id);
+						}
+					}
+				}
+
+				if (rotorhazard.event.classes.length) {
+					// assemble class groups
+					for (var c in heats_by_class) {
+						var heat_list = heats_by_class[c]
+						var class_group = $('<li>');
+
+						class_label = __('Unclassified');
+						class_id = 0;
+						var class_data = rotorhazard.event.classes.find(obj => {return obj.id == c});
+
+						if (class_data) {
+							class_label = class_data.displayname;
+							class_id = class_data.id;
+						}
+
+						class_group.attr('data-class-id', class_id);
+						class_group.append('<h3>' + class_label + '</h3>');
+
+						heat_groups = $('<ol class="heats">');
+
+						for (var h in heat_list) {
+							var heat = heat_list[h];
+							var heat_display_el = $('<li class="heat">');
+
+							var heat_el = get_heat_display(heat, heat_display_el, 'h4');
+
+							heat_groups.append(heat_el);
+							class_group.append(heat_groups);
+						}
+
+						$('#heat_list').append(class_group);
+
+						// move unclassified to end of list
+						$('#heat_list').append($('#heat_list li[data-class-id="0"]'));
+					}
+				} else {
+					heat_groups = $('<ol class="heats">');
+
+					for (var h in rotorhazard.event.heats) {
+						var heat = rotorhazard.event.heats[h];
+						var heat_display_el = $('<li class="heat">');
+
+						var heat_el = get_heat_display(heat, heat_display_el, 'h3');
+
+						heat_groups.append(heat_el);
+					}
+
+					$('#heat_list').append(heat_groups);
+				}
+
+				freq.updateBlocks();
+
+				// populate pilots
+
+				$('#section-pilots').show();
+
+				for (var p in rotorhazard.event.pilots) {
+					pilot = rotorhazard.event.pilots[p];
+					if (active_pilot_ids.includes(pilot.pilot_id)) {
+						var el = $('<li data-id="' + pilot.pilot_id + '">');
+						el.append('<div class="name">'+ pilot.name + '</div>');
+						el.append('<div class="callsign">' + pilot.callsign + '</div>');
+						el.appendTo($('.pilots'));
+					}
+				}
+			}
+		}
+
+		function get_heat_display(heat, heat_display_el, header_tag) {
+			heat_display_el.append('<' + header_tag + '>' + heat.displayname + '</' + header_tag + '>');
+
+			var nodelist = $('<ul>');
+
+			if (heat.locked || heat.status == 2 || heat.auto_frequency === false) { // HeatStatus.CONFIRMED
+				for (idx in heat.slots) {
+					var slot = heat.slots[idx];
+
+					if (slot.pilot_id) {
+						var pilot = rotorhazard.event.pilots.find(obj => {return obj.pilot_id == slot.pilot_id});
+
+						if (pilot) {
+							var callsign = pilot.callsign;
+						} else {
+							var callsign = "(" + __("Pilot") + " " + slot.pilot_id + ")"
+						}
+
+						var slot_el = $('<li>');
+						slot_el.append('<div class="channel-block" data-node="' + slot.node_index + '"><span class="ch"></span> <span class="fr"></span></div>');
+
+						slot_el.append('<div class="pilot-name">' + callsign + '</div>');
+						nodelist.append(slot_el);
+					}
+				}
+			} else {
+				for (idx in heat.slots) {
+					var slot = heat.slots[idx];
+					var slot_el = $('<li>');
+
+					if (slot.method > -1 && !(slot.method == 0 && !slot.pilot_id)) {
+						var method_text = get_method_descriptor(slot.method, slot.seed_id, slot.seed_rank, slot.pilot_id)
+						slot_el.append('<div class="method">' + method_text + '</div>');
+
+						nodelist.append(slot_el);
+					}
+				}
+			}
+
+			heat_display_el.append(nodelist);
+
+			return heat_display_el
+		}
+
+		function get_method_descriptor (method, seed, rank, pilot_id) {
+			if (method == 0) { // pilot
+				var pilot = rotorhazard.event.pilots.find(obj => {return obj.pilot_id == pilot_id});
+
+				if (pilot) {
+					return pilot.callsign;
+				} else {
+					return false;
+				}
+			} else if (method == 1) { // heat
+				var heat = rotorhazard.event.heats.find(obj => {return obj.id == seed});
+
+				if (heat) {
+					return heat.displayname + " " + __('Rank') + " " + rank;
+				} else {
+					return false;
+				}
+			} else if (method == 2) { // class
+				var race_class = rotorhazard.event.classes.find(obj => {return obj.id == seed});
+
+				if (race_class) {
+					return race_class.displayname + " " + __('Rank') + " " + rank;
+				} else {
+					return false;
+				}
+			}
+			return false;
+		}
+
+		function display_classes() {
+			if (rotorhazard.event.classes && rotorhazard.event.formats) {
+				$(".race_classes").empty();
+				$(".race_formats").empty();
+
+				var active_format_ids = []
+				if (rotorhazard.event.classes.length) {
+					var classlist = $('<ol>');
+					for (var i in rotorhazard.event.classes) {
+						var race_class = rotorhazard.event.classes[i];
+						var el = $('<li>');
+
+						el.append('<h3>' + race_class.displayname + '</h3>');
+
+						var class_info = $('<div class="class-info">');
+
+						if (race_class.description) {
+							var md_output = class_converter.makeHtml(race_class.description)
+							var class_desc = $('<div class="description">').append(md_output);
+							class_info.append(class_desc);
+						}
+
+						if (race_class.format) {
+							var raceformat = rotorhazard.event.formats.find(obj => {return obj.id == race_class.format});
+
+							if (raceformat) {
+								class_info.append('<p><strong>'+ __('Format') + ':</strong> ' + raceformat.name + '</p>');
+
+								if (!active_format_ids.includes(raceformat.id)) {
+									active_format_ids.push(raceformat.id);
+								}
+							} else {
+								class_info.append('<p><strong>'+ __('Format') + ':</strong> (Undefined)</p>');
+							}
+						} else {
+							class_info.append('<p>' + __('No format restriction') + '</p>');
+						}
+
+						if (race_class.rank_method_label) {
+							class_info.append('<p><strong>'+ __('Ranking') + ':</strong> '+ race_class.rank_method_label + '</p>');
+						}
+
+						if (race_class.rounds) {
+							class_info.append('<p><strong>' + __('Rounds') + '</strong>: ' + race_class.rounds + '</p>');
+						}
+
+						class_info.appendTo(el);
+
+						el.appendTo(classlist);
+					}
+					classlist.appendTo($('.race_classes'));
+
+					formatlist = $('<ul>');
+					for (var f in rotorhazard.event.formats) {
+						raceformat = rotorhazard.event.formats[f];
+						if (active_format_ids.includes(raceformat.id)) {
+							var format_item = $('<li>');
+
+							format_item.append('<h3>' + raceformat.name + '</h3>');
+
+							var format_details = {}
+
+							if (raceformat.unlimited_time) {
+								format_details['Race Clock'] = rotorhazard.raceMode[raceformat.unlimited_time];
+							} else {
+								format_details['Race Clock (seconds)'] = raceformat.race_time_sec
+							}
+
+							format_details['Fixed Staging Tones'] = raceformat.staging_fixed_tones;
+
+							if (raceformat.start_delay_min == raceformat.start_delay_max) {
+								format_details['Start Delay (seconds)'] = raceformat.start_delay_min / 1000;
+							} else {
+								format_details['Start Delay (seconds)'] = raceformat.start_delay_min / 1000 + '&#8211;' + (raceformat.start_delay_min + raceformat.start_delay_max) / 1000;
+							}
+
+							format_details['First Crossing'] = rotorhazard.startBehavior[raceformat.start_behavior];
+
+							format_details['Win Condition'] = rotorhazard.winCondition[raceformat.win_condition];
+
+							if (raceformat.win_condition in [2]) {
+								format_details['Laps to Win'] = raceformat.number_laps_win;
+							}
+
+							if (raceformat.team_racing_mode == RACING_MODE_TEAM) {
+								format_details['Team Racing'] = 'Yes';
+							}
+
+							var format_details_list = $('<ul class="format-info">')
+
+							for (var item in format_details) {
+								var list_item = $('<li>');
+								var label = $('<div class="label">').html(__(item));
+								var value = $('<div class="value">').html(__(format_details[item]));
+
+								list_item.append(label).append(value);
+								format_details_list.append(list_item);
+							}
+
+							format_item.append(format_details_list);
+							formatlist.append(format_item);
+						}
+						formatlist.appendTo($('.race_formats'));
+					}
+					$('#section-classes').show();
+					$('#section-formats').show();
+				} else {
+					$('#section-classes').hide();
+					$('#section-formats').hide();
+				}
+			}
+		}
+	});
+</script>
+
+<main class="page-heats">
+
+<div id="section-event">
+	<h2>{{ getOption('eventName') }}</h2>
+	<div id="description">
+		<p class="form-note">{{ __('Loading...') }}</p>
+	</div>
+</div>
+
+<div id="section-heats">
+	<!--Display the heats-->
+	<h2>{{ __('Heats') }}</h2>
+	<ul id="heat_list">
+		<li>{{ __('Loading...') }}</li>
+	</ul>
+</div>
+
+<div id="section-pilots">
+	<!--Display the pilots-->
+	<h2>{{ __('Pilots') }}</h2>
+	<ul id="pilot_list" class="pilots">
+		<li>{{ __('Loading...') }}</li>
+	</ul>
+</div>
+
+<div id="section-classes">
+	<!--Display the classes-->
+	<h2>{{ __('Classes') }}</h2>
+	<div id="race_classes" class="race_classes">
+		<p class="form-note">{{ __('Loading...') }}</p>
+	</div>
+</div>
+
+<div id="section-formats">
+	<!--Display the formats-->
+	<h2>{{ __('Formats') }}</h2>
+	<div id="race_formats" class="race_formats">
+		<p class="form-note">{{ __('Loading...') }}</p>
+	</div>
+</div>
+
+</main>
+{% endblock %}

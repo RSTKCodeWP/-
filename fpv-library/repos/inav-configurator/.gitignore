@@ -1,0 +1,24 @@
+.DS_store
+nbproject/
+node_modules/
+npm-debug.log
+.idea/
+npm-debug.log
+inav-configurator.iml
+/out
+/.vite
+.eslintrc.json
+/.project
+/cache/
+/dist/
+/apps/
+/build/
+*~
+*.swp
+*.bak
+eeprom.bin
+
+# ctags
+tags
+TAGS
+start-with-debugging.sh

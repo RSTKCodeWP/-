@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: RotorHazard Documentation
+    url: https://github.com/RotorHazard/RotorHazard/tree/main/doc
+    about: The documentation for RotorHazard
+  - name: Community Plugins Documentation
+    url: https://rotorhazard.github.io/community-plugins
+    about: The documentation for the Community Plugins
+  - name: RotorHazard Discord server
+    url: https://discord.gg/ANKd2pzBKH
+    about: For questions about RotorHazard

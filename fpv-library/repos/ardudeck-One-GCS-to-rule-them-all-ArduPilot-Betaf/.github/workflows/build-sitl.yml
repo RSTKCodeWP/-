@@ -1,0 +1,94 @@
+name: Build ArduPilot SITL Binaries
+
+# Builds Linux x64 SITL binaries and uploads to GitHub release.
+# macOS ARM64 binaries are built locally and uploaded manually.
+# Windows/Linux users can also grab binaries from firmware.ardupilot.org.
+#
+# ArduDeck downloads from:
+#   https://github.com/rubenCodeforges/ardudeck/releases/download/sitl-v{version}/{binary}
+
+on:
+  workflow_dispatch:
+    inputs:
+      ardupilot_ref:
+        description: 'ArduPilot git ref (tag, branch, or SHA). E.g. Copter-4.5.7, master'
+        required: true
+        default: 'Copter-4.5.7'
+      vehicles:
+        description: 'Vehicles to build (comma-separated: copter,plane,rover,sub)'
+        required: true
+        default: 'copter,plane,rover,sub'
+
+permissions:
+  contents: write
+
+env:
+  DEFAULT_ARDUPILOT_REF: 'Copter-4.5.7'
+
+jobs:
+  # ─── Linux x64 ───────────────────────────────────────────────────────
+  build-linux-x64:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout ArduPilot
+        uses: actions/checkout@v4
+        with:
+          repository: ArduPilot/ardupilot
+          ref: ${{ inputs.ardupilot_ref || env.DEFAULT_ARDUPILOT_REF }}
+          submodules: recursive
+          path: ardupilot
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc g++ gawk git make cmake ccache libxml2-dev libxslt-dev
+          pip install empy==3.3.4 pexpect setuptools future dronecan lxml pymavlink
+
+      - name: Configure SITL
+        working-directory: ardupilot
+        run: ./waf configure --board sitl
+
+      - name: Build vehicles
+        working-directory: ardupilot
+        timeout-minutes: 20
+        run: |
+          VEHICLES="${{ inputs.vehicles || 'copter,plane,rover,sub' }}"
+          IFS=',' read -ra VEHICLE_LIST <<< "$VEHICLES"
+          for v in "${VEHICLE_LIST[@]}"; do
+            echo "::group::Building $v"
+            ./waf "$v"
+            echo "::endgroup::"
+          done
+
+      - name: Collect binaries
+        run: |
+          mkdir -p output
+          for f in ardupilot/build/sitl/bin/*; do
+            name=$(basename "$f")
+            [ -x "$f" ] && [ -f "$f" ] && cp "$f" "output/${name}-linux-x64"
+          done
+          ls -lh output/
+
+      - name: Determine version tag
+        run: |
+          REF="${{ inputs.ardupilot_ref || env.DEFAULT_ARDUPILOT_REF }}"
+          if [[ "$REF" =~ ^[A-Za-z]+-([0-9]+\.[0-9]+.*) ]]; then
+            VERSION="${BASH_REMATCH[1]}"
+          else
+            VERSION="${REF}-$(date +%Y%m%d)"
+          fi
+          echo "SITL_TAG=sitl-v${VERSION}" >> $GITHUB_ENV
+          echo "SITL_VERSION=${VERSION}" >> $GITHUB_ENV
+
+      - name: Upload to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Upload Linux binaries to existing release (macOS arm64 already there from local build)
+          for f in output/*; do
+            gh release upload "${{ env.SITL_TAG }}" "$f" --clobber || true
+          done

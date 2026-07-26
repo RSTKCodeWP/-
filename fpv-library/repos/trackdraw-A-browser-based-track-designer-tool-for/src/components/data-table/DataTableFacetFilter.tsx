@@ -1,0 +1,179 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { CheckIcon, PlusCircle } from "lucide-react";
+import { useTranslations } from "next-intl";
+import { Badge } from "@/components/ui/badge";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Separator } from "@/components/ui/separator";
+import { cn } from "@/lib/utils";
+
+type DataTableFacetOption<TValue extends string = string> = {
+  label: string;
+  value: TValue;
+  count?: number;
+};
+
+type DataTableFacetFilterProps<TValue extends string = string> = {
+  title: string;
+  selected: TValue[];
+  options: DataTableFacetOption<TValue>[];
+  onChange: (selected: TValue[]) => void;
+  onClear?: () => void;
+};
+
+export default function DataTableFacetFilter<TValue extends string>({
+  title,
+  selected,
+  options,
+  onChange,
+  onClear,
+}: DataTableFacetFilterProps<TValue>) {
+  const t = useTranslations("common.dataTable");
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+
+  const selectedLabels = selected.map(
+    (value) => options.find((option) => option.value === value)?.label ?? value
+  );
+  const filteredOptions = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+    if (!normalizedQuery) return options;
+
+    return options.filter((option) =>
+      option.label.toLowerCase().includes(normalizedQuery)
+    );
+  }, [options, query]);
+
+  const toggleValue = (value: TValue) => {
+    const nextSelected: TValue[] = selected.includes(value)
+      ? selected.filter((item) => item !== value)
+      : [...selected, value];
+
+    onChange(nextSelected);
+  };
+
+  const clearSelection = () => {
+    onChange([]);
+    onClear?.();
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger
+        className={cn(
+          buttonVariants({ variant: "outline" }),
+          "hover:bg-muted hover:text-foreground h-9 w-full cursor-pointer justify-center gap-1.5 rounded-lg border-dashed px-3 text-xs shadow-none sm:w-auto sm:justify-start",
+          selected.length > 0 &&
+            "border-brand-primary/35 bg-brand-primary/6 hover:bg-brand-primary/10"
+        )}
+      >
+        <PlusCircle
+          className={cn("size-4", selected.length > 0 && "text-brand-primary")}
+        />
+        <span>{title}</span>
+        {selected.length > 0 && (
+          <>
+            <Separator
+              orientation="vertical"
+              className="mx-1 h-4 self-center data-vertical:self-center"
+            />
+            <span className="flex min-w-0 items-center gap-1">
+              {selected.length > 2 ? (
+                <Badge
+                  variant="muted"
+                  className="h-4 rounded-sm px-1.5 text-[10px] font-medium tracking-normal normal-case"
+                >
+                  {t("selectedCount", { count: selected.length })}
+                </Badge>
+              ) : (
+                selected.map((value, index) => (
+                  <Badge
+                    key={value}
+                    variant="muted"
+                    className="h-4 max-w-24 truncate rounded-sm px-1.5 text-[10px] font-medium tracking-normal normal-case"
+                  >
+                    {selectedLabels[index]}
+                  </Badge>
+                ))
+              )}
+            </span>
+          </>
+        )}
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-72 gap-0 p-0">
+        <div className="border-b p-2">
+          <Input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder={t("filterPlaceholder", {
+              title: title.toLowerCase(),
+            })}
+            className="h-8 shadow-none"
+          />
+        </div>
+        <div className="max-h-72 overflow-y-auto p-1">
+          {filteredOptions.length === 0 ? (
+            <p className="text-muted-foreground px-2 py-6 text-center text-sm">
+              {t("noResults")}
+            </p>
+          ) : (
+            filteredOptions.map((option) => {
+              const isSelected = selected.includes(option.value);
+
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => toggleValue(option.value)}
+                  className="text-foreground hover:bg-muted focus-visible:bg-muted flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors outline-none"
+                >
+                  <span
+                    className={cn(
+                      "flex size-4 items-center justify-center rounded-sm border transition-colors",
+                      isSelected
+                        ? "border-brand-primary bg-brand-primary text-white"
+                        : "border-border bg-background text-transparent"
+                    )}
+                  >
+                    <CheckIcon className="size-3" />
+                  </span>
+                  <span className="min-w-0 flex-1 truncate">
+                    {option.label}
+                  </span>
+                  {typeof option.count === "number" && (
+                    <span className="text-muted-foreground text-xs tabular-nums">
+                      {option.count}
+                    </span>
+                  )}
+                </button>
+              );
+            })
+          )}
+        </div>
+        {selected.length > 0 && (
+          <>
+            <Separator />
+            <div className="p-1">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="hover:bg-muted hover:text-foreground w-full cursor-pointer justify-center"
+                onClick={clearSelection}
+              >
+                {t("clearFilters")}
+              </Button>
+            </div>
+          </>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}

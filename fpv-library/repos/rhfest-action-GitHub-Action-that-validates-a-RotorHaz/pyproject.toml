@@ -1,0 +1,44 @@
+[project]
+name = "rhfest-action"
+description = "RotorHazard plugin validation action"
+version = "0.0.0"
+license = "MIT"
+requires-python = ">=3.13"
+dependencies = [
+  "requests>=2.32.3",
+  "voluptuous>=0.15.2",
+]
+
+[dependency-groups]
+dev = [
+  "pre-commit==4.6.1",
+  "pre-commit-hooks==6.0.0",
+  "ruff==0.15.22",
+]
+
+[tool.uv]
+default-groups = []
+
+[tool.ruff]
+target-version = "py313"
+lint.select = ["ALL"]
+lint.ignore = [
+  "ARG001",  # Unused function arguments
+  "ANN401",  # Opinionated warning on disallowing dynamically typed expressions
+
+  "D203",    # Conflicts with other rules
+  "D213",    # Conflicts with other rules
+  "D417",    # False positives in some occasions
+  "PLR2004", # Just annoying, not really useful
+  "SLOT000", # Has a bug with enums: https://github.com/astral-sh/ruff/issues/5748
+  "BLE001",  # False positives in some occasions
+  "TRY003",  # Avoid specifying long messages outside the exception
+  "EM101",   # Raw string in exception message
+
+  # Conflicts with the Ruff formatter
+  "COM812",
+  "ISC001",
+
+  # Custom ignores
+  "G004",    # Allow f-string in logging
+]

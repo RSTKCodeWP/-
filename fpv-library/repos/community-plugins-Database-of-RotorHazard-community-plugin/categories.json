@@ -1,0 +1,65 @@
+{
+  "Event Management": [
+    "i-am-grub/multigp_toolkit",
+    "RotorHazard/Connector-FPVTrackSide",
+    "FPVScores/FPVScores-Sync",
+    "vikibaarathi/rh-velocidrone",
+    "vikibaarathi/RHCloudlink-plugin",
+    "gvotteler/next-rotorhazard-plugin",
+    "arulrajesh/RH-Pilot-Queue"
+  ],
+  "Data Import & Export": [
+    "L1cardo/RH-Pilot-Local-Importer",
+    "L1cardo/RH-Last-Race-Exporter",
+    "L1cardo/RH-Pilot-CSV-Importer",
+    "vikibaarathi/rh-google-connector"
+  ],
+  "Heat Generators": [
+    "arnaudmorin/RotorHazard-Generator-FAI-like-8-pilots",
+    "Dutch-Drone-Racing/RH-Generator-8-Pilot-DE"
+  ],
+  "Class Rankings": [
+    "arnaudmorin/RotorHazard-Class-Rank-Best-X-Laps-Cumulative",
+    "FiorixF1/RotorHazard-Class-Rank-Brackets",
+    "Aaronsss/cumulative-points-per-heat-RH-plugin",
+    "HazardCreative/RotorHazard-Class-Rank-Best-X-Laps",
+    "HazardCreative/RotorHazard-Class-Rank-Heat-Points",
+    "HazardCreative/RotorHazard-Class-Rank-Best-Percentage"
+  ],
+  "Results Analysis": [
+    "izicubed/RotorHazard-Auto-Marshalling",
+    "jrwrodgers/event_plots"
+  ],
+  "OSD & VRx Control": [
+    "i-am-grub/vrxc_elrs",
+    "RotorHazard/VRxC-ClearView2",
+    "RotorHazard/VRxC-Fusion"
+  ],
+  "LED Effects": [
+    "HazardCreative/RotorHazard-LED-Callsign-Image",
+    "jrwrodgers/rh-wled-ctr"
+  ],
+  "Streaming & Overlays": [
+    "dutchdronesquad/rh-youtube-chapters",
+    "dutchdronesquad/rh-stream-overlays",
+    "Dutch-Drone-Racing/RH-Plugin-Overlays",
+    "Aaronsss/Rotorhazard-OBS-Websocks-Plugin"
+  ],
+  "Utilities": [
+    "Aaronsss/RH-sensor-monitor",
+    "Aaronsss/RH-Settings-Restore",
+    "Christoph-Hofmann/oled_rotorhazard_display",
+    "Dutch-Drone-Racing/RH-Plugin-EventAction-UDP-Message",
+    "HazardCreative/RotorHazard-Idle-Race_Handler",
+    "i-am-grub/netpack-installer",
+    "izicubed/RotorHazard-Sensor-Top-Bar",
+    "PSi86/RaceLink_RH_Plugin",
+    "RotorHazard/LapRF-Interface"
+  ],
+  "Other": [
+    "Dutch-Drone-Racing/RH-Dropgate",
+    "HazardCreative/RotorHazard-Silly-Names",
+    "jrwrodgers/pilot_palette",
+    "MarijnKoesen/rh_race_round_announcer"
+  ]
+}

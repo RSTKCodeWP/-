@@ -1,0 +1,75 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "main": "./custom-worker.ts",
+  "minify": true,
+  "upload_source_maps": true,
+  "name": "trackdraw",
+  "compatibility_date": "2026-03-27",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true,
+    "logs": {
+      "invocation_logs": false,
+    },
+  },
+  "workers_dev": false,
+  "preview_urls": false,
+  "triggers": {
+    "crons": ["17 3 * * *"],
+  },
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS",
+    "run_worker_first": false,
+  },
+  "r2_buckets": [
+    {
+      "binding": "MEDIA_BUCKET",
+      "bucket_name": "trackdraw-media",
+    },
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "trackdraw",
+      "database_id": "875a18b9-ce1a-4e29-ac76-d0dc950dc574",
+    },
+  ],
+  "vars": {
+    "NEXT_PUBLIC_SITE_URL": "https://trackdraw.app",
+    "NEXT_PUBLIC_APP_ENV": "production",
+    "PLUNK_FROM_EMAIL": "noreply@emails.trackdraw.app",
+    "PLUNK_REPLY_TO_EMAIL": "info@trackdraw.app",
+  },
+  "env": {
+    "dev": {
+      "minify": false,
+      "name": "trackdraw-dev",
+      "observability": {
+        "enabled": true,
+        "logs": {
+          "invocation_logs": false,
+        },
+      },
+      "r2_buckets": [
+        {
+          "binding": "MEDIA_BUCKET",
+          "bucket_name": "trackdraw-media",
+        },
+      ],
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "trackdraw-dev",
+          "database_id": "8b9a4679-c919-4082-93d1-3841fa2bfc19",
+        },
+      ],
+      "vars": {
+        "NEXT_PUBLIC_SITE_URL": "https://dev.trackdraw.app",
+        "NEXT_PUBLIC_APP_ENV": "development",
+        "PLUNK_FROM_EMAIL": "noreply@emails.trackdraw.app",
+        "PLUNK_REPLY_TO_EMAIL": "info@trackdraw.app",
+      },
+    },
+  },
+}

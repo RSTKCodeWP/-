@@ -1,0 +1,407 @@
+/* 🌞 Light Mode Defaults */
+:root {
+  --border-color: #ddd;
+  --card-bg: #ffffff;
+  --text-color: #333;
+  --link-color: #007bff;
+}
+
+/* 🌙 Dark Mode */
+[data-md-color-scheme="slate"] {
+  --border-color: #444;
+  --card-bg: #252526;
+  --text-color: #ddd;
+  --link-color: #4aa3ff;
+}
+
+/* ─────────────────────────────────────
+  🎨 Logo Switching (Light/Dark Mode)
+────────────────────────────────────── */
+/* Switch logo based on color scheme using content property */
+[data-md-color-scheme="default"] .md-logo img {
+  content: url('/community-plugins/assets/img/logo_light.svg');
+}
+
+[data-md-color-scheme="slate"] .md-logo img {
+  content: url('/community-plugins/assets/img/logo_dark.svg');
+}
+
+/* ─────────────────────────────────────
+  🌈 Plugin Count Badge
+────────────────────────────────────── */
+.badge-gradient {
+  display: inline-block;
+  padding: 6px 14px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: white;
+  background: linear-gradient(to right, #f97316, #f59e0b);
+  border-radius: 999px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+  white-space: nowrap;
+}
+
+/* ─────────────────────────────────────
+  🧩 Layout: Plugin Container (Grid)
+  3 columns, clean spacing
+────────────────────────────────────── */
+#plugin-container {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 768px) {
+  #plugin-container {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  #plugin-container {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* ─────────────────────────────────────
+  🎛️ Search & Filter - Sleek Horizontal Design
+────────────────────────────────────── */
+
+/* Search bar container - horizontal layout */
+#search-bar-container {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto;
+  gap: 12px;
+  margin-bottom: 24px;
+  align-items: stretch;
+}
+
+.search-bar-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+#search {
+  width: 100%;
+  height: 48px;
+  padding: 0 44px 0 20px;
+  font-size: 1rem;
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  background-color: var(--card-bg);
+  color: var(--text-color);
+  transition: all 0.2s ease;
+  font-weight: 400;
+  box-sizing: border-box;
+}
+
+#search::placeholder {
+  color: var(--text-color);
+  opacity: 0.4;
+}
+
+#search:hover {
+  border-color: rgba(249, 115, 22, 0.3);
+}
+
+#search:focus {
+  outline: none;
+  border-color: #f97316;
+  box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.08);
+}
+
+[data-md-color-scheme="slate"] #search {
+  background: #0f172a;
+  border-color: #334155;
+}
+
+[data-md-color-scheme="slate"] #search:hover {
+  border-color: rgba(249, 115, 22, 0.4);
+}
+
+/* Clear search button */
+.clear-btn {
+  position: absolute;
+  right: 12px;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: rgba(0, 0, 0, 0.1);
+  color: var(--text-color);
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 20px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  opacity: 0.6;
+}
+
+.clear-btn:hover {
+  opacity: 1;
+  background: rgba(249, 115, 22, 0.2);
+  transform: scale(1.1);
+}
+
+[data-md-color-scheme="slate"] .clear-btn {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* Filter & Sort dropdowns */
+.filter-dropdown-wrapper,
+.sort-dropdown-wrapper {
+  position: relative;
+}
+
+.refresh-btn {
+  height: 48px;
+  width: 48px;
+  min-width: 48px;
+  padding: 0;
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--card-bg);
+  color: var(--text-color);
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  opacity: 0.78;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.refresh-label {
+  display: none;
+  font-size: 0.9rem;
+}
+
+.refresh-btn:hover {
+  opacity: 1;
+  border-color: rgba(249, 115, 22, 0.3);
+  background: rgba(249, 115, 22, 0.04);
+}
+
+.refresh-btn:focus {
+  outline: none;
+  border-color: #f97316;
+  box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.08);
+}
+
+.refresh-btn:disabled {
+  cursor: wait;
+  opacity: 0.55;
+  background: var(--card-bg);
+}
+
+[data-md-color-scheme="slate"] .refresh-btn {
+  background: #0f172a;
+  border-color: #334155;
+  color: #cbd5e1;
+}
+
+[data-md-color-scheme="slate"] .refresh-btn:hover {
+  border-color: rgba(249, 115, 22, 0.4);
+  background: rgba(249, 115, 22, 0.08);
+}
+
+.modern-select {
+  height: 48px;
+  padding: 0 40px 0 16px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  background-color: var(--card-bg);
+  color: var(--text-color);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 14 14'%3E%3Cpath fill='%23666' d='M7 10L2 5h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  white-space: nowrap;
+  min-width: 160px;
+  box-sizing: border-box;
+}
+
+.modern-select:hover {
+  border-color: rgba(249, 115, 22, 0.3);
+}
+
+.modern-select:focus {
+  outline: none;
+  border-color: #f97316;
+  box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.08);
+}
+
+[data-md-color-scheme="slate"] .modern-select {
+  background-color: #0f172a;
+  border-color: #334155;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 14 14'%3E%3Cpath fill='%23999' d='M7 10L2 5h10z'/%3E%3C/svg%3E");
+}
+
+[data-md-color-scheme="slate"] .modern-select:hover {
+  border-color: rgba(249, 115, 22, 0.4);
+}
+
+
+/* Results info */
+#results-info {
+  text-align: center;
+  font-size: 0.9rem;
+  color: var(--text-color);
+  opacity: 0.6;
+  margin-bottom: 24px;
+  font-weight: 500;
+}
+
+/* 🔧 Mobile responsive */
+@media (max-width: 768px) {
+  #search-bar-container {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+
+  .refresh-btn {
+    width: 100%;
+    min-width: 0;
+    padding: 0 16px;
+  }
+
+  .refresh-label {
+    display: inline;
+  }
+
+  #search {
+    height: 50px;
+    font-size: 1rem;
+    padding: 0 44px 0 20px;
+  }
+
+  .clear-btn {
+    width: 32px;
+    height: 32px;
+    right: 10px;
+    font-size: 22px;
+  }
+
+  .modern-select {
+    height: 50px;
+    width: 100%;
+    max-width: 100%;
+    font-size: 1rem;
+    padding: 0 44px 0 18px;
+    min-width: auto;
+  }
+
+  #results-info {
+    font-size: 0.88rem;
+    margin-bottom: 20px;
+  }
+}
+
+/* ─────────────────────────────────────
+  💀 Loading Skeleton Screens - Compact
+────────────────────────────────────── */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    #f9fafb 0%,
+    #f3f4f6 50%,
+    #f9fafb 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-loading 1.5s ease-in-out infinite;
+  border-radius: 6px;
+}
+
+[data-md-color-scheme="slate"] .skeleton {
+  background: linear-gradient(
+    90deg,
+    #2d3748 0%,
+    #374151 50%,
+    #2d3748 100%
+  );
+}
+
+@keyframes skeleton-loading {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* Skeleton card matching compact design */
+.skeleton-card {
+  background: var(--card-bg);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  padding: 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  overflow: hidden;
+}
+
+[data-md-color-scheme="slate"] .skeleton-card {
+  background: #1e293b;
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.skeleton-card-header {
+  padding: 14px 20px;
+  background: linear-gradient(135deg, #fef3c7 0%, #fed7aa 100%);
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid rgba(249, 115, 22, 0.1);
+}
+
+[data-md-color-scheme="slate"] .skeleton-card-header {
+  background: linear-gradient(135deg, #292524 0%, #44403c 100%);
+  border-bottom-color: rgba(249, 115, 22, 0.15);
+}
+
+.skeleton-card-content {
+  padding: 16px 20px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.skeleton-title {
+  height: 18px;
+  width: 60%;
+  border-radius: 6px;
+  margin-bottom: 0;
+}
+
+.skeleton-text {
+  height: 14px;
+  width: 100%;
+  border-radius: 6px;
+}
+
+.skeleton-text-short {
+  height: 14px;
+  width: 75%;
+  border-radius: 6px;
+}
+
+.skeleton-badge {
+  height: 22px;
+  width: 60px;
+  display: inline-block;
+  margin-right: 6px;
+  border-radius: 100px;
+}

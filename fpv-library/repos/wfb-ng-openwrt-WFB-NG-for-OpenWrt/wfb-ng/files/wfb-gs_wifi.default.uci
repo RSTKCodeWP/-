@@ -1,0 +1,37 @@
+#!/bin/sh
+
+. /lib/functions.sh
+config_load wfb-gs
+config_get channel config channel
+config_get bandwidth config bandwidth
+config_get wiphy_index config wiphy_index
+
+[[ -d /sys/class/ieee80211/phy$wiphy_index && "$(iw phy phy$wiphy_index info | grep "MHz \[$channel\]")" == "*MHz \[$channel\]*" ]] || {
+	wiphy_index=""
+	for phy in $(ls /sys/class/ieee80211); do
+		[[ "$(iw phy $phy info | grep "MHz \[$channel\]")" == "*MHz \[$channel\]*" ]] && { wiphy_index=${phy:0-1}; break; }
+	done
+	if [ -z $wiphy_index ]; then
+		logger -t wfb-gs "Channel $channel is not supported by router!"
+		exit 1
+	else
+		logger -t wfb-gs "Auto set wiphy to $phy according to channel ${channel}."
+	fi
+}
+
+uci -q batch << EOT
+	del wireless.default_radio$wiphy_index.network
+	del wireless.default_radio$wiphy_index.encryption
+	set wireless.radio$wiphy_index.htmode='VHT$bandwidth'
+	set wireless.radio$wiphy_index.channel='$channel'
+	set wireless.radio$wiphy_index.cell_density='0'
+	set wireless.default_radio$wiphy_index.mode='monitor'
+	set wireless.default_radio$wiphy_index.ssid='wfb'
+	set wireless.default_radio$wiphy_index.ifname='phy$wiphy_index-wfb'
+	set wfb-gs.config.wiphy_index='$wiphy_index'
+	del wireless.radio$wiphy_index.disabled='1'
+EOT
+uci commit
+/sbin/wifi reload
+
+exit 0

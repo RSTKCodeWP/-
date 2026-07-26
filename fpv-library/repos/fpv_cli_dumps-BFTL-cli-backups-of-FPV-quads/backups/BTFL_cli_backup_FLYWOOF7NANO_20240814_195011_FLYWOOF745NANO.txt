@@ -1,0 +1,163 @@
+defaults nosave
+
+
+# version
+# Betaflight / STM32F745 (S745) 4.2.11 Nov  9 2021 / 20:29:04 (948ba6339) MSP API: 1.43
+# config: manufacturer_id: FLWO, board_name: FLYWOOF745NANO, version: 786f2ef4, date: 2021-06-15T03:31:48Z
+
+# start the command batch
+batch start
+
+# reset configuration to default settings
+defaults nosave
+
+board_name FLYWOOF745NANO
+manufacturer_id FLWO
+mcu_id 002f00313538511039303632
+signature 
+
+# name: FLYWOOF7NANO
+
+# mixer
+mmix 0  1.000 -0.809  0.659 -1.000
+mmix 1  1.000 -1.000 -0.659  1.000
+mmix 2  1.000  0.809  0.659  1.000
+mmix 3  1.000  1.000 -0.659 -1.000
+
+# feature
+feature -RX_PARALLEL_PWM
+feature MOTOR_STOP
+feature GPS
+feature TELEMETRY
+
+# serial
+serial 0 64 115200 57600 0 115200
+serial 1 2 115200 9600 0 115200
+serial 2 1 115200 57600 0 115200
+serial 4 1 9600 57600 0 115200
+
+# led
+led 0 6,6::CO:8
+led 1 7,6::CO:8
+led 2 8,6::CO:8
+led 3 9,6::CO:8
+
+# aux
+aux 0 0 0 900 1300 0 0
+aux 1 2 1 1700 2100 0 0
+aux 2 46 3 1700 2100 0 0
+aux 3 13 2 1700 2100 0 0
+aux 4 26 3 1300 1700 0 0
+aux 5 35 1 1300 1700 0 0
+
+# rxfail
+rxfail 6 s 2000
+
+# master
+set gyro_lowpass2_hz = 325
+set dyn_lpf_gyro_min_hz = 260
+set dyn_lpf_gyro_max_hz = 650
+set acc_calibration = 30,-7,-122,1
+set mag_hardware = NONE
+set serialrx_provider = CRSF
+set motor_pwm_protocol = DSHOT300
+set failsafe_procedure = GPS-RESCUE
+set vbat_max_cell_voltage = 435
+set vbat_min_cell_voltage = 350
+set vbat_warning_cell_voltage = 370
+set vbat_scale = 111
+set ibata_scale = 200
+set yaw_motors_reversed = ON
+set small_angle = 180
+set gps_sbas_mode = AUTO
+set gps_rescue_min_sats = 5
+set gps_rescue_allow_arming_without_fix = ON
+set pid_process_denom = 2
+set osd_warn_batt_not_full = OFF
+set osd_warn_rssi = ON
+set osd_warn_link_quality = ON
+set osd_warn_rssi_dbm = ON
+set osd_vbat_pos = 2305
+set osd_rssi_pos = 2159
+set osd_link_quality_pos = 2167
+set osd_rssi_dbm_pos = 2151
+set osd_tim_1_pos = 184
+set osd_tim_2_pos = 152
+set osd_flymode_pos = 2529
+set osd_throttle_pos = 313
+set osd_vtx_channel_pos = 469
+set osd_current_pos = 343
+set osd_mah_drawn_pos = 128
+set osd_craft_name_pos = 33
+set osd_gps_speed_pos = 120
+set osd_gps_lon_pos = 81
+set osd_gps_lat_pos = 49
+set osd_gps_sats_pos = 2231
+set osd_home_dir_pos = 2191
+set osd_home_dist_pos = 2200
+set osd_flight_dist_pos = 161
+set osd_altitude_pos = 2177
+set osd_warnings_pos = 2539
+set osd_avg_cell_voltage_pos = 2274
+set osd_battery_usage_pos = 487
+set osd_disarmed_pos = 2508
+set osd_flip_arrow_pos = 2082
+set osd_core_temp_pos = 248
+set osd_log_status_pos = 2497
+set osd_efficiency_pos = 231
+set osd_stat_min_link_quality = ON
+set osd_stat_min_rssi_dbm = ON
+set scheduler_optimize_rate = ON
+set gyro_1_align_yaw = 2700
+set gyro_2_spibus = 4
+set name = FLYWOOF7NANO
+
+profile 0
+
+# profile 0
+set dyn_lpf_dterm_min_hz = 91
+set dyn_lpf_dterm_max_hz = 221
+set dterm_lowpass2_hz = 195
+set anti_gravity_gain = 5000
+set iterm_relax_cutoff = 20
+set p_pitch = 52
+set i_pitch = 63
+set d_pitch = 68
+set f_pitch = 80
+set p_roll = 47
+set i_roll = 59
+set d_roll = 63
+set f_roll = 76
+set p_yaw = 50
+set i_yaw = 63
+set f_yaw = 76
+set d_min_roll = 41
+set d_min_pitch = 45
+set d_min_boost_gain = 27
+
+profile 1
+
+profile 2
+
+# restore original profile selection
+profile 0
+
+rateprofile 0
+
+# rateprofile 0
+set tpa_breakpoint = 1250
+
+rateprofile 1
+
+rateprofile 2
+
+rateprofile 3
+
+rateprofile 4
+
+rateprofile 5
+
+# restore original rateprofile selection
+rateprofile 0
+
+# save configuration

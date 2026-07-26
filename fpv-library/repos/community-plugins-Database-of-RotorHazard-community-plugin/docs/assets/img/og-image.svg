@@ -1,0 +1,84 @@
+<svg width="1200" height="630" viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Modern gradient background -->
+    <linearGradient id="modernBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a1a1a;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#2d2d2d;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1a1a1a;stop-opacity:1" />
+    </linearGradient>
+
+    <!-- Orange accent gradient -->
+    <linearGradient id="orangeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#FF6600;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#FF8C00;stop-opacity:1" />
+    </linearGradient>
+
+    <!-- Glow effect -->
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="630" fill="url(#modernBg)"/>
+
+  <!-- Geometric decorative elements -->
+  <circle cx="950" cy="100" r="200" fill="#FF6600" opacity="0.05"/>
+  <circle cx="1100" cy="500" r="150" fill="#FF8C00" opacity="0.08"/>
+  <rect x="0" y="0" width="8" height="630" fill="url(#orangeGrad)"/>
+
+  <!-- Grid pattern overlay for tech feel -->
+  <g opacity="0.03">
+    <line x1="0" y1="157.5" x2="1200" y2="157.5" stroke="white" stroke-width="1"/>
+    <line x1="0" y1="315" x2="1200" y2="315" stroke="white" stroke-width="1"/>
+    <line x1="0" y1="472.5" x2="1200" y2="472.5" stroke="white" stroke-width="1"/>
+    <line x1="300" y1="0" x2="300" y2="630" stroke="white" stroke-width="1"/>
+    <line x1="600" y1="0" x2="600" y2="630" stroke="white" stroke-width="1"/>
+    <line x1="900" y1="0" x2="900" y2="630" stroke="white" stroke-width="1"/>
+  </g>
+
+  <!-- Content container -->
+  <g transform="translate(80, 0)">
+
+    <!-- Embedded PNG icon -->
+    <image href="android-chrome-512x512.png" x="0" y="140" width="100" height="100"/>
+
+    <!-- Main heading -->
+    <text x="0" y="310" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+          font-size="68" font-weight="700" fill="white" letter-spacing="-1">
+      RotorHazard
+    </text>
+
+    <!-- Subheading with orange accent -->
+    <text x="0" y="390" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+          font-size="56" font-weight="600" fill="url(#orangeGrad)" letter-spacing="-0.5">
+      Community Plugins
+    </text>
+
+    <!-- Divider line -->
+    <rect x="0" y="420" width="80" height="4" fill="url(#orangeGrad)" rx="2"/>
+
+    <!-- Description -->
+    <text x="0" y="485" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+          font-size="32" font-weight="400" fill="#cccccc" letter-spacing="0">
+      Discover, install and publish powerful plugins
+    </text>
+    <text x="0" y="525" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+          font-size="32" font-weight="400" fill="#cccccc" letter-spacing="0">
+      for your FPV race timer
+    </text>
+  </g>
+
+  <!-- Footer badge -->
+  <g transform="translate(950, 550)">
+    <rect x="0" y="0" width="200" height="50" rx="25" fill="rgba(255,255,255,0.1)"/>
+    <text x="100" y="33" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+          font-size="20" font-weight="600" fill="white" text-anchor="middle">
+      Open Source
+    </text>
+  </g>
+</svg>

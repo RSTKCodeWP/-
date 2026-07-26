@@ -1,0 +1,32 @@
+---
+name: Testing
+
+# yamllint disable-line rule:truthy
+on:
+  pull_request:
+    paths:
+      - "metadata/**"
+  workflow_dispatch:
+
+jobs:
+  pytest:
+    name: Python ${{ matrix.python }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.13", "3.14"]
+    permissions:
+      contents: read
+    steps:
+      - name: ⤵️ Check out code from GitHub
+        uses: actions/checkout@v7.0.1
+      - name: 🏗 Set up UV
+        uses: astral-sh/setup-uv@v9.0.0
+        with:
+          version: "latest"
+          python-version: ${{ matrix.python }}
+          enable-cache: true
+      - name: 🏗 Install workflow dependencies
+        run: uv sync --all-extras --dev
+      - name: 🚀 Run pytest
+        run: uv run pytest -v --cov metadata

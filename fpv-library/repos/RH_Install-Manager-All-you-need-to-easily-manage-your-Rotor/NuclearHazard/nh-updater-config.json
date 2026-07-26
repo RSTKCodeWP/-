@@ -1,0 +1,14 @@
+{
+    "user": "NuclearHazard",
+    "rh_version": "stable",
+    "country": "PL",
+    "nodes_number": 4,
+    "gpio_reset_pin": false,
+    "port_name": "ttyS0",
+    "i2c_bus_number": 1,
+    "debug_mode": false,
+    "debug_user": "default",
+    "old_hw_mod": false,
+    "pins_assignment": "default",
+    "beta_tester": false
+}

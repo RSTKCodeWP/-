@@ -1,0 +1,105 @@
+#ifndef DRONE_CONFIG_H
+#define DRONE_CONFIG_H
+
+// Structure for accelerometer offset configuration
+struct AccelerometerOffsetConfig {
+    float xOffset;
+    float yOffset;
+    float zOffset;
+};
+
+// Structure for PID gains
+struct PIDGains {
+    float kp;
+    float ki;
+    float kd;
+};
+
+class DroneConfig {
+    private:
+        // Accelerometer offsets
+        AccelerometerOffsetConfig accelOffsets;
+        
+        // PID Gains (flight: low KP, full PID)
+        PIDGains rollPID;
+        PIDGains pitchPID;
+        PIDGains yawPID;
+        // Launch gains (high KP, PD only; plain floats, no struct)
+        float rollLaunchKp;
+        float rollLaunchKd;
+        float pitchLaunchKp;
+        float pitchLaunchKd;
+        float yawLaunchKp;
+
+        // Throttle ranges: idle, launch end, flight start (3 ranges: high KP, transition, low KP)
+        int throttleIdle;
+        int throttleLaunchEnd;
+        int throttleFlightStart;
+        
+        // Output limits
+        float maxPDOutput;
+        float maxIOutput;
+    
+        // Trim configurations (degrees / deg/s; applied as setpoint offset)
+        int trimDelay;
+        float trimStepPitchRollDeg;  // degrees per step (pitch, roll)
+        float trimStepYawDegPerSec;  // deg/s per step (yaw)
+    
+        // Feature flags
+        bool featureFlagEnableAltitudeReading;
+        bool featureFlagEnableDisplay;
+    
+    public:
+        DroneConfig();
+        
+        // Accelerometer offset getters
+        AccelerometerOffsetConfig getAccelOffsets() const;
+        float getAccelXOffset() const;
+        float getAccelYOffset() const;
+        float getAccelZOffset() const;
+        
+        // Roll PID getters
+        PIDGains getRollPID() const;
+        float getRollKp() const;
+        float getRollKi() const;
+        float getRollKd() const;
+        
+        // Pitch PID getters
+        PIDGains getPitchPID() const;
+        float getPitchKp() const;
+        float getPitchKi() const;
+        float getPitchKd() const;
+        
+        // Yaw gain getters
+        PIDGains getYawPID() const;
+        float getYawKp() const;
+        float getYawKi() const;
+        float getYawKd() const;
+
+        // Launch gain getters (PD only)
+        float getRollLaunchKp() const;
+        float getRollLaunchKd() const;
+        float getPitchLaunchKp() const;
+        float getPitchLaunchKd() const;
+        float getYawLaunchKp() const;
+
+        // Throttle range getters
+        int getThrottleIdle() const;
+        int getThrottleLaunchEnd() const;
+        int getThrottleFlightStart() const;
+        
+        // Output limit getters
+        float getMaxPDOutput() const;
+        float getMaxIOutput() const;
+    
+        // Trim settings getters
+        int getTrimDelay() const;
+        float getTrimStepPitchRollDeg() const;
+        float getTrimStepYawDegPerSec() const;
+    
+        // Feature flags getters
+        bool getFeatureFlagEnableAltitudeReading() const;
+        bool getFeatureFlagEnableDisplay() const;
+};
+
+#endif

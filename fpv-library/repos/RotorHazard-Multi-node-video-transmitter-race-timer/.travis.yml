@@ -1,0 +1,28 @@
+# Configuration for Continuous Integration unit tests
+#
+# Node code CI uses: https://github.com/Arduino-CI/arduino_ci
+#
+
+language: python
+
+python:
+   - 3.9
+
+install:
+   - pip install codecov
+   - pip install coverage
+   - cd src/server
+   - pip install -r requirements.txt
+   - cd ../..
+
+script:
+   - cd src/tests
+   - coverage run -m unittest discover
+   - cd ../..
+   - cd src/node
+   - bundle install
+   - bundle exec arduino_ci.rb
+   - cd ../..
+
+after_success:
+   - codecov

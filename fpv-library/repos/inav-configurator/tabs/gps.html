@@ -1,0 +1,221 @@
+<div class="tab-gps toolbar_fixed_bottom">
+    <div class="content_wrapper">
+        <div class="tab_title" data-i18n="tabGPS">GPS</div>
+        <div class="cf_column third_left">
+            <div class="spacer_right">
+
+                <div class="config-section gui_box grey">
+                    <div class="gui_box_titlebar">
+                        <div class="spacer_box_title" data-i18n="configurationGPS"></div>
+                    </div>
+                    <div class="spacer_box">
+                        <div class="checkbox">
+                            <input type="checkbox" data-bit="7" class="feature toggle" name="GPS" title="GPS" id="feature-7">
+                            <label for="feature-7"><span data-i18n="featureGPS"></span></label>
+                            <div for="feature-7" class="helpicon cf_tip" data-i18n_title="featureGPSTip"></div>
+                        </div>
+                        <div class="select">
+                            <select id="gps_port" class="gps_port"></select>
+                            <label for="gps_port"><span data-i18n="gpsPort"></span></label>
+                        </div>
+                        <div class="select">
+                            <select id="gps_baud" class="gps_baud"></select>
+                            <label for="gps_baud"><span data-i18n="gpsBaud"></span></label>
+                        </div>
+                        <div class="select">
+                            <select id="gps_protocol" class="gps_protocol">
+                                <!-- list generated here -->
+                            </select>
+                            <label for="gps_protocol"><span data-i18n="configurationGPSProtocol"></span></label>
+                        </div>
+                        <div class="select">
+                            <select id="gps_ubx_sbas" class="gps_ubx_sbas">
+                                <!-- list generated here -->
+                            </select>
+                            <label for="gps_ubx_sbas"><span data-i18n="configurationGPSubxSbas"></span></label>
+                        </div>
+                        <div class="number is-hidden">
+                            <input type="number" id="mag_declination" name="mag_declination" step="0.1" min="-180" max="180" />
+                            <label for="mag_declination"><span data-i18n="configurationMagDeclination"></span></label>
+                        </div>
+                        <!-- GPS Optimization Preset -->
+                        <div class="select">
+                            <select id="gps_preset_mode">
+                                <option value="auto">Auto-detect GPS Type</option>
+                                <option value="manual" selected>Manual Settings</option>
+                                <option value="m8">u-blox M8</option>
+                                <option value="m9-precision">u-blox M9 (Precision Mode)</option>
+                                <option value="m9-sport">u-blox M9 (Sport Mode)</option>
+                                <option value="m10">u-blox M10</option>
+                                <option value="m10-highperf">u-blox M10 (High-Performance)</option>
+                            </select>
+                            <label for="gps_preset_mode">
+                                <span data-i18n="gpsPresetMode">GPS Configuration Preset</span>
+                            </label>
+                            <div for="gps_preset_mode" class="helpicon cf_tip" data-i18n_title="gpsPresetModeHelp"></div>
+                        </div>
+                        <!-- Hardware detection status -->
+                        <div id="gps_hardware_status" style="display: none; padding: 5px; margin: 5px 0; font-size: 12px; color: #28a745;">
+                            <span style="margin-right: 5px;">✓</span>
+                            <span id="gps_hardware_name"></span>
+                            <a href="#" id="gps_apply_optimal" style="margin-left: 10px; color: #007bff; text-decoration: none;">[Use optimal settings]</a>
+                        </div>
+                        <!-- GPS Preset Info (shown when preset selected) -->
+                        <div class="preset-info" id="preset_info" style="display: none; padding: 5px; margin: 5px 0; background: #f0f0f0; border-radius: 3px;">
+                            <strong><span id="preset_name"></span></strong>
+                            <ul id="preset_details" style="margin: 5px 0; padding-left: 20px;"></ul>
+                        </div>
+                        <!-- GPS Update Rate -->
+                        <div class="number">
+                            <input type="number" id="gps_ublox_nav_hz" data-setting="gps_ublox_nav_hz" step="1" min="5" max="20" />
+                            <label for="gps_ublox_nav_hz">
+                                <span data-i18n="gpsUpdateRate">GPS Update Rate (Hz)</span>
+                            </label>
+                            <div for="gps_ublox_nav_hz" class="helpicon cf_tip" data-i18n_title="gpsUpdateRateHelp"></div>
+                        </div>
+                        <div class="checkbox">
+                            <input type="checkbox" id="gps_use_galileo" class="toggle update_preview preset-controlled" data-setting="gps_ublox_use_galileo">
+                            <label for="gps_use_galileo"><span data-i18n="configurationGPSUseGalileo"></span></label>
+                        </div>
+                        <div class="checkbox">
+                            <input type="checkbox" id="gps_use_beidou" class="toggle update_preview preset-controlled" data-setting="gps_ublox_use_beidou">
+                            <label for="gps_use_beidou"><span data-i18n="configurationGPSUseBeidou"></span></label>
+                        </div>
+                        <div class="checkbox">
+                            <input type="checkbox" id="gps_use_glonass" class="toggle update_preview preset-controlled" data-setting="gps_ublox_use_glonass">
+                            <label for="gps_use_glonass"><span data-i18n="configurationGPSUseGlonass"></span></label>
+                        </div>
+                        <div class="number">
+                            <input type="number" id="tzOffset" data-setting="tz_offset" data-unit="tzmins" data-setting-multiplier="1" step="1" min="-1440" max="1440" />
+                            <label for="tzOffset"><span data-i18n="tzOffset"></span></label>
+                            <div for="tzOffset" class="helpicon cf_tip" data-i18n_title="tzOffsetHelp"></div>
+                        </div>
+                        <div class="select">
+                            <select id="tzAutomaticDST" data-setting="tz_automatic_dst"></select>
+                            <label for="tzAutomaticDST"><span data-i18n="tzAutomaticDST"></span></label>
+                            <div for="tzAutomaticDST" class="helpicon cf_tip" data-i18n_title="tzAutomaticDSTHelp"></div>
+                        </div>
+                    </div>
+                </div>
+
+
+                <div class="gui_box grey">
+                    <div class="gui_box_titlebar">
+                        <div class="spacer_box_title" data-i18n="gpsHead"></div>
+                    </div>
+                    <div class="spacer_box GPS_info">
+                        <table class="cf_table">
+                            <tr>
+                                <td style="width: 85px" data-i18n="gpsFix"></td>
+                                <td class="fix" data-i18n="gpsFixNone"></td>
+                            </tr>
+                            <tr>
+                                <td data-i18n="gpsAltitude"></td>
+                                <td class="alt">0 m</td>
+                            </tr>
+                            <tr>
+                                <td data-i18n="gpsLat"></td>
+                                <td class="lat">0.0000 deg</td>
+                            </tr>
+                            <tr>
+                                <td data-i18n="gpsLon"></td>
+                                <td class="lon">0.0000 deg</td>
+                            </tr>
+                            <tr>
+                                <td data-i18n="gpsSpeed"></td>
+                                <td class="speed">0 cm/s</td>
+                            </tr>
+                            <tr>
+                                <td data-i18n="gpsSats"></td>
+                                <td class="sats">0</td>
+                            </tr>
+                            <tr class="noboarder">
+                                <td data-i18n="gpsDistToHome"></td>
+                                <td class="distToHome"></td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+                <div class="gui_box grey">
+                    <div class="gui_box_titlebar">
+                        <div class="spacer_box_title" data-i18n="gpsStatHead"></div>
+                    </div>
+                    <div class="spacer_box GPS_stat">
+                        <table class="cf_table">
+                            <tr>
+                                <td data-i18n="gpsHDOP"></td>
+                                <td class="hdop"></td>
+                            </tr>
+                            <tr>
+                                <td data-i18n="gpsEPH"></td>
+                                <td class="eph">0</td>
+                            </tr>
+                            <tr>
+                                <td data-i18n="gpsEPV"></td>
+                                <td class="epv">0</td>
+                            </tr>
+                            <tr>
+                                <td data-i18n="gpsMessageRate"></td>
+                                <td class="rate">0</td>
+                            </tr>
+                            <tr>
+                                <td style="width: 85px" data-i18n="gpsTotalMessages"></td>
+                                <td class="messages">0</td>
+                            </tr>
+                            <tr>
+                                <td data-i18n="gpsErrors"></td>
+                                <td class="errors">0</td>
+                            </tr>
+                            <tr class="noboarder">
+                                <td data-i18n="gpsTimeouts"></td>
+                                <td class="timeouts">0</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+                <div class="gui_box grey adsb_info_block">
+                    <div class="gui_box_titlebar">
+                        <div class="spacer_box_title">ADSB</div>
+                    </div>
+                    <div class="spacer_box GPS_stat">
+                        <table class="cf_table">
+                            <tr>
+                                <td style="width: 85px" data-i18n="adsbVehicleTotalMessages"></td>
+                                <td class="adsbVehicleTotalMessages">0</td>
+                            </tr>
+                            <tr>
+                                <td style="width: 85px" data-i18n="adsbHeartbeatTotalMessages"></td>
+                                <td class="adsbHeartbeatTotalMessages">0</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="cf_column twothird">
+            <div class="gui_box grey gps_map">
+                <div class="gui_box_titlebar" style="margin-bottom: 0;">
+                    <div class="spacer_box_title" data-i18n="gpsMapHead"></div>
+                </div>
+                <div id="loadmap">
+                    <div id="gps-map">
+                        <button class="map-button" id="center_button" data-i18n="gps_map_center"></button>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+    <div class="content_toolbar">
+        <div class="btn save_btn">
+            <a class="save" href="#" data-i18n="configurationButtonSave"></a>
+        </div>
+        <div class="btn save_btn">
+            <a class="loadAssistnowOnline" href="#" data-i18n="gpsLoadAssistnowOnlineButton"></a>
+        </div>
+        <div class="btn save_btn">
+            <a class="loadAssistnowOffline" href="#" data-i18n="gpsLoadAssistnowOfflineButton"></a>
+        </div>
+    </div>
+</div>

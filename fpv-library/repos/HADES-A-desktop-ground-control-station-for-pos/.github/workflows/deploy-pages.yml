@@ -1,0 +1,73 @@
+name: Deploy demo site (GitHub Pages)
+
+# Phase 6 — publishes the static demo site (the canned-mission replay, `ui/dist-web/`) to
+# GitHub Pages. The demo reuses the P5 coordinator UI fed by a baked `mission.json`; no Electron,
+# no Python backend, no in-browser inference.
+#
+# NOTE: this project does not commit/push during development (no-commit rule), so this workflow
+# does not run yet. It is authored now so publishing is ONE step when the user is ready.
+#
+# ONE-TIME MANUAL STEP (only the repo owner can do this): in the repo,
+#   Settings -> Pages -> Build and deployment -> Source: "GitHub Actions".
+# After that, push to `main` (or run this workflow manually from the Actions tab) and the demo
+# deploys to https://<user>.github.io/<repo>/ . The build uses a relative asset base, so it also
+# works at a Netlify/Vercel root or opened from file:// — no base change needed per host.
+
+on:
+  # MANUAL ONLY. The site is hosted on Vercel, so this GitHub Pages mirror is optional and does
+  # not run on push (it would 404 until Pages is enabled in repo Settings, adding red X noise).
+  # To publish a Pages copy: enable Settings -> Pages -> Source: "GitHub Actions", then run this
+  # workflow from the Actions tab (Run workflow). Re-add the `push:` trigger below to automate it.
+  workflow_dispatch: {}
+
+# Pages deploy needs these scopes + a single in-flight deploy.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build static web bundle
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ui
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Enable pnpm
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build the demo site (no Electron)
+        # `--mode web` drops the Electron plugin and emits to ui/dist-web/ with a relative base.
+        run: pnpm build:web
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ui/dist-web
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,26 @@
+{
+  "survivor_map": {
+    "path": "docs/assets/p6/demo-site.png",
+    "caption": "Coordinator UI: live survivor map with tier-colored pins, uncertainty ellipses, drone track and coverage. Replayed from a real-pipeline bake.",
+    "status": "rendered"
+  },
+  "coordinator_full": {
+    "path": "docs/assets/p5/coordinator-full.png",
+    "caption": "Full coordinator layout: map, contact list, and live video feed over one global selection model.",
+    "status": "rendered"
+  },
+  "boxes_on_footage": {
+    "path": "docs/documentation/figures/showcase/showcase-boxes.png",
+    "source": "real HERIDAL holdout aerial frame + Arm A ONNX detector",
+    "tool": "hades.cli.make_showcase",
+    "caption": "Real person detections on a HERIDAL aerial search frame (full scene + zoomed crop). Boxes are live model output, not hand-drawn.",
+    "status": "rendered"
+  },
+  "before_after": {
+    "path": "docs/documentation/figures/showcase/showcase-before-after.png",
+    "stock_model": "service/models/yolo11s_640.onnx",
+    "tuned_model": "artifacts/armA_heridal_sard/models/yolo11s_960.onnx",
+    "caption": "Stock YOLO11s vs HADES SAR fine-tune on the same HERIDAL frame: the P2.5 win made visible.",
+    "status": "rendered"
+  }
+}

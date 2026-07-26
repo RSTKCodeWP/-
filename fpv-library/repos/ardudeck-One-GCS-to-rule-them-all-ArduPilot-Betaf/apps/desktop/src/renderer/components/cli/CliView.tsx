@@ -1,0 +1,348 @@
+/**
+ * CLI View
+ *
+ * Dedicated sidebar view for CLI terminal access to iNav/Betaflight boards.
+ * Provides raw CLI access for power users and legacy F3 board configuration.
+ */
+
+import { useState } from 'react';
+import { useConnectionStore } from '../../stores/connection-store';
+import { useCliStore } from '../../stores/cli-store';
+import CliTerminal from './CliTerminal';
+
+export default function CliView() {
+  const { connectionState } = useConnectionStore();
+  const {
+    isCliMode,
+    isEntering,
+    hasEnteredSession,
+    enterCliMode,
+    hasDumpData,
+    fetchDump,
+    output,
+    clearOutput,
+    rebootState,
+    rebootMessage,
+    rebootError,
+    clearRebootState,
+  } = useCliStore();
+  const [isSaving, setIsSaving] = useState(false);
+  const [isSavingJson, setIsSavingJson] = useState(false);
+  const [showExportConfirm, setShowExportConfirm] = useState(false);
+
+  const handleSaveOutput = async () => {
+    if (!output) return;
+    setIsSaving(true);
+    try {
+      await window.electronAPI.cliSaveOutput(output);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleExportJsonClick = () => {
+    if (!isCliMode) return;
+    setShowExportConfirm(true);
+  };
+
+  const handleExportJsonConfirm = async () => {
+    setShowExportConfirm(false);
+    setIsSavingJson(true);
+    try {
+      // Clear current output
+      clearOutput();
+
+      // Send dump command and wait for it to complete
+      await window.electronAPI.cliSendCommand('dump');
+
+      // Wait for dump to complete (dump is slow, ~3-5 seconds)
+      await new Promise((r) => setTimeout(r, 5000));
+
+      // Get the fresh dump output
+      const dumpOutput = useCliStore.getState().output;
+
+      // Save as JSON
+      await window.electronAPI.cliSaveOutputJson({
+        rawDump: dumpOutput,
+        fcVariant: connectionState.fcVariant || 'UNKNOWN',
+        fcVersion: connectionState.fcVersion || 'UNKNOWN',
+      });
+    } finally {
+      setIsSavingJson(false);
+    }
+  };
+
+  return (
+    <div className="h-full flex flex-col bg-surface-base">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-subtle">
+        <div className="flex items-center gap-3">
+          {/* Terminal icon */}
+          <div className="w-8 h-8 rounded-lg bg-green-500/10 border border-green-500/20 flex items-center justify-center">
+            <svg className="w-4 h-4 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          </div>
+          <div>
+            <h1 className="text-lg font-semibold text-content">CLI Terminal</h1>
+            <p className="text-xs text-content-secondary">
+              {connectionState.fcVariant && connectionState.fcVersion
+                ? `${connectionState.fcVariant} ${connectionState.fcVersion}`
+                : 'Raw command-line interface'}
+            </p>
+          </div>
+        </div>
+
+        {/* Quick actions */}
+        <div className="flex items-center gap-2">
+          {/* Save output to file */}
+          <button
+            onClick={handleSaveOutput}
+            disabled={!output || isSaving}
+            className="px-3 py-1.5 text-xs font-medium text-content bg-surface-raised hover:bg-surface-raised border border rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+            title="Save terminal output to file"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+            </svg>
+            {isSaving ? 'Saving...' : 'Save TXT'}
+          </button>
+
+          {/* Save as JSON - runs dump and parses */}
+          <button
+            onClick={handleExportJsonClick}
+            disabled={!isCliMode || isSavingJson}
+            className="px-3 py-1.5 text-xs font-medium text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+            title="Run dump command and save parameters as JSON"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
+            </svg>
+            {isSavingJson ? 'Dumping...' : 'Export JSON'}
+          </button>
+
+          {/* Clear terminal */}
+          <button
+            onClick={clearOutput}
+            disabled={!output}
+            className="px-3 py-1.5 text-xs font-medium text-content bg-surface-raised hover:bg-surface-raised border border rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+            title="Clear terminal output"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+            Clear
+          </button>
+
+          {/* Load config for autocomplete */}
+          {!hasDumpData && isCliMode && (
+            <button
+              onClick={() => fetchDump()}
+              className="px-3 py-1.5 text-xs font-medium text-blue-300 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 rounded-lg transition-colors"
+              title="Load config for autocomplete"
+            >
+              Load Config
+            </button>
+          )}
+          {hasDumpData && (
+            <span className="px-2 py-1 text-xs text-green-400 bg-green-500/10 border border-green-500/20 rounded">
+              Autocomplete Active
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Connection warning */}
+      {!connectionState.isConnected && (
+        <div className="mx-4 mt-4 p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg">
+          <div className="flex items-start gap-2">
+            <svg className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <div>
+              <p className="text-sm font-medium text-amber-300">Not Connected</p>
+              <p className="text-xs text-amber-400/70 mt-0.5">
+                Connect to a flight controller to use the CLI terminal.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Entry screen: show when connected to MSP but CLI session not started */}
+      {connectionState.isConnected && connectionState.protocol === 'msp' && !hasEnteredSession && !isCliMode ? (
+        <div className="flex-1 flex items-center justify-center p-8">
+          <div className="max-w-md text-center">
+            {/* Terminal icon */}
+            <div className="w-16 h-16 rounded-2xl bg-green-500/10 border border-green-500/20 flex items-center justify-center mx-auto mb-6">
+              <svg className="w-8 h-8 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+            </div>
+            <h2 className="text-xl font-semibold text-content mb-2">CLI Terminal</h2>
+            <p className="text-sm text-content-secondary mb-6">
+              Direct command-line access to your flight controller. MSP telemetry will be paused while in CLI mode.
+            </p>
+
+            {/* Warning */}
+            <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg mb-6 text-left">
+              <div className="flex items-start gap-2">
+                <svg className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <div className="text-xs text-amber-400/90">
+                  <p className="font-medium text-amber-300 mb-1">Reboot on exit</p>
+                  <p>
+                    Leaving the CLI tab sends an exit command which causes the flight controller to reboot (2-4 seconds).
+                    The app will automatically reconnect.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Enter button */}
+            <button
+              onClick={() => enterCliMode()}
+              disabled={isEntering}
+              className="px-6 py-2.5 bg-green-600 hover:bg-green-500 disabled:bg-green-600/50 text-white font-medium rounded-lg transition-colors flex items-center gap-2 mx-auto"
+            >
+              {isEntering ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Entering CLI...
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  Enter CLI Mode
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* MSP protocol info */}
+          {connectionState.isConnected && connectionState.protocol === 'msp' && (
+            <div className="mx-4 mt-4 p-3 bg-surface border border-subtle rounded-lg">
+              <div className="flex items-start gap-2">
+                <svg className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div className="text-xs text-content-secondary">
+                  <p>
+                    <span className="text-content font-medium">CLI Mode</span> - MSP telemetry paused while in CLI.
+                  </p>
+                  <p className="mt-1">
+                    Type <code className="px-1 py-0.5 bg-surface-input rounded text-green-400">help</code> for commands,{' '}
+                    <code className="px-1 py-0.5 bg-surface-input rounded text-green-400">dump</code> for full config,{' '}
+                    <code className="px-1 py-0.5 bg-surface-input rounded text-green-400">exit</code> to return to MSP mode.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Terminal */}
+          <div className="flex-1 p-4 min-h-0">
+            <CliTerminal />
+          </div>
+        </>
+      )}
+
+      {/* Reboot/Reconnect overlay */}
+      {rebootState !== 'idle' && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center">
+          <div className="bg-surface-input border border rounded-xl p-8 max-w-md mx-4 shadow-2xl text-center">
+            {/* Icon based on state */}
+            {rebootState === 'error' ? (
+              <div className="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </div>
+            ) : rebootState === 'done' ? (
+              <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+            ) : (
+              <div className="w-16 h-16 rounded-full bg-blue-500/20 flex items-center justify-center mx-auto mb-4">
+                <div className="w-8 h-8 border-3 border-blue-500 border-t-transparent rounded-full animate-spin" />
+              </div>
+            )}
+
+            {/* Title */}
+            <h3 className="text-lg font-semibold text-content mb-2">
+              {rebootState === 'saving' && 'Saving Configuration'}
+              {rebootState === 'rebooting' && 'Rebooting Board'}
+              {rebootState === 'reconnecting' && 'Disconnecting'}
+              {rebootState === 'done' && 'Save Complete'}
+              {rebootState === 'error' && 'Save Failed'}
+            </h3>
+
+            {/* Message */}
+            <p className="text-sm text-content-secondary mb-4">
+              {rebootError || rebootMessage}
+            </p>
+
+            {/* Progress indicator for non-terminal states */}
+            {(rebootState === 'saving' || rebootState === 'rebooting' || rebootState === 'reconnecting') && (
+              <div className="flex items-center justify-center gap-2 text-xs text-content-secondary">
+                <div className="flex gap-1">
+                  <div className={`w-2 h-2 rounded-full ${rebootState === 'saving' ? 'bg-blue-500' : 'bg-surface-raised'}`} />
+                  <div className={`w-2 h-2 rounded-full ${rebootState === 'rebooting' ? 'bg-blue-500' : 'bg-surface-raised'}`} />
+                  <div className={`w-2 h-2 rounded-full ${rebootState === 'reconnecting' ? 'bg-blue-500' : 'bg-surface-raised'}`} />
+                </div>
+              </div>
+            )}
+
+            {/* Dismiss button for terminal states */}
+            {(rebootState === 'done' || rebootState === 'error') && (
+              <button
+                onClick={clearRebootState}
+                className="mt-4 px-6 py-2 bg-surface-raised hover:bg-surface-raised text-content rounded-lg text-sm transition-colors"
+              >
+                Dismiss
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Export JSON Confirmation Modal */}
+      {showExportConfirm && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center">
+          <div className="bg-surface-input border border rounded-xl p-6 max-w-md mx-4 shadow-2xl">
+            <div className="w-12 h-12 rounded-full bg-amber-500/20 flex items-center justify-center mx-auto mb-4">
+              <svg className="w-6 h-6 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-semibold text-content text-center mb-2">Export Parameters</h3>
+            <p className="text-sm text-content-secondary text-center mb-6">
+              This will clear the CLI terminal, run the <code className="px-1.5 py-0.5 bg-surface-raised rounded text-amber-400">dump</code> command, and save all parameters as JSON.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowExportConfirm(false)}
+                className="flex-1 px-4 py-2 bg-surface-raised hover:bg-surface-raised text-content rounded-lg text-sm transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleExportJsonConfirm}
+                className="flex-1 px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                Export
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

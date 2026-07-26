@@ -1,0 +1,8 @@
+name: "RHFest Action"
+description: "Validates manifests of community plugins for RotorHazard"
+branding:
+  icon: terminal
+  color: gray-dark
+runs:
+  using: "docker"
+  image: "ghcr.io/rotorhazard/rhfest-action:v3.1.0"

@@ -1,0 +1,197 @@
+defaults nosave
+
+
+# version
+# Betaflight / STM32F405 (S405) 4.4.3 Nov 23 2023 / 05:21:21 (738127e7e) MSP API: 1.45
+
+# config: YES
+
+# start the command batch
+batch start
+
+# reset configuration to default settings
+defaults nosave
+
+board_name BETAFLIGHTF4
+manufacturer_id FPVM
+mcu_id 003100333033470937393338
+signature 
+
+# name: HDZERO CRUX35
+
+# feature
+feature -TELEMETRY
+
+# serial
+serial 0 131073 115200 57600 0 115200
+serial 1 64 115200 57600 0 115200
+
+# beacon
+beacon RX_SET
+
+# aux
+aux 0 0 0 900 1250 0 0
+aux 1 1 1 1700 2075 0 0
+aux 2 13 2 1250 2100 0 0
+aux 3 35 1 1250 1700 0 0
+aux 4 39 3 1250 2100 0 0
+
+# vtxtable
+vtxtable bands 6
+vtxtable channels 8
+vtxtable band 1 BOSCAM_A A CUSTOM     0    0    0    0    0    0    0    0
+vtxtable band 2 BOSCAM_B B CUSTOM     0    0    0    0    0    0    0    0
+vtxtable band 3 BOSCAM_E E CUSTOM  5705    0    0    0    0    0    0    0
+vtxtable band 4 FATSHARK F CUSTOM  5740 5760    0 5800    0    0    0    0
+vtxtable band 5 RACEBAND R CUSTOM  5658 5695 5732 5769 5806 5843 5880 5917
+vtxtable band 6 LOWBAND  L CUSTOM     0    0    0    0    0    0    0    0
+vtxtable powerlevels 3
+vtxtable powervalues 14 23 0
+vtxtable powerlabels 25 200 0
+
+# master
+set dyn_notch_count = 2
+set dyn_notch_min_hz = 125
+set dyn_notch_max_hz = 850
+set acc_lpf_hz = 10
+set acc_calibration = 44,3,-10,1
+set baro_hardware = NONE
+set max_check = 2000
+set rc_smoothing_auto_factor = 120
+set blackbox_sample_rate = 1/2
+set dshot_bidir = ON
+set motor_pwm_protocol = DSHOT300
+set motor_poles = 12
+set current_meter = ADC
+set battery_meter = ADC
+set ibata_scale = 470
+set yaw_motors_reversed = ON
+set small_angle = 180
+set gps_provider = NMEA
+set gps_rescue_ascend_rate = 500
+set gps_rescue_ground_speed = 2000
+set gps_rescue_descent_dist = 200
+set gps_rescue_landing_alt = 5
+set gps_rescue_throttle_max = 1600
+set gps_rescue_throttle_hover = 1280
+set gps_rescue_sanity_checks = RESCUE_SANITY_ON
+set gps_rescue_throttle_p = 150
+set gps_rescue_throttle_i = 20
+set gps_rescue_throttle_d = 50
+set gps_rescue_velocity_p = 80
+set gps_rescue_velocity_i = 20
+set gps_rescue_velocity_d = 15
+set gps_rescue_yaw_p = 40
+set pid_process_denom = 4
+set report_cell_voltage = ON
+set osd_tim2 = 2563
+set osd_vbat_pos = 2337
+set osd_link_quality_pos = 3074
+set osd_rssi_dbm_pos = 2066
+set osd_tim_1_pos = 3339
+set osd_tim_2_pos = 3307
+set osd_flymode_pos = 3584
+set osd_throttle_pos = 416
+set osd_vtx_channel_pos = 2052
+set osd_current_pos = 480
+set osd_craft_name_pos = 2610
+set osd_pilot_name_pos = 2603
+set osd_warnings_pos = 14866
+set osd_avg_cell_voltage_pos = 2305
+set osd_displayport_device = MSP
+set osd_canvas_width = 50
+set osd_canvas_height = 18
+set debug_mode = GYRO_SCALED
+set vtx_band = 5
+set vtx_channel = 1
+set vtx_power = 2
+set vtx_freq = 5658
+set vcd_video_system = HD
+set gyro_1_sensor_align = CW90
+set gyro_1_align_yaw = 900
+set rpm_filter_harmonics = 2
+set craft_name = HDZERO CRUX35
+set pilot_name = papfpv
+
+profile 0
+
+# profile 0
+set dterm_lpf1_dyn_min_hz = 90
+set dterm_lpf1_dyn_max_hz = 180
+set dterm_lpf1_static_hz = 90
+set dterm_lpf2_static_hz = 180
+set vbat_sag_compensation = 100
+set pidsum_limit = 1000
+set pidsum_limit_yaw = 1000
+set yaw_lowpass_hz = 0
+set p_pitch = 70
+set i_pitch = 126
+set d_pitch = 45
+set f_pitch = 187
+set p_roll = 67
+set i_roll = 120
+set f_roll = 180
+set p_yaw = 67
+set i_yaw = 120
+set f_yaw = 180
+set d_min_roll = 40
+set d_min_pitch = 45
+set feedforward_averaging = 2_POINT
+set feedforward_smooth_factor = 65
+set simplified_master_multiplier = 150
+set simplified_d_gain = 90
+set simplified_dmax_gain = 0
+set simplified_dterm_filter_multiplier = 120
+
+profile 1
+
+# profile 1
+set dterm_lpf1_dyn_min_hz = 71
+set dterm_lpf1_dyn_max_hz = 142
+set dterm_lpf1_static_hz = 71
+set dterm_lpf2_static_hz = 142
+set vbat_sag_compensation = 100
+set p_pitch = 82
+set i_pitch = 161
+set d_pitch = 88
+set f_pitch = 209
+set p_roll = 78
+set i_roll = 154
+set d_roll = 76
+set f_roll = 201
+set p_yaw = 78
+set i_yaw = 154
+set f_yaw = 201
+set d_min_roll = 56
+set d_min_pitch = 64
+set thrust_linear = 20
+set feedforward_averaging = 2_POINT
+set feedforward_smooth_factor = 45
+set feedforward_jitter_factor = 10
+set simplified_master_multiplier = 140
+set simplified_i_gain = 110
+set simplified_d_gain = 135
+set simplified_pi_gain = 125
+set simplified_dmax_gain = 105
+set simplified_feedforward_gain = 120
+set simplified_dterm_filter_multiplier = 95
+
+profile 2
+
+profile 3
+
+# restore original profile selection
+profile 0
+
+rateprofile 0
+
+rateprofile 1
+
+rateprofile 2
+
+rateprofile 3
+
+# restore original rateprofile selection
+rateprofile 0
+
+# save configuration

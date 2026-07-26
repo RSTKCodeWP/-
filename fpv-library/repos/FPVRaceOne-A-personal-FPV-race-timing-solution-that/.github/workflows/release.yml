@@ -1,0 +1,251 @@
+name: Release
+
+# Triggers:
+#   - Push a tag matching v*.*.* (e.g. v1.2.0)        → builds + publishes a release
+#   - workflow_dispatch (manual via the Actions tab)  → builds without publishing,
+#                                                       useful for smoke-testing CI changes
+#
+# How to ship a new firmware version:
+#   1. Bump anything you need in the codebase, commit, push to main.
+#   2. Tag the commit:  git tag v1.2.0 && git push origin v1.2.0
+#   3. Watch the run on GitHub → Actions.  In ~3 minutes it'll attach
+#      FPVRaceOne-firmware.bin and FPVRaceOne-littlefs.bin to the new release.
+#   4. Devices in the field will see the release on their next "Check for Updates".
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+
+permissions:
+  contents: write   # required for action-gh-release to create the release
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          # Full history + tags so extra_script.py's `git describe` works for
+          # manual workflow_dispatch runs (tag pushes set GITHUB_REF_NAME and
+          # don't actually need this, but it's harmless).
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Cache PlatformIO + pip
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio
+            ~/.cache/pip
+          key: ${{ runner.os }}-pio-${{ hashFiles('platformio.ini', 'targets/**.ini') }}
+
+      - name: Install PlatformIO
+        run: |
+          set -x
+          python -m pip install --upgrade pip
+          # Pin to a known-good PIO version.  Using `pip install platformio`
+          # without a constraint silently picks up whatever was released most
+          # recently, which has caused surprise behaviour changes (e.g. default
+          # target shifts) in CI.  Bump this deliberately when needed.
+          pip install "platformio>=6.1,<7.0"
+          pio --version
+
+      - name: Determine version
+        id: version
+        run: |
+          # Just for the release name / artifact name / build log.  The actual
+          # FIRMWARE_VERSION constant is injected automatically by
+          # scripts/extra_script.py (it reads GITHUB_REF_NAME during the build).
+          REF_NAME="${GITHUB_REF_NAME:-manual}"
+          if [[ "$REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+            VERSION="${REF_NAME#v}"
+          else
+            VERSION="0.0.0-${GITHUB_SHA::7}"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$REF_NAME"     >> "$GITHUB_OUTPUT"
+          echo "Building FIRMWARE_VERSION=$VERSION (tag=$REF_NAME)"
+
+      - name: Build firmware
+        run: |
+          set -x
+          # No -t: invokes the default target which is the firmware build.
+          # The platform has no `build` or `buildprog` name to pass via -t —
+          # passing one would either be silently ignored (which is exactly
+          # what happened on a previous attempt with `-t buildprog`) or skip
+          # the firmware build entirely.
+          pio run -e seeed_xiao_esp32c6
+          echo "----- contents of .pio/build/seeed_xiao_esp32c6/ -----"
+          ls -la .pio/build/seeed_xiao_esp32c6/
+          test -s .pio/build/seeed_xiao_esp32c6/firmware.bin \
+            || { echo "::error::firmware.bin missing or empty after firmware build"; exit 1; }
+          # Stash firmware.bin in /tmp so the next step (buildfs) can't lose it.
+          # On Linux, `pio run -t buildfs` was observed to clean the env build
+          # dir before producing littlefs.bin — wiping firmware.bin in the
+          # process.  Stashing and restoring around buildfs is the most robust
+          # defence without having to surgically rework extra_script.py.
+          cp .pio/build/seeed_xiao_esp32c6/firmware.bin /tmp/fw-stash.bin
+          echo "Stashed firmware.bin to /tmp/fw-stash.bin"
+
+          # ── Build the full-flash "merged" recovery image HERE ────────────────
+          # bootloader.bin + partitions.bin only exist right after the firmware
+          # build — the later `buildfs` step wipes the build dir (that's why
+          # firmware.bin is stashed above).  So we merge now, while all the
+          # inputs are present, and stash the result for the staging step.
+          #
+          # Offsets MUST match the device's partition layout — keep in sync with
+          # partitions_two_ota_XIAO_ESP32_C6.csv, platformio.ini
+          # (board_upload.offset_address), and scripts/flash_published_release.py.
+          BUILD=.pio/build/seeed_xiao_esp32c6
+          BOOT_APP0=$(find ~/.platformio -path '*tools/partitions/boot_app0.bin' | head -1)
+          test -s "$BOOT_APP0"          || { echo "::error::boot_app0.bin not found under ~/.platformio"; exit 1; }
+          test -s "$BUILD/bootloader.bin" || { echo "::error::bootloader.bin missing after firmware build"; exit 1; }
+          test -s "$BUILD/partitions.bin" || { echo "::error::partitions.bin missing after firmware build"; exit 1; }
+          pip install --upgrade esptool
+          # esptool v5 CLI: `merge-bin` + hyphenated flags. `--flash-size 4MB`
+          # only sets the header value (does NOT pad — padding is --pad-to-size),
+          # so the output spans 0x0..end-of-app and never overlaps the LittleFS
+          # partition at 0x320000 that gets flashed separately.
+          python -m esptool --chip esp32c6 merge-bin \
+            -o /tmp/merged-stash.bin \
+            --flash-mode dio --flash-freq 80m --flash-size 4MB \
+            0x0     "$BUILD/bootloader.bin" \
+            0x8000  "$BUILD/partitions.bin" \
+            0xe000  "$BOOT_APP0" \
+            0x10000 "$BUILD/firmware.bin"
+          echo "Stashed merged image to /tmp/merged-stash.bin"
+
+      - name: Build filesystem image
+        run: |
+          set -x
+          pio run -e seeed_xiao_esp32c6 -t buildfs
+          echo "----- contents of .pio/build/seeed_xiao_esp32c6/ -----"
+          ls -la .pio/build/seeed_xiao_esp32c6/
+          test -s .pio/build/seeed_xiao_esp32c6/littlefs.bin \
+            || { echo "::error::littlefs.bin missing or empty after pio buildfs"; exit 1; }
+          # Restore firmware.bin if buildfs cleaned it.  We verify the stash
+          # exists first so the "::error::" message in the next test reflects
+          # the right failure mode if something has gone really sideways.
+          if [ ! -s .pio/build/seeed_xiao_esp32c6/firmware.bin ]; then
+            test -s /tmp/fw-stash.bin \
+              || { echo "::error::firmware.bin gone AND stash missing — build is in an unrecoverable state"; exit 1; }
+            cp /tmp/fw-stash.bin .pio/build/seeed_xiao_esp32c6/firmware.bin
+            echo "Restored firmware.bin from /tmp/fw-stash.bin (buildfs wiped it)"
+          fi
+          test -s .pio/build/seeed_xiao_esp32c6/firmware.bin \
+            || { echo "::error::firmware.bin still missing after restore attempt"; exit 1; }
+
+      - name: Stage release assets
+        run: |
+          set -x
+          mkdir -p release-assets
+          BUILD=.pio/build/seeed_xiao_esp32c6
+          cp "$BUILD/firmware.bin"  release-assets/FPVRaceOne-firmware.bin
+          cp "$BUILD/littlefs.bin"  release-assets/FPVRaceOne-littlefs.bin
+
+          # ── Full-flash "merged" recovery image ───────────────────────────────
+          # Built in the "Build firmware" step (its bootloader/partitions inputs
+          # are wiped by buildfs) and stashed; just restore it here.  It spans
+          # 0x0..end-of-app and is flashed at 0x0; the littlefs image is written
+          # separately at 0x320000 for a complete restore of a bricked device.
+          test -s /tmp/merged-stash.bin \
+            || { echo "::error::merged image stash missing — Build firmware step did not produce it"; exit 1; }
+          cp /tmp/merged-stash.bin release-assets/FPVRaceOne-merged.bin
+
+          # ── Machine-readable flash manifest ──────────────────────────────────
+          # The portable flasher reads this from the release instead of
+          # hardcoding offsets, so it never drifts when the partition table
+          # changes.  `schema` lets the tool refuse manifests it's too old to
+          # understand.
+          cat > release-assets/flash-manifest.json <<EOF
+          {
+            "schema": 1,
+            "product": "FPVRaceOne",
+            "chip": "esp32c6",
+            "baud": 460800,
+            "version": "${{ steps.version.outputs.version }}",
+            "tag": "${{ steps.version.outputs.tag }}",
+            "assets": {
+              "firmware":   { "name": "FPVRaceOne-firmware.bin", "offset": "0x10000"  },
+              "filesystem": { "name": "FPVRaceOne-littlefs.bin", "offset": "0x320000" },
+              "merged":     { "name": "FPVRaceOne-merged.bin",   "offset": "0x0"      }
+            },
+            "flash_modes": {
+              "update":   ["firmware", "filesystem"],
+              "recovery": ["merged", "filesystem"]
+            }
+          }
+          EOF
+
+          echo "----- staged assets -----"
+          ls -la release-assets/
+          # Sanity: print sizes (firmware must fit in the 1.5 MB OTA app slot)
+          stat --printf "firmware.bin: %s bytes\n" release-assets/FPVRaceOne-firmware.bin
+          stat --printf "littlefs.bin: %s bytes\n" release-assets/FPVRaceOne-littlefs.bin
+          stat --printf "merged.bin:   %s bytes\n" release-assets/FPVRaceOne-merged.bin
+          cat release-assets/flash-manifest.json
+
+      - name: Diagnostics on failure
+        if: failure()
+        run: |
+          echo "===== build dir tree ====="
+          find .pio/build -maxdepth 4 -type f -printf '%p (%s bytes)\n' 2>/dev/null | sort
+          echo ""
+          echo "===== generated headers ====="
+          test -f lib/CONFIG/firmware_version.h && cat lib/CONFIG/firmware_version.h || echo "(missing)"
+          test -f lib/WEBSERVER/build_timestamp.h && cat lib/WEBSERVER/build_timestamp.h || echo "(missing)"
+          echo ""
+          echo "===== platformio.ini + targets ====="
+          cat platformio.ini
+          ls -la targets/ && cat targets/*.ini
+
+      - name: Upload build artifacts (always, for inspection)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: FPVRaceOne-${{ steps.version.outputs.version }}
+          path: release-assets/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.tag }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          # `body` renders ABOVE the auto-generated notes (generate_release_notes
+          # appends to it), so this header sits at the top of every release.  It
+          # links to the FPVRaceOne Flasher's stable "latest" download — a single
+          # canonical copy that lives in the flasher repo, so the firmware
+          # release never has to carry or re-upload the .exe itself.
+          body: |
+            ## 🛠️ Recover or flash your device
+
+            Bricked your timer, or want to (re)flash without OTA? Download the
+            **[FPVRaceOne Flasher (Windows)](https://github.com/ramiss/FPVRaceOne-Flasher/releases/latest/download/FPVRaceOne-Flasher.exe)**
+            — a portable app that flashes any release straight from GitHub. Pick
+            this release in the app, or use **Recovery** mode to fully restore a
+            bricked device.
+
+            ---
+          # Tags with a `-` after the version triple (e.g. v0.1.2-beta.1)
+          # are pushed by the `publish_prerelease` PIO target.  Flag them as
+          # GitHub Pre-releases so they're excluded from /releases/latest —
+          # the device's "Check for Updates" only sees them as upgrades when
+          # the user is on a same-or-older non-stable build.
+          prerelease: ${{ contains(steps.version.outputs.tag, '-') }}
+          files: |
+            release-assets/FPVRaceOne-firmware.bin
+            release-assets/FPVRaceOne-littlefs.bin
+            release-assets/FPVRaceOne-merged.bin
+            release-assets/flash-manifest.json

@@ -1,0 +1,720 @@
+/**
+ * objects-store — the Area Editor's object-based state (replaces the flat
+ * polygon model). Every shape is an EditorObject (area-object.ts) that can be
+ * selected, moved/rotated/scaled as a whole, renamed, reordered, hidden, and
+ * (for parametric rect/circle) converted to a free polygon for vertex editing.
+ *
+ * Tool model (from the side rail):
+ *   select   — pick an object; drag its transform handles (move/rotate/scale)
+ *   polygon  — click to lay an area outline; double-click to finish
+ *   corridor — click to lay a centerline; double-click to finish
+ *   rectangle/circle — drag on the map to create (handled in interactions)
+ *   edit     — per-vertex editing of the selected vertex-editable object
+ *   measure  — transient distance/area readout
+ */
+
+import { create } from 'zustand';
+import { subscribeWithSelector } from 'zustand/middleware';
+import type { LatLng } from '../components/survey/survey-types';
+import { latLngToLocal } from '../components/survey/geo-math';
+import {
+  makeFromWorldRing,
+  translateObject,
+  rotateObject,
+  scaleObjectAbout,
+  convertToPolygon,
+  cloneObject,
+  worldToLocal,
+  bufferObject,
+  splitObjectByLine,
+  clipRingToPolygon,
+  snapToNearestPolyline,
+  type EditorObject,
+  type EditorObjectType,
+  type LocalPt,
+} from './area-object';
+
+export type AreaTool = 'select' | 'polygon' | 'corridor' | 'rectangle' | 'circle' | 'edit' | 'measure' | 'hole' | 'split' | 'branch';
+
+/** A draw tool collects world points before the object is finalized. */
+const DRAW_TOOLS: AreaTool[] = ['polygon', 'corridor', 'hole', 'branch'];
+
+function minPointsForType(type: EditorObjectType): number {
+  return type === 'corridor' ? 2 : 3;
+}
+
+/** Shoelace area of a local-frame ring (signed; absolute value = area in m²). */
+function localRingArea(ring: LocalPt[]): number {
+  let a = 0;
+  for (let i = 0; i < ring.length; i++) {
+    const p = ring[i]!;
+    const q = ring[(i + 1) % ring.length]!;
+    a += p.x * q.y - q.x * p.y;
+  }
+  return a / 2;
+}
+
+/** What a right-click landed on; drives the context menu's available actions. */
+export type ContextTarget =
+  | { kind: 'object'; id: string }
+  | { kind: 'measure'; world: LatLng; pointIndex?: number }
+  | { kind: 'empty' };
+
+export interface ContextMenuState {
+  /** Viewport coordinates (clientX/clientY) for fixed positioning. */
+  x: number;
+  y: number;
+  target: ContextTarget;
+}
+
+/** The slice of state that undo/redo restores (geometry + selection). */
+interface HistorySnapshot {
+  objects: EditorObject[];
+  selectedId: string | null;
+  selectedVertex: number | null;
+  selectedMeasure: boolean;
+  measurePoints: LatLng[];
+  measureDone: boolean;
+}
+
+const HISTORY_LIMIT = 50;
+
+/** Tool/transient state forced after an undo or redo so the editor lands in a
+ * predictable, interactive select mode (never stuck mid-draw or mid-cut). */
+const NEUTRAL_TOOL_STATE = {
+  tool: 'select' as AreaTool,
+  draftPoints: [] as LatLng[],
+  draftType: null as EditorObjectType | null,
+  contextMenu: null as ContextMenuState | null,
+} satisfies Partial<ObjectsState>;
+
+function snapshot(s: ObjectsState): HistorySnapshot {
+  return {
+    objects: s.objects,
+    selectedId: s.selectedId,
+    selectedVertex: s.selectedVertex,
+    selectedMeasure: s.selectedMeasure,
+    measurePoints: s.measurePoints,
+    measureDone: s.measureDone,
+  };
+}
+
+interface ObjectsState {
+  objects: EditorObject[];
+  selectedId: string | null;
+  tool: AreaTool;
+  /** In-progress polygon/corridor outline (world points); empty when not drawing. */
+  draftPoints: LatLng[];
+  draftType: EditorObjectType | null;
+  /** Vertex index being edited on the selected object (edit tool), or null. */
+  selectedVertex: number | null;
+  measurePoints: LatLng[];
+  /** True once a measurement is finished (double-click); the next click starts a fresh one. */
+  measureDone: boolean;
+  /** True when the measurement (ruler) is the selected element (select tool). */
+  selectedMeasure: boolean;
+  /** Default swath width (m) for new corridors; also edits the selected corridor. */
+  corridorWidthM: number;
+  /** Monotonic counter so auto-names stay unique even after deletes. */
+  nameSeq: number;
+  /** Open right-click context menu, or null. */
+  contextMenu: ContextMenuState | null;
+  /** Undo stack (most recent last) and redo stack. */
+  past: HistorySnapshot[];
+  future: HistorySnapshot[];
+}
+
+interface ObjectsActions {
+  setTool: (tool: AreaTool) => void;
+  selectObject: (id: string | null) => void;
+  /** Select the measurement (ruler) as the active element. */
+  selectMeasure: () => void;
+
+  // undo / redo
+  /** Snapshot current geometry/selection before a mutating change. */
+  pushHistory: () => void;
+  undo: () => void;
+  redo: () => void;
+
+  // right-click context menu
+  openContextMenu: (menu: ContextMenuState) => void;
+  closeContextMenu: () => void;
+
+  /** Clone an object in place (slight offset) and select the copy. */
+  duplicateObject: (id: string) => void;
+
+  /** Add a fully-built object (rectangle/circle from a drag), select it, return to select tool. */
+  addObject: (obj: EditorObject) => void;
+
+  /** Replace an object by id (used by drag transforms that work from a snapshot). */
+  replaceObject: (obj: EditorObject) => void;
+
+  // draft (polygon / corridor)
+  addDraftPoint: (p: LatLng) => void;
+  finishDraft: () => void;
+  /** Finish the in-progress ring as a HOLE cut into the selected area. */
+  finishHole: () => void;
+  /** Finish the in-progress centerline as a BRANCH on the selected corridor. */
+  finishBranch: () => void;
+  /** Remove all branches from a corridor (defaults to the selected object). */
+  clearBranches: (id?: string) => void;
+  /** Remove a single branch (by index) from a corridor. */
+  removeBranch: (id: string, index: number) => void;
+  cancelDraft: () => void;
+
+  // whole-object transforms (operate on the selected object)
+  translateSelected: (dLat: number, dLng: number) => void;
+  rotateSelected: (deltaDeg: number) => void;
+  scaleSelected: (sx: number, sy: number, anchor: LocalPt) => void;
+
+  // object-list operations
+  renameObject: (id: string, name: string) => void;
+  setObjectColor: (id: string, color: string) => void;
+  setObjectFenceType: (id: string, fenceType: 'inclusion' | 'exclusion' | null) => void;
+  /** Grant/clear the workspace role; at most one object holds it at a time. */
+  setObjectRole: (id: string, role: 'workspace' | null) => void;
+  deleteObject: (id: string) => void;
+  deleteSelected: () => void;
+  toggleVisible: (id: string) => void;
+  reorderObject: (id: string, dir: -1 | 1) => void;
+  convertSelectedToPolygon: () => void;
+  /** Grow (m>0) / shrink (m<0) the selected area by a distance in metres. */
+  bufferSelected: (meters: number) => void;
+  /** Slice the selected area with a straight line (two world points) into two. */
+  splitSelectedByLine: (p1: LatLng, p2: LatLng) => void;
+
+  // vertex editing (selected, vertex-editable object). `branch` is -1 for the
+  // main ring/centerline, or a corridor branch index.
+  selectVertex: (i: number | null) => void;
+  moveVertex: (i: number, world: LatLng, branch?: number, hole?: number) => void;
+  insertVertexAfter: (i: number, world: LatLng, hole?: number) => void;
+  deleteVertex: (i: number, branch?: number, hole?: number) => void;
+
+  // measure
+  addMeasurePoint: (p: LatLng) => void;
+  /** Finish the current measurement but keep it on screen (double-click). */
+  endMeasure: () => void;
+  /** Move one point of the measurement (drag-edit when the ruler is selected). */
+  moveMeasurePoint: (i: number, world: LatLng) => void;
+  /** Insert a measurement point on the nearest segment to `world`. */
+  insertMeasurePointAt: (world: LatLng) => void;
+  /** Remove one point of the measurement (keeps at least 2). */
+  deleteMeasurePoint: (i: number) => void;
+  /** Re-enter the measure tool to extend the existing measurement. */
+  editMeasurement: () => void;
+  clearMeasure: () => void;
+
+  setCorridorWidth: (meters: number) => void;
+
+  reset: () => void;
+  /** Load world rings as objects (used by import). */
+  loadWorldRings: (rings: Array<{ ring: LatLng[]; holes?: LatLng[][]; type?: EditorObjectType; fenceType?: 'inclusion' | 'exclusion' }>) => void;
+}
+
+type Store = ObjectsState & ObjectsActions;
+
+const TYPE_LABEL: Record<EditorObjectType, string> = {
+  polygon: 'Area',
+  corridor: 'Corridor',
+  rectangle: 'Rectangle',
+  circle: 'Circle',
+};
+
+/** Squared distance (m^2) from p to segment a-b, computed in a local frame at p. */
+function pointSegDistSq(p: LatLng, a: LatLng, b: LatLng): number {
+  const A = latLngToLocal(p, a); // a and b relative to p (which sits at the origin)
+  const B = latLngToLocal(p, b);
+  const dx = B.x - A.x;
+  const dy = B.y - A.y;
+  const len2 = dx * dx + dy * dy;
+  let t = len2 > 0 ? -(A.x * dx + A.y * dy) / len2 : 0;
+  t = Math.max(0, Math.min(1, t));
+  const cx = A.x + t * dx;
+  const cy = A.y + t * dy;
+  return cx * cx + cy * cy;
+}
+
+/** Replace the selected object via a transform; no-op if nothing selected. */
+function mapSelected(state: ObjectsState, fn: (o: EditorObject) => EditorObject): EditorObject[] {
+  if (state.selectedId === null) return state.objects;
+  return state.objects.map((o) => (o.id === state.selectedId ? fn(o) : o));
+}
+
+export const useObjectsStore = create<Store>()(
+  subscribeWithSelector((set, get) => ({
+    objects: [],
+    selectedId: null,
+    tool: 'select',
+    draftPoints: [],
+    draftType: null,
+    selectedVertex: null,
+    measurePoints: [],
+    measureDone: false,
+    selectedMeasure: false,
+    corridorWidthM: 60,
+    nameSeq: 0,
+    contextMenu: null,
+    past: [],
+    future: [],
+
+    setTool: (tool) => {
+      // Leaving a draw tool mid-draft discards the unfinished outline. The
+      // measurement is NOT cleared on leave (it persists until Clear); picking
+      // the measure tool starts a fresh one via the measureDone flag.
+      set({
+        tool,
+        draftPoints: [],
+        // 'branch' reuses the corridor draft (an open centerline); finishBranch
+        // commits it onto the selected corridor instead of as a new object.
+        draftType: tool === 'polygon' ? 'polygon' : (tool === 'corridor' || tool === 'branch') ? 'corridor' : tool === 'hole' ? 'polygon' : null,
+        selectedVertex: tool === 'edit' ? get().selectedVertex : null,
+        measureDone: tool === 'measure' ? true : get().measureDone,
+      });
+    },
+
+    selectObject: (id) => set({ selectedId: id, selectedVertex: null, selectedMeasure: false }),
+
+    selectMeasure: () => set({ selectedMeasure: true, selectedId: null, selectedVertex: null }),
+
+    pushHistory: () =>
+      set((s) => ({ past: [...s.past, snapshot(s)].slice(-HISTORY_LIMIT), future: [] })),
+
+    undo: () =>
+      set((s) => {
+        const prev = s.past[s.past.length - 1];
+        if (!prev) return {};
+        // Return to a clean select state so we never strand the user in a draw/
+        // cut tool (e.g. undoing right after picking "Cut hole").
+        return { ...prev, ...NEUTRAL_TOOL_STATE, past: s.past.slice(0, -1), future: [...s.future, snapshot(s)].slice(-HISTORY_LIMIT) };
+      }),
+
+    redo: () =>
+      set((s) => {
+        const next = s.future[s.future.length - 1];
+        if (!next) return {};
+        return { ...next, ...NEUTRAL_TOOL_STATE, future: s.future.slice(0, -1), past: [...s.past, snapshot(s)].slice(-HISTORY_LIMIT) };
+      }),
+
+    openContextMenu: (menu) => set({ contextMenu: menu }),
+    closeContextMenu: () => set({ contextMenu: null }),
+
+    duplicateObject: (id) => {
+      const orig = get().objects.find((o) => o.id === id);
+      if (!orig) return;
+      get().pushHistory();
+      // Offset the copy ~20 m south-east so it doesn't sit exactly on the original.
+      const cloned = translateObject(cloneObject(orig, `${orig.name} copy`), -0.0002, 0.0002);
+      // The workspace role is exclusive; the copy must not become a second workspace.
+      const copy = cloned.role === 'workspace' ? { ...cloned, role: undefined } : cloned;
+      set((s) => ({ objects: [...s.objects, copy], selectedId: copy.id, selectedVertex: null, selectedMeasure: false }));
+    },
+
+    addObject: (obj) => {
+      get().pushHistory();
+      set((s) => ({
+        objects: [...s.objects, obj],
+        selectedId: obj.id,
+        tool: 'select',
+        draftPoints: [],
+        draftType: null,
+      }));
+    },
+
+    replaceObject: (obj) =>
+      set((s) => ({ objects: s.objects.map((o) => (o.id === obj.id ? obj : o)) })),
+
+    addDraftPoint: (p) => {
+      const { draftType } = get();
+      if (draftType === null) return;
+      set((s) => ({ draftPoints: [...s.draftPoints, p] }));
+    },
+
+    finishDraft: () => {
+      const { draftType, draftPoints, corridorWidthM, nameSeq } = get();
+      if (draftType === null || draftPoints.length < minPointsForType(draftType)) {
+        set({ draftPoints: [], draftType: null });
+        return;
+      }
+      const seq = nameSeq + 1;
+      const obj = makeFromWorldRing(draftType, draftPoints, `${TYPE_LABEL[draftType]} ${seq}`, {
+        ...(draftType === 'corridor' ? { corridorWidthM } : {}),
+      });
+      get().pushHistory();
+      set((s) => ({
+        objects: [...s.objects, obj],
+        selectedId: obj.id,
+        tool: 'select',
+        draftPoints: [],
+        draftType: null,
+        nameSeq: seq,
+      }));
+    },
+
+    finishHole: () => {
+      const { draftPoints, selectedId, objects } = get();
+      const sel = objects.find((o) => o.id === selectedId) ?? null;
+      // Holes apply to closed areas (not the open corridor centerline).
+      if (!sel || sel.type === 'corridor' || draftPoints.length < 3) {
+        set({ draftPoints: [], draftType: null, tool: 'select' });
+        return;
+      }
+      const ring = draftPoints.map((p) => worldToLocal(sel, p));
+      // Clip the drawn hole to the area's outline so a hole that pokes past the
+      // boundary (or spans onto neighbouring objects) is trimmed to the part
+      // actually inside - storing a ring that crosses the outline triangulates
+      // into garbage. A draw straddling the edge can yield several inside parts.
+      const outerArea = Math.abs(localRingArea(sel.base));
+      const pieces = clipRingToPolygon(ring, sel.base)
+        .filter((h) => h.length >= 3 && Math.abs(localRingArea(h)) < outerArea * 0.999);
+      if (pieces.length === 0) {
+        set({ draftPoints: [], draftType: null, tool: 'select' });
+        return;
+      }
+      get().pushHistory();
+      // Cutting a hole makes the shape no longer a clean parametric rect/circle,
+      // so promote it to a free polygon - that makes the outline AND the hole
+      // vertex-editable (parametric outlines are otherwise locked).
+      set((s) => ({
+        objects: s.objects.map((o) =>
+          o.id === sel.id ? { ...o, type: 'polygon', holes: [...o.holes, ...pieces] } : o,
+        ),
+        draftPoints: [],
+        draftType: null,
+        tool: 'select',
+      }));
+    },
+
+    finishBranch: () => {
+      const { draftPoints, selectedId, objects } = get();
+      const sel = objects.find((o) => o.id === selectedId) ?? null;
+      // Branches attach to a corridor centerline; need a corridor + >=2 points.
+      if (!sel || sel.type !== 'corridor' || draftPoints.length < 2) {
+        set({ draftPoints: [], draftType: null, tool: 'select' });
+        return;
+      }
+      const local = draftPoints.map((p) => worldToLocal(sel, p));
+      // Snap the branch's first vertex onto the nearest existing centerline — the
+      // main line OR another branch (branches off branches).
+      local[0] = snapToNearestPolyline(local[0]!, [sel.base, ...(sel.branches ?? [])]);
+      get().pushHistory();
+      set((s) => ({
+        objects: s.objects.map((o) =>
+          o.id === sel.id ? { ...o, branches: [...(o.branches ?? []), local] } : o,
+        ),
+        draftPoints: [],
+        draftType: null,
+        tool: 'select',
+      }));
+    },
+
+    clearBranches: (id) => {
+      const targetId = id ?? get().selectedId;
+      if (targetId === null) return;
+      const target = get().objects.find((o) => o.id === targetId);
+      if (!target || !target.branches || target.branches.length === 0) return;
+      get().pushHistory();
+      set((s) => ({
+        objects: s.objects.map((o) => {
+          if (o.id !== targetId) return o;
+          const { branches: _omit, ...rest } = o;
+          return rest;
+        }),
+      }));
+    },
+
+    removeBranch: (id, index) => {
+      const target = get().objects.find((o) => o.id === id);
+      if (!target || !target.branches || index < 0 || index >= target.branches.length) return;
+      get().pushHistory();
+      set((s) => ({
+        objects: s.objects.map((o) => {
+          if (o.id !== id) return o;
+          const branches = o.branches!.filter((_, i) => i !== index);
+          if (branches.length === 0) {
+            const { branches: _omit, ...rest } = o;
+            return rest;
+          }
+          return { ...o, branches };
+        }),
+      }));
+    },
+
+    cancelDraft: () => set({ draftPoints: [], draftType: null }),
+
+    translateSelected: (dLat, dLng) =>
+      set((s) => ({ objects: mapSelected(s, (o) => translateObject(o, dLat, dLng)) })),
+
+    rotateSelected: (deltaDeg) =>
+      set((s) => ({ objects: mapSelected(s, (o) => rotateObject(o, deltaDeg)) })),
+
+    scaleSelected: (sx, sy, anchor) =>
+      set((s) => ({ objects: mapSelected(s, (o) => scaleObjectAbout(o, sx, sy, anchor)) })),
+
+    renameObject: (id, name) => {
+      get().pushHistory();
+      set((s) => ({ objects: s.objects.map((o) => (o.id === id ? { ...o, name } : o)) }));
+    },
+
+    setObjectColor: (id, color) => {
+      get().pushHistory();
+      set((s) => ({ objects: s.objects.map((o) => (o.id === id ? { ...o, color } : o)) }));
+    },
+
+    setObjectFenceType: (id, fenceType) => {
+      get().pushHistory();
+      set((s) => ({
+        objects: s.objects.map((o) =>
+          o.id === id ? { ...o, fenceType: fenceType ?? undefined } : o,
+        ),
+      }));
+    },
+
+    setObjectRole: (id, role) => {
+      get().pushHistory();
+      set((s) => ({
+        objects: s.objects.map((o) => {
+          if (o.id === id) return { ...o, role: role ?? undefined };
+          // Only one workspace at a time: granting the role strips it elsewhere.
+          return role === 'workspace' && o.role === 'workspace' ? { ...o, role: undefined } : o;
+        }),
+      }));
+    },
+
+    deleteObject: (id) => {
+      get().pushHistory();
+      set((s) => ({
+        objects: s.objects.filter((o) => o.id !== id),
+        selectedId: s.selectedId === id ? null : s.selectedId,
+        selectedVertex: s.selectedId === id ? null : s.selectedVertex,
+      }));
+    },
+
+    deleteSelected: () => {
+      const { selectedId } = get();
+      if (selectedId !== null) get().deleteObject(selectedId);
+    },
+
+    toggleVisible: (id) => {
+      get().pushHistory();
+      set((s) => ({ objects: s.objects.map((o) => (o.id === id ? { ...o, visible: !o.visible } : o)) }));
+    },
+
+    reorderObject: (id, dir) => {
+      const objs = get().objects;
+      const i = objs.findIndex((o) => o.id === id);
+      const j = i + dir;
+      if (i < 0 || j < 0 || j >= objs.length) return;
+      get().pushHistory();
+      set((s) => {
+        const next = [...s.objects];
+        const a = next[i]!;
+        const b = next[j]!;
+        next[i] = b;
+        next[j] = a;
+        return { objects: next };
+      });
+    },
+
+    convertSelectedToPolygon: () => {
+      if (get().selectedId === null) return;
+      get().pushHistory();
+      set((s) => ({ objects: mapSelected(s, (o) => convertToPolygon(o)) }));
+    },
+
+    bufferSelected: (meters) => {
+      if (get().selectedId === null) return;
+      get().pushHistory();
+      set((s) => ({ objects: mapSelected(s, (o) => bufferObject(o, meters) ?? o) }));
+    },
+
+    splitSelectedByLine: (p1, p2) => {
+      const { selectedId, objects } = get();
+      const trySplit = (o: EditorObject) => (o.type === 'corridor' ? null : splitObjectByLine(o, p1, p2));
+      // Prefer the selected area; otherwise auto-target the first area the line
+      // validly crosses, so the user doesn't have to select one first.
+      let target = objects.find((o) => o.id === selectedId) ?? null;
+      let parts = target ? trySplit(target) : null;
+      if (!parts || parts.length === 0) {
+        for (const o of objects) {
+          const p = trySplit(o);
+          if (p && p.length > 0) { target = o; parts = p; break; }
+        }
+      }
+      if (!target || !parts || parts.length === 0) return; // no area crossed -> no-op
+      get().pushHistory();
+      const idx = objects.findIndex((o) => o.id === target!.id);
+      const next = [...objects];
+      next.splice(idx, 1, ...parts);
+      set({ objects: next, selectedId: parts[0]!.id, selectedVertex: null, tool: 'select' });
+    },
+
+    selectVertex: (i) => set({ selectedVertex: i }),
+
+    moveVertex: (i, world, branch = -1, hole = -1) =>
+      set((s) =>
+        ({
+          objects: mapSelected(s, (o) => {
+            const local = worldToLocal(o, world);
+            if (hole >= 0) {
+              const line = o.holes[hole];
+              if (!line || i < 0 || i >= line.length) return o;
+              const next = line.map((p, idx) => (idx === i ? local : p));
+              return { ...o, holes: o.holes.map((h, hi) => (hi === hole ? next : h)) };
+            }
+            if (branch < 0) {
+              if (i < 0 || i >= o.base.length) return o;
+              return { ...o, base: o.base.map((p, idx) => (idx === i ? local : p)) };
+            }
+            const branches = o.branches ?? [];
+            const line = branches[branch];
+            if (!line || i < 0 || i >= line.length) return o;
+            const next = line.map((p, idx) => (idx === i ? local : p));
+            return { ...o, branches: branches.map((b, bi) => (bi === branch ? next : b)) };
+          }),
+        }),
+      ),
+
+    insertVertexAfter: (i, world, hole = -1) => {
+      if (get().selectedId === null) return;
+      get().pushHistory();
+      set((s) =>
+        ({
+          objects: mapSelected(s, (o) => {
+            const local = worldToLocal(o, world);
+            if (hole >= 0) {
+              const line = o.holes[hole];
+              if (!line) return o;
+              const next = [...line];
+              next.splice(i + 1, 0, local);
+              return { ...o, holes: o.holes.map((h, hi) => (hi === hole ? next : h)) };
+            }
+            const base = [...o.base];
+            base.splice(i + 1, 0, local);
+            return { ...o, base };
+          }),
+        }),
+      );
+    },
+
+    deleteVertex: (i, branch = -1, hole = -1) => {
+      if (get().selectedId === null) return;
+      get().pushHistory();
+      set((s) =>
+        ({
+          objects: mapSelected(s, (o) => {
+            if (hole >= 0) {
+              const line = o.holes[hole];
+              if (!line) return o;
+              // A hole needs 3 points; deleting below that drops the whole hole.
+              if (line.length <= 3) return { ...o, holes: o.holes.filter((_, hi) => hi !== hole) };
+              if (i < 0 || i >= line.length) return o;
+              const next = line.filter((_, idx) => idx !== i);
+              return { ...o, holes: o.holes.map((h, hi) => (hi === hole ? next : h)) };
+            }
+            if (branch < 0) {
+              if (o.base.length <= minPointsForType(o.type)) return o;
+              if (i < 0 || i >= o.base.length) return o;
+              return { ...o, base: o.base.filter((_, idx) => idx !== i) };
+            }
+            const branches = o.branches ?? [];
+            const line = branches[branch];
+            if (!line) return o;
+            // A branch needs 2 points; deleting below that drops the whole branch.
+            if (line.length <= 2) {
+              const rest = branches.filter((_, bi) => bi !== branch);
+              if (rest.length === 0) { const { branches: _omit, ...r } = o; return r; }
+              return { ...o, branches: rest };
+            }
+            if (i < 0 || i >= line.length) return o;
+            const next = line.filter((_, idx) => idx !== i);
+            return { ...o, branches: branches.map((b, bi) => (bi === branch ? next : b)) };
+          }),
+          selectedVertex: null,
+        }),
+      );
+    },
+
+    addMeasurePoint: (p) => {
+      if (get().tool !== 'measure') return;
+      // A finished measurement (or a freshly-picked measure tool) starts over
+      // on the next click instead of extending the old line.
+      set((s) => (s.measureDone ? { measurePoints: [p], measureDone: false } : { measurePoints: [...s.measurePoints, p] }));
+    },
+    endMeasure: () => { if (get().measurePoints.length >= 2) set({ measureDone: true }); },
+    moveMeasurePoint: (i, world) =>
+      set((s) => {
+        if (i < 0 || i >= s.measurePoints.length) return {};
+        return { measurePoints: s.measurePoints.map((p, idx) => (idx === i ? world : p)) };
+      }),
+    insertMeasurePointAt: (world) => {
+      const pts = get().measurePoints;
+      if (pts.length === 0) return;
+      get().pushHistory();
+      if (pts.length === 1) { set({ measurePoints: [...pts, world] }); return; }
+      let best = 0;
+      let bestD = Infinity;
+      for (let i = 0; i < pts.length - 1; i++) {
+        const d = pointSegDistSq(world, pts[i]!, pts[i + 1]!);
+        if (d < bestD) { bestD = d; best = i; }
+      }
+      const next = [...pts];
+      next.splice(best + 1, 0, world);
+      set({ measurePoints: next });
+    },
+    deleteMeasurePoint: (i) => {
+      const pts = get().measurePoints;
+      if (pts.length <= 2 || i < 0 || i >= pts.length) return;
+      get().pushHistory();
+      set({ measurePoints: pts.filter((_, idx) => idx !== i) });
+    },
+    editMeasurement: () => set({ tool: 'measure', measureDone: false, selectedMeasure: false }),
+    clearMeasure: () => {
+      if (get().measurePoints.length > 0) get().pushHistory();
+      set({ measurePoints: [], measureDone: false, selectedMeasure: false });
+    },
+
+    setCorridorWidth: (meters) => {
+      const w = Math.max(1, meters);
+      set((s) => ({
+        corridorWidthM: w,
+        objects: mapSelected(s, (o) => (o.type === 'corridor' ? { ...o, corridorWidthM: w } : o)),
+      }));
+    },
+
+    reset: () =>
+      set({
+        objects: [],
+        selectedId: null,
+        tool: 'select',
+        draftPoints: [],
+        draftType: null,
+        selectedVertex: null,
+        measurePoints: [],
+        measureDone: false,
+        selectedMeasure: false,
+        contextMenu: null,
+        past: [],
+        future: [],
+      }),
+
+    loadWorldRings: (rings) => {
+      get().pushHistory();
+      set((s) => {
+        let seq = s.nameSeq;
+        const objs = rings.map((r) => {
+          const type = r.type ?? 'polygon';
+          seq += 1;
+          const obj = makeFromWorldRing(type, r.ring, `${TYPE_LABEL[type]} ${seq}`, { holes: r.holes ?? [] });
+          return r.fenceType ? { ...obj, fenceType: r.fenceType } : obj;
+        });
+        const first = objs[0];
+        return {
+          objects: [...s.objects, ...objs],
+          nameSeq: seq,
+          selectedId: first ? first.id : s.selectedId,
+          tool: 'select',
+        };
+      });
+    },
+  })),
+);

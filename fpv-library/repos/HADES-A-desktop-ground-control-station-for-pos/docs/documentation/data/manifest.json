@@ -1,0 +1,55 @@
+{
+  "seed": 0,
+  "families": [
+    {
+      "family": "detection",
+      "file": "detection_conf_sweep.csv",
+      "source": "docs/plans/p2.5-acceptance.md (confidence sweep)"
+    },
+    {
+      "family": "detection",
+      "file": "detection_resolution.csv",
+      "source": "docs/plans/p2.5-training-results.md (resolution table)"
+    },
+    {
+      "family": "detection",
+      "file": "detection_quant_delta.json",
+      "source": "docs/plans/p2.5-acceptance.md (FP16 vs .pt)"
+    },
+    {
+      "family": "localization",
+      "file": "localization_strata.csv",
+      "source": "eval/locsim_report.py run_meter_error_report seed=0 (sim)"
+    },
+    {
+      "family": "localization",
+      "file": "localization_moving.json",
+      "source": "eval/locsim_report.py moving-target row seed=0 (sim)"
+    },
+    {
+      "family": "localization",
+      "file": "coverage_matrix.csv",
+      "source": "eval/coverage.py run_coverage_matrix seed=0 (sim)"
+    },
+    {
+      "family": "real_time",
+      "file": "fps_by_resolution.csv",
+      "source": "docs/plans/spike-latency-results.md (ANE FPS)"
+    },
+    {
+      "family": "real_time",
+      "file": "ane_speedup.csv",
+      "source": "docs/plans/spike-latency-results.md (ANE placement)"
+    },
+    {
+      "family": "real_time",
+      "file": "latency_budget.json",
+      "source": "docs/plans/p5-latency-budget.md (in-app p95, floor)"
+    },
+    {
+      "family": "qualitative",
+      "file": "qualitative_refs.json",
+      "source": "docs/assets/p5,p6 + fixtures/models (figure references)"
+    }
+  ]
+}

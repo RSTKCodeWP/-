@@ -1,0 +1,25 @@
+arms_command_hw_node:
+  ros__parameters:
+    # ROS2 Joy 메시지를 발행할 토픽
+    topic_name: /joy
+
+    # Jetson Orin Nano Super의 USB CDC 장치
+    serial.device: /dev/ttyACM0
+
+    # ESP32와 동일한 통신속도
+    serial.baud: 115200
+
+    # UART 버퍼 확인 주기
+    serial.poll_rate_hz: 200.0
+
+    # 최대 패킷 길이
+    serial.max_line_length: 128
+
+    # 300ms 동안 패킷이 없으면 Kill failsafe
+    failsafe.timeout_ms: 300
+
+    # Failsafe 상태 메시지 발행 주기
+    failsafe.publish_rate_hz: 20.0
+
+    # 수신 상태 로그 표시 주기
+    log.status_rate_hz: 1.0

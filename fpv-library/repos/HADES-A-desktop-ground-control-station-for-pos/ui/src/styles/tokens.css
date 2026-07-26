@@ -1,0 +1,175 @@
+/* HADES design tokens — the single source of truth for color/space/type/motion.
+ *
+ * Authored as space-separated RGB CHANNELS so Tailwind can compose them with its
+ * <alpha-value> opacity modifier: `rgb(var(--token) / <alpha-value>)`. This is the only
+ * form that lets the translucent map fills (e.g. uncertainty `bg-st-warning/10`) work
+ * without minting separate alpha tokens. See docs/DESIGN-SYSTEM.md §2 / §9.1.
+ *
+ * The semantic NAME is the contract; the channel triplet is the lock. Hex in the comment
+ * is for human reference only. v1 ships the Night (dark) palette; the Day palette is a
+ * stubbed override under [data-theme="day"] (DESIGN-SYSTEM §2.5) — architecture only.
+ */
+
+:root {
+  /* 2.1 Canvas & surface ramp — neutral cool charcoal (chroma lives in data, not chrome) */
+  --bg-void: 6 8 12; /* #06080C */
+  --bg-base: 11 14 20; /* #0B0E14 */
+  --surface-1: 20 24 33; /* #141821 */
+  --surface-2: 28 34 46; /* #1C222E */
+  --surface-3: 40 48 62; /* #28303E — active-pressed AND selected-row wash */
+  --surface-4: 51 60 75; /* #333C4B — top elevation: dialogs/popovers */
+  --hairline: 51 69 106; /* #33456A — the divider/elevation border */
+  --hairline-strong: 51 69 106; /* night: same as hairline (dark uses surface-step for depth) */
+
+  /* 2.2 Text ramp (contrast-verified, DESIGN-SYSTEM §2.6) */
+  --text-hi: 230 237 243; /* #E6EDF3 */
+  --text-mid: 170 180 192; /* #AAB4C0 */
+  --text-lo: 133 147 173; /* #8593AD */
+  --text-disabled: 86 94 105; /* #565E69 */
+  --text-on-accent: 6 8 12; /* #06080C — text on a filled light status */
+
+  /* 2.3 Structural / brand blue — steel, not cobalt */
+  --blue-core: 59 123 200; /* #3B7BC8 */
+  --blue-bright: 94 155 214; /* #5E9BD6 */
+  --blue-track: 111 168 222; /* #6FA8DE */
+
+  /* 2.4 Status palette (closed set, CVD-safe, glyph-backed) */
+  --st-nominal: 47 182 124; /* #2FB67C */
+  --st-info: 51 197 224; /* #33C5E0 — true cyan, off the structural blues */
+  --st-caution: 230 162 60; /* #E6A23C */
+  --st-warning: 232 83 31; /* #E8531F — WORLD-URGENCY ONLY (survivor) */
+  --st-critical: 245 50 107; /* #F5326B — SYSTEM-INTEGRITY FAILURE (link-lost) */
+  --st-stale: 126 120 168; /* #7E78A8 — cold violet-slate, off the severity ramp */
+
+  /* 4.1 Spatial grid — 8px base + 4/2px sub-grid */
+  --sp-px: 1px;
+  --sp-0_5: 2px;
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+  --sp-12: 48px;
+
+  /* 4.2 Hit targets (Fitts) */
+  --hit-min: 32px;
+  --hit-primary: 40px;
+  --row-h: 34px;
+  --row-h-log: 30px;
+  --strip-h: 38px;
+  --rail-w: 56px; /* console mode-switcher rail (UI overhaul §11.1) — icon width, never steals map */
+  --rail-w-labelled: 148px; /* optional labelled rail width */
+
+  /* 4.3 Radius — softened for the craft layer (UI-overhaul pivot): controls 8, panels 10,
+   * cards 12. Rounded surfaces read as a designed product, not a raw wireframe. */
+  --radius-sm: 8px; /* buttons, inputs, chips, controls */
+  --radius-md: 10px; /* panels, detail blocks */
+  --radius-lg: 12px; /* cards, video tiles, the outer surfaces */
+  --radius-pill: 999px;
+
+  /* 4.4 Elevation — hairline only, NO shadow; + rings + the single alert glow */
+  --ring-focus: 0 0 0 2px rgb(var(--bg-base)), 0 0 0 4px rgb(var(--blue-core));
+  --ring-selected: inset 0 0 0 2px rgb(var(--blue-bright));
+  --alert-glow: 0 0 0 1px rgb(var(--st-warning)), 0 0 12px -2px rgb(var(--st-warning) / 0.6);
+
+  /* 4.5 Motion */
+  --ease-standard: cubic-bezier(0.2, 0, 0.38, 0.9);
+  --ease-entrance: cubic-bezier(0, 0, 0.38, 0.9);
+  --ease-exit: cubic-bezier(0.2, 0, 1, 0.9);
+  --dur-micro: 90ms;
+  --dur-select: 140ms;
+  --dur-base: 200ms;
+  --dur-pin: 400ms;
+  --dur-enter: 340ms;
+  --dur-cross: 120ms;
+
+  /* Type scale (consumed by Tailwind fontSize, DESIGN-SYSTEM §3.2). Craft-layer pivot adds the
+   * upper register (h1/display) so the chrome has a CONFIDENT hierarchy — the reference's big
+   * bold stat numerals + clear page headings, instead of one flat mono size for everything. */
+  --text-2xs: 11px;
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-base: 14px;
+  --text-lg: 16px;
+  --text-xl: 20px;
+  --text-2xl: 24px; /* page h1 */
+  --text-3xl: 30px; /* display: big stat numerals, the hero clock */
+  --text-4xl: 38px; /* reserved: the single largest readout in a full-screen view */
+  /* B612 ships 400/700; the craft type ladder also wants a 600 — supplied by IBM Plex Sans
+   * (the bundled fallback) so headings/labels get a real mid weight without a new font load. */
+
+  /* Font families (DESIGN-SYSTEM §3.1) */
+  --font-ui: "B612", "IBM Plex Sans", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", "B612 Mono", ui-monospace, monospace;
+
+  /* Video letterbox — intentionally DARK in BOTH themes (video surfaces letterbox dark by
+   * convention, like every video player; a light letterbox around dark footage reads wrong).
+   * The panel's controls/chrome stay on the themed surface ramp; only the frame area is dark. */
+  --video-letterbox: 6 8 12; /* #06080C */
+
+  /* Z-index scale (DESIGN-SYSTEM §4.4) */
+  --z-base: 0;
+  --z-map-overlay: 10;
+  --z-docked: 20;
+  --z-status-strip: 30;
+  --z-popover: 40;
+  --z-dialog: 50;
+  --z-shortcut-sheet: 55;
+  --z-toast-alert: 60;
+}
+
+/* DAY palette — the DEFAULT operations theme (UI overhaul Stage 2). A precision-instrument
+ * LIGHT chart: WARM-neutral stone "paper" (a whisper of warmth, NOT cool blue — cool-blue-gray
+ * surfaces are the #1 light-SaaS-slop tell AND would import chroma into the chrome, violating
+ * "chroma lives in data, not chrome"). Elevation is INVERTED for light: bg-base is a soft warm
+ * GROUND, raised surfaces step toward white, dialogs float to off-white (never #fff). Selection
+ * leads with the steel ACCENT BAR (§4.4), so surfaces stay neutral and only data carries hue.
+ * All values WCAG-computed (not eyeballed); see DESIGN-SYSTEM §2.5 for the measured table and the
+ * 4-lens adversarial-panel rationale. `night` (the original :root) stays reachable via the theme
+ * toggle — both ECDIS-style modes ship; light is just the default. */
+[data-theme="day"] {
+  /* 2.1 Canvas & surface ramp — WARM paper GROUND, cards step to WHITE (the craft-layer
+   * elevation model, UI-overhaul pivot): figure/ground comes from a white card + a SOFT SHADOW
+   * floating on warm paper, not from hairlines. The hairline is now a faint hint, not THE
+   * separator. This is the single biggest "looks like a product, not a wireframe" move. */
+  --bg-void: 230 226 219; /* #E6E2DB — recessed gutter / deepest warm paper */
+  --bg-base: 244 241 236; /* #F4F1EC — app GROUND (warm paper, lighter so white cards lift off it) */
+  --surface-1: 255 255 255; /* #FFFFFF — cards/panels/rows (white card floats on the warm ground) */
+  --surface-2: 247 245 241; /* #F7F5F1 — hover/nested/input wells (a hair off white) */
+  --surface-3: 233 238 246; /* #E9EEF6 — NEUTRAL-cool selected/pressed wash (accent bar leads) */
+  --surface-4: 255 255 255; /* #FFFFFF — dialogs/popovers (white + shadow-pop carries elevation) */
+  --hairline: 224 219 210; /* #E0DBD2 — faint warm divider (a HINT; shadow carries elevation now) */
+  --hairline-strong: 206 200 189; /* #CEC8BD — where a real keyline is needed (table header rule) */
+
+  /* 2.2 Text ramp — warm near-black ink (text-hi/mid AAA, text-lo AA — measured §2.6) */
+  --text-hi: 32 30 26; /* #201E1A */
+  --text-mid: 78 74 67; /* #4E4A43 */
+  --text-lo: 112 107 98; /* #706B62 */
+  --text-disabled: 170 165 156; /* #AAA59C */
+  --text-on-accent: 255 255 255; /* #FFFFFF — white sits ON filled status (orange/magenta/etc.) */
+
+  /* 2.3 Structural blue — RE-STEELED for light (desaturated off Tailwind cobalt). Selection/
+   *     focus/drone ONLY — never a surface tint. */
+  --blue-core: 43 94 142; /* #2B5E8E */
+  --blue-bright: 58 114 166; /* #3A72A6 */
+  --blue-track: 74 116 158; /* #4A749E */
+
+  /* 2.4 Status — luminance-rechecked for light paper. Caution stays a GENUINE GOLD (NOT pulled
+   *     toward ochre, which collides with survivor-orange under CVD — a P0 hazard); its chip
+   *     uses DARK ink-on-gold, not white. The P0 luminance separation is restored: gold (bright)
+   *     > orange > magenta. */
+  --st-nominal: 17 116 73; /* #117449 — teal-green */
+  --st-info: 15 118 142; /* #0F768E — cyan */
+  --st-caution: 197 142 16; /* #C58E10 — gold (dark-ink chip) */
+  --st-warning: 208 62 16; /* #D03E10 — survivor world-urgency (P0) */
+  --st-critical: 196 22 78; /* #C4164E — system-integrity failure (P0) */
+  --st-stale: 104 98 140; /* #68628C — off-ramp violet-slate */
+
+  /* 4.4 Elevation — the CRAFT layer (UI-overhaul pivot). Soft layered shadows give cards real
+   *     figure/ground on warm paper (the reference's premium feel). Warm-tinted shadow color
+   *     (matches the ink) so it reads as paper depth, not a generic gray drop-shadow. */
+  --shadow-card: 0 1px 2px rgb(40 34 26 / 0.05), 0 4px 12px -2px rgb(40 34 26 / 0.07);
+  --shadow-pop: 0 4px 8px rgb(40 34 26 / 0.06), 0 12px 28px -4px rgb(40 34 26 / 0.12);
+  --shadow-float: var(--shadow-pop); /* back-compat alias */
+}

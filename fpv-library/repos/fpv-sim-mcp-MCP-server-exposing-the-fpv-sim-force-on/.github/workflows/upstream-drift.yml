@@ -1,0 +1,100 @@
+# Upstream drift detection.
+#
+# The browser sim (wasomma/fpv-sim index.html) is the specification; this
+# repo's engine is a port whose parity is proven against golden fixtures
+# generated FROM that file and pinned to an upstream commit. If upstream
+# changes simulation behavior, the committed fixtures silently describe an
+# outdated spec — the golden tests keep passing while parity with the real
+# sim is gone. This workflow closes that gap: on a weekly schedule it
+# regenerates the fixtures from live upstream main and fails loudly if the
+# engagement outcomes differ from the committed ones.
+#
+# Two distinct failures, checked in order:
+#   1. "npm test" fails        -> the engine no longer reproduces the
+#                                  committed fixtures (engine regression).
+#   2. Regenerated != committed -> upstream changed simulation behavior;
+#                                  the committed spec is stale (drift).
+#
+# On drift: review the upstream change, update the engine to match, run
+# `npm run goldens`, refresh docs/upstream/SNAPSHOT.md, and commit.
+
+name: upstream-drift
+
+on:
+  schedule:
+    - cron: "0 6 * * 1" # Mondays 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out this repo
+        uses: actions/checkout@v4
+        with:
+          path: fpv-sim-mcp
+
+      # The fixture generator resolves the spec at ../fpv-sim relative to
+      # the repo root, so check upstream out as a sibling directory.
+      - name: Check out upstream fpv-sim (live main)
+        uses: actions/checkout@v4
+        with:
+          repository: wasomma/fpv-sim
+          path: fpv-sim
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install
+        working-directory: fpv-sim-mcp
+        run: npm ci
+
+      - name: Engine reproduces the committed fixtures
+        working-directory: fpv-sim-mcp
+        run: npm test
+
+      - name: Regenerate fixtures from live upstream
+        working-directory: fpv-sim-mcp
+        run: |
+          cp test/fixtures/golden-seeds.json /tmp/committed-goldens.json
+          npm run goldens
+
+      - name: Committed fixtures match live upstream
+        working-directory: fpv-sim-mcp
+        # _meta carries a generation timestamp and the upstream commit, so
+        # only the runs payload is compared.
+        run: |
+          node -e '
+            const fs = require("node:fs");
+            const committed = JSON.parse(fs.readFileSync("/tmp/committed-goldens.json", "utf8"));
+            const fresh = JSON.parse(fs.readFileSync("test/fixtures/golden-seeds.json", "utf8"));
+            if (JSON.stringify(committed.runs) === JSON.stringify(fresh.runs)) {
+              console.log(
+                "No drift: upstream main (" + fresh._meta.source_commit.slice(0, 7) +
+                ") still reproduces the fixtures pinned at " + committed._meta.source_commit.slice(0, 7) + "."
+              );
+              process.exit(0);
+            }
+            console.error(
+              "DRIFT DETECTED: upstream fpv-sim (" + fresh._meta.source_commit.slice(0, 7) +
+              ") no longer reproduces the committed golden fixtures (pinned at " +
+              committed._meta.source_commit.slice(0, 7) + ")."
+            );
+            console.error("The engine is passing its tests against an outdated specification.");
+            console.error(
+              "Resolve by reviewing the upstream change, updating the engine to match, " +
+              "running npm run goldens, refreshing docs/upstream/SNAPSHOT.md, and committing."
+            );
+            process.exit(1);
+          '
+
+      - name: Design-notes snapshot freshness (warning only)
+        working-directory: fpv-sim-mcp
+        run: |
+          if ! diff -q ../fpv-sim/DESIGN_NOTES.md docs/upstream/DESIGN_NOTES.md > /dev/null; then
+            echo "::warning::Upstream DESIGN_NOTES.md differs from the pinned copy in docs/upstream/. The MCP resource serves the live sibling file when present, so this is cosmetic for local use — but refresh the snapshot and SNAPSHOT.md so standalone clones stay current."
+          fi

@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "g2u.external_sensor_status.v1",
+  "title": "External Sensor Status v1",
+  "description": "Status update from an external sense-only sensor handling an observation cue.",
+  "type": "object",
+  "required": ["schema", "event_id", "cue_id", "ts_utc", "ts_source", "node_id", "sensor_id", "phase"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": { "const": "g2u.external_sensor_status.v1" },
+    "event_id": { "type": "string", "minLength": 8 },
+    "cue_id": { "type": "string", "minLength": 1 },
+    "track_id": { "type": "string" },
+    "ts_utc": { "type": "number" },
+    "ts_source": { "enum": ["ptp", "gps_pps", "ntp", "monotonic"] },
+    "node_id": { "type": "string" },
+    "sensor_id": { "type": "string" },
+    "phase": {
+      "enum": [
+        "idle",
+        "assigned",
+        "moving_to_observation_area",
+        "observing",
+        "reporting",
+        "returning",
+        "aborted",
+        "offline"
+      ]
+    },
+    "position_wgs84": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "lat": { "type": "number", "minimum": -90, "maximum": 90 },
+        "lon": { "type": "number", "minimum": -180, "maximum": 180 },
+        "alt_m": { "type": "number" }
+      }
+    },
+    "tracker_lock_score": { "type": "number", "minimum": 0, "maximum": 1 },
+    "battery_pct": { "type": "number", "minimum": 0, "maximum": 100 },
+    "link_quality": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "rssi_dbm": { "type": "number" },
+        "packet_loss_pct": { "type": "number", "minimum": 0, "maximum": 100 },
+        "latency_ms": { "type": "number", "minimum": 0 }
+      }
+    },
+    "abort_reason": { "type": ["string", "null"] }
+  }
+}

@@ -1,0 +1,301 @@
+/**
+ * Local-first project persistence and restore point management.
+ *
+ * Storage keys:
+ *   trackdraw-design         — JSON: SerializedTrackDesign (crash-recovery draft)
+ *   trackdraw-project-list   — JSON: ProjectMeta[] (named local projects)
+ *   trackdraw-project-{id}   — JSON: SerializedTrackDesign
+ *   trackdraw-restore-list   — JSON: RestorePointMeta[] (manual/periodic snapshots)
+ *   trackdraw-restore-{id}   — JSON: SerializedTrackDesign
+ */
+
+import { parseDesign, serializeDesign } from "@/lib/track/design";
+import type { TrackDesign } from "@/lib/types";
+import { nanoid } from "nanoid";
+
+export type PersistenceLayerId =
+  | "local-draft"
+  | "local-project"
+  | "restore-point"
+  | "account-project"
+  | "published-share";
+
+export interface PersistenceLayerDefinition {
+  id: PersistenceLayerId;
+  label: string;
+  role: string;
+}
+
+export interface ProjectMeta {
+  id: string;
+  title: string;
+  updatedAt: string;
+  createdAt: string;
+  shapeCount: number;
+}
+
+export interface RestorePointMeta {
+  id: string;
+  /** design.id at save time */
+  designId: string;
+  designTitle: string;
+  savedAt: string;
+  shapeCount: number;
+}
+
+export type LocalPersistenceResult = {
+  ok: boolean;
+  error?: unknown;
+};
+
+export type SaveProjectResult = LocalPersistenceResult & {
+  meta: ProjectMeta;
+};
+
+export const LOCAL_DRAFT_KEY = "trackdraw-design";
+const PROJECT_LIST_KEY = "trackdraw-project-list";
+const RESTORE_LIST_KEY = "trackdraw-restore-list";
+const MAX_RESTORE_POINTS = 10;
+
+export const persistenceLayerDefinitions: readonly PersistenceLayerDefinition[] =
+  [
+    {
+      id: "local-draft",
+      label: "Local draft",
+      role: "Crash-recovery working state for the current tab/device.",
+    },
+    {
+      id: "local-project",
+      label: "Local project",
+      role: "Named project state stored on this device and reopened later.",
+    },
+    {
+      id: "restore-point",
+      label: "Restore point",
+      role: "Deliberate or periodic snapshot of a project's earlier state.",
+    },
+    {
+      id: "account-project",
+      label: "Account project",
+      role: "Authenticated project continuity and sync across devices.",
+    },
+    {
+      id: "published-share",
+      label: "Published share",
+      role: "Read-only snapshot published for sharing, not the working state.",
+    },
+  ] as const;
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function readJson<T>(key: string): T | null {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+}
+
+function writeJson(key: string, value: unknown): LocalPersistenceResult {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error };
+  }
+}
+
+function removeKey(key: string): void {
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    /* ignore */
+  }
+}
+
+export function hasMeaningfulProjectContent(design: TrackDesign): boolean {
+  return Boolean(
+    design.shapeOrder.length > 0 ||
+    design.title.trim() ||
+    (design.description ?? "").trim() ||
+    (design.tags ?? []).length > 0 ||
+    (design.authorName ?? "").trim()
+  );
+}
+
+export function saveLocalDraft(design: TrackDesign): LocalPersistenceResult {
+  return writeJson(LOCAL_DRAFT_KEY, serializeDesign(design));
+}
+
+export function loadLocalDraft(): TrackDesign | null {
+  const raw = readJson<unknown>(LOCAL_DRAFT_KEY);
+  if (!raw) return null;
+  return parseDesign(raw);
+}
+
+export function clearLocalDraft(): void {
+  removeKey(LOCAL_DRAFT_KEY);
+}
+
+// ---------------------------------------------------------------------------
+// Project list
+// ---------------------------------------------------------------------------
+
+export function listProjects(): ProjectMeta[] {
+  return readJson<ProjectMeta[]>(PROJECT_LIST_KEY) ?? [];
+}
+
+/**
+ * Save (or overwrite) a project entry for the given design.
+ * The full design data is stored separately under `trackdraw-project-{id}`.
+ */
+export function saveProjectWithResult(design: TrackDesign): SaveProjectResult {
+  const serialized = serializeDesign(design);
+  const shapeCount = serialized.shapes.length;
+
+  const meta: ProjectMeta = {
+    id: design.id,
+    title: design.title || "Untitled",
+    updatedAt: design.updatedAt,
+    createdAt: design.createdAt,
+    shapeCount,
+  };
+
+  const projectWrite = writeJson(`trackdraw-project-${design.id}`, serialized);
+  if (!projectWrite.ok) {
+    return {
+      meta,
+      ok: false,
+      error: projectWrite.error,
+    };
+  }
+
+  // Update or insert in list (most-recent first) only after the full payload
+  // exists, so the list cannot point at missing project data.
+  const list = listProjects().filter((p) => p.id !== meta.id);
+  list.unshift(meta);
+  const listWrite = writeJson(PROJECT_LIST_KEY, list);
+
+  return {
+    meta,
+    ok: listWrite.ok,
+    error: listWrite.error,
+  };
+}
+
+export function saveProject(design: TrackDesign): ProjectMeta {
+  return saveProjectWithResult(design).meta;
+}
+
+export function loadProject(id: string): TrackDesign | null {
+  const raw = readJson<unknown>(`trackdraw-project-${id}`);
+  if (!raw) return null;
+  return parseDesign(raw);
+}
+
+export function deleteProject(id: string): void {
+  deleteProjects([id]);
+}
+
+export function deleteProjects(ids: string[]): void {
+  if (ids.length === 0) return;
+
+  const idSet = new Set(ids);
+  const list = listProjects().filter((p) => !idSet.has(p.id));
+  writeJson(PROJECT_LIST_KEY, list);
+
+  for (const id of idSet) {
+    removeKey(`trackdraw-project-${id}`);
+  }
+
+  const restorePoints = listRestorePoints();
+  const remainingRestorePoints = restorePoints.filter(
+    (restorePoint) => !idSet.has(restorePoint.designId)
+  );
+  writeJson(RESTORE_LIST_KEY, remainingRestorePoints);
+
+  for (const restorePoint of restorePoints) {
+    if (idSet.has(restorePoint.designId)) {
+      removeKey(`trackdraw-restore-${restorePoint.id}`);
+    }
+  }
+}
+
+export function renameProject(id: string, title: string): void {
+  const list = listProjects().map((p) => (p.id === id ? { ...p, title } : p));
+  writeJson(PROJECT_LIST_KEY, list);
+
+  // Also update the stored design data so it stays consistent
+  const raw = readJson<Record<string, unknown>>(`trackdraw-project-${id}`);
+  if (raw) {
+    writeJson(`trackdraw-project-${id}`, { ...raw, title });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Restore points
+// ---------------------------------------------------------------------------
+
+export function listRestorePoints(): RestorePointMeta[] {
+  return readJson<RestorePointMeta[]>(RESTORE_LIST_KEY) ?? [];
+}
+
+export function listRestorePointsForProject(
+  projectId: string
+): RestorePointMeta[] {
+  return listRestorePoints().filter((r) => r.designId === projectId);
+}
+
+/**
+ * Snapshot the current design as a restore point.
+ * Old points beyond MAX_RESTORE_POINTS are pruned per design, not globally.
+ */
+export function createRestorePoint(design: TrackDesign): RestorePointMeta {
+  const id = nanoid();
+  const serialized = serializeDesign(design);
+
+  const meta: RestorePointMeta = {
+    id,
+    designId: design.id,
+    designTitle: design.title || "Untitled",
+    savedAt: new Date().toISOString(),
+    shapeCount: serialized.shapes.length,
+  };
+
+  writeJson(`trackdraw-restore-${id}`, serialized);
+
+  const all = listRestorePoints();
+
+  // Prune per-design: keep only MAX_RESTORE_POINTS for this design
+  const forThisDesign = [meta, ...all.filter((r) => r.designId === design.id)];
+  const keptForDesign = forThisDesign.slice(0, MAX_RESTORE_POINTS);
+  const droppedForDesign = forThisDesign.slice(MAX_RESTORE_POINTS);
+  for (const old of droppedForDesign) {
+    removeKey(`trackdraw-restore-${old.id}`);
+  }
+
+  // Combine kept entries for this design with all other designs' entries
+  const updated = [
+    ...all.filter((r) => r.designId !== design.id),
+    ...keptForDesign,
+  ];
+
+  writeJson(RESTORE_LIST_KEY, updated);
+  return meta;
+}
+
+export function loadRestorePoint(id: string): TrackDesign | null {
+  const raw = readJson<unknown>(`trackdraw-restore-${id}`);
+  if (!raw) return null;
+  return parseDesign(raw);
+}
+
+export function deleteRestorePoint(id: string): void {
+  const list = listRestorePoints().filter((r) => r.id !== id);
+  writeJson(RESTORE_LIST_KEY, list);
+  removeKey(`trackdraw-restore-${id}`);
+}

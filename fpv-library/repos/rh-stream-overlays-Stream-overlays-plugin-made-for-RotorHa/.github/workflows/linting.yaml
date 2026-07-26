@@ -1,0 +1,80 @@
+---
+name: Linting
+
+# yamllint disable-line rule:truthy
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+env:
+  DEFAULT_PYTHON: "3.11"
+
+permissions:
+  contents: read
+
+jobs:
+  ruff:
+    name: Ruff
+    runs-on: ubuntu-latest
+    steps:
+      - name: ⤵️ Check out code from GitHub
+        uses: actions/checkout@v7.0.1
+      - name: 🏗 Set up UV
+        uses: astral-sh/setup-uv@v9.0.0
+        with:
+          enable-cache: true
+      - name: 🏗 Install project dependencies
+        run: uv sync --all-extras --dev
+      - name: 🚀 Run ruff linter
+        run: uv run ruff check --output-format=github .
+      - name: 🚀 Run ruff formatter
+        run: uv run ruff format --check .
+
+  prek-hooks:
+    name: prek-hooks
+    runs-on: ubuntu-latest
+    steps:
+      - name: ⤵️ Check out code from GitHub
+        uses: actions/checkout@v7.0.1
+      - name: 🏗 Set up UV
+        uses: astral-sh/setup-uv@v9.0.0
+        with:
+          enable-cache: true
+      - name: 🏗 Install project dependencies
+        run: uv sync --all-extras --dev
+      - name: 🚀 Check Python AST
+        run: uv run prek run check-ast --all-files
+      - name: 🚀 Check for case conflicts
+        run: uv run prek run check-case-conflict --all-files
+      - name: 🚀 Check docstring is first
+        run: uv run prek run check-docstring-first --all-files
+      - name: 🚀 Check JSON files
+        run: uv run prek run check-json --all-files
+      - name: 🚀 Check YAML files
+        run: uv run prek run check-yaml --all-files
+      - name: 🚀 Detect Private Keys
+        run: uv run prek run detect-private-key --all-files
+      - name: 🚀 Check End of Files
+        run: uv run prek run end-of-file-fixer --all-files
+      - name: 🚀 Trim Trailing Whitespace
+        run: uv run prek run trailing-whitespace --all-files
+
+  frontend:
+    name: Frontend build
+    runs-on: ubuntu-latest
+    steps:
+      - name: ⤵️ Check out code from GitHub
+        uses: actions/checkout@v7.0.1
+      - name: 🏗 Set up Node.js
+        uses: actions/setup-node@v7.0.0
+        with:
+          node-version: "24"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+      - name: 🏗 Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+      - name: 🚀 Build frontend
+        run: npm run build
+        working-directory: frontend

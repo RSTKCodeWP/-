@@ -1,0 +1,75 @@
+---
+name: Upload files to R2
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - removed.json
+      - categories.json
+
+env:
+  VERSION: "v1"
+
+concurrency:
+  group: upload-files
+  cancel-in-progress: true
+
+jobs:
+  upload-files:
+    name: Process and Publish data
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: ⤵️ Check out code
+        uses: actions/checkout@v7.0.1
+      - name: 🏗 Set up UV
+        uses: astral-sh/setup-uv@v9.0.0
+        with:
+          version: "latest"
+          enable-cache: true
+      - name: 🏗 Install project dependencies
+        run: uv sync --no-group dev
+      - name: Validate removed.json with JSON schema
+        uses: cardinalby/schema-validator-action@3.1.1
+        with:
+          file: removed.json
+          schema: tools/jsonschema/removed.schema.json
+      - name: Validate categories.json with JSON schema
+        uses: cardinalby/schema-validator-action@3.1.1
+        with:
+          file: categories.json
+          schema: tools/jsonschema/categories.schema.json
+      - name: Process Removed File
+        run: |
+          mkdir -p removed
+          jq -c . < removed.json > removed/data.json
+          jq -c '[.[].repository]' < removed.json > removed/repositories.json
+      - name: ⤴️ Upload data to Cloudflare R2
+        run: |
+          uv run aws s3 sync \
+            removed \
+            s3://rotorhazard-community-plugins/${{ env.VERSION }}/removed \
+            --endpoint-url=${{ secrets.CF_R2_ENDPOINT }}
+
+          uv run aws s3 cp \
+            categories.json \
+            s3://rotorhazard-community-plugins/${{ env.VERSION }}/plugin/categories.json \
+            --endpoint-url=${{ secrets.CF_R2_ENDPOINT }}
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.CF_R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.CF_R2_SECRET_ACCESS_KEY }}
+      - name: Bust Cloudflare cache
+        run: |
+          curl --silent --show-error --fail -X POST \
+            "https://api.cloudflare.com/client/v4/zones/${{ secrets.CF_ZONE_ID }}/purge_cache" \
+            -H "Authorization: Bearer ${{ secrets.CF_BUST_CACHE_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            --data '{"files": [
+              "https://rhcp.hazardcreative.com/${{ env.VERSION }}/removed/data.json",
+              "https://rhcp.hazardcreative.com/${{ env.VERSION }}/removed/repositories.json",
+              "https://rhcp.hazardcreative.com/${{ env.VERSION }}/plugin/categories.json"
+            ]}'

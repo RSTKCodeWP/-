@@ -1,0 +1,1475 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FPVRaceOne Lap Timer</title>
+    <link rel="icon" type="image/svg+xml" href="logo-white.svg" id="favicon" />
+    <link rel="stylesheet" type="text/css" href="style.css" />
+    <script src="audio-announcer.js" defer></script>
+    <script src="script.js" defer></script>
+    <script defer>console.log('[FPV] announcer');</script>
+    <style>
+      #splash{position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#1a1d2e;transition:opacity .45s ease}
+      #splash.out{opacity:0;pointer-events:none}
+      #splash img{width:72px;height:72px;margin-bottom:18px;animation:sp 1.6s ease-in-out infinite}
+      #splash h2{color:#fff;font-family:system-ui,sans-serif;font-size:1.35rem;font-weight:700;letter-spacing:.06em;margin:0 0 6px}
+      #splash-status{color:rgba(255,255,255,.55);font-family:system-ui,sans-serif;font-size:.82rem;min-height:1.2em}
+      .sp-dots{display:flex;gap:7px;margin-top:22px}
+      .sp-dots span{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.35);animation:spd 1.2s ease-in-out infinite}
+      .sp-dots span:nth-child(2){animation-delay:.2s}
+      .sp-dots span:nth-child(3){animation-delay:.4s}
+      @keyframes sp{0%,100%{opacity:.75;transform:scale(1)}50%{opacity:1;transform:scale(1.08)}}
+      @keyframes spd{0%,80%,100%{transform:scale(.65);opacity:.35}40%{transform:scale(1);opacity:1}}
+    </style>
+  </head>
+
+  <body>
+    <div id="splash" aria-live="polite" role="status">
+      <img src="logo-white.svg" alt="FPVRaceOne">
+      <h2>FPVRaceOne</h2>
+      <div id="splash-status">Loading&hellip;</div>
+      <div class="sp-dots"><span></span><span></span><span></span></div>
+    </div>
+    <script>console.log('[FPV] html');document.getElementById('splash-status').textContent='Loading scripts\u2026';</script>
+    <header>
+      <nav>
+        <div class="logo">
+          <img src="logo-white.svg" alt="FPVRaceOne" width="64" id="headerLogo" />
+          <h1>FPVRaceOne</h1>
+          <!-- WiFi signal strength indicator disabled — use OS WiFi indicator instead
+          <div id="connectionIndicator" class="connection-indicator" title="Connection status">
+            <svg id="wifiIcon" class="wifi-icon" width="26" height="22" viewBox="0 0 26 22" xmlns="http://www.w3.org/2000/svg" aria-label="WiFi signal">
+              <circle id="wifiDot"  cx="13" cy="20" r="2"              fill="rgba(255,255,255,0.4)"/>
+              <path   id="wifiBar1" d="M9 16 Q13 12.5 17 16"           fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="2.2" stroke-linecap="round"/>
+              <path   id="wifiBar2" d="M5.5 11.5 Q13 6 20.5 11.5"      fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="2.2" stroke-linecap="round"/>
+              <path   id="wifiBar3" d="M2 7 Q13 -0.5 24 7"             fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="2.2" stroke-linecap="round"/>
+            </svg>
+            <div class="connection-info" id="connectionInfo">
+              <div class="connection-mode">WiFi Connected</div>
+              <div class="connection-details" id="connectionDetails">Loading...</div>
+            </div>
+          </div>
+          -->
+        </div>
+      </nav>
+      <div id="raceTabDownloadReminder" class="banner-warning"
+          style="display:none; margin: 10px 0; padding: 6px 10px; border-radius: 8px;">
+        <span>Races are lost when unplugged. Download after racing to save.</span>
+        <button id="raceTabDownloadReminderHide" onclick="hideRaceDownloadReminder(); applyRaceHistoryModeUI();" style="margin-left:auto; padding:3px 10px; font-size:12px; background:rgba(0,0,0,0.15); border:1px solid rgba(255,200,0,0.4); border-radius:5px; cursor:pointer; color:inherit;">Dismiss</button>
+        <button id="raceTabDownloadReminderHideAlways" onclick="dismissAlwaysRaceDownloadReminder();" style="margin-left:6px; padding:3px 10px; font-size:12px; background:rgba(0,0,0,0.15); border:1px solid rgba(255,200,0,0.4); border-radius:5px; cursor:pointer; color:inherit;">Dismiss Always</button>
+      </div>
+      <div id="calibrationBanner" style="
+        display: none;
+        background: #ffb300;
+        color: #000;
+        padding: 10px;
+        text-align: center;
+        font-weight: bold;
+        border-bottom: 2px solid #cc8f00;
+        z-index: 1000;
+      ">
+        Calibrating pilot frequency, please wait approx 20 secs...
+      </div>
+      <ul class="nav-links">
+        <li><a href="#" id="nav-link-race" class="tablinks active" onclick="openTab(event, 'race')">Race</a></li>
+        <li id="nav-li-raceview" style="display:none;"><a href="#" id="nav-link-raceview" class="tablinks" onclick="openTab(event, 'raceview')">Race View</a></li>
+        <li><a href="#" id="nav-link-history" class="tablinks" onclick="openTab(event, 'history')">Race History</a></li>
+        <li><a href="#" id="nav-link-calib" class="tablinks" onclick="openTab(event, 'calib')">Calibration</a></li>
+        <li><a href="#" id="nav-link-config" class="tablinks" onclick="openSettingsModal()">Configuration</a></li>
+      </ul>
+    </header>
+    <div id="disconnectedBanner" style="
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 9999;
+      background: #c0392b;
+      color: #fff;
+      padding: 12px 20px;
+      font-weight: bold;
+      font-size: 15px;
+      text-align: center;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+    ">
+      <span id="disconnectedBannerText">WiFi disconnected — reconnecting...</span>
+      &nbsp;&nbsp;
+      <button onclick="location.reload()" style="background:#fff; color:#c0392b; border:none; padding:4px 14px; border-radius:4px; cursor:pointer; font-weight:bold; font-size:13px;">Refresh</button>
+    </div>
+
+    <main>
+      <div id="config" class="tabcontent" style="display: none;">
+        <!-- Config moved to settings modal -->
+      </div>
+
+      <div id="race" class="tabcontent" style="display: block;">
+
+        <!-- ── Multi-node status bar (hidden in standalone mode) ── -->
+        <div id="mn-race-status-bar" style="display:none; text-align:center; font-size:13px; font-weight:600; color:#fff; background:#1565c0; padding:6px 14px; border-radius:6px; letter-spacing:0.02em; margin:6px 0;">
+          <span id="mn-race-status-text"></span>
+        </div>
+
+        <!-- ── Single-pilot view (standalone / client mode) ── -->
+        <div id="single-race-view">
+          <div id="raceDataButtons" style="display: none; margin-bottom: 16px; text-align: center;">
+            <button onclick="downloadCurrentRaceData()" style="padding: 8px 16px; margin-right: 8px;">Download Current Race</button>
+            <button onclick="transferToRaceHistory()" style="padding: 8px 16px;">Transfer to Race History</button>
+          </div>
+          <span id="timer">00:00:00s</span>
+          <div id="pilotNameDisplay" style="text-align: center; font-size: 15px; font-weight: 600; color: var(--secondary-color); margin: 2px 0; cursor: default;"></div>
+          <div id="lapCounter" style="text-align: center; font-size: 18px; font-weight: bold; color: var(--primary-color); margin: 4px 0;">Lap 0</div>
+          <div class="racebuttons">
+            <button id="startRaceButton" onclick="startRace()">Start Race</button>
+            <button id="stopRaceButton" onclick="stopRace()" disabled>Stop Race</button>
+            <button id="addLapButton" onclick="addManualLap()" disabled>Add Lap</button>
+            <button id="clearLapsButton" onclick="clearLaps()">Clear Laps</button>
+          </div>
+          <table id="lapTable">
+            <tr>
+              <th>Lap No</th>
+              <th>Lap Time</th>
+              <th>Gap</th>
+              <th>Total Time</th>
+            </tr>
+          </table>
+          <div id="lapAnalysis" class="lap-analysis">
+            <h3>Lap Analysis</h3>
+            <div class="stats-boxes">
+              <div class="stat-box">
+                <div class="stat-label">Fastest Lap</div>
+                <div class="stat-value" id="statFastest">--</div>
+                <div class="stat-sublabel" id="statFastestLapNo"></div>
+              </div>
+              <div class="stat-box">
+                <div class="stat-label">Fastest 3 Consecutive</div>
+                <div class="stat-value" id="statFastest3Consec">--</div>
+                <div class="stat-sublabel" id="statFastest3ConsecLaps"></div>
+              </div>
+              <div class="stat-box">
+                <div class="stat-label">Best 3 Laps</div>
+                <div class="stat-value" id="statBest3">--</div>
+                <div class="stat-sublabel" id="statBest3Laps"></div>
+              </div>
+              <div class="stat-box">
+                <div class="stat-label">Median Lap</div>
+                <div class="stat-value" id="statMedian">--</div>
+              </div>
+            </div>
+            <div class="analysis-tabs">
+              <button class="analysis-tab active" onclick="switchAnalysisMode('history')">Lap History</button>
+              <button class="analysis-tab" onclick="switchAnalysisMode('fastestRound')">Fastest Round (3 Laps)</button>
+            </div>
+            <div id="analysisContent" class="analysis-content">
+              <p class="no-data">Complete at least 1 lap to see analysis</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Master multi-node race view ── -->
+        <div id="master-race-view" style="display:none;">
+          <div id="mn-race-data-buttons" style="display:none; margin-bottom:12px; text-align:center;">
+            <button onclick="downloadMnRaceData()" style="padding:8px 16px;">Download Race</button>
+          </div>
+          <div id="mn-race-timer" class="mn-race-timer-display">00:00:00s</div>
+          <div class="racebuttons mn-race-buttons">
+            <button id="mnStartRaceBtnMain" onclick="mnStartRace()">Start All</button>
+            <button id="mnStopRaceBtnMain"  onclick="mnStopRace()" disabled>Stop All</button>
+            <button id="mnClearRaceBtnMain" onclick="mnClearRace()">Clear</button>
+          </div>
+          <div id="mn-race-container" style="margin: 16px 0;"></div>
+
+          <!-- Pilot backup / restore.  Stores per-MAC pilot settings (name,
+               color, band/channel/freq, enter/exit RSSI, preferred slot) to
+               a JSON file the director can re-load on the same physical
+               hardware later — calibration is hardware-specific so MAC is
+               the matching key, never slot number. -->
+          <div style="margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border-color, rgba(128,128,128,0.25)); text-align:center;">
+            <button onclick="mnBackupPilots()" style="padding:8px 16px;">Backup Pilots</button>
+            <button onclick="document.getElementById('mnRestoreFile').click()" style="padding:8px 16px; margin-left:8px;">Restore Pilots</button>
+            <input type="file" id="mnRestoreFile" accept=".json,application/json" style="display:none;" onclick="this.value='';" onchange="mnRestoreOpenFile(this)">
+            <div style="font-size:12px; color:var(--secondary-color); margin-top:6px;">
+              Backup saves each pilot's name, color, channel and RSSI calibration tied to their physical unit's MAC. Restore writes those settings back to the same hardware when connected as client(s).
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ── Client read-only Race View tab (mirrors master's race display) ── -->
+      <div id="raceview" class="tabcontent" style="display: none;">
+        <div id="rv-status-banner" style="text-align:center; font-size:13px; font-weight:600; color:#fff; background:#1565c0; padding:6px 14px; border-radius:6px; letter-spacing:0.02em; margin:6px 0;">
+          Waiting for race director to start race...
+        </div>
+        <div id="rv-race-data-buttons" style="display:none; margin-bottom:12px; text-align:center;">
+          <button onclick="downloadClientRaceData()" style="padding:8px 16px;">Download Race</button>
+        </div>
+        <div id="rv-race-timer" class="mn-race-timer-display">00:00.00</div>
+        <div id="rv-race-container" style="margin: 16px 0;"></div>
+        <div style="margin-top: 24px; padding-top: 16px; text-align:center; border-top: 1px solid var(--border-color, rgba(128,128,128,0.25));">
+          <button onclick="document.getElementById('rvImportFile').click()" style="padding:10px 24px; font-size:15px;">Import Multi Race File</button>
+          <input type="file" id="rvImportFile" accept=".json" style="display:none;" onclick="this.value='';" onchange="importClientRace(this);">
+          <div style="font-size:12px; color:var(--secondary-color); margin-top:8px;">Load a saved MultiRace file to review.</div>
+        </div>
+      </div>
+
+      <div id="history" class="tabcontent" style="display: none;">
+
+        <!-- Master mode: import-only view -->
+        <div id="mn-history-import-section" style="display:none; padding: 24px 0; text-align:center;">
+          <h2>Import Race</h2>
+          <p style="color:var(--secondary-color); margin-bottom:20px;">Import a previously downloaded MultiRace file to review race data.</p>
+          <button onclick="document.getElementById('mnImportFileHistory').click()" style="padding:10px 24px; font-size:15px;">Import Multi Race File</button>
+          <input type="file" id="mnImportFileHistory" accept=".json" style="display:none;" onclick="this.value='';" onchange="importMnRace(this);">
+        </div>
+
+        <!-- Single / client mode: full race history -->
+        <div id="mn-history-single-section">
+          <h2>Race History</h2>
+          <!--<div id="raceHistoryStorageLabel" class="info-label" style="margin: 8px 0; font-size: 0.95em;"></div>-->
+          <div class="history-controls">
+            <button id="importRacesBtn" onclick="document.getElementById('importFile').click()">Import Races</button>
+            <input type="file" id="importFile" accept=".json" style="display: none;" onclick="this.value='';" onchange="importRaces(this)" />
+            <button id="clearAllRacesBtn" onclick="clearAllRaces()" class="danger-button">Clear All</button>
+          </div>
+        </div>
+
+        <div id="raceHistoryList" class="history-list">
+          <p class="no-data">No races saved yet</p>
+        </div>
+        <div id="raceDetails" class="race-details" style="display: none;">
+          <h3 id="raceDetailsTitle"></h3>
+          
+          <!-- Race Timeline -->
+          <div class="race-timeline">
+            <h4>Race Timeline</h4>
+            <div class="timeline-container" id="raceTimeline">
+              <div class="timeline-bar"></div>
+              <div class="timeline-playhead" id="timelinePlayhead"></div>
+            </div>
+            <div style="display: flex; gap: 8px; justify-content: center; margin-top: 12px;">
+              <button id="playbackBtn" onclick="playbackRace()" style="padding: 8px 16px; background-color: var(--primary-color);">▶ Play Race</button>
+              <button id="stopPlaybackBtn" onclick="stopPlayback()" style="padding: 8px 16px; background-color: var(--secondary-color); display: none;">■ Stop</button>
+              <label style="display: flex; align-items: center; gap: 6px; font-size: 14px; margin-left: 8px;">
+                <input type="checkbox" id="playbackWebhooks" checked style="margin: 0;">
+                Trigger Webhooks
+              </label>
+            </div>
+          </div>
+          
+          <div class="stats-boxes">
+            <div class="stat-box">
+              <div class="stat-label">Fastest Lap</div>
+              <div class="stat-value" id="detailFastest">--</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-label">Median Lap</div>
+              <div class="stat-value" id="detailMedian">--</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-label">Best 3 Laps</div>
+              <div class="stat-value" id="detailBest3">--</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-label">Total Time</div>
+              <div class="stat-value" id="detailTotalTime">--</div>
+            </div>
+          </div>
+          <div class="analysis-tabs">
+            <button class="analysis-tab active" onclick="switchDetailMode('history')">Lap History</button>
+            <button class="analysis-tab" onclick="switchDetailMode('fastestRound')">Fastest Round (3 Laps)</button>
+          </div>
+          <div id="detailContent" class="analysis-content"></div>
+        </div>
+      </div>
+
+      <div id="calib" class="tabcontent" style="display: none;">
+        <!-- Master-only note.  Shown from script.js when mnNodeMode === 1
+             (see applyCalibMasterNote).  Reminds the user that this tab
+             calibrates the master's own RX5808 only — client node
+             calibration is done from the Race tab's per-pilot pencil. -->
+        <div id="calibMasterNote" style="display: none; margin-bottom: 12px; padding: 10px 12px; background-color: rgba(255, 200, 0, 0.12); border: 1px solid rgba(255, 200, 0, 0.6); border-radius: 6px; font-size: 13px;">
+          <strong>Note:</strong> This page calibrates the <strong>master node</strong> only. To calibrate a connected client, open its pilot card on the Race tab and click the pencil → <em>Run Calibration Wizard</em>.
+        </div>
+        <div style="margin-bottom: 16px;">
+          <button id="startWizardButton" onclick="startCalibrationWizard()" style="width: 100%; padding: 12px; font-size: 16px; background-color: var(--primary-color);">Start Calibration Wizard</button>
+        </div>
+
+        <div class="rssi-chart-wrap">
+          <canvas id="rssiChart"></canvas>
+        </div>
+        <div class="config-item">
+          <label for="enter">Enter RSSI:</label>
+          <div class="input-with-value">
+            <span id="enterSpan" class="val">120</span>
+            <div class="rssi-step-btns">
+              <button class="rssi-step-btn" type="button" onclick="stepRssi('enter',-1)">−</button>
+              <button class="rssi-step-btn" type="button" onclick="stepRssi('enter',1)">+</button>
+            </div>
+            <input type="range" min="20" max="255" step="1" id="enter" value="120" oninput="updateEnterRssi(this,value)" />
+          </div>
+        </div>
+        <div class="config-item">
+          <label for="exit">Exit RSSI:</label>
+          <div class="input-with-value">
+            <span id="exitSpan" class="val">100</span>
+            <div class="rssi-step-btns">
+              <button class="rssi-step-btn" type="button" onclick="stepRssi('exit',-1)">−</button>
+              <button class="rssi-step-btn" type="button" onclick="stepRssi('exit',1)">+</button>
+            </div>
+            <input type="range" min="20" max="255" step="1" id="exit" value="100" oninput="updateExitRssi(this,value)" />
+          </div>
+        </div>
+        <div id="calibrationOverviewNotice" style="display:none; margin: 10px 0; font-weight: 600;">
+          Calibration updated. Tweak as necessary to your peaks and click one of the buttons below to continue
+        </div>
+        <button id="saveRssiBtn" onclick="saveRSSIThresholds()">Save RSSI Thresholds</button>
+        <button
+          id="pauseCalibBtn"
+          class="btn"
+          type="button"
+          style="margin-left:10px;"
+        >
+          Pause Scanner
+        </button>
+
+
+      </div>
+
+    </main>
+
+    <footer>
+      <div class="footer-bar" style="display:flex; align-items:center; justify-content:center; padding: 4px 12px;">
+        <span id="firmwareVersion" style="font-size: 12px; color: rgba(255,255,255,0.9);">
+          FPVRaceOne Personal Lap Timer
+        </span>
+      </div>
+    </footer>
+
+    <!-- Node Pilot Edit Modal -->
+    <div id="mnPilotModal" class="modal" style="display:none;" onclick="mnClosePilotModalBackdrop(event)">
+      <!-- modal-content is a flex column capped at 90vh: title + subtitle stay
+           fixed at the top, Cancel/Save stay fixed at the bottom, and the
+           middle section (Pilot Name through Kick From Slot) scrolls inside
+           the flex child below.  min-height:0 on the scroller is required
+           so that overflow:auto child shrinks within the flex parent rather
+           than blowing past max-height. -->
+      <div class="modal-content" style="max-width:384px; display:flex; flex-direction:column; max-height:90vh;">
+        <h3 id="mnPilotModalTitle" style="margin-bottom:2px;">Edit Pilot</h3>
+        <div id="mnPilotModalSubtitle" style="margin: 0 0 14px; font-size:13px; font-weight:600; color: var(--secondary-color);"></div>
+        <div id="mnPilotModalScroll" style="overflow-y:auto; flex:1 1 auto; min-height:0; padding-right:6px;">
+        <div class="config-item" style="margin-bottom:14px;">
+          <label for="mnPilotModalName">Pilot Name</label>
+          <input type="text" id="mnPilotModalName" autocomplete="off" style="width:100%;box-sizing:border-box;">
+        </div>
+        <div class="config-item" style="margin-bottom:14px;">
+          <label for="mnPilotModalColor">Pilot Color:</label>
+          <select id="mnPilotModalColor" onchange="document.getElementById('mnPilotModalColorPreview').style.backgroundColor=this.value">
+            <option value="#FF0000">Red</option>
+            <option value="#FF6B00">Orange</option>
+            <option value="#FFD700">Gold</option>
+            <option value="#00FF00">Green</option>
+            <option value="#00FFFF">Cyan</option>
+            <option value="#0080FF" selected>Blue</option>
+            <option value="#8000FF">Purple</option>
+            <option value="#FF00FF">Magenta</option>
+            <option value="#FF1493">Pink</option>
+            <option value="#FFFFFF">White</option>
+            <option value="#808080">Gray</option>
+            <option value="#000000">Black</option>
+            <option value="#8B4513">Brown</option>
+            <option value="#00FF7F">Spring Green</option>
+            <option value="#FF69B4">Hot Pink</option>
+          </select>
+          <span id="mnPilotModalColorPreview" style="display:inline-block;width:30px;height:30px;margin-left:10px;border:2px solid var(--border-color);border-radius:4px;background-color:#0080FF;"></span>
+        </div>
+        <div class="config-item" style="margin-bottom:14px;">
+          <label for="mnPilotModalBand">Band:</label>
+          <select id="mnPilotModalBand" onchange="mnModalUpdateChannels()">
+            <option value="0">Analog A</option>
+            <option value="1">Analog B</option>
+            <option value="2">Analog E</option>
+            <option value="3">Analog F</option>
+            <option value="4">Analog R</option>
+            <option value="5">Analog L</option>
+            <option value="6">DJIv1 (25Mhz)</option>
+            <option value="7">DJIv1 (25Mhz)CE</option>
+            <option value="8">DJIv1 (50Mhz)</option>
+            <option value="9">DJI03 &amp; 04 (10/20Mhz)</option>
+            <option value="10">DJI03 &amp; 04 (20Mhz)CE</option>
+            <option value="11">DJI03 &amp; 04 (40Mhz)</option>
+            <option value="12">DJI03 &amp; 04 (40Mhz)CE</option>
+            <option value="13">DJI04 Race</option>
+            <option value="14">HDZero Race</option>
+            <option value="15">HDZero E</option>
+            <option value="16">HDZero F</option>
+            <option value="17">HDZero CE</option>
+            <option value="18">WLKSnail Race</option>
+            <option value="19">WLKSnail (25Mhz)</option>
+            <option value="20">WLKSnail (25Mhz)CE</option>
+            <option value="21">WLKSnail (50Mhz)</option>
+          </select>
+        </div>
+        <div class="config-item" style="margin-bottom:14px;">
+          <label for="mnPilotModalChannel">Channel:</label>
+          <select id="mnPilotModalChannel" onchange="mnModalUpdateFreq()"></select>
+          <span id="mnPilotModalFreq" style="margin-left:10px;font-size:13px;color:var(--secondary-color);"></span>
+        </div>
+        <div style="font-size:12px;color:var(--secondary-color);margin-bottom:14px;">Wait ~20 seconds after changing band/channel for the new frequency to calibrate.</div>
+
+        <!-- Live RSSI feed for the selected client.  Master polls
+             /api/multinode/rssi?nodeId=N every ~200 ms; the red / orange
+             horizontalLines on the SmoothieChart track the Enter / Exit
+             sliders below in real time.  Only shown when no race is active —
+             the firmware streams RSSI samples to the chart loop during a race
+             and we don't want to interfere. -->
+        <div id="mnPilotModalRssiSection" style="margin-bottom:14px;">
+          <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">
+            <label style="font-weight:600; margin:0;">Live RSSI</label>
+            <span id="mnPilotModalRssiVal" style="font-size:12px; color:var(--secondary-color);">—</span>
+            <label class="switch" style="margin-left:auto; flex-shrink:0;" title="Toggle live RSSI polling">
+              <input type="checkbox" id="mnPilotModalRssiToggle" onchange="onMnModalRssiToggle(this.checked)">
+              <span class="slider"></span>
+            </label>
+          </div>
+          <!-- Explicit width / height attributes — NOT just CSS — so SmoothieChart's
+               first responsive measurement isn't 0×0.  The chart re-measures via
+               offsetWidth/offsetHeight on each frame, but its lastWidth/lastHeight
+               start undefined; if the first read is 0 it sticks at 0 on some
+               browsers until the canvas is reinitialised. -->
+          <canvas id="mnPilotModalRssiChart" width="300" height="130" style="width:100%; height:130px; background:#0f1722; border-radius:4px; display:block;"></canvas>
+          <div id="mnPilotModalRssiHint" style="font-size:12px; color:var(--secondary-color); margin-top:4px; display:none;">
+            Live feed unavailable during an active race.
+          </div>
+        </div>
+
+        <!-- Enter RSSI / Exit RSSI — two-row layout that fits the narrow modal.
+             Row 1: label + numeric value + −/+ buttons.  Row 2: the range slider
+             on its own line so it can use 100% width without overflow. -->
+        <div style="margin-bottom:14px;">
+          <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
+            <label for="mnPilotModalEnter" style="flex:1; margin:0;">Enter RSSI:</label>
+            <span id="mnPilotModalEnterSpan" style="min-width:32px; text-align:right; font-variant-numeric:tabular-nums;">120</span>
+            <button class="rssi-step-btn" type="button" onclick="mnModalStepRssi('enter',-1)">&minus;</button>
+            <button class="rssi-step-btn" type="button" onclick="mnModalStepRssi('enter',1)">+</button>
+          </div>
+          <input type="range" min="20" max="255" step="1" id="mnPilotModalEnter" value="120" oninput="mnModalUpdateEnterRssi(this.value)" style="width:100%; display:block; box-sizing:border-box;" />
+        </div>
+
+        <div style="margin-bottom:14px;">
+          <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
+            <label for="mnPilotModalExit" style="flex:1; margin:0;">Exit RSSI:</label>
+            <span id="mnPilotModalExitSpan" style="min-width:32px; text-align:right; font-variant-numeric:tabular-nums;">100</span>
+            <button class="rssi-step-btn" type="button" onclick="mnModalStepRssi('exit',-1)">&minus;</button>
+            <button class="rssi-step-btn" type="button" onclick="mnModalStepRssi('exit',1)">+</button>
+          </div>
+          <input type="range" min="20" max="255" step="1" id="mnPilotModalExit" value="100" oninput="mnModalUpdateExitRssi(this.value)" style="width:100%; display:block; box-sizing:border-box;" />
+        </div>
+
+        <!-- Calibration Wizard trigger — opens the same wizard the single mode
+             uses, but routes every fetch via the master's proxy to this client. -->
+        <div style="margin-bottom:14px;">
+          <button id="mnPilotModalCalibrateBtn" type="button" onclick="mnStartCalibrationWizardForModal()" style="width:100%;background:var(--primary-color);color:#fff;">Run Calibration Wizard</button>
+          <div style="font-size:12px;color:var(--secondary-color);margin-top:4px;">
+            Starts the calibration wizard for this client. Cannot be used during an active race.
+          </div>
+        </div>
+
+        <!-- Move this pilot to a different slot.  If the target slot is
+             occupied, the two nodes swap places.  Hidden for the master's
+             own card (the master always lives at nodeId 0). -->
+        <div id="mnPilotModalMoveSection" class="config-item" style="margin-bottom:14px;">
+          <label for="mnPilotModalMoveSlot">Move (Swap) Pilot to Slot:</label>
+          <select id="mnPilotModalMoveSlot" style="padding:6px;"></select>
+        </div>
+
+        <div class="config-item" style="margin-bottom:14px;">
+          <label for="mnPilotModalSkip">Ignore Race Director Start/Stop</label>
+          <input type="checkbox" id="mnPilotModalSkip">
+        </div>
+        <!-- Kick section: hidden for the master's own card (nodeId 0) — the
+             master can't be kicked from itself.  Toggled in mnOpenPilotModal. -->
+        <div id="mnPilotModalKickSection" style="margin-top:6px;">
+          <button onclick="mnRemoveFromModal()" style="width:100%;background:#c0392b!important;color:#fff!important;">Kick From Slot — pauses reconnect for 1 minute</button>
+        </div>
+        </div><!-- /#mnPilotModalScroll -->
+        <!-- Save persists the form fields but keeps the modal open so the
+             director can continue tuning (drag a slider, save again, watch
+             the live RSSI react, etc.).  Close dismisses the modal — saved
+             values are already persisted, unsaved field changes are
+             discarded (matching the previous Cancel semantics). -->
+        <div style="display:flex;gap:8px;margin-top:10px;flex-shrink:0;">
+          <button onclick="mnClosePilotModal()" style="background:var(--border-color)!important;color:var(--text-color)!important;">Close</button>
+          <button onclick="mnSavePilotModal()" style="margin-left:auto;">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Restore Pilots preview modal.  Populated by mnRestoreOpenFile after
+         a backup file is parsed and the saved entries are matched against
+         the currently online nodes by MAC. -->
+    <div id="mnRestoreModal" class="modal" style="display:none;" onclick="if(event.target===this) mnCloseRestoreModal();">
+      <div class="modal-content" style="max-width:520px; display:flex; flex-direction:column; max-height:90vh;">
+        <h3 style="margin-bottom:2px;">Restore Pilots</h3>
+        <div id="mnRestoreModalSubtitle" style="margin:0 0 12px; font-size:13px; font-weight:600; color:var(--secondary-color);"></div>
+        <div style="background:rgba(50,130,200,0.10); border:1px solid rgba(50,130,200,0.45); color:var(--text-color); padding:8px 12px; border-radius:6px; font-size:12px; margin-bottom:12px;">
+          Before restoring, make sure every unit you want to restore is recruited and online. Pilot settings will only be written back to the unit whose MAC matches the saved entry.
+        </div>
+        <div id="mnRestoreList" style="overflow-y:auto; flex:1 1 auto; min-height:0; padding-right:6px; border:1px solid var(--border-color, rgba(128,128,128,0.25)); border-radius:6px;"></div>
+        <div id="mnRestoreSummary" style="font-size:12px; color:var(--secondary-color); margin-top:8px; min-height:1em;"></div>
+        <div style="display:flex; gap:8px; margin-top:10px; flex-shrink:0;">
+          <button onclick="mnRestoreApply()" id="mnRestoreApplyBtn">Restore Selected</button>
+          <button onclick="mnCloseRestoreModal()" style="margin-left:auto; background:var(--border-color)!important; color:var(--text-color)!important;">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Edit Race Modal -->
+    <div id="editRaceModal" class="modal" style="display: none;" onclick="closeEditModalOnBackdrop(event)">
+      <div class="modal-content" style="max-width: 600px; max-height: 80vh; overflow-y: auto;">
+        <h3>Edit Race Details & Laps (Marshalling Mode)</h3>
+        <div class="config-item">
+          <label for="raceName">Race Name:</label>
+          <input type="text" id="raceName" maxlength="50" placeholder="e.g. Morning Practice" />
+        </div>
+        <div class="config-item">
+          <label for="raceTag">Tag:</label>
+          <input type="text" id="raceTag" maxlength="30" placeholder="e.g. training, race, freestyle" />
+        </div>
+        <div class="config-item">
+          <label for="raceDistance">Total Distance (meters):</label>
+          <input type="number" id="raceDistance" min="0" step="0.1" placeholder="e.g. 150.0" />
+        </div>
+        
+        <h4 style="margin-top: 24px; margin-bottom: 12px;">Lap Times</h4>
+        <div id="editLapsList" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px;"></div>
+        <button onclick="addNewLapToEdit()" style="width: 100%; background-color: var(--accent-color); margin-bottom: 16px;">+ Add Lap</button>
+        
+        <div style="display: flex; gap: 12px;">
+          <button onclick="saveRaceEdit()" style="flex: 1;">Save Changes</button>
+          <button onclick="closeEditModal()" style="flex: 1; background-color: var(--secondary-color);">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Calibration Wizard Modal -->
+    <div id="calibrationWizardModal" class="modal" style="display: none;">
+      <div class="modal-content wizard-modal">
+        <div id="wizardRecording" style="display: none;">
+          <h3>Calibration Wizard - Recording<span class="wizardPilotSuffix"></span></h3>
+          <div class="wizard-instructions">
+            <p><strong>Instructions:</strong></p>
+            <ol>
+              <li>Fly to the next gate and back through this gate <strong>3 times at full racing speed</strong> — keep the session under <strong>100 seconds (1:40)</strong></li>
+              <li>The wizard measures your narrowest peak so the smoothing filter doesn't crush fast passes</li>
+              <li>Click "Stop Recording" when finished — <strong>recording stops automatically at 100 seconds</strong></li>
+              <li>Note: It is highly recommended that VTX power be set to the same fixed number for calibration and racing.</li>
+            </ol>
+          </div>
+          <div class="wizard-status">
+            <div class="recording-indicator">
+              <span class="recording-dot"></span>
+              <span>Recording RSSI Data...</span>
+            </div>
+            <div id="wizardSampleCount" style="margin-top: 8px; font-size: 14px;">Samples: 0</div>
+          </div>
+          <div style="display: flex; gap: 12px; margin-top: 24px;">
+            <button onclick="stopCalibrationWizard()" style="flex: 1;">Stop Recording</button>
+            <button onclick="cancelCalibrationWizard()" style="flex: 1; background-color: var(--secondary-color);">Cancel</button>
+          </div>
+        </div>
+
+        <!-- Shown while the wizard fetches recorded samples and runs peak detection / FWHM math.
+             Without this, large recordings make the UI look frozen for a few seconds. -->
+        <div id="wizardProcessing" style="display: none; padding: 32px 16px; text-align: center;">
+          <div class="wizard-spinner" aria-hidden="true"></div>
+          <h3 id="wizardProcessingTitle" style="margin-top: 18px;">Calculating…</h3>
+          <p id="wizardProcessingDetail" style="margin-top: 6px; color: var(--secondary-color); font-size: 14px;">
+            Crunching peak data — this usually takes a few seconds.
+          </p>
+        </div>
+
+        <div id="wizardMarking" style="display: none;">
+          <h3>Calibration Wizard - Mark Lap Peaks<span class="wizardPilotSuffix"></span></h3>
+          <div class="wizard-instructions">
+            <p><strong>3 peaks (one for each lap) need to be marked to calibrate:</strong></p>
+            <p><strong></strong></p>
+            <ul>
+              <li>Use the Auto-detected peaks or undo and mark manually</li>
+              <li>Entry/Exit thresholds will be calculated automatically</li>
+            </ul>
+          </div>
+          <div id="wizardMarkingStatus" style="margin: 12px 0; padding: 8px; background-color: var(--bg-secondary); border-radius: 4px; font-weight: bold;">
+            Mark Peak 1
+          </div>
+
+          <!-- Shown when the 3 auto-detected peaks vary too much in amplitude.
+               Inconsistent peaks usually mean inconsistent flight lines through
+               the gate; the wizard biases off the WEAKEST peak so a single bad
+               pass would loosen the calibration unnecessarily. -->
+          <div id="wizardPeakSpreadWarning" style="display:none; margin: 12px 0; padding: 12px; background-color: rgba(255,165,0,0.12); border: 1px solid rgba(255,165,0,0.6); border-radius: 4px; font-size: 14px;">
+            <p style="margin: 0 0 8px 0;"><strong>⚠ Peaks vary significantly</strong> — <span id="wizardPeakSpreadDetail">your three calibration peaks differ by more than 15%.</span></p>
+            <p style="margin: 0 0 12px 0; color: var(--secondary-color);">
+              This usually means inconsistent flight lines through the gate. The wizard keys Enter to the <em>weakest</em> peak, so a single off-line pass will pull the threshold lower than necessary. For best results, restart and try to fly each pass through the same line at the same speed.
+            </p>
+            <div style="display:flex; gap: 8px;">
+              <button onclick="restartCalibrationWizard()" style="flex:1; padding:6px 12px;">Restart Calibration</button>
+              <button onclick="dismissPeakSpreadWarning()" style="flex:1; padding:6px 12px; background-color: var(--secondary-color);">Continue Anyway</button>
+            </div>
+          </div>
+
+          <div style="position: relative;">
+            <canvas id="wizardChart" style="cursor: crosshair; border: 2px solid var(--border-color); border-radius: 4px;"></canvas>
+          </div>
+          <div style="display: flex; gap: 12px; margin-top: 16px;">
+            <button id="wizardUndoButton" onclick="undoLastMarker()" disabled style="flex: 1; background-color: var(--secondary-color);">Undo Last</button>
+            <button id="wizardCalculateButton" onclick="calculateThresholds()" disabled style="flex: 1;">Calculate Thresholds</button>
+            <button onclick="cancelCalibrationWizard()" style="flex: 1; background-color: var(--secondary-color);">Cancel</button>
+          </div>
+        </div>
+
+        <div id="wizardResults" style="display: none;">
+          <h3>Calibration Wizard - Results<span class="wizardPilotSuffix"></span></h3>
+          <div class="wizard-results-box">
+            <div class="result-item">
+              <label>Calculated Enter RSSI:</label>
+              <span id="calculatedEnterRssi" class="result-value">--</span>
+            </div>
+            <div class="result-item">
+              <label>Calculated Exit RSSI:</label>
+              <span id="calculatedExitRssi" class="result-value">--</span>
+            </div>
+          </div>
+          <div style="margin: 16px 0; padding: 12px; background-color: var(--bg-secondary); border-radius: 4px; font-size: 14px;">
+            <strong>Note:</strong> Thresholds are calculated from your lap data with conservative safety margins. The signal you saw on the chart is exactly what lap detection uses — adjust manually after applying if needed.
+          </div>
+          <div style="display: flex; gap: 12px; margin-top: 16px;">
+            <button onclick="applyCalculatedThresholds()" style="flex: 1;">Apply Thresholds</button>
+            <button onclick="closeCalibrationWizard()" style="flex: 1; background-color: var(--secondary-color);">Close</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="settings-modal">
+      <div class="settings-modal-container">
+        <div class="settings-sidebar">
+          <div class="settings-sidebar-header">
+            <h2>Settings</h2>
+            <button class="settings-close-button" onclick="closeSettingsModal()">✕</button>
+          </div>
+          <div class="settings-nav">
+            <div class="settings-nav-item active" onclick="switchSettingsSection('general')">
+              <span>Lap & Announcer Settings</span>
+            </div>
+            <div class="settings-nav-item" onclick="switchSettingsSection('pilot')">
+              <span>Pilot Info</span>
+            </div>
+            <div class="settings-nav-item" onclick="switchSettingsSection('led')">
+              <span>LED Setup</span>
+            </div>
+            <div class="settings-nav-item" onclick="switchSettingsSection('wifi')">
+              <span>WiFi & Connection</span>
+            </div>
+            <div class="settings-nav-item" onclick="switchSettingsSection('multinode')">
+              <span>Multi-Node</span>
+            </div>
+            <!-- Webhooks: feature works but kept hidden from end users until UX is improved.
+                 Re-enable by removing the inline display:none.  Section content + firmware
+                 endpoints + WebhookManager all remain wired up and functional. -->
+            <div class="settings-nav-item" style="display:none;" onclick="switchSettingsSection('webhooks')">
+              <span>Webhooks</span>
+            </div>
+            <div class="settings-nav-item" onclick="switchSettingsSection('signal')">
+              <span>Signal Processing</span>
+            </div>
+            <div class="settings-nav-item" onclick="switchSettingsSection('firmware')">
+              <span>Firmware Update</span>
+            </div>
+            <div class="settings-nav-item" onclick="switchSettingsSection('system')">
+              <span>System Settings</span>
+            </div>
+            <div class="settings-nav-item" onclick="switchSettingsSection('diagnostics')">
+              <span>Diagnostics</span>
+            </div>
+          </div>
+        </div>
+        <div class="settings-content-wrapper">
+          <div class="settings-content">
+            <!-- General Section -->
+            <div id="settings-general" class="settings-section active">
+              <h2>Lap & Announcer Settings</h2>
+              
+              <h3>Race Setup</h3>
+              <div class="config-item">
+                <label for="maxLaps">Number of Laps:</label>
+                <div class="input-with-value">
+                  <span class="val">Inf.</span>
+                  <input type="range" id="maxLaps" step="1" min="0" max="50" value="0" oninput="updateMaxLaps(this,value)" />
+                </div>
+              </div>
+              <div style="font-size: 12px; color: var(--secondary-color); margin-left: 170px; margin-top: -8px;">
+                Tip: Set to 0 for infinite laps
+              </div>
+
+              <div class="config-item">
+                <label for="minLap">Minimum Lap Time:</label>
+                <div class="input-with-value">
+                  <span class="val">10.0s</span>
+                  <input type="range" id="minLap" step="0.5" min="1" max="20" oninput="updateMinLap(this,value)" />
+                </div>
+              </div>
+
+              <h3>TTS Settings</h3>
+              
+              <div class="config-item">
+                <label for="announcerSelect">Announcer Type:</label>
+                <select id="announcerSelect">
+                  <option value="none">None</option>
+                  <option value="beep">Beep</option>
+                  <option value="1lap">Lap Time</option>
+                  <option value="2lap">2 Consecutive Laps Time</option>
+                  <option value="3lap">3 Consecutive Laps Time</option>
+                </select>
+              </div>
+
+              <div class="config-item">
+                <label for="lapFormatSelect">Lap Announcement Format:</label>
+                <select id="lapFormatSelect" onchange="saveLapFormat()">
+                  <option value="full">Pilot + Lap + Time</option>
+                  <option value="pilottime" selected>Pilot + Time</option>
+                  <option value="laptime">Lap + Time</option>
+                  <option value="timeonly">Time Only</option>
+                </select>
+              </div>
+              <div style="font-size: 12px; color: var(--secondary-color); margin-left: 170px; margin-top: -8px;">
+                Examples: "Louis Lap 5, 12.34" / "Lap 5, 12.34" / "12.34"
+              </div>
+
+              <div class="config-item" style="display:none">
+                <label for="voiceSelect">Voice:</label>
+                <select id="voiceSelect" onchange="saveVoiceSelection()">
+                  <!--<option value="default" selected>ElevenLabs (Sarah - Energetic)</option>
+                  <option value="rachel">ElevenLabs (Rachel - Calm)</option>
+                  <option value="adam">ElevenLabs (Adam - Deep Male)</option>
+                  <option value="antoni">ElevenLabs (Antoni - Male)</option>-->
+                  <option value="piper" selected>PiperTTS (Lower Latency)</option>
+                </select>
+              </div>
+              <!--<div style="font-size: 12px; color: var(--secondary-color); margin-left: 170px; margin-top: -8px;">
+                Note: ElevenLabs voices require pre-generated audio files
+              </div>-->
+
+              <div class="config-item">
+                <label for="rate">Announcer Rate:</label>
+                <div class="input-with-value">
+                  <span class="val">1.0</span>
+                  <input type="range" min="0.1" max="2" step="0.1" id="rate" oninput="updateAnnouncerRate(this,value)" />
+                </div>
+              </div>
+
+              <div class="config-item">
+                <label for="voiceEnabledToggle">Voice:</label>
+                <div style="display: flex; align-items: center; gap: 14px; flex: 1;">
+                  <label class="switch" style="flex-shrink: 0;">
+                    <input type="checkbox" id="voiceEnabledToggle" onchange="onVoiceEnabledToggleChange(this.checked)">
+                    <span class="slider"></span>
+                  </label>
+                  <span id="voiceEnabledLabel" style="font-size: 13px; color: var(--secondary-color); min-width: 28px;">Off</span>
+                  <button id="GenerateAudioButton" onclick="generateAudio()" style="flex: 1; padding: 8px;">Test Voice</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Pilot Section -->
+            <div id="settings-pilot" class="settings-section">
+              <h2>Pilot Info</h2>
+              <div id="bandChannelFreq">
+                <div class="config-item">
+                  <label for="bandSelect">Band:</label>
+                  <select id="bandSelect">
+                    <option value="A">Analog A</option>
+                    <option value="B">Analog B</option>
+                    <option value="E">Analog E</option>
+                    <option value="F">Analog F</option>
+                    <option value="R">Analog R</option>
+                    <option value="L">Analog L</option>
+                    <option value="DJIv1-25">DJIv1 (25Mhz)</option>
+                    <option value="DJIv1-25CE">DJIv1 (25Mhz)CE</option>
+                    <option value="DJIv1_50">DJIv1 (50Mhz)</option>
+                    <option value="DJI03/04-10/20">DJI03 & 04 (10/20Mhz)</option>
+                    <option value="DJI03/04-20CE">DJI03 & 04 (20Mhz)CE</option>
+                    <option value="DJI03/04-40">DJI03 & 04 (40Mhz)</option>
+                    <option value="DJI03/04-40CE">DJI03 & 04 (40Mhz)CE</option>
+                    <option value="DJI04-R">DJI04 Race</option>
+                    <option value="HDZero-R">HDZero Race</option>
+                    <option value="HDZero-E">HDZero E</option>
+                    <option value="HDZero-F">HDZero F</option>
+                    <option value="HDZero-CE">HDZero CE</option>
+                    <option value="WLKSnail-R">WLKSnail Race</option>
+                    <option value="WLKSnail-25">WLKSnail (25Mhz)</option>
+                    <option value="WLKSnail-25CE">WLKSnail (25Mhz)CE</option>
+                    <option value="WLKSnail-50">WLKSnail (50Mhz)</option>
+                  </select>
+                </div>
+                
+                <div class="config-item">
+                  <label for="channelSelect">Channel:</label>
+                  <select id="channelSelect">
+                    <option value="1">1</option>
+                    <option value="2">2</option>
+                    <option value="3">3</option>
+                    <option value="4">4</option>
+                    <option value="5">5</option>
+                    <option value="6">6</option>
+                    <option value="7">7</option>
+                    <option value="8">8</option>
+                  </select>
+                </div>
+
+                <div class="config-item">
+                  <span id="freqOutput"></span>
+                </div>
+              </div>
+              <div style="font-size: 12px; color: var(--secondary-color); margin-left:0px; margin-top: -12px; margin-bottom: 10px;">
+                  Wait approx. 20 seconds after changing band/channel for new frequency to calibrate
+              </div>
+
+              <div class="config-item">
+                <label for="pname">Pilot Name:</label>
+                <input type="text" id="pname" maxlength="20" placeholder="Pilot Name" />
+              </div>
+
+              <div class="config-item">
+                <label for="pilotColor">Pilot Color:</label>
+                <select id="pilotColor">
+                  <option value="#FF0000">Red</option>
+                  <option value="#FF6B00">Orange</option>
+                  <option value="#FFD700">Gold</option>
+                  <option value="#00FF00">Green</option>
+                  <option value="#00FFFF">Cyan</option>
+                  <option value="#0080FF" selected>Blue</option>
+                  <option value="#8000FF">Purple</option>
+                  <option value="#FF00FF">Magenta</option>
+                  <option value="#FF1493">Pink</option>
+                  <option value="#FFFFFF">White</option>
+                  <option value="#808080">Gray</option>
+                  <option value="#000000">Black</option>
+                  <option value="#8B4513">Brown</option>
+                  <option value="#00FF7F">Spring Green</option>
+                  <option value="#FF69B4">Hot Pink</option>
+                </select>
+                <span id="colorPreview" style="display: inline-block; width: 30px; height: 30px; margin-left: 10px; border: 2px solid var(--border-color); border-radius: 4px; background-color: #0080FF;"></span>
+              </div>
+            </div>
+
+            <!-- LED Section -->
+            <div id="settings-led" class="settings-section">
+              <h2>LED Setup</h2>
+              
+              <div class="config-item">
+                <label for="ledPreset">LED Preset:</label>
+                <select id="ledPreset" onchange="changeLedPreset()">
+                  <option value="0">Off</option>
+                  <option value="1">Solid Colour</option>
+                  <option value="2" selected>Rainbow Wave</option>
+                  <option value="3">Color Fade</option>
+                  <option value="4">Fire</option>
+                  <option value="5">Ocean</option>
+                  <option value="6">Police</option>
+                  <option value="7">Strobe</option>
+                  <option value="8">Comet</option>
+                  <option value="9">Pilot Colour</option>
+                </select>
+              </div>
+
+              <div class="config-item" id="solidColorSection" style="display: none;">
+                <label for="ledSolidColor">Solid Color:</label>
+                <input type="color" id="ledSolidColor" value="#FF00FF" onchange="setSolidColor()" style="height: 40px; border: 2px solid var(--border-color); border-radius: 4px;" />
+              </div>
+
+              <div class="config-item" id="fadeColorSection" style="display: none;">
+                <label for="ledFadeColor">Fade Color:</label>
+                <input type="color" id="ledFadeColor" value="#0080FF" onchange="setFadeColor()" style="height: 40px; border: 2px solid var(--border-color); border-radius: 4px;" />
+              </div>
+
+              <div class="config-item" id="strobeColorSection" style="display: none;">
+                <label for="ledStrobeColor">Strobe Color:</label>
+                <input type="color" id="ledStrobeColor" value="#FFFFFF" onchange="setStrobeColor()" style="height: 40px; border: 2px solid var(--border-color); border-radius: 4px;" />
+              </div>
+
+              <div class="config-item" id="ledSpeedSection">
+                <label for="ledSpeed">Animation Speed:</label>
+                <div class="input-with-value">
+                  <span class="val">5</span>
+                  <input type="range" id="ledSpeed" step="1" min="1" max="20" value="5" oninput="updateLedSpeed(this,value)" />
+                </div>
+              </div>
+              <div id="ledSpeedNote" style="font-size: 12px; color: var(--secondary-color); margin-left: 170px; margin-top: -8px;">
+                Controls rainbow, pulse, and animation speed
+              </div>
+
+              <div class="config-item">
+                <label for="ledBrightness">LED Brightness:</label>
+                <div class="input-with-value">
+                  <span class="val">80</span>
+                  <input type="range" id="ledBrightness" step="5" min="0" max="255" value="80" oninput="updateLedBrightness(this,value)" />
+                </div>
+              </div>
+
+              <div class="config-item">
+                <label for="ledManualOverride">Manual LED Control:</label>
+                <div style="flex: 1;">
+                  <label class="switch">
+                    <input type="checkbox" id="ledManualOverride" onchange="toggleLedManualOverride(this.checked)">
+                    <span class="slider"></span>
+                  </label>
+                </div>
+              </div>
+              <div style="font-size: 12px; color: var(--secondary-color); margin-left: 170px; margin-top: -8px;">
+                When enabled, race events won't affect LED settings
+              </div>
+
+              <h3 style="margin-top: 24px;">Gate LEDs (Webhooks)</h3>
+              <div class="config-item">
+                <label for="gateLEDsEnabled">Enable Gate LEDs:</label>
+                <div style="flex: 1;">
+                  <label class="switch">
+                    <input type="checkbox" id="gateLEDsEnabled" onchange="toggleGateLEDs(this.checked)">
+                    <span class="slider"></span>
+                  </label>
+                </div>
+              </div>
+              <div style="font-size: 12px; color: var(--secondary-color); margin-left: 170px; margin-top: -8px;">
+                Send webhooks to external LED controllers during race events
+              </div>
+
+              <div id="gateLEDOptions" style="display: none; margin-left: 24px; margin-top: 12px;">
+                <div class="config-item">
+                  <label for="webhookRaceStart">Race Start Flash:</label>
+                  <div style="flex: 1;">
+                    <label class="switch">
+                      <input type="checkbox" id="webhookRaceStart" onchange="toggleWebhookRaceStart(this.checked)">
+                      <span class="slider"></span>
+                    </label>
+                  </div>
+                </div>
+                <div style="font-size: 12px; color: var(--secondary-color); margin-left: 170px; margin-top: -8px;">
+                  Send /RaceStart webhook (2x Green flashes)
+                </div>
+
+                <div class="config-item" style="margin-top: 12px;">
+                  <label for="webhookRaceStop">Race Stop Flash:</label>
+                  <div style="flex: 1;">
+                    <label class="switch">
+                      <input type="checkbox" id="webhookRaceStop" onchange="toggleWebhookRaceStop(this.checked)">
+                      <span class="slider"></span>
+                    </label>
+                  </div>
+                </div>
+                <div style="font-size: 12px; color: var(--secondary-color); margin-left: 170px; margin-top: -8px;">
+                  Send /RaceStop webhook (2x Red flashes)
+                </div>
+
+                <div class="config-item" style="margin-top: 12px;">
+                  <label for="webhookLap">Lap Flash:</label>
+                  <div style="flex: 1;">
+                    <label class="switch">
+                      <input type="checkbox" id="webhookLap" onchange="toggleWebhookLap(this.checked)">
+                      <span class="slider"></span>
+                    </label>
+                  </div>
+                </div>
+                <div style="font-size: 12px; color: var(--secondary-color); margin-left: 170px; margin-top: -8px;">
+                  Send /Lap webhook (White flash)
+                </div>
+              </div>
+            </div>
+
+            <!-- WiFi & Connection Section -->
+            <div id="settings-wifi" class="settings-section">
+              <h2>WiFi & Connection</h2>
+              
+              <!-- USB/Electron connection mode — disabled for now
+              <h3 style="margin-top: 0;">Connection Mode</h3>
+              <div class="config-item">
+                <label for="connectionMode">Connection Mode:</label>
+                <select id="connectionMode">
+                  <option value="auto" selected>Auto (WiFi/USB)</option>
+                  <option value="wifi">WiFi Only</option>
+                  <option value="usb">USB Only</option>
+                </select>
+              </div>
+              <div style="font-size: 12px; color: var(--secondary-color); margin-left: 170px; margin-top: -8px;">
+                Auto mode detects USB connection, falls back to WiFi
+              </div>
+              <div class="config-item" id="comPortSection" style="display: none;">
+                <label for="comPort">COM Port:</label>
+                <select id="comPort" onchange="selectComPort()">
+                  <option value="">Select a port...</option>
+                </select>
+              </div>
+              <div id="comPortStatus" style="font-size: 12px; color: var(--secondary-color); margin-left: 170px; margin-top: -8px; display: none;">
+                Status: Disconnected
+              </div>
+              -->
+
+              <!-- Antenna toggle hidden — this hardware build has a fixed external
+                   antenna, so exposing the switch just invites broken configs.
+                   The <input> is kept in the DOM so page hydration code that
+                   sets .checked still finds the element without a null check.
+                   The Save snapshot no longer READS this value — it is force-
+                   pinned to 1 in data/script.js buildConfigSnapshotFromUI.
+
+                   TO REVERT (re-expose the toggle): remove style="display:none"
+                   below AND restore the .checked read in script.js
+                   buildConfigSnapshotFromUI (they're linked with matching
+                   TO REVERT markers). -->
+              <div class="config-item" style="display:none;">
+                <label for="externalAntennaToggle">Antenna:</label>
+                <div style="flex: 1;">
+                  <label class="switch">
+                    <input type="checkbox" id="externalAntennaToggle" onchange="document.getElementById('antennaLabel').textContent=this.checked?'External':'Internal'; stagedConfig['wifiExtAntenna']=this.checked?1:0; stagedDirty=true; updateSaveButton()">
+                    <span class="slider"></span>
+                  </label>
+                  <span style="margin-left: 10px; font-size: 13px; color: var(--secondary-color);" id="antennaLabel">External</span>
+                </div>
+              </div>
+              <h3>WiFi TX Power</h3>
+              <div class="config-item">
+                <label for="wifiTxPowerInput">TX Power (dBm):</label>
+                <div style="flex: 1; display: flex; align-items: center; gap: 8px;">
+                  <input type="number" id="wifiTxPowerInput" min="2" max="21" step="1" value="21"
+                         style="width: 70px;"
+                         oninput="autoSaveConfig()">
+                  <span style="font-size: 12px; color: var(--secondary-color);">2–21 dBm</span>
+                </div>
+              </div>
+              <div style="font-size: 12px; color: var(--secondary-color); margin-bottom: 12px;">
+                TX power change takes effect on next boot.
+              </div>
+            </div>
+
+            <!-- Multi-Node Section -->
+            <div id="settings-multinode" class="settings-section">
+              <h2>Multi-Node</h2>
+              <div style="margin-bottom: 16px; padding: 12px; background-color: var(--bg-secondary); border-radius: 8px; font-size: 14px;">
+                <p style="margin: 0 0 8px 0;"><strong>Network up to 8 FPVRaceOne devices without a router.</strong></p>
+                <p style="margin: 0; color: var(--secondary-color);">One device acts as Master (race director view). Up to 7 Client devices connect to the master and forward laps automatically. Changes require a reboot.</p>
+              </div>
+
+              <div class="config-item">
+                <label for="nodeModeSelect">Node Mode:</label>
+                <select id="nodeModeSelect" onchange="onNodeModeChange()">
+                  <option value="0">Single (standalone)</option>
+                  <option value="1">Master</option>
+                  <option value="2">Client</option>
+                </select>
+              </div>
+
+              <div id="mn-master-info" style="display:none; margin-left: 170px; margin-top: -8px; margin-bottom: 8px;">
+                <div id="mn-ip-warning-box" style="background: #fff3cd; border: 1px solid #f0ad4e; border-radius: 6px; padding: 10px 14px; color: #7a4f00; font-size: 13px; font-weight: 500;">
+                  ⚠️ <strong id="mn-ip-warning-text"></strong> after reboot.<br>
+                  <span style="font-weight: normal;">Your browser will be redirected automatically. Reconnect to the FPVRaceOne WiFi if needed.</span>
+                </div>
+              </div>
+
+              <div id="mn-client-fields" style="display:none;">
+                <div class="config-item">
+                  <label for="masterSSIDInput">Master SSID:</label>
+                  <input type="text" id="masterSSIDInput" maxlength="32"
+                         placeholder="e.g. FPVRaceOne_AB12CD"
+                         oninput="autoSaveConfig()" />
+                </div>
+                <div style="font-size: 12px; color: var(--secondary-color); margin-left: 170px; margin-top: -8px;">
+                  Enter Master SSID if known or click Scan below.
+                </div>
+                <div class="config-item" style="margin-top: 12px;">
+                  <label>Scan for Masters:</label>
+                  <button onclick="mnScanNetworks()" style="padding: 6px 14px;">Scan</button>
+                </div>
+                <div id="mnScanResults" style="margin-left: 170px; margin-top: 4px; font-size: 13px;"></div>
+              </div>
+              <div class="config-item" id="mnSkipMasterStartRow" style="display:none;">
+                  <label for="mnSkipMasterStartToggle">Ignore Race Director Start/Stop if already racing: </label>
+                  <input type="checkbox" id="mnSkipMasterStartToggle" onchange="onMnSkipMasterStartChange(this.checked)" />
+                </div>
+              <div class="config-item" id="mnClientRaceAudioRow" style="display:none;">
+                  <label for="mnClientRaceAudioToggle">Play race start audio on this client (countdown + beep): </label>
+                  <input type="checkbox" id="mnClientRaceAudioToggle" onchange="onMnClientRaceAudioChange(this.checked)" />
+                </div>
+              <div style="margin-top: 20px;">
+                <button id="applyMultiNodeBtn" onclick="applyMultiNodeSettings()" disabled style="background-color: var(--primary-color); color: white; padding: 10px 20px; border: none; border-radius: 6px; cursor: not-allowed; font-size: 14px; opacity: 0.5;">Apply Multi-Node &amp; Reboot</button>
+              </div>
+              <div style="font-size: 12px; color: var(--secondary-color); margin-top: 8px;">
+                Device will restart after applying. Current races are saved automatically before reboot.
+              </div>
+
+              <!-- Master-only: recruit nearby units as clients of this master -->
+              <div id="mn-recruit-section" style="display:none; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border-color);">
+                <h3 style="margin: 0 0 6px;">Recruit Nearby Units</h3>
+                <div style="margin-bottom: 12px;">
+                  <button id="recruitNearbyBtn" onclick="recruitNearbyUnits()" style="background-color: var(--primary-color); color: white; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px;">Recruit Nearby Units</button>
+                  <label style="margin-left: 14px; font-size: 13px; cursor: pointer;">
+                    <input type="checkbox" id="recruitForceToggle" style="vertical-align: middle;">
+                    Force recruit ALL units (even masters / existing clients)
+                  </label>
+                </div>
+                <div style="font-size: 12px; color: var(--secondary-color); line-height: 1.5;">
+                  This procedure will force the master node's access point to disconnect while it configures each client and will reappear when complete.
+                </div>
+              </div>
+            </div>
+
+            <!-- Webhooks Section -->
+            <div id="settings-webhooks" class="settings-section">
+              <h2>Webhooks</h2>
+              
+              <div style="margin-bottom: 16px; padding: 12px; background-color: var(--bg-secondary); border-radius: 8px; font-size: 14px;">
+                <p style="margin: 0 0 8px 0;"><strong>Send HTTP POST requests to external LED controllers during race events.</strong></p>
+                <p style="margin: 0; color: var(--secondary-color);">Configure IP addresses to trigger webhooks: /Lap, /RaceStart, /RaceStop, /GhostLap, /off, /flash</p>
+              </div>
+
+              <div class="config-item">
+                <label for="webhooksEnabled">Enable Webhooks:</label>
+                <div style="flex: 1;">
+                  <label class="switch">
+                    <input type="checkbox" id="webhooksEnabled" onchange="toggleWebhooks(this.checked)">
+                    <span class="slider"></span>
+                  </label>
+                </div>
+              </div>
+              <div style="font-size: 12px; color: var(--secondary-color); margin-left: 170px; margin-top: -8px;">
+                Enable to send webhooks to configured devices
+              </div>
+
+              <div id="webhooksContent" style="display: none;">
+                <h3>Webhook Endpoints</h3>
+                
+                <div style="margin-bottom: 16px;">
+                  <div class="config-item">
+                    <label for="webhookIP">LED Controller IP:</label>
+                    <input type="text" id="webhookIP" placeholder="e.g. 192.168.0.75" maxlength="15" pattern="\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}" style="flex: 1;" />
+                  </div>
+                  <button onclick="addWebhook()" style="width: 100%; margin-top: 8px;">Add Webhook</button>
+                </div>
+
+                <div id="webhooksList" style="margin-top: 16px;">
+                  <h4 style="margin-bottom: 12px;">Configured Webhooks</h4>
+                  <div id="webhooksListContent">
+                    <p style="color: var(--secondary-color); text-align: center; padding: 16px;">No webhooks configured yet</p>
+                  </div>
+                </div>
+
+                <div style="margin-top: 24px; padding: 12px; background-color: var(--bg-secondary); border-radius: 8px;">
+                  <h4 style="margin: 0 0 8px 0;">Test Webhook</h4>
+                  <p style="margin: 0 0 12px 0; font-size: 13px; color: var(--secondary-color);">Send a test flash to all configured webhooks</p>
+                  <button onclick="testWebhook()" style="width: 100%; background-color: var(--accent-color);">Send Test Flash</button>
+                </div>
+
+                <div style="margin-top: 16px; padding: 12px; background-color: var(--bg-secondary); border-radius: 8px; font-size: 13px;">
+                  <h4 style="margin: 0 0 8px 0;">Webhook Events:</h4>
+                  <ul style="margin: 0; padding-left: 20px; color: var(--secondary-color);">
+                    <li><strong>/Lap</strong> - White flash (0.5s) on lap completion</li>
+                    <li><strong>/RaceStart</strong> - 2x green flashes on race start</li>
+                    <li><strong>/RaceStop</strong> - 2x red flashes on race stop</li>
+                    <li><strong>/GhostLap</strong> - White flash on ghost lap (future)</li>
+                    <li><strong>/off</strong> - Turn off LEDs</li>
+                    <li><strong>/flash</strong> - Manual white flash</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            <!-- Signal Processing Section -->
+            <div id="settings-signal" class="settings-section">
+              <h2>Signal Processing</h2>
+              <div style="margin-bottom: 16px; padding: 12px; background-color: var(--bg-secondary); border-radius: 8px; font-size: 14px;">
+                <p style="margin: 0 0 8px 0;"><strong>Tune how the timer interprets RSSI before deciding a lap has occurred.</strong></p>
+                <p style="margin: 0; color: var(--secondary-color);">
+                  Most users should run the <em>Calibration Wizard</em> first. Come here if you want to fine-tune by hand.
+                </p>
+              </div>
+
+              <h3>Pipeline Smoothing</h3>
+              <div class="config-item">
+                <label for="v1Smoothing">Smoothing:</label>
+                <div class="input-with-value">
+                  <span id="v1SmoothingSpan" class="val">5</span>
+                  <div class="rssi-step-btns">
+                    <button class="rssi-step-btn" type="button" onclick="stepV1Smoothing(-1)">−</button>
+                    <button class="rssi-step-btn" type="button" onclick="stepV1Smoothing(1)">+</button>
+                  </div>
+                  <input type="range" min="0" max="10" step="1" id="v1Smoothing" value="5" oninput="updateV1Smoothing(this.value)" />
+                </div>
+              </div>
+              <div style="font-size: 12px; color: var(--secondary-color); margin-left: 170px; margin-top: -8px;">
+                Tunes the EMA stage of the 5-stage pipeline (Kalman → median-3 → moving average → EMA → step limiter). <strong>5 (default)</strong>. Lower values reduce signal lag at the cost of letting more noise through; higher values add extra smoothing.
+              </div>
+
+              <!-- Disabled until tested
+              <h3>Gate-1 Bootstrap</h3>
+              <div class="config-item">
+                <label for="gate1BootstrapToggle">Gate-1 Bootstrap:</label>
+                <div style="flex: 1;">
+                  <label class="switch">
+                    <input type="checkbox" id="gate1BootstrapToggle" onchange="document.getElementById('gate1BootstrapLabel').textContent=this.checked?'On':'Off'; stagedConfig['gate1Bootstrap']=this.checked?1:0; stagedDirty=true; updateSaveButton()">
+                    <span class="slider"></span>
+                  </label>
+                  <span style="margin-left: 10px; font-size: 13px; color: var(--secondary-color);" id="gate1BootstrapLabel">Off</span>
+                </div>
+              </div>
+              <div style="font-size: 12px; color: var(--secondary-color); margin-left: 170px; margin-top: -8px;">
+                When <strong>on</strong>, the first lap of a race is special-cased: if the drone is already in the gate at start (RSSI ≥ enter), the first confirmed exit counts as Gate 1, with relaxed thresholds (~exit + 4) and a lower 2-sample debounce. When <strong>off</strong>, Gate 1 behaves like any other gate.
+              </div>
+              -->
+            </div>
+
+            <!-- Firmware Update Section -->
+            <div id="settings-firmware" class="settings-section">
+              <h2>Firmware Update</h2>
+
+              <div class="update-guide-card">
+                <div class="update-version-row">
+                  <span class="update-version-label">Installed version</span>
+                  <span class="update-version-value" id="updateVersionDisplay">—</span>
+                </div>
+
+                <p class="update-intro">
+                  The device fetches new releases directly from GitHub and flashes them automatically. <strong>How it works:</strong>
+                </p>
+                <ol class="update-steps">
+                  <li>Enter your <strong>Home WiFi</strong> credentials below (one-time setup).</li>
+                  <li>Tap <strong>Check for Updates</strong>. The device briefly joins your home WiFi to reach GitHub, then returns to AP mode.</li>
+                  <li>If a newer release exists, you'll see a confirmation prompt with the version and release notes. Tap <strong>Update Now</strong>.</li>
+                  <li>The device downloads and flashes the filesystem image, then the firmware image, then reboots once. The whole process usually takes 1–3 minutes.</li>
+                  <li>Your device may briefly disconnect from <code>FPVRaceOne_XXXX</code> during the update — just reconnect when prompted.</li>
+                </ol>
+                <p class="update-intro" style="margin-top: 12px;">
+                  <strong>Safety:</strong> updates are blocked while a race is running. If a download fails, the device keeps the previous firmware — there is no risk of bricking.
+                </p>
+              </div>
+
+              <h3>Home WiFi</h3>
+              <div class="config-item">
+                <label for="ssid">SSID:</label>
+                <input type="text" id="ssid" maxlength="32"
+                       placeholder="Your home WiFi name"
+                       autocomplete="off"
+                       oninput="autoSaveConfig()" />
+              </div>
+              <div class="config-item">
+                <label for="pwd">Password:</label>
+                <input type="password" id="pwd" maxlength="32"
+                       placeholder="Leave empty for open networks"
+                       autocomplete="new-password"
+                       oninput="autoSaveConfig()" />
+              </div>
+              <div style="font-size: 12px; color: var(--secondary-color); margin-left: 170px; margin-top: -8px; margin-bottom: 16px;">
+                Enter info above and click Apply &amp; Save below. Then click on Check for Update. Home Wifi is only used for firmware updates.
+              </div>
+
+              <h3>Channel</h3>
+              <div class="config-item">
+                <label for="otaChannelSelect">Release channel:</label>
+                <select id="otaChannelSelect" onchange="stagedConfig['otaIncludePrereleases']=parseInt(this.value,10); stagedDirty=true; updateSaveButton()">
+                  <option value="0">Published</option>
+                  <option value="1">Pre-releases</option>
+                </select>
+              </div>
+              <div style="font-size: 12px; color: var(--secondary-color); margin-left: 170px; margin-top: -8px; margin-bottom: 16px;">
+                <strong>Published</strong> (default): shows the last 5 stable releases — devices stay on the production channel.
+                <strong>Pre-releases</strong>: shows the last 5 beta / RC builds (e.g. <code>v1.1.0-beta.1</code>). Useful for testing upcoming features before they're promoted to stable.
+              </div>
+
+              <h3>Update</h3>
+              <div class="update-actions">
+                <a href="https://github.com/ramiss/FPVRaceOne/releases/latest"
+                   target="_blank"
+                   rel="noopener"
+                   class="update-btn update-btn-secondary">
+                  Release Notes ↗
+                </a>
+                <button id="checkUpdatesBtn"
+                        type="button"
+                        onclick="checkForUpdates()"
+                        class="update-btn update-btn-primary">
+                  Check for Updates
+                </button>
+              </div>
+
+              <div id="updateStatusPanel" style="display:none; margin-top: 16px; padding: 12px; background-color: var(--bg-secondary); border-radius: 8px; font-size: 14px;">
+                <div style="margin-bottom: 6px; font-weight: 700; font-size: 13px; color: var(--primary-color); text-transform: uppercase; letter-spacing: 0.05em;">Update Status</div>
+                <div id="updateStatusMessage" style="margin-bottom: 8px; font-weight: 500;">—</div>
+                <div style="background-color: var(--bg-primary); border-radius: 4px; height: 8px; overflow: hidden;">
+                  <div id="updateProgressBar" style="height: 100%; width: 0%; background-color: var(--primary-color); transition: width 0.3s ease;"></div>
+                </div>
+              </div>
+
+              <!-- Inline version picker.  Populated by renderUpdateOptions()
+                   after a successful Check for Updates.  Each row is one
+                   release with tag + colored badge (Upgrade/Installed/
+                   Downgrade) + Install button.  Hidden when there are no
+                   installable options to show. -->
+              <div id="updateOptionsPanel" style="display:none; margin-top: 16px; padding: 12px; background-color: var(--bg-secondary); border-radius: 8px; font-size: 14px;">
+                <div style="margin-bottom: 8px; font-weight: 700; font-size: 13px; color: var(--primary-color); text-transform: uppercase; letter-spacing: 0.05em;">Available Versions</div>
+                <div id="updateOptionsList"></div>
+                <div style="margin-top: 8px; font-size: 12px; opacity: 0.75;">Installing any version takes ~1–3 minutes. The device will reconnect to your home WiFi, download the assets, then reboot. Reconnect to <code>FPVRaceOne_XXXX</code> when prompted.</div>
+              </div>
+            </div>
+
+            <!-- System Section -->
+            <div id="settings-system" class="settings-section">
+              <h2>System Settings</h2>
+              <!-- Comment out Battery Monitoring Section because it is not supported on this hardware -->
+              <div style="display:none">
+                <h3 style="margin-top: 0;">Battery Monitoring</h3>
+                <div id="batteryMonitoringUnavailableNote" style="display:none; margin-top:8px; opacity:0.85;">
+                  Battery monitoring is not available on this hardware build.
+                </div>
+                <div class="config-item">
+                  <label for="batteryMonitorToggle">Battery Monitoring:</label>
+                  <div style="flex: 1;">
+                    <label class="switch">
+                      <input type="checkbox" id="batteryMonitorToggle" onchange="toggleBatteryMonitor(this.checked)">
+                      <span class="slider"></span>
+                    </label>
+                  </div>
+                </div>
+
+                <div id="batteryMonitoringSection" style="display: none;">
+                  <div class="config-item">
+                    <label for="alarmThreshold">Low Battery Alarm:</label>
+                    <div class="input-with-value">
+                      <span class="val">3.6v</span>
+                      <input type="range" id="alarmThreshold" step="0.1" min="0.0" max="3.6" oninput="updateAlarmThreshold(this,value)" />
+                    </div>
+                  </div>
+
+                  <div class="config-item">
+                    <label for="bvolt">Battery Voltage:</label>
+                    <span class="val" id="bvolt">--</span>
+                  </div>
+                </div>
+              </div>
+
+              <h3>Appearance</h3>
+              <div class="config-item">
+                <label for="themeSelect">Theme:</label>
+                <select id="themeSelect" onchange="changeTheme()">
+                  <option value="oceanic" selected>Material Oceanic</option>
+                  <!--<option value="lighter">Material Lighter</option>
+                  <option value="darker">Material Darker</option>
+                  <option value="palenight">Material Palenight</option>
+                  <option value="deepocean">Material Deep Ocean</option>
+                  <option value="forest">Material Forest</option>
+                  <option value="skyblue">Material Sky Blue</option>
+                  <option value="sandybeach">Material Sandy Beach</option>
+                  <option value="volcano">Material Volcano</option>
+                  <option value="space">Material Space</option>
+                  <option value="monokai">Monokai Pro</option>
+                  <option value="dracula">Dracula</option>-->
+                  <option value="github">GitHub</option>
+                  <!--<option value="githubdark">GitHub Dark</option>
+                  <option value="arcdark">Arc Dark</option>
+                  <option value="onedark">One Dark</option>-->
+                  <option value="onelight">One Light</option>
+                  <!--<option value="solarizeddark">Solarized Dark</option>
+                  <option value="solarizedlight">Solarized Light</option>
+                  <option value="nightowl">Night Owl</option>-->
+                  <option value="lightowl">Light Owl</option>
+                  <!--<option value="moonlight">Moonlight</option>
+                  <option value="synthwave">SynthWave '84</option>-->
+                </select>
+              </div>
+
+              <h3>Device</h3>
+              <div class="config-item">
+                <label>Reboot:</label>
+                <button id="rebootBtn" onclick="rebootDevice()" style="background-color: #c0392b; color: #fff; border: none; padding: 8px 20px; border-radius: 6px; cursor: pointer; font-size: 14px;">Reboot Device</button>
+              </div>
+              <div style="font-size: 12px; color: var(--secondary-color); margin-left: 170px; margin-top: -8px;">
+                Restarts the device immediately. Required for TX power changes to take effect.
+              </div>
+
+              <h3>Race Tab</h3>
+              <div class="config-item">
+                <label for="alwaysHideBannerToggle">Always hide download reminder banner:</label>
+                <div style="flex: 1;">
+                  <label class="switch">
+                    <input type="checkbox" id="alwaysHideBannerToggle" onchange="localStorage.setItem('alwaysHideRaceBanner', this.checked ? '1' : '0'); if (!this.checked) sessionStorage.removeItem('hideRaceDownloadReminder'); applyRaceHistoryModeUI();">
+                    <span class="slider"></span>
+                  </label>
+                  <span style="margin-left: 10px; font-size: 13px; color: var(--secondary-color);" id="alwaysHideBannerLabel">Off</span>
+                </div>
+              </div>
+              <div style="font-size: 12px; color: var(--secondary-color); margin-bottom: 12px;">
+                When on, the "Races are lost when unplugged" reminder on the Race tab is permanently hidden.
+              </div>
+
+              <h3>Developer</h3>
+              <div class="config-item">
+                <label for="devModeToggle">Dev Mode (Simulate Laps):</label>
+                <div style="flex: 1;">
+                  <label class="switch">
+                    <input type="checkbox" id="devModeToggle" onchange="mnDevMode=this.checked; document.getElementById('devModeLabel').textContent=this.checked?'On':'Off'; mnRenderRaceTab(mnCurrentNodes); const _pnd=document.getElementById('pilotNameDisplay'); if(_pnd) _pnd.style.cursor=this.checked?'pointer':'default'; stageConfig('devMode', this.checked?1:0); stagedDirty=true; updateSaveButton();">
+                    <span class="slider"></span>
+                  </label>
+                  <span style="margin-left: 10px; font-size: 13px; color: var(--secondary-color);" id="devModeLabel">Off</span>
+                </div>
+              </div>
+              <div style="font-size: 12px; color: var(--secondary-color); margin-bottom: 12px;">
+                When on, tap a pilot's name on the Race tab to inject a simulated random lap. For testing without quads.
+              </div>
+            </div>
+
+            <!-- Diagnostics Section -->
+            <div id="settings-diagnostics" class="settings-section">
+              <h2>System Diagnostics</h2>
+              
+              <h3 style="margin-top: 0;">Hardware Tests</h3>
+              <div style="margin-bottom: 16px; padding: 12px; background-color: var(--bg-secondary); border-radius: 8px; font-size: 14px;">
+                <p style="margin: 0;">Run comprehensive hardware and software tests to verify all FPVRaceOne components are functioning correctly.</p>
+              </div>
+
+              <button id="runTestsButton" onclick="runSelfTest()" style="width: 100%; padding: 12px; margin-bottom: 16px; background-color: var(--accent-color);">Run System Self-Test</button>
+              
+              <div id="testResults" style="display: none; margin-bottom: 16px;">
+                <h4 style="margin-bottom: 12px; color: var(--primary-color);">Test Results</h4>
+                <div id="testResultsList"></div>
+              </div>
+              
+              <div id="testLoading" style="display: none; text-align: center; padding: 24px; background-color: var(--bg-secondary); border-radius: 8px; margin-bottom: 16px;">
+                <p style="margin: 0; font-size: 14px; color: var(--primary-color);">Running tests...</p>
+              </div>
+
+              <h3>System Monitor</h3>
+              <div style="margin-bottom: 8px; padding: 12px; background-color: var(--bg-secondary); border-radius: 8px; font-size: 14px;">
+                <p style="margin: 0;">Monitor real-time system events including WiFi status, race events, RSSI changes, and webhooks.</p>
+              </div>
+              <div style="margin-bottom: 12px; display: flex; gap: 8px; align-items: center;">
+                <button id="serialMonitorToggle" onclick="toggleSerialMonitor()" style="padding: 8px 16px; background-color: var(--accent-color);">Start Monitor</button>
+                <button onclick="clearSerialMonitor()" style="padding: 8px 16px; background-color: var(--secondary-color);">Clear</button>
+                <label style="display: flex; align-items: center; gap: 6px; margin-left: auto; font-size: 14px;">
+                  <input type="checkbox" id="serialAutoScroll" checked style="margin: 0;">
+                  Auto-scroll
+                </label>
+              </div>
+              <div id="serialMonitor" style="height: 300px; overflow-y: auto; background-color: #1a1a1a; color: #00ff00; padding: 12px; border-radius: 4px; font-family: 'Courier New', monospace; font-size: 12px; line-height: 1.4; border: 1px solid var(--border-color);">
+                <div style="color: #888;">System monitor stopped. Click "Start Monitor" to begin.</div>
+              </div>
+            </div>
+          </div>
+          <div class="settings-footer">
+            <button onclick="downloadConfig()" style="background-color: var(--secondary-color);">Download Config</button>
+            <button onclick="document.getElementById('importConfigFile').click()" style="background-color: var(--secondary-color);">Import Config</button>
+            <input type="file" id="importConfigFile" accept=".json" style="display: none;" onchange="importConfig(this)" />
+            <button id="saveConfigBtn" onclick="saveConfig()" disabled>Apply &amp; Save</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </body>
+</html>
+
+

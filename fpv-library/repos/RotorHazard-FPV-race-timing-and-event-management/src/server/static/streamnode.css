@@ -1,0 +1,143 @@
+@font-face {
+  font-family: 'Barlow';
+  font-style: normal;
+  font-weight: 400;
+  src: local(''),
+       url('fonts/BarlowRH-Light.woff2') format('woff2'),
+       url('fonts/BarlowRH-Light.woff') format('woff');
+}
+
+@font-face {
+  font-family: 'Barlow';
+  font-style: italic;
+  font-weight: 400;
+  src: local(''),
+       url('fonts/Barlow-LightItalic.woff2') format('woff2'),
+       url('fonts/Barlow-LightItalic.woff') format('woff');
+}
+
+@font-face {
+  font-family: 'Barlow';
+  font-style: normal;
+  font-weight: 700;
+  src: local(''),
+       url('fonts/BarlowRH-Bold.woff2') format('woff2'),
+       url('fonts/BarlowRH-Bold.woff') format('woff');
+}
+
+@font-face {
+  font-family: 'Barlow';
+  font-style: italic;
+  font-weight: 700;
+  src: local(''),
+       url('fonts/Barlow-BoldItalic.woff2') format('woff2'),
+       url('fonts/Barlow-BoldItalic.woff') format('woff');
+}
+
+html {
+	background: transparent;
+	color: #000;
+	margin: 0;
+	padding: 0;
+	font-family: 'Barlow', sans-serif;
+	font-variant-numeric: tabular-nums;
+	font-weight: 700;
+}
+
+body {
+	font-size: 1.2em;
+	margin: 0;
+	padding: 0;
+}
+
+#position {
+	background: background: hsl(25, 85%, 55%);
+	color: #000;
+	background: var(--position_background_color);
+	color: var(--position_foreground_color);
+
+	font-size: 5rem;
+	line-height: 1;
+	padding: 0.25rem 0 0.75rem;
+	width: 6rem;
+	height: 6rem;
+	display: inline-block;
+	text-align: center;
+	overflow: hidden;
+	box-sizing: border-box;
+
+	position: absolute;
+	top: 0;
+	left: 0;
+}
+
+#pilot-info {
+	background: hsl(212.7, 67.8%, 29.2%);
+	color: #fff;
+	background: var(--pilot_color);
+	color: var(--contrast_pilot_color);
+
+	font-size: 2.5rem;
+	line-height: 1.5;
+	padding: 0 0.25em;
+	height: 1.5em;
+
+	position: absolute;
+	top: 0;
+	left: 6rem;
+	right: 0;
+
+	display: flex;
+}
+
+#callsign {
+	flex: 1 1 auto;
+	margin-right: 1rem;
+	text-overflow: ellipsis;
+	overflow: hidden;
+	white-space: nowrap;
+	display: block;
+}
+
+#rank_stat {
+	flex: 0 0 auto;
+}
+
+#current-laps {
+	position: absolute;
+	top: 4rem;
+	padding: 0.25rem 0.5rem;
+	right: 0;
+	text-align: right;
+	font-size: 2rem;
+	color: #fff;
+	text-shadow:
+		0.07em 0.07em 0 #000,
+		0.13em 0.07em 0 #000,
+		0.07em 0.13em 0 #000,
+		0.13em 0.13em 0 #000,
+		-0.03em -0.03em 0 #000,
+		0.03em -0.03em 0 #000,
+		-0.03em 0.03em 0 #000,
+		0.03em 0.03em 0 #000;
+}
+
+.display_lap_number {
+	padding-right: 0.5em;
+	font-size: 0.8em;
+}
+
+.fastest_lap {
+	color: hsl(25, 85%, 55%);
+	color: var(--fast_lap_color);
+
+	text-shadow:
+		0.07em 0.07em 0 var(--contrast_fast_lap_color),
+		0.13em 0.07em 0 var(--contrast_fast_lap_color),
+		0.07em 0.13em 0 var(--contrast_fast_lap_color),
+		0.13em 0.13em 0 var(--contrast_fast_lap_color),
+		-0.03em -0.03em 0 var(--contrast_fast_lap_color),
+		0.03em -0.03em 0 var(--contrast_fast_lap_color),
+		-0.03em 0.03em 0 var(--contrast_fast_lap_color),
+		0.03em 0.03em 0 var(--contrast_fast_lap_color);
+}

@@ -1,0 +1,712 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/frameLayout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <SurfaceView
+        android:id="@+id/mainVideo"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintDimensionRatio="16:9"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <SurfaceView
+        android:id="@+id/surfaceViewLeft"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        app:layout_constraintDimensionRatio="4:3"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toStartOf="@id/surfaceViewRight"/>
+
+    <SurfaceView
+        android:id="@+id/surfaceViewRight"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        app:layout_constraintDimensionRatio="4:3"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toEndOf="@+id/surfaceViewLeft"
+        app:layout_constraintEnd_toEndOf="parent"/>
+
+    <SeekBar
+        android:id="@+id/seekBar"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        app:layout_constraintTop_toBottomOf="@+id/surfaceViewLeft"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginStart="300dp"
+        android:layout_marginEnd="300dp"
+        android:visibility="gone"
+        android:max="20" />
+
+    <SeekBar
+        android:id="@+id/distanceSeekBar"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        app:layout_constraintTop_toBottomOf="@+id/seekBar"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginStart="300dp"
+        android:layout_marginEnd="300dp"
+        android:visibility="gone"
+        android:max="20"  />
+
+    <Button
+        android:id="@+id/btnSettings"
+        style="@style/Widget.Material3.Button.IconButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:icon="@drawable/baseline_settings_24"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <TextView
+        android:id="@+id/tv_message"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Loading..."
+        android:textColor="@color/colorWhite"
+        android:textSize="24sp"
+        android:translationZ="10dp"
+        android:visibility="visible"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <TextView
+        android:id="@+id/wifi_message"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="@color/colorWhite"
+        android:textSize="24sp"
+        android:translationY="28dp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <FrameLayout
+        android:id="@+id/osdLayout"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:orientation="vertical"
+        android:translationZ="15dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.0"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="1.0">
+
+        <com.openipc.pixelpilot.osd.MovableLayout
+            android:id="@+id/itemVideoStats"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="start"
+            android:orientation="horizontal"
+            android:visibility="visible">
+
+            <ImageView
+                android:id="@+id/imgVideoStats"
+                android:layout_width="16dp"
+                android:layout_height="38dp"
+                android:src="@drawable/baseline_personal_video_24" />
+
+            <TextView
+                android:id="@+id/tvVideoStats"
+                android:layout_width="wrap_content"
+                android:layout_height="38dp"
+                android:layout_marginStart="5dp"
+                android:gravity="start|center_vertical"
+                android:text="Video Decoding Stats"
+                android:textColor="@color/colorWhite"
+                android:textSize="14sp" />
+        </com.openipc.pixelpilot.osd.MovableLayout>
+
+        <com.openipc.pixelpilot.osd.MovableLayout
+            android:id="@+id/itemRecIndicator"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="start"
+            android:orientation="horizontal"
+            android:visibility="visible">
+
+            <ImageView
+                android:id="@+id/imgRecIndicator"
+                android:layout_width="16dp"
+                android:layout_height="38dp"
+                android:src="@drawable/baseline_fiber_manual_record_24"
+                android:visibility="invisible" />
+        </com.openipc.pixelpilot.osd.MovableLayout>
+
+        <com.openipc.pixelpilot.osd.MovableLayout
+            android:id="@+id/itemLinkStatusChart"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="start"
+            android:orientation="horizontal"
+            android:visibility="visible">
+
+            <com.github.mikephil.charting.charts.PieChart
+                android:id="@+id/pcLinkStat"
+                android:layout_width="65dp"
+                android:layout_height="65dp" />
+        </com.openipc.pixelpilot.osd.MovableLayout>
+
+        <com.openipc.pixelpilot.osd.MovableLayout
+            android:id="@+id/itemLinkStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="start"
+            android:orientation="horizontal"
+            android:visibility="visible">
+
+            <ImageView
+                android:id="@+id/imgLinkStatus"
+                android:layout_width="16dp"
+                android:layout_height="38dp"
+                android:src="@drawable/baseline_import_export_24" />
+
+            <TextView
+                android:id="@+id/tvLinkStatus"
+                android:layout_width="wrap_content"
+                android:layout_height="38dp"
+                android:layout_marginStart="5dp"
+                android:gravity="start|center_vertical"
+                android:text="Link Status"
+                android:textColor="@color/colorWhite"
+                android:textSize="14sp" />
+        </com.openipc.pixelpilot.osd.MovableLayout>
+
+        <com.openipc.pixelpilot.osd.MovableLayout
+            android:id="@+id/itemSat"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="start"
+            android:orientation="horizontal"
+            android:visibility="visible">
+
+            <ImageView
+                android:id="@+id/imgSat1"
+                android:layout_width="16dp"
+                android:layout_height="38dp"
+                android:src="@drawable/sat1" />
+
+            <ImageView
+                android:id="@+id/imgSat2"
+                android:layout_width="16dp"
+                android:layout_height="38dp"
+                android:src="@drawable/sat2" />
+
+            <TextView
+                android:id="@+id/tvSat"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:layout_marginStart="5dp"
+                android:gravity="start|center_vertical"
+                android:text="0"
+                android:textColor="@color/colorWhite"
+                android:textSize="14sp" />
+        </com.openipc.pixelpilot.osd.MovableLayout>
+
+        <com.openipc.pixelpilot.osd.MovableLayout
+            android:id="@+id/itemLon"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="start"
+            android:orientation="horizontal"
+            android:visibility="visible">
+
+            <ImageView
+                android:id="@+id/imgLon"
+                android:layout_width="16dp"
+                android:layout_height="38dp"
+                android:src="@drawable/lon" />
+
+            <TextView
+                android:id="@+id/tvLon"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:layout_marginStart="5dp"
+                android:gravity="start|center_vertical"
+                android:text="0.0000000"
+                android:textColor="@color/colorWhite"
+                android:textSize="14sp" />
+        </com.openipc.pixelpilot.osd.MovableLayout>
+
+        <com.openipc.pixelpilot.osd.MovableLayout
+            android:id="@+id/itemLat"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="start"
+            android:orientation="horizontal"
+            android:visibility="visible">
+
+            <ImageView
+                android:id="@+id/imgLat"
+                android:layout_width="16dp"
+                android:layout_height="38dp"
+                android:src="@drawable/lat" />
+
+            <TextView
+                android:id="@+id/tvLat"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:layout_marginStart="5dp"
+                android:gravity="start|center_vertical"
+                android:text="0.0000000"
+                android:textColor="@color/colorWhite"
+                android:textSize="14sp" />
+        </com.openipc.pixelpilot.osd.MovableLayout>
+
+        <com.openipc.pixelpilot.osd.MovableLayout
+            android:id="@+id/itemAlt"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="start"
+            android:orientation="horizontal"
+            android:visibility="visible">
+
+            <ImageView
+                android:id="@+id/imgAlt"
+                android:layout_width="16dp"
+                android:layout_height="38dp"
+                android:src="@drawable/alt" />
+
+            <TextView
+                android:id="@+id/tvAlt"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:layout_marginStart="5dp"
+                android:gravity="start|center_vertical"
+                android:text="0 m"
+                android:textColor="@color/colorWhite"
+                android:textSize="14sp" />
+        </com.openipc.pixelpilot.osd.MovableLayout>
+
+        <com.openipc.pixelpilot.osd.MovableLayout
+            android:id="@+id/itemThrottle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="start"
+            android:orientation="horizontal"
+            android:visibility="visible">
+
+            <ImageView
+                android:id="@+id/imgThrottle"
+                android:layout_width="16dp"
+                android:layout_height="38dp"
+                android:src="@drawable/armed" />
+
+            <TextView
+                android:id="@+id/tvThrottle"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:layout_marginStart="5dp"
+                android:gravity="start|center_vertical"
+                android:text="0 %"
+                android:textColor="@color/colorWhite"
+                android:textSize="14sp" />
+        </com.openipc.pixelpilot.osd.MovableLayout>
+
+        <com.openipc.pixelpilot.osd.MovableLayout
+            android:id="@+id/itemBat"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="start"
+            android:orientation="horizontal"
+            android:visibility="visible">
+
+            <ImageView
+                android:id="@+id/imgBat"
+                android:layout_width="16dp"
+                android:layout_height="38dp"
+                android:src="@drawable/battery" />
+
+            <TextView
+                android:id="@+id/tvBat"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:layout_marginStart="5dp"
+                android:gravity="start|center_vertical"
+                android:text="0 Volt"
+                android:textColor="@color/colorWhite"
+                android:textSize="14sp" />
+        </com.openipc.pixelpilot.osd.MovableLayout>
+
+        <com.openipc.pixelpilot.osd.MovableLayout
+            android:id="@+id/itemBatCell"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="start"
+            android:orientation="horizontal"
+            android:visibility="visible">
+
+            <ImageView
+                android:id="@+id/imgBatCell"
+                android:layout_width="16dp"
+                android:layout_height="38dp"
+                android:src="@drawable/battery" />
+
+            <TextView
+                android:id="@+id/tvBatCell"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:layout_marginStart="5dp"
+                android:gravity="start|center_vertical"
+                android:text="0 Volt/Cell"
+                android:textColor="@color/colorWhite"
+                android:textSize="14sp" />
+        </com.openipc.pixelpilot.osd.MovableLayout>
+
+        <com.openipc.pixelpilot.osd.MovableLayout
+            android:id="@+id/itemDis"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="start"
+            android:orientation="horizontal"
+            android:visibility="visible">
+
+            <ImageView
+                android:id="@+id/imgDis"
+                android:layout_width="16dp"
+                android:layout_height="38dp"
+                android:src="@drawable/home" />
+
+            <TextView
+                android:id="@+id/tvDis"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:layout_marginStart="5dp"
+                android:gravity="start|center_vertical"
+                android:text="0 m"
+                android:textColor="@color/colorWhite"
+                android:textSize="14sp" />
+        </com.openipc.pixelpilot.osd.MovableLayout>
+
+        <com.openipc.pixelpilot.osd.MovableLayout
+            android:id="@+id/itemTotDis"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="start"
+            android:orientation="horizontal"
+            android:visibility="visible">
+
+            <ImageView
+                android:id="@+id/imgTotDis"
+                android:layout_width="16dp"
+                android:layout_height="38dp"
+                android:src="@drawable/home_dist" />
+
+            <TextView
+                android:id="@+id/tvTotDis"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:layout_marginStart="5dp"
+                android:gravity="start|center_vertical"
+                android:text="0 m"
+                android:textColor="@color/colorWhite"
+                android:textSize="14sp" />
+        </com.openipc.pixelpilot.osd.MovableLayout>
+
+        <com.openipc.pixelpilot.osd.MovableLayout
+            android:id="@+id/itemTimer"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="start"
+            android:orientation="horizontal"
+            android:visibility="visible">
+
+            <ImageView
+                android:id="@+id/imgTimer"
+                android:layout_width="16dp"
+                android:layout_height="38dp"
+                android:src="@drawable/timer" />
+
+            <TextView
+                android:id="@+id/tvTimer"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:layout_marginStart="5dp"
+                android:gravity="start|center_vertical"
+                android:text="00:00"
+                android:textColor="@color/colorWhite"
+                android:textSize="14sp" />
+        </com.openipc.pixelpilot.osd.MovableLayout>
+
+        <com.openipc.pixelpilot.osd.MovableLayout
+            android:id="@+id/itemRCLink"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="start"
+            android:orientation="horizontal"
+            android:visibility="visible">
+
+            <ImageView
+                android:id="@+id/imgRCLink"
+                android:layout_width="16dp"
+                android:layout_height="38dp"
+                android:src="@drawable/rssi" />
+
+            <TextView
+                android:id="@+id/tvRCLink"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:layout_marginStart="5dp"
+                android:gravity="start|center_vertical"
+                android:text="0 %"
+                android:textColor="@color/colorWhite"
+                android:textSize="14sp" />
+        </com.openipc.pixelpilot.osd.MovableLayout>
+
+        <com.openipc.pixelpilot.osd.MovableLayout
+            android:id="@+id/itemHomeNav"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="start"
+            android:orientation="horizontal"
+            android:visibility="visible">
+
+            <TextView
+                android:id="@+id/tvHeadingHome"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:layout_marginStart="5dp"
+                android:gravity="start|center_vertical"
+                android:text="0"
+                android:textColor="@color/colorWhite"
+                android:textSize="14sp" />
+
+            <TextView
+                android:id="@+id/tvRealHeading"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:layout_marginStart="5dp"
+                android:gravity="start|center_vertical"
+                android:text="0"
+                android:textColor="@color/colorWhite"
+                android:textSize="14sp" />
+
+            <ImageView
+                android:id="@+id/imgHomeNav"
+                android:layout_width="16dp"
+                android:layout_height="38dp"
+                android:src="@drawable/navigation_rev" />
+        </com.openipc.pixelpilot.osd.MovableLayout>
+
+        <com.openipc.pixelpilot.osd.MovableLayout
+            android:id="@+id/itemGndSpeed"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="start"
+            android:orientation="horizontal"
+            android:visibility="visible">
+
+            <ImageView
+                android:id="@+id/imgGndSpeed"
+                android:layout_width="16dp"
+                android:layout_height="38dp"
+                android:src="@drawable/gnd_speed" />
+
+            <TextView
+                android:id="@+id/tvGndSpeed"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:layout_marginStart="5dp"
+                android:gravity="start|center_vertical"
+                android:text="0 km/h"
+                android:textColor="@color/colorWhite"
+                android:textSize="14sp" />
+        </com.openipc.pixelpilot.osd.MovableLayout>
+
+        <com.openipc.pixelpilot.osd.MovableLayout
+            android:id="@+id/itemAirSpeed"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="start"
+            android:orientation="horizontal"
+            android:visibility="visible">
+
+            <ImageView
+                android:id="@+id/imgAirSpeed"
+                android:layout_width="16dp"
+                android:layout_height="38dp"
+                android:src="@drawable/air_speed" />
+
+            <TextView
+                android:id="@+id/tvAirSpeed"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:layout_marginStart="5dp"
+                android:gravity="start|center_vertical"
+                android:text="0 km/h"
+                android:textColor="@color/colorWhite"
+                android:textSize="14sp" />
+        </com.openipc.pixelpilot.osd.MovableLayout>
+
+        <com.openipc.pixelpilot.osd.MovableLayout
+            android:id="@+id/itemRoll"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="start"
+            android:orientation="horizontal"
+            android:visibility="visible">
+
+            <ImageView
+                android:id="@+id/imgRoll"
+                android:layout_width="16dp"
+                android:layout_height="38dp"
+                android:src="@drawable/roll" />
+
+            <TextView
+                android:id="@+id/tvRoll"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:layout_marginStart="5dp"
+                android:gravity="start|center_vertical"
+                android:text="0 degree"
+                android:textColor="@color/colorWhite"
+                android:textSize="14sp" />
+        </com.openipc.pixelpilot.osd.MovableLayout>
+
+        <com.openipc.pixelpilot.osd.MovableLayout
+            android:id="@+id/itemPitch"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="start"
+            android:orientation="horizontal"
+            android:visibility="visible">
+
+            <ImageView
+                android:id="@+id/imgPitch"
+                android:layout_width="16dp"
+                android:layout_height="38dp"
+                android:src="@drawable/pitch" />
+
+            <TextView
+                android:id="@+id/tvPitch"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:layout_marginStart="5dp"
+                android:gravity="start|center_vertical"
+                android:text="0 degree"
+                android:textColor="@color/colorWhite"
+                android:textSize="14sp" />
+        </com.openipc.pixelpilot.osd.MovableLayout>
+
+        <com.openipc.pixelpilot.osd.MovableLayout
+            android:id="@+id/itemStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="start"
+            android:orientation="horizontal"
+            android:visibility="visible">
+
+            <TextView
+                android:id="@+id/tvStatus"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:text="Waiting status..."
+                android:textColor="@color/colorWhite"
+                android:textSize="16sp" />
+        </com.openipc.pixelpilot.osd.MovableLayout>
+
+        <com.openipc.pixelpilot.osd.MovableLayout
+            android:id="@+id/itemCurrent"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="start"
+            android:orientation="horizontal"
+            android:visibility="visible">
+
+            <TextView
+                android:id="@+id/tvCurrent"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:text="Amp 0.0"
+                android:textColor="@color/colorWhite"
+                android:textSize="16sp" />
+        </com.openipc.pixelpilot.osd.MovableLayout>
+
+        <com.openipc.pixelpilot.osd.MovableLayout
+            android:id="@+id/itemFlightMode"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="start"
+            android:orientation="horizontal"
+            android:visibility="visible">
+
+            <TextView
+                android:id="@+id/tvFlightMode"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:text="Manual"
+                android:textColor="@color/colorWhite"
+                android:textSize="16sp" />
+        </com.openipc.pixelpilot.osd.MovableLayout>
+
+        <com.openipc.pixelpilot.osd.MovableLayout
+            android:id="@+id/itemGSBattery"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="start"
+            android:orientation="horizontal"
+            android:visibility="visible">
+
+            <ImageView
+                android:id="@+id/imgGSBattery"
+                android:layout_width="16dp"
+                android:layout_height="38dp"
+                android:src="@drawable/baseline_battery_charging_full_24" />
+
+            <TextView
+                android:id="@+id/tvGSBattery"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:layout_marginStart="5dp"
+                android:gravity="start|center_vertical"
+                android:text="100%"
+                android:textColor="@color/colorWhite"
+                android:textSize="14sp" />
+        </com.openipc.pixelpilot.osd.MovableLayout>
+
+        <com.openipc.pixelpilot.osd.MovableLayout
+            android:id="@+id/btnRecord"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="start"
+            android:orientation="vertical"
+            android:visibility="visible">
+
+            <ImageView
+                android:id="@+id/imgBtnRecord"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:src="@drawable/record" />
+
+            <TextView
+                android:id="@+id/txtRecordLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:text=""
+                android:textSize="14sp"
+                android:visibility="gone"
+                android:textColor="@android:color/white" />
+        </com.openipc.pixelpilot.osd.MovableLayout>
+    </FrameLayout>
+
+</androidx.constraintlayout.widget.ConstraintLayout>

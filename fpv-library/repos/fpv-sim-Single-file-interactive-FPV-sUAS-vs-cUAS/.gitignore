@@ -1,0 +1,3 @@
+# Quick-run smoke output is a dev artifact — never committed or registered.
+results/monte-carlo-quick.json
+node_modules/

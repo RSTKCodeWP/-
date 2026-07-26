@@ -1,0 +1,33 @@
+firmware
+toolchain
+out/
+.build_soc
+.vscode/tasks.json
+.vscode/settings.json
+
+tools/ioctl_trace_preload.so
+
+# Host-arch build output of tools/rtp_timing_probe.c (see Makefile clean:)
+/rtp_timing_probe
+
+# Compiled on-device IVE probe tools (sources tracked, binaries are not)
+tools/ive_i6c_probe
+tools/ive_i6c_shift
+tools/ive_i6c_hwop
+
+tests/test_runner
+tests/test_imu_ring
+
+enc-ctrl/tests/test_runner
+
+# Performance benchmark artifacts — local-only, not shipped upstream
+bench/
+
+# Sensor-init investigation captures (regscan dumps, snapshots, reports)
+bench_logs/
+
+# Stray gcc dep files in cwd (e.g. from one-shot multi-source builds)
+a-*.d
+
+# Serena LSP tooling config — local developer machine only, not shipped
+/.serena/

@@ -1,0 +1,169 @@
+defaults nosave
+
+
+# version
+# Betaflight / STM32F405 (S405) 4.5.1 Jul 27 2024 / 02:49:14 (77d01ba3b) MSP API: 1.46
+# config rev: fb15bf8
+
+# start the command batch
+batch start
+
+# reset configuration to default settings
+defaults nosave
+
+board_name XILOF4
+manufacturer_id GEFP
+mcu_id 0021002b3536470439363130
+signature 
+
+# resources
+resource MOTOR 1 B06
+resource MOTOR 2 C08
+resource MOTOR 3 B07
+resource MOTOR 4 C09
+resource CAMERA_CONTROL 1 NONE
+resource FLASH_CS 1 B12
+
+# dma
+dma ADC 3 0
+# ADC 3: DMA2 Stream 0 Channel 2
+
+# feature
+feature TELEMETRY
+feature OSD
+
+# serial
+serial 2 64 115200 57600 0 115200
+serial 3 131073 115200 57600 0 115200
+serial 4 2048 115200 57600 0 115200
+
+# beeper
+beeper -GYRO_CALIBRATED
+beeper -RX_LOST
+beeper -RX_LOST_LANDING
+beeper -DISARMING
+beeper -ARMING
+beeper -ARMING_GPS_FIX
+beeper -BAT_LOW
+beeper -GPS_STATUS
+beeper -RX_SET
+beeper -ACC_CALIBRATION
+beeper -ACC_CALIBRATION_FAIL
+beeper -READY_BEEP
+beeper -DISARM_REPEAT
+beeper -ARMED
+beeper -SYSTEM_INIT
+beeper -ON_USB
+beeper -BLACKBOX_ERASE
+beeper -CRASH_FLIP
+beeper -CAM_CONNECTION_OPEN
+beeper -CAM_CONNECTION_CLOSE
+beeper -RC_SMOOTHING_INIT_FAIL
+
+# beacon
+beacon RX_LOST
+beacon RX_SET
+
+# aux
+aux 0 0 0 900 1300 0 0
+aux 1 13 2 1300 2100 0 0
+aux 2 35 1 1300 1700 0 0
+aux 3 40 3 1300 1700 0 0
+
+# vtxtable
+vtxtable bands 6
+vtxtable channels 8
+vtxtable band 1 BOSCAM_A A CUSTOM     0    0    0    0    0    0    0    0
+vtxtable band 2 BOSCAM_B B CUSTOM     0    0    0    0    0    0    0    0
+vtxtable band 3 BOSCAM_E E CUSTOM  5705    0    0    0    0    0    0    0
+vtxtable band 4 FATSHARK F CUSTOM  5740 5760    0 5800    0    0    0    0
+vtxtable band 5 RACEBAND R CUSTOM  5658 5695 5732 5769 5806 5843 5880 5917
+vtxtable band 6 LOWBAND  L CUSTOM     0    0    0    0    0    0    0    0
+vtxtable powerlevels 3
+vtxtable powervalues 14 23 0
+vtxtable powerlabels 25 200 0
+
+# master
+set yaw_spin_recovery = ON
+set dyn_notch_q = 200
+set dyn_notch_min_hz = 90
+set acc_trim_roll = -75
+set acc_calibration = -59,71,-392,1
+set rssi_channel = 12
+set fpv_mix_degrees = 10
+set dshot_bidir = ON
+set motor_pwm_protocol = DSHOT300
+set small_angle = 180
+set gps_sbas_mode = AUTO
+set pid_process_denom = 2
+set osd_tim2 = 2563
+set osd_vbat_pos = 2273
+set osd_rssi_pos = 3116
+set osd_link_quality_pos = 2119
+set osd_rssi_dbm_pos = 2101
+set osd_tim_1_pos = 3405
+set osd_tim_2_pos = 3341
+set osd_flymode_pos = 2614
+set osd_throttle_pos = 486
+set osd_warnings_pos = 14902
+set osd_avg_cell_voltage_pos = 2337
+set osd_battery_usage_pos = 457
+set osd_disarmed_pos = 2621
+set osd_flip_arrow_pos = 33
+set osd_canvas_width = 50
+set osd_canvas_height = 18
+set vtx_band = 5
+set vtx_channel = 8
+set vtx_power = 1
+set vtx_freq = 5917
+
+profile 0
+
+# profile 0
+set iterm_relax_cutoff = 20
+set p_pitch = 51
+set d_pitch = 42
+set f_pitch = 114
+set p_roll = 46
+set d_roll = 39
+set f_roll = 108
+set p_yaw = 50
+set f_yaw = 108
+set d_min_roll = 25
+set d_min_pitch = 28
+set tpa_breakpoint = 1250
+
+profile 1
+
+profile 2
+
+profile 3
+
+# restore original profile selection
+profile 0
+
+rateprofile 0
+
+# rateprofile 0
+set thr_mid = 30
+set thr_expo = 30
+set roll_rc_rate = 70
+set pitch_rc_rate = 70
+set yaw_rc_rate = 70
+set roll_expo = 30
+set pitch_expo = 30
+set yaw_expo = 30
+set roll_srate = 84
+set pitch_srate = 84
+set yaw_srate = 81
+
+rateprofile 1
+
+rateprofile 2
+
+rateprofile 3
+
+# restore original rateprofile selection
+rateprofile 0
+
+# save configuration

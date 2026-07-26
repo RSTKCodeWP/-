@@ -1,0 +1,178 @@
+"use client";
+
+import { Copy } from "lucide-react";
+import { toast } from "sonner";
+import { useTranslations } from "next-intl";
+import { cn } from "@/lib/utils";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/AppTooltip";
+
+type DialogsTranslate = (
+  key: string,
+  values?: Record<string, string | number | Date>
+) => string;
+
+export function formatRelativeTime(iso: string, t: DialogsTranslate): string {
+  try {
+    const diff = Date.now() - new Date(iso).getTime();
+    const minutes = Math.floor(diff / 60_000);
+    if (minutes < 1) return t("projectManager.shared.relativeTime.justNow");
+    if (minutes < 60) {
+      return t("projectManager.shared.relativeTime.minutes", {
+        count: minutes,
+      });
+    }
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) {
+      return t("projectManager.shared.relativeTime.hours", { count: hours });
+    }
+    const days = Math.floor(hours / 24);
+    return t("projectManager.shared.relativeTime.days", { count: days });
+  } catch {
+    return "";
+  }
+}
+
+export function itemLabel(count: number, t: DialogsTranslate): string {
+  return t("projectManager.shared.itemCount", { count });
+}
+
+export function getDisplayTitle(
+  title: string | null | undefined,
+  untitledLabel: string
+): string {
+  const trimmed = title?.trim() ?? "";
+  return trimmed || untitledLabel;
+}
+
+export function getEditableTitle(title: string | null | undefined): string {
+  return title?.trim() ?? "";
+}
+
+const AVATAR_COLORS = [
+  "bg-blue-500/15 text-blue-400",
+  "bg-violet-500/15 text-violet-400",
+  "bg-emerald-500/15 text-emerald-400",
+  "bg-amber-500/15 text-amber-400",
+  "bg-rose-500/15 text-rose-400",
+  "bg-cyan-500/15 text-cyan-400",
+];
+
+function avatarColor(id: string): string {
+  const hash = id.split("").reduce((sum, c) => sum + c.charCodeAt(0), 0);
+  return AVATAR_COLORS[hash % AVATAR_COLORS.length] ?? AVATAR_COLORS[0]!;
+}
+
+export function ProjectAvatar({ id, title }: { id: string; title: string }) {
+  const letter = (title || "?")[0]?.toUpperCase() ?? "?";
+  return (
+    <div
+      className={cn(
+        "flex size-9 shrink-0 items-center justify-center rounded-xl text-sm font-semibold",
+        avatarColor(id)
+      )}
+    >
+      {letter}
+    </div>
+  );
+}
+
+export function SkeletonCard() {
+  return (
+    <div className="border-border/40 bg-background/60 flex animate-pulse items-center gap-3 rounded-xl border px-3 py-2.5">
+      <div className="bg-muted/70 size-9 shrink-0 rounded-xl" />
+      <div className="min-w-0 flex-1 space-y-2">
+        <div className="bg-muted/70 h-3.5 w-28 rounded-md" />
+        <div className="bg-muted/50 h-2.5 w-16 rounded-md" />
+      </div>
+    </div>
+  );
+}
+
+export function EmptyState({
+  icon,
+  title,
+  description,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description: React.ReactNode;
+}) {
+  return (
+    <div className="border-border/40 flex flex-col items-center gap-2.5 rounded-xl border border-dashed px-4 py-8 text-center">
+      <div className="text-muted-foreground/35">{icon}</div>
+      <div>
+        <p className="text-muted-foreground text-sm font-medium">{title}</p>
+        <p className="text-muted-foreground/60 mt-0.5 text-[11px] leading-relaxed">
+          {description}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+export function CurrentBadge({ label }: { label?: string }) {
+  const t = useTranslations("dialogs");
+  return (
+    <span className="bg-muted text-foreground/75 inline-flex shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-medium tracking-wide">
+      {label ?? t("projectManager.shared.currentBadge")}
+    </span>
+  );
+}
+
+export function ProjectIdCopyRow({ projectId }: { projectId: string }) {
+  const t = useTranslations("dialogs");
+  const copyProjectId = async () => {
+    try {
+      await navigator.clipboard.writeText(projectId);
+      toast.success(t("projectManager.projectIdCopy.success"));
+    } catch {
+      toast.error(t("projectManager.projectIdCopy.failed"));
+    }
+  };
+
+  return (
+    <div className="border-border/35 mt-2 flex min-w-0 items-center justify-between gap-3 border-t pt-2">
+      <div className="min-w-0">
+        <p className="text-muted-foreground text-[10px] font-semibold tracking-[0.12em] uppercase">
+          {t("projectManager.projectIdCopy.label")}
+        </p>
+        <p className="text-foreground/85 mt-0.5 truncate font-mono text-[11px]">
+          {projectId}
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation();
+          void copyProjectId();
+        }}
+        className="text-muted-foreground hover:text-foreground flex shrink-0 items-center gap-1.5 text-[11px] font-medium transition-colors"
+        aria-label={t("projectManager.projectIdCopy.ariaLabel")}
+      >
+        <Copy className="size-3.5" />
+        {t("projectManager.projectIdCopy.action")}
+      </button>
+    </div>
+  );
+}
+
+export function DesktopActionTooltip({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactElement;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{children}</TooltipTrigger>
+      <TooltipContent side="top" sideOffset={6}>
+        {label}
+      </TooltipContent>
+    </Tooltip>
+  );
+}

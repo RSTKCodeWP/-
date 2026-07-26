@@ -1,0 +1,173 @@
+name: Build Ruben-FPV Image
+
+on:
+  # Trigger on release
+  release:
+    types: [created]
+
+  # Manual trigger
+  workflow_dispatch:
+    inputs:
+      release_name:
+        description: 'Release name (optional)'
+        required: false
+        default: 'dev-build'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget xz-utils parted e2fsprogs
+
+      - name: Download Raspberry Pi OS
+        run: |
+          wget -q --show-progress -O /tmp/raspios.img.xz \
+            "https://downloads.raspberrypi.com/raspios_lite_arm64/images/raspios_lite_arm64-2024-11-19/2024-11-19-raspios-bookworm-arm64-lite.img.xz"
+
+      - name: Build image
+        run: |
+          set -e
+
+          # Extract
+          echo "Extracting Pi OS..."
+          xz -dk -c /tmp/raspios.img.xz > ruben-fpv.img
+
+          # Expand image
+          echo "Expanding image..."
+          dd if=/dev/zero bs=1M count=500 >> ruben-fpv.img 2>/dev/null
+
+          # Setup loop device
+          echo "Setting up loop device..."
+          LOOP=$(sudo losetup -fP --show ruben-fpv.img)
+          echo "Loop device: $LOOP"
+
+          sleep 2
+          sudo partprobe "$LOOP" || true
+          sleep 1
+
+          # Expand partition
+          echo "Expanding root partition..."
+          sudo parted -s "$LOOP" resizepart 2 100%
+          sudo e2fsck -f -y "${LOOP}p2" || true
+          sudo resize2fs "${LOOP}p2"
+
+          # Mount
+          echo "Mounting..."
+          sudo mkdir -p /mnt/boot /mnt/root
+          sudo mount "${LOOP}p2" /mnt/root
+          sudo mount "${LOOP}p1" /mnt/boot
+
+          # Install Ruben-FPV
+          echo "Installing Ruben-FPV..."
+          sudo mkdir -p /mnt/root/opt/ruben-fpv/repo
+          sudo mkdir -p /mnt/root/opt/ruben-fpv/drivers
+
+          sudo cp -r air /mnt/root/opt/ruben-fpv/repo/
+          sudo cp -r ground /mnt/root/opt/ruben-fpv/repo/
+          sudo cp -r common /mnt/root/opt/ruben-fpv/repo/
+          sudo cp -r drivers/* /mnt/root/opt/ruben-fpv/drivers/ 2>/dev/null || true
+
+          sudo cp image/firstboot.sh /mnt/root/opt/ruben-fpv/
+          sudo chmod +x /mnt/root/opt/ruben-fpv/firstboot.sh
+
+          # Install services
+          sudo cp image/ruben-firstboot.service /mnt/root/etc/systemd/system/
+          sudo ln -sf /etc/systemd/system/ruben-firstboot.service \
+            /mnt/root/etc/systemd/system/multi-user.target.wants/ruben-firstboot.service
+
+          # Create main service
+          sudo tee /mnt/root/etc/systemd/system/ruben-fpv.service > /dev/null << 'EOF'
+          [Unit]
+          Description=Ruben-FPV Service
+          After=network.target
+
+          [Service]
+          Type=simple
+          ExecStartPre=/opt/ruben-fpv/setup-monitor.sh
+          ExecStart=/opt/ruben-fpv/start.sh
+          Restart=on-failure
+          RestartSec=5
+          User=root
+          Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+          LimitNOFILE=65536
+          Nice=-10
+          StandardOutput=journal
+          StandardError=journal
+          SyslogIdentifier=ruben-fpv
+
+          [Install]
+          WantedBy=multi-user.target
+          EOF
+
+          # Default config
+          sudo tee /mnt/root/opt/ruben-fpv/config.sh > /dev/null << 'EOF'
+          #!/bin/bash
+          WIFI_INTERFACE="wlan1"
+          WIFI_CHANNEL="36"
+          VIDEO_PORT="5000"
+          MTU_SIZE="1400"
+          VIDEO_DEVICE="/dev/video0"
+          VIDEO_WIDTH="1280"
+          VIDEO_HEIGHT="720"
+          VIDEO_FPS="30"
+          VIDEO_BITRATE="4M"
+          VIDEO_GOP="10"
+          EOF
+
+          # Boot config
+          sudo tee /mnt/boot/ruben.txt > /dev/null << 'EOF'
+          # Ruben-FPV Configuration
+          # ROLE=air (transmitter) or ROLE=ground (receiver)
+          ROLE=air
+          EOF
+
+          # Enable SSH
+          sudo touch /mnt/boot/ssh
+
+          # Set hostname
+          echo "ruben-fpv" | sudo tee /mnt/root/etc/hostname > /dev/null
+
+          # Cleanup
+          echo "Finalizing..."
+          sync
+          sudo umount /mnt/boot
+          sudo umount /mnt/root
+          sudo losetup -d "$LOOP"
+
+          # Compress (use -6 and 2 threads to stay within 4GB RAM limit)
+          echo "Compressing image..."
+          xz -6 -T2 ruben-fpv.img
+
+          echo "Done!"
+          ls -lh ruben-fpv.img.xz
+
+      - name: Calculate checksum
+        run: |
+          sha256sum ruben-fpv.img.xz > ruben-fpv.img.xz.sha256
+          cat ruben-fpv.img.xz.sha256
+
+      - name: Upload to Release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            ruben-fpv.img.xz
+            ruben-fpv.img.xz.sha256
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Artifact (manual builds)
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ruben-fpv-image-${{ github.event.inputs.release_name }}
+          path: |
+            ruben-fpv.img.xz
+            ruben-fpv.img.xz.sha256

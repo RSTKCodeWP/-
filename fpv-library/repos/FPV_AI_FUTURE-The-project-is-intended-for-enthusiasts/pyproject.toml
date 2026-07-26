@@ -1,0 +1,65 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fpv-interceptor"
+version = "0.1.0"
+description = "Block 03 — FPV interceptor: recon -> contact -> kinetic kill on confirmed operator approval. Flight-link, control, launcher UI, target-lock/reacquire, IMM intercept prediction, and the arming-authorization safety gate."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Proprietary" }
+authors = [{ name = "CUAS / FPV interceptor" }]
+
+# Lean deps. Heavy/optional bits (YOLO inference, Ed25519 signing) are extras —
+# the core control/contracts/safety logic runs without them.
+dependencies = [
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+# Real signing in production. Without these, safety/verifier.py degrades to
+# HMAC-SHA256 dev fallback (key_id 'hmac:...') — NOT for field use.
+safety = [
+    "pynacl>=1.5",
+    "cryptography>=42.0",
+    "jsonschema>=4.0",
+]
+# Offline perception (interceptor detector). Weights are NOT included; train first.
+# OpenCV is capped below 5.0: the MTI ego-registration (ORB + RANSAC homography) is
+# validated against the 4.x behaviour; OpenCV 5.0 changes ORB/findHomography enough to
+# leave a sub-pixel residual on bright point clutter, which trips the motion gate on a
+# static star (see fpv/seeker/tests/test_mti.py). Revisit when 5.x is re-validated.
+perception = [
+    "ultralytics>=8.0",
+    "numpy>=1.26",
+    "opencv-python>=4.8,<5",
+]
+dev = [
+    "pytest>=8.0",
+    "pytest-timeout>=2.3",   # hard per-test wall-clock cap so a wedged engagement can't hang CI
+    "mypy>=1.8",
+    "ruff>=0.5",
+]
+
+[tool.setuptools]
+packages = ["fpv"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+
+[tool.pytest.ini_options]
+testpaths = ["fpv", "fpga"]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]
+# Global anti-hang net (needs the dev extra's pytest-timeout; ignored with a warning if absent).
+# Generous enough for the heaviest single engagement (~40 s) but bounds any wedged loop. The fast
+# inner-loop gate is `pytest -m "not slow"`; the full acceptance tier runs everything.
+timeout = 120
+timeout_method = "thread"

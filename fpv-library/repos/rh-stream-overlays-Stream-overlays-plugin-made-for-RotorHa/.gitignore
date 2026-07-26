@@ -1,0 +1,11 @@
+# Ignore files
+.env
+
+# Ignore folders
+node_modules
+site
+.venv
+.cache
+.ruff_cache
+__pycache__
+custom_plugins/stream_overlays/static/dist

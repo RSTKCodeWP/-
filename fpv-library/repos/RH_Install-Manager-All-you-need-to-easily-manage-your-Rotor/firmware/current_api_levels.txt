@@ -1,0 +1,4 @@
+Included firmware API levels:
+stable: 36
+beta:   36
+main:   36

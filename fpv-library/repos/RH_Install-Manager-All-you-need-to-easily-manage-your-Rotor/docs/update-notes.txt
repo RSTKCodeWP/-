@@ -1,0 +1,456 @@
+# use arrows, pg up and pg down or space bar to navigate
+# hit 'q' to exit now
+
+
+        UPDATE NOTES:
+        ^^^^^^^^^^^^
+
+6n3.440.36
+1. Fixed Trixie installation config file logic
+
+6n2.440.36
+1. RotorHazard Arduino firmware with API level 36 added as stable branch firmware.
+
+6n1.440.35
+1. RotorHazard 4.4.0 (stable) release installation and update support added.
+
+6m2.431.35
+1. RotorHazard 4.4.0-beta.3 release installation and update support added.
+
+6m1.431.35
+1. Fixed pillow version and jdk version redundant assignment
+2. Boot config file logic ready for Trixie OS version
+3. Removed warnings regarding missing r-strings (IP address banner logic)
+4. NTP changed chrony due to removal form Trixie sources
+
+6l5.431.35
+1. New RotorHazard Arduino firmware added (as main branch firmware - API 36).
+
+6l4.431.35
+1. RotorHazard 4.4.0-beta.2 Arduino firmware added (as beta branch firmware - API 36).
+
+6l3.431.35
+1. RotorHazard 4.4.0-beta.2 release installation and update support added.
+
+6l2.431.35
+1. RotorHazard 4.4.0-beta.1 release installation and update support added.
+
+6l1.431.35
+1. RotorHazard 4.3.1 (stable) release installation and update support added.
+
+6k7.430.35
+1. Minor version file updates
+
+6k6.430.35
+1. Fixed bug where serial port names were converted to lower case in the config.
+
+6k5.430.35
+1. RotorHazard 4.3.0 (stable) release installation and update support added.
+
+6k3.421.35
+1. RotorHazard 4.3.0-beta.3 release installation and update support added.
+
+6k2.421.35
+1. Readme page updated
+
+6k1.421.35
+1. Port forwarding not-working after reboot issue fixed
+
+6j3.421.35
+1. RotorHazard 4.3.0-beta.2 release installation and update support added.
+
+6j2.421.35
+1. RotorHazard 4.3.0-beta.1 release installation and update support added.
+
+6j1.421.35
+1. RotorHazard 4.2.1 (stable release) installation and update support added.
+
+6j.420.35
+1. RotorHazard 4.2.0 (stable release) installation and update support added.
+
+6i3.411.35
+1. RotorHazard 4.2.0-beta.3 release installation and update support added.
+2. Update notes cleanup
+
+6i2.411.35
+1. RotorHazard 4.2.0-beta.2 release installation and update support added.
+
+6i.411.35
+1. LED rows support added in RotorHazard config section
+
+6h1.411.35
+1. RotorHazard 4.2.0-beta.1 release installation and update support added.
+
+6h.411.35
+1. RotorHazard 4.1.1 (stable release) installation and update support added
+
+6g.410.35
+1. RotorHazard 4.1.0 (stable release) installation and update support added
+
+6f50.401.35
+1. RotorHazard 4.1.0-beta.6 installation and update support added
+
+6f49.401.35
+1. RotorHazard 4.1.0-beta.5 installation and update support added
+
+6f48.401.35
+1. RotorHazard 4.1.0-beta.4 installation and update support added
+
+6f47.401.35
+1. RotorHazard 4.1.0-beta.3 installation and update support added
+
+6f46.401.35
+1. RotorHazard 4.1.0-beta.2 installation and update support added
+
+6f45.401.35
+1. Improved Pi 5 configuration process
+
+6f43.401.35
+1. Features menu tweaked
+2. Another hotspots improvements
+
+6f4.401.35
+1. Initial system config tweaked for all Bullseye and Bookworm
+2. Networking (hotspots) tweaks and improvements
+3. Files refactored for better organization
+
+6f3.401.35
+1. RotorHazard 4.1.0-beta.1 installation and update support added
+2. NuclearHazard installation process tweaks
+
+6f.401.35
+1. NuclearHazard quick install fully supported
+2. NuclearHazard automatic AP added
+3. Configuration wizards tweaks
+
+6e8.401.35
+1. NuclearHazard quick install username check added
+
+6e72.401.35
+1. Raspberry Pi 5 ready (testing)
+
+6e7.401.35
+1. NuclearHazard automatic update script added
+
+6e6.401.35
+1. NuclearHazard automatic install script added
+
+6e51.401.35
+1. Additional configs wizard options
+2. NuclearHazard ready (testing)
+
+6e5.401.35
+1. Changed RHIM config wizard - added old PCB flag
+2. Added miniuart related lines to config.txt
+3. Code tweaks
+
+6e3.401.35
+1. Added option to proceed with the installation
+without rebooting.
+2. Fixed config bugs (serial ports)
+
+6e2.401.35
+1. Added option to change the origin of the download
+without entering the Configuration Wizard
+
+6e.401.35
+1. Added message when logging into terminal during the installation
+2. Menus tweaks and improvements
+
+6d5.401.35
+1. Coding improvements
+
+6d.401.35
+1. Improved installation instructions for the user
+
+6c.401.35
+1. LEDs support and config wizard tweaks
+2. New way of RHIM version numbering
+
+401.35.6b
+1. Better stable update pending handling
+2. Minor tweaks in readme file
+
+401.35.6a
+1. Newer venv implementation added
+(installation split into 2 steps)
+2. Optional (hidden) git clone instead of wget methods
+of update ('ugit') and installation ('igit')
+3. Minor code, scripts, imports and prompts tweaks
+
+401.35.5d5
+1. Hostnames shown in upper part of the screen
+
+401.35.5d4
+1. RotorHazard 4.0.1 installation and update support added
+
+400.35.5d
+1. AccessPoint option added - Bookworm compatible
+2. jq dependency added
+
+400.35.5c
+1. Better configuration process after installation
+2. More readable Manager part of menu + descriptive menus
+3. smbus dependency converted to smbus2
+
+400.35.5b8
+1. venv in a service implemented
+2. Pi 5 detection added
+3. Minor code fixes
+
+400.35.5b6
+1. RotorHazard 4.0.0 installation and update support added
+2. venv installation method implemented
+3. Better venv handling
+
+322.35.5b2
+1. RotorHazard 4.0.0-beta.5 installation and update support added
+
+322.35.5b1
+1. Better SPI enabling protocol
+
+322.35.5b
+1. Code refactored due to new software name
+
+322.35.5a
+1. RotorHazard 3.2.2 (stable release) installation and update support added
+2. RotorHazard 4.0.0 (beta 4 release) installation and update support added
+3. Name of the main directory of the program changed
+4. Files names changed (updated)
+5. Aliases, Read-me files, images and typos - updated
+
+321.35.4f2
+1. Program itself and download "targets" migrated to the official RotorHazard repo
+2. Changes in code, aliases and instructions due to the migration
+3. Minor code and readme files changes
+
+322.35.4i
+1. RotorHazard 3.2.2 (stable release) installation and update support added
+2. RotorHazard 4.0.0 (beta 4 release) installation and update support added
+
+321.35.4h
+1. RotorHazard 4.0.0 (beta 3 release) installation and update support added
+
+321.35.4g
+1. RotorHazard 4.0.0 (beta 2 release) installation and update support added
+
+321.35.4f
+1. RotorHazard 4.0.0 (beta release) installation and update support added
+
+321.35.4e
+1. RotorHazard 3.2.1 (stable release) installation and update support added
+
+320.35.4d
+1. Prepared for merge into RotorHazard repository
+
+320.35.4c
+1. Bugs fixes - related to new RotorHazard releases naming convention
+2. Minor code cleanup
+
+320.35.4b
+1. RotorHazard 3.2.0 (stable release) installation and update support added
+
+311.35.4a
+1. Updated main readme file
+2. Automatic download feature added
+
+311.35.3k5
+1. RotorHazard 3.2.0-beta.4 installation and update support added
+
+311.35.3k4
+1. More robust scripts for installation on Ubuntu etc.
+
+311.35.3k3
+1. RotorHazard 3.2.0-beta.3 installation and update support added
+
+311.35.3k2
+1. Removed obsolete sensors installation scripts
+2. No SPI, I2C and UART configuration when in simulation mode
+3. Coding improvements - beta name extrapolation, more update sources
+
+311.35.3k1
+1. RotorHazard 3.2.0-beta.2 installation and update support added
+
+311.35.3k
+1. RotorHazard 3.2.0-beta.1 installation and update support added
+
+311.35.3j3
+1. Supports RotorHazard 3.1.1 (stable release) installation
+
+310.35.3j3
+1. Supports RotorHazard 3.1.0 (stable release) installation
+
+300.35.3j3
+1. Tweaks allowing smooth operation on Raspbian 11 Bullseye added
+
+300.35.3j2
+1. RotorHazard 3.1.0-beta.3 installation and update support added
+
+300.35.3j1
+1. Enhanced Raspberry Pi model detection protocol
+(Pi Zero compatible java installation script added)
+2. Updated main readme file and FAQ section
+3. Possible update from the custom source - developer tool
+4. "Show firmware info" menu part added
+5. Simple error report after unsuccessful automatic flashing added
+
+300.35.3j
+1. Better flashing protocol code
+2. Port forwarding added for services that run on default port 80
+Services like RaspAP that use port 80 are available on port 8080
+(can be undone or configured by editing /etc/rc.local)
+3. Improved procedures like AccessPoint config with better manuals
+4. Popular OLED screen being recognized in "show I2C devices"
+
+300.35.3i6
+1. RotorHazard 3.1.0-beta.2 installation and update support added
+
+300.35.3i5
+1. RotorHazard 3.1.0-beta.1 installation and update support added
+
+300.35.3i4
+1. RotorHazard 3.0.0 installation and update support added
+
+233.25.3i4
+1. Nodes firmware updated - API level 35 in newest Beta target
+
+233.25.3i3
+1. Arduino Nano with "new bootloader" flashing supported - automatically
+2. Port forwarding added - server available on default port 80
+3. Improved nodes flashing procedure - timeout added
+4. Improved Pi 4 detection - during I2C enabling
+5. Automatically added alias "ota" and "rh"- easier software starting
+6. Improved interfaces enabling (SSH, SPI, I2C, UART)
+7. Minor tweaks, visual and logical improvements
+
+233.25.3i2
+1. Minor visual tweaks
+2. Raspberry Pi 4 detection fixed
+3. RotorHazard 3.0.0-beta.2 target added
+
+233.25.3i1
+1. RH-ota beta branch name refactored from 'master' to 'main'
+
+233.25.3i
+1. Firmware api-levels description updated
+2. RotorHazard server versions targets descriptions updated
+
+233.25.3h3
+1. Minor custom RotorHazard version selection bug fix (in a wizard)
+
+233.25.3h2
+1. Nodes firmware updated for 'beta' (API: 34) and 'main' (API: 35) RH targets
+
+233.25.3h1
+1. RotorHazard 2.3.3 installation and update support added
+
+232.25.3h1
+1. RotorHazard target "master" changed to "main"
+
+232.25.3h
+1. Automatic prompt when newer version of RotorHazard is available
+(when OTA is up-to-date, checks only for stable releases)
+2. Beta RotorHazard "3.0.0-beta.1" support added
+
+232.25.3g
+1. Automatically generated prompt when newer version of OTA is available
+(if internet connection is available)
+2. FAQ section added - mostly focused on ISP programming issues for now
+3. I2C bus number selection added to a config file and a flashing protocol
+(useful when using Banana Pi type SBCs etc.)
+4. More useful "Show I2C devices" menu - with I2C bus number indication
+5. More verbose log output
+6. Basic Serial interface diagnostic tool added
+7. Better error handling in few circumstances
+
+232.25.3f
+1. Automatic conversion existing sensors libraries to python3 versions added
+
+232.25.3e
+1. Minor code tweaks
+
+232.25.3d
+1. RotorHazard release 2.3.2 support added
+
+231.25.3d
+1. RotorHazard release 2.3.1 support added
+
+230.25.3d
+1. Added i2c bus number selection to the RotorHazard configuration wizard
+2. OTA configuration wizard split into 2 sections (added advanced wizard)
+
+230.25.3c
+1. Python3 (pip3) dependencies installation bug fix 
+
+230.25.3b
+1. More descriptive self-update section
+2. Even better obsolete python3 usage handling
+3. Small bugs fixes
+
+230.25.3a
+1. Changed naming scheme - described in detail in the file "~/RH-ota/version.txt"
+(user knows at a glance if he has to update OTA to install newer RH)
+2. Only python3 is being used to handle all RotorHazard stuff
+3. Automatic transition to python3 for RotorHazard during update implemented
+4. Better error handling and tutorial in case of obsolete OS
+5. Some visual tweaks
+
+______________________________________________________________________________
+
+2.5.2
+Small pip installation bug fixes
+Last "old python for RotorHazard" version of OTA 
+
+2.5.1
+Added support for RotorHazard 2.3.0 stable installation 
+
+2.5.0i
+Added support for RotorHazard 2.3.0 beta 3 installation 
+
+2.5.0h
+Added support for RotorHazard 2.3.0 beta 2 installation 
+
+2.5.0g
+One-node systems flashing support - fixed
+
+2.5.0f
+"Checking UART connection" in "flashing menu" - fixed 
+
+2.5.0e
+Update to RotorHazard 2.3 is supported during an update
+
+2.5.0d
+New "static/user" directory being copied during RH update
+
+2.5.0c
+Small bug fixes in "configuration wizard"
+Readme added to "how_to" directory
+
+2.5.0b
+RotorHazard 2.2.0 stable supported
+API-level 25 as stable firmware supported
+
+2.5.0a
+API-level 25 supported
+Ports name as a wizard configuration point
+
+2.3.0e
+Added „ttyAMA0” port and custom port selection in „port selection” part
+More descriptive USB first time flashing
+Debug mode changed name to simulation mode 
+
+2.3.0d
+Automatic 'nameserver' fixing implemented
+Simpler main menu, server start moved to RH Manager
+
+2.3.0c
+Added automatic I2C devices detection
+
+2.3.0
+First release of "new OTA" - all benefits listed in README.md this time
+New firmware with API level 23 (when 'master' release of RH is selected)
+
+_________________________________________________________________
+
+
+# EXIT by hitting "q" 

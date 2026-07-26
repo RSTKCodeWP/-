@@ -1,0 +1,6 @@
+
+-------------------------------------------------
+Type 'rhim' to launch RotorHazard Install-Manager
+and continue RotorHazard server installation
+-------------------------------------------------
+

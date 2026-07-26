@@ -1,0 +1,10 @@
+{
+  "domain": "testdomain",
+  "version": "1.0.1",
+  "name": "Test Plugin",
+  "description": "A test plugin",
+  "category": "test",
+  "documentation_uri": "http://example.com",
+  "dependencies": [],
+  "zip_filename": "plugin.zip"
+}

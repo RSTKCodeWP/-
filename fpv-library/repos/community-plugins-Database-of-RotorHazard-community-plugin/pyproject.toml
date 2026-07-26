@@ -1,0 +1,78 @@
+[project]
+name = "rh-community-plugins"
+version = "0.0.0"
+description = "A collection of plugins for RotorHazard"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+  "aiogithubapi>=24.6.0",
+  "awscli<=1.36.40",
+  "jq>=1.8.0",
+  "python-dotenv>=1.1.0",
+]
+
+[dependency-groups]
+dev = [
+  "covdefaults==2.3.0",
+  "pre-commit-hooks==6.0.0",
+  "prek>=0.2.19",
+  "pytest==9.1.1",
+  "pytest-asyncio==1.4.0",
+  "pytest-cov==7.1.0",
+  "pytest-freezer==0.4.9",
+  "ruff==0.15.22",
+  "syrupy==5.5.3",
+]
+docs = [
+  "zensical>=0.0.33",
+]
+
+[tool.uv]
+default-groups = []
+
+[tool.coverage.run]
+plugins = ["covdefaults"]
+source = ["metadata"]
+
+[tool.coverage.report]
+fail_under = 50
+show_missing = true
+
+[tool.pytest.ini_options]
+addopts = "--cov"
+asyncio_mode = "auto"
+pythonpath = ["metadata", "scripts"]
+filterwarnings = [
+  "ignore:'asyncio\\.iscoroutinefunction' is deprecated and slated for removal in Python 3\\.16; use inspect\\.iscoroutinefunction\\(\\) instead:DeprecationWarning:backoff\\._decorator",
+  "ignore:'asyncio\\.iscoroutinefunction' is deprecated and slated for removal in Python 3\\.16; use inspect\\.iscoroutinefunction\\(\\) instead:DeprecationWarning:backoff\\._async",
+]
+
+[tool.ruff]
+target-version = "py313"
+lint.select = ["ALL"]
+lint.ignore = [
+  "ARG001",  # Unused function arguments
+  "ANN401",  # Opinionated warning on disallowing dynamically typed expressions
+
+  "D203",    # Conflicts with other rules
+  "D213",    # Conflicts with other rules
+  "D417",    # False positives in some occasions
+  "PLR2004", # Just annoying, not really useful
+  "SLOT000", # Has a bug with enums: https://github.com/astral-sh/ruff/issues/5748
+  "BLE001",  # False positives in some occasions
+  "TRY003",  # Avoid specifying long messages outside the exception
+  "EM101",   # Raw string in exception message
+
+  # Conflicts with the Ruff formatter
+  "COM812",
+
+  # Custom ignores
+  "G004",    # Allow logging with f-strings
+]
+
+[tool.ruff.lint.flake8-pytest-style]
+mark-parentheses = false
+fixture-parentheses = false
+
+[tool.ruff.lint.mccabe]
+max-complexity = 25

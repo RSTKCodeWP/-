@@ -1,0 +1,712 @@
+/**
+ * CLI Terminal Handlers
+ *
+ * Provides raw CLI access to iNav/Betaflight flight controllers.
+ * Uses the same transport as MSP but bypasses the MSP protocol layer.
+ */
+
+import { ipcMain, BrowserWindow, dialog, app } from 'electron';
+import { writeFile, mkdir } from 'fs/promises';
+import path from 'path';
+import type { Transport } from '@ardudeck/comms';
+import { IPC_CHANNELS } from '../../shared/ipc-channels.js';
+
+// =============================================================================
+// State
+// =============================================================================
+
+let mainWindow: BrowserWindow | null = null;
+let currentTransport: Transport | null = null;
+let cliModeActive = false;
+let cliDataListener: ((data: Uint8Array) => void) | null = null;
+
+// Callback to notify MSP handlers when CLI mode changes
+// restartTelemetry: false when exiting via 'exit' command (board will reboot, telemetry must not restart)
+let onCliModeChange: ((active: boolean, restartTelemetry?: boolean) => void) | null = null;
+
+
+// =============================================================================
+// Initialization
+// =============================================================================
+
+/**
+ * Initialize CLI handlers with the main window reference
+ */
+export function initCliHandlers(window: BrowserWindow): void {
+  mainWindow = window;
+  registerIpcHandlers();
+}
+
+/**
+ * Set the transport for CLI communication (called from MSP handlers)
+ * IMPORTANT: Always resets CLI mode state to ensure clean connection
+ */
+export function setCliTransport(transport: Transport | null): void {
+  // Cleanup old listener if transport changes
+  if (cliDataListener && currentTransport) {
+    currentTransport.off('data', cliDataListener as (...args: unknown[]) => void);
+    cliDataListener = null;
+  }
+  currentTransport = transport;
+
+  // ALWAYS reset CLI mode state when transport changes (new connection or disconnect)
+  // This fixes the "CLI mode stuck" bug where exit command breaks reconnection
+  if (cliModeActive) {
+    cliModeActive = false;
+    onCliModeChange?.(false);
+  }
+}
+
+/**
+ * Set callback for CLI mode changes (so MSP can pause telemetry)
+ */
+export function setCliModeChangeCallback(callback: (active: boolean, restartTelemetry?: boolean) => void): void {
+  onCliModeChange = callback;
+}
+
+/**
+ * Check if CLI mode is currently active
+ */
+export function isCliModeActive(): boolean {
+  return cliModeActive;
+}
+
+/**
+ * Exit CLI mode if active (call before disconnect to leave board in MSP mode)
+ * Uses timeout to prevent hanging if board is in bad state
+ */
+export async function exitCliModeIfActive(): Promise<void> {
+  if (cliModeActive && currentTransport?.isOpen) {
+    try {
+      // NOTE: No scheduleReconnect here — this function is called during disconnect cleanup.
+      // The caller is about to close the transport, so reconnect would be pointless.
+      // Use timeout to prevent hanging - if write takes > 1 second, skip it
+      const writePromise = currentTransport.write(new TextEncoder().encode('exit\n'));
+      const timeoutPromise = new Promise<void>((_, reject) =>
+        setTimeout(() => reject(new Error('CLI exit write timeout')), 1000)
+      );
+
+      await Promise.race([writePromise, timeoutPromise]);
+      await delay(300);
+    } catch (err) {
+      console.warn('[CLI] Failed to send exit command (continuing with disconnect):', err);
+      // Don't block disconnect on CLI exit failure
+    }
+  }
+  // Reset state regardless - ALWAYS clean up even if write failed
+  if (cliDataListener && currentTransport) {
+    try {
+      currentTransport.off('data', cliDataListener as (...args: unknown[]) => void);
+    } catch {
+      // Ignore errors removing listener
+    }
+  }
+  cliDataListener = null;
+  cliModeActive = false;
+  // Don't restart telemetry - caller handles cleanup
+  onCliModeChange?.(false, false);
+}
+
+/**
+ * Clean up CLI state (called on disconnect)
+ */
+export function cleanupCli(): void {
+  if (cliDataListener && currentTransport) {
+    currentTransport.off('data', cliDataListener as (...args: unknown[]) => void);
+  }
+  cliDataListener = null;
+  cliModeActive = false;
+  currentTransport = null;
+}
+
+// =============================================================================
+// Helper Functions
+// =============================================================================
+
+/**
+ * Send data to the renderer process
+ */
+function safeSend(channel: string, data: unknown): void {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send(channel, data);
+  }
+}
+
+/**
+ * Wait for a specified duration
+ */
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Filter out MSP binary data from CLI output.
+ * MSP frames that arrive after CLI mode is entered (in-flight responses)
+ * should not be displayed as garbage text.
+ *
+ * MSP v1: $M< (response), $M> (request), $M! (error)
+ * MSP v2: $X< (response), $X> (request), $X! (error)
+ */
+function filterMspFromData(data: Uint8Array): Uint8Array {
+  if (data.length === 0) return data;
+
+  // Quick check: if no '$' (0x24) in data, it's pure CLI text
+  let hasDollar = false;
+  for (let i = 0; i < data.length; i++) {
+    if (data[i] === 0x24) {
+      hasDollar = true;
+      break;
+    }
+  }
+  if (!hasDollar) return data;
+
+  // Filter out MSP frames
+  const result: number[] = [];
+  let i = 0;
+
+  while (i < data.length) {
+    // Check for MSP v1/v2 header: $ followed by M or X
+    if (data[i] === 0x24 && i + 2 < data.length) {
+      const second = data[i + 1];
+      const third = data[i + 2];
+
+      // MSP v1: $M followed by <, >, or !
+      if (second === 0x4D && (third === 0x3C || third === 0x3E || third === 0x21)) {
+        // MSP v1 frame: $M + dir + len + cmd + payload + checksum
+        if (i + 4 < data.length) {
+          const payloadLen = data[i + 3] ?? 0;
+          const frameLen = 6 + payloadLen;
+          i += Math.min(frameLen, data.length - i);
+          continue;
+        } else {
+          // Incomplete frame, skip rest
+          break;
+        }
+      }
+
+      // MSP v2: $X followed by <, >, or !
+      if (second === 0x58 && (third === 0x3C || third === 0x3E || third === 0x21)) {
+        // MSP v2 frame: $X + dir + flag + cmd(2) + len(2) + payload + crc
+        if (i + 8 < data.length) {
+          const payloadLen = (data[i + 6] ?? 0) | ((data[i + 7] ?? 0) << 8);
+          const frameLen = 9 + payloadLen;
+          i += Math.min(frameLen, data.length - i);
+          continue;
+        } else {
+          // Incomplete frame, skip rest
+          break;
+        }
+      }
+    }
+
+    // Not MSP, keep this byte
+    result.push(data[i]!);
+    i++;
+  }
+
+  return new Uint8Array(result);
+}
+
+// =============================================================================
+// CLI Operations
+// =============================================================================
+
+/**
+ * Enter CLI mode by sending '#' character
+ */
+export async function enterCliMode(): Promise<boolean> {
+  if (!currentTransport?.isOpen) {
+    return false;
+  }
+
+  if (cliModeActive) {
+    return true;
+  }
+
+  try {
+    // CRITICAL: Set CLI mode active FIRST to stop MSP handler from processing data
+    cliModeActive = true;
+    onCliModeChange?.(true);
+
+    // Small delay to let MSP telemetry stop
+    await delay(100);
+
+    // NOW set up data listener - MSP handler is already skipping
+    // Filter out any MSP frames that arrive (in-flight responses)
+    // Re-check transport in case it was closed during the delay above
+    if (!currentTransport?.isOpen) {
+      cliModeActive = false;
+      onCliModeChange?.(false);
+      return false;
+    }
+
+    cliDataListener = (data: Uint8Array) => {
+      const filtered = filterMspFromData(data);
+      if (filtered.length > 0) {
+        const text = new TextDecoder().decode(filtered);
+        safeSend(IPC_CHANNELS.CLI_DATA_RECEIVED, text);
+      }
+    };
+    currentTransport.on('data', cliDataListener);
+
+    // Send '#' to enter CLI mode
+    await currentTransport.write(new Uint8Array([0x23])); // '#'
+
+    // Wait for CLI prompt
+    await delay(500);
+
+    return true;
+  } catch (err) {
+    console.error('[CLI] enterCliMode: error', err);
+    // Cleanup on error
+    if (cliDataListener && currentTransport) {
+      currentTransport.off('data', cliDataListener as (...args: unknown[]) => void);
+      cliDataListener = null;
+    }
+    cliModeActive = false;
+    onCliModeChange?.(false);
+    return false;
+  }
+}
+
+/**
+ * Exit CLI mode by sending 'exit' command.
+ * ALWAYS sends exit and triggers callback to reset ALL CLI flags (including MSP-side flags).
+ * This ensures the board returns to MSP mode even if internal flags are out of sync.
+ */
+export async function exitCliMode(): Promise<boolean> {
+  if (!currentTransport?.isOpen) {
+    cliModeActive = false;
+    onCliModeChange?.(false);
+    return true;
+  }
+
+  // Only schedule reconnect if CLI is actually active (exit triggers board reboot).
+  // If CLI is not active, just send exit and reset flags — no reboot expected.
+  const wasCliActive = cliModeActive;
+
+  try {
+    if (wasCliActive) {
+      // Schedule auto-reconnect BEFORE sending exit (board will reboot)
+      const scheduleReconnect = (globalThis as Record<string, unknown>).__ardudeck_scheduleReconnect as
+        ((options: { reason: string; delayMs: number; timeoutMs?: number; maxAttempts?: number }) => void) | undefined;
+      if (scheduleReconnect) {
+        scheduleReconnect({
+          reason: 'CLI exit',
+          delayMs: 3000,
+          timeoutMs: 8000,
+          maxAttempts: 15,
+        });
+      }
+    }
+
+    // ALWAYS send 'exit' command to ensure board exits CLI mode
+    // Board might be in CLI mode even if our flag is false (servo/motor CLI ops)
+    await currentTransport.write(new TextEncoder().encode('exit\n'));
+
+    // Wait briefly for the command to flush
+    await delay(300);
+
+    // Remove data listener
+    if (cliDataListener && currentTransport) {
+      currentTransport.off('data', cliDataListener as (...args: unknown[]) => void);
+      cliDataListener = null;
+    }
+
+    cliModeActive = false;
+    // Don't restart telemetry if board was in CLI (it's rebooting)
+    // Do restart telemetry if CLI wasn't active (just a safety exit, no reboot)
+    onCliModeChange?.(false, wasCliActive ? false : true);
+
+    return true;
+  } catch {
+    // Force cleanup on error
+    if (cliDataListener && currentTransport) {
+      currentTransport.off('data', cliDataListener as (...args: unknown[]) => void);
+      cliDataListener = null;
+    }
+    cliModeActive = false;
+    onCliModeChange?.(false, false);
+    return false;
+  }
+}
+
+/**
+ * Exit CLI mode silently - for programmatic dumps
+ * Does NOT trigger the onCliModeChange callback to avoid race conditions
+ * with telemetry restart. The caller is responsible for any timing.
+ */
+async function exitCliModeSilent(): Promise<boolean> {
+  if (!currentTransport?.isOpen) {
+    cliModeActive = false;
+    // NO callback - silent exit
+    return true;
+  }
+
+  if (!cliModeActive) {
+    return true;
+  }
+
+  try {
+    // Send 'exit' command
+    await currentTransport.write(new TextEncoder().encode('exit\n'));
+
+    // Wait longer for FC to fully exit CLI mode
+    await delay(1000);
+
+    // Remove data listener
+    if (cliDataListener && currentTransport) {
+      currentTransport.off('data', cliDataListener as (...args: unknown[]) => void);
+      cliDataListener = null;
+    }
+
+    cliModeActive = false;
+    // NO callback - telemetry will restart naturally or caller handles it
+
+    return true;
+  } catch {
+    // Force cleanup on error
+    if (cliDataListener && currentTransport) {
+      currentTransport.off('data', cliDataListener as (...args: unknown[]) => void);
+      cliDataListener = null;
+    }
+    cliModeActive = false;
+    return false;
+  }
+}
+
+/**
+ * Send a command to the CLI
+ * Command should NOT include trailing newline - we add it
+ */
+export async function sendCliCommand(command: string): Promise<void> {
+  if (!currentTransport?.isOpen) {
+    throw new Error('Transport not connected');
+  }
+
+  // Check if this is an exit or save command - both trigger board reboot
+  const trimmedCommand = command.trim().toLowerCase();
+  const isExitCommand = trimmedCommand === 'exit' || trimmedCommand === 'quit';
+  const isSaveCommand = trimmedCommand === 'save';
+
+  if (!cliModeActive && !isExitCommand) {
+    // Auto-enter CLI mode if not already in it
+    const entered = await enterCliMode();
+    if (!entered) {
+      throw new Error('Failed to enter CLI mode');
+    }
+  }
+
+  // Verify listener is still attached (defensive)
+  // Also re-check transport in case it was closed during enterCliMode()
+  if (!cliDataListener && !isExitCommand && currentTransport?.isOpen) {
+    cliDataListener = (data: Uint8Array) => {
+      const filtered = filterMspFromData(data);
+      if (filtered.length > 0) {
+        const text = new TextDecoder().decode(filtered);
+        safeSend(IPC_CHANNELS.CLI_DATA_RECEIVED, text);
+      }
+    };
+    currentTransport.on('data', cliDataListener);
+  }
+
+  // Send command with newline (NOT \r\n - causes parse errors!)
+  await currentTransport.write(new TextEncoder().encode(command + '\n'));
+
+  // If exit command, schedule reconnect and clean up state
+  if (isExitCommand && cliModeActive) {
+    const scheduleReconnect = (globalThis as Record<string, unknown>).__ardudeck_scheduleReconnect as
+      ((options: { reason: string; delayMs: number; timeoutMs?: number; maxAttempts?: number }) => void) | undefined;
+    if (scheduleReconnect) {
+      scheduleReconnect({
+        reason: 'CLI exit',
+        delayMs: 3000,
+        timeoutMs: 8000,
+        maxAttempts: 15,
+      });
+    }
+
+    await delay(300); // Give FC time to process exit
+
+    // Remove data listener
+    if (cliDataListener && currentTransport) {
+      currentTransport.off('data', cliDataListener as (...args: unknown[]) => void);
+      cliDataListener = null;
+    }
+
+    cliModeActive = false;
+    // Don't restart telemetry - 'exit' triggers a board reboot
+    onCliModeChange?.(false, false);
+  }
+
+  // If save command, schedule reconnect and clean up state (save also reboots)
+  if (isSaveCommand && cliModeActive) {
+    const scheduleReconnect = (globalThis as Record<string, unknown>).__ardudeck_scheduleReconnect as
+      ((options: { reason: string; delayMs: number; timeoutMs?: number; maxAttempts?: number }) => void) | undefined;
+    if (scheduleReconnect) {
+      scheduleReconnect({
+        reason: 'CLI save',
+        delayMs: 4000,
+        timeoutMs: 8000,
+        maxAttempts: 15,
+      });
+    }
+
+    await delay(300);
+
+    // Remove data listener
+    if (cliDataListener && currentTransport) {
+      currentTransport.off('data', cliDataListener as (...args: unknown[]) => void);
+      cliDataListener = null;
+    }
+
+    cliModeActive = false;
+    // Don't restart telemetry - 'save' triggers a board reboot
+    onCliModeChange?.(false, false);
+  }
+}
+
+/**
+ * Send raw data to the CLI (for special characters like Ctrl+C)
+ */
+async function sendCliRaw(data: string): Promise<void> {
+  if (!currentTransport?.isOpen) {
+    throw new Error('Transport not connected');
+  }
+
+  if (!cliModeActive) {
+    throw new Error('Not in CLI mode');
+  }
+
+  try {
+    await currentTransport.write(new TextEncoder().encode(data));
+  } catch (err) {
+    console.error('[CLI] Failed to send raw data:', err);
+    throw err;
+  }
+}
+
+/**
+ * Get full config dump for autocomplete or bug reports
+ * Returns the accumulated output from 'dump' or 'diff' command
+ * @param diff - If true, use 'diff all' command instead of 'dump'
+ */
+export async function getCliDump(diff = false): Promise<string> {
+  if (!currentTransport?.isOpen) {
+    throw new Error('Transport not connected');
+  }
+
+  const wasInCliMode = cliModeActive;
+
+  try {
+    // Enter CLI mode if not already
+    if (!wasInCliMode) {
+      const entered = await enterCliMode();
+      if (!entered) {
+        throw new Error('Failed to enter CLI mode');
+      }
+    }
+
+    // Accumulate dump output
+    let dumpOutput = '';
+    let lastDataTime = Date.now();
+    const dumpListener = (data: Uint8Array) => {
+      dumpOutput += new TextDecoder().decode(data);
+      lastDataTime = Date.now();
+    };
+
+    // Temporarily replace the data listener to capture dump
+    // Re-check transport in case it was closed during enterCliMode()
+    if (!currentTransport?.isOpen) {
+      throw new Error('Transport closed during CLI setup');
+    }
+    if (cliDataListener) {
+      currentTransport.off('data', cliDataListener as (...args: unknown[]) => void);
+    }
+    currentTransport.on('data', dumpListener);
+
+    // Send dump or diff command
+    const command = diff ? 'diff all\n' : 'dump\n';
+    await currentTransport.write(new TextEncoder().encode(command));
+
+    // Wait for dump to complete with dynamic timeout
+    // Keep waiting as long as data is still coming in
+    const startTime = Date.now();
+    const maxWait = 10000; // 10 seconds max
+    const idleTimeout = 500; // Stop after 500ms of no data
+
+    while (Date.now() - startTime < maxWait) {
+      await delay(200);
+      // If no data received for idleTimeout, dump is complete
+      if (Date.now() - lastDataTime > idleTimeout && dumpOutput.length > 0) {
+        break;
+      }
+    }
+
+    // Restore normal listener (check transport still valid after delay loop)
+    if (currentTransport?.isOpen) {
+      currentTransport.off('data', dumpListener as (...args: unknown[]) => void);
+      if (cliDataListener) {
+        currentTransport.on('data', cliDataListener);
+      }
+    }
+
+    // Exit CLI mode if we entered it for this dump
+    // Use silent exit - don't trigger telemetry restart callback (causes race condition)
+    if (!wasInCliMode) {
+      await exitCliModeSilent();
+    }
+
+    // NOTE: We intentionally do NOT send dump output to terminal here.
+    // This is a programmatic dump (for legacy config / autocomplete).
+    // If user types 'dump' manually in CLI, it goes through normal flow.
+
+    return dumpOutput;
+  } catch (err) {
+    console.error('[CLI] Failed to get dump:', err);
+    // Make sure to exit CLI mode on error too
+    if (!wasInCliMode && cliModeActive) {
+      try {
+        await exitCliMode();
+      } catch {
+        // Ignore exit errors
+      }
+    }
+    throw err;
+  }
+}
+
+// =============================================================================
+// IPC Handler Registration
+// =============================================================================
+
+function registerIpcHandlers(): void {
+  // Enter CLI mode
+  ipcMain.handle(IPC_CHANNELS.CLI_ENTER_MODE, async () => {
+    return enterCliMode();
+  });
+
+  // Exit CLI mode
+  ipcMain.handle(IPC_CHANNELS.CLI_EXIT_MODE, async () => {
+    return exitCliMode();
+  });
+
+  // Send CLI command
+  ipcMain.handle(IPC_CHANNELS.CLI_SEND_COMMAND, async (_, command: string) => {
+    await sendCliCommand(command);
+  });
+
+  // Send raw data
+  ipcMain.handle(IPC_CHANNELS.CLI_SEND_RAW, async (_, data: string) => {
+    await sendCliRaw(data);
+  });
+
+  // Get config dump
+  ipcMain.handle(IPC_CHANNELS.CLI_GET_DUMP, async () => {
+    return getCliDump();
+  });
+
+  // Save CLI output to file
+  ipcMain.handle(IPC_CHANNELS.CLI_SAVE_OUTPUT, async (_, content: string): Promise<boolean> => {
+    if (!mainWindow) return false;
+
+    const result = await dialog.showSaveDialog(mainWindow, {
+      title: 'Save CLI Output',
+      defaultPath: `cli-dump-${new Date().toISOString().slice(0, 10)}.txt`,
+      filters: [
+        { name: 'Text Files', extensions: ['txt'] },
+        { name: 'All Files', extensions: ['*'] },
+      ],
+    });
+
+    if (result.canceled || !result.filePath) {
+      return false;
+    }
+
+    try {
+      await writeFile(result.filePath, content, 'utf-8');
+      return true;
+    } catch (err) {
+      console.error('[CLI] Failed to save output:', err);
+      return false;
+    }
+  });
+
+  // Save CLI dump as parsed JSON to internal cli-params folder
+  ipcMain.handle(
+    IPC_CHANNELS.CLI_SAVE_OUTPUT_JSON,
+    async (
+      _,
+      data: {
+        rawDump: string;
+        fcVariant: string;
+        fcVersion: string;
+      }
+    ): Promise<boolean> => {
+      // Strip ANSI escape codes that terminals add
+      const stripAnsi = (str: string) => str.replace(/\x1B\[[0-9;]*[a-zA-Z]/g, '');
+      const cleanDump = stripAnsi(data.rawDump);
+
+      // Parse the dump to extract parameters
+      const parameters: Record<string, { value: string; section: string }> = {};
+      let currentSection = 'master';
+      let matchCount = 0;
+
+      const lines = cleanDump.split('\n');
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+
+        // Track section changes
+        if (trimmed.startsWith('# profile')) {
+          currentSection = 'profile';
+        } else if (trimmed.startsWith('# battery_profile')) {
+          currentSection = 'battery_profile';
+        } else if (trimmed.startsWith('# master')) {
+          currentSection = 'master';
+        }
+
+        // Parse set commands - handle values with spaces like "SIM (SITL)"
+        const setMatch = trimmed.match(/^set\s+(\S+)\s*=\s*(.*)$/);
+        if (setMatch) {
+          const [, name, value] = setMatch;
+          parameters[name!] = {
+            value: value!.trim(),
+            section: currentSection,
+          };
+          matchCount++;
+        }
+      }
+
+      // Build the JSON export
+      const exportData = {
+        variant: data.fcVariant || 'UNKNOWN',
+        version: data.fcVersion || 'UNKNOWN',
+        exportDate: new Date().toISOString(),
+        parameterCount: Object.keys(parameters).length,
+        parameters,
+      };
+
+      // Auto-save to cli-params folder (no dialog)
+      const filename = `${data.fcVariant?.toLowerCase() || 'fc'}-${data.fcVersion || 'unknown'}.json`;
+      const cliParamsDir = path.join(app.getAppPath(), 'src', 'shared', 'cli-params');
+
+      // Ensure directory exists
+      try {
+        await mkdir(cliParamsDir, { recursive: true });
+      } catch {
+        // Directory may already exist
+      }
+
+      const filePath = path.join(cliParamsDir, filename);
+
+      try {
+        await writeFile(filePath, JSON.stringify(exportData, null, 2), 'utf-8');
+        return true;
+      } catch (err) {
+        console.error('[CLI] Failed to save JSON:', err);
+        return false;
+      }
+    }
+  );
+}

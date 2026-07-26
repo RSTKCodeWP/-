@@ -1,0 +1,4 @@
+compute_unit,latency_ms,speedup
+CPU_ONLY,19.8,1.0
+CPU_AND_NE,3.5,5.6
+ALL,3.8,5.2

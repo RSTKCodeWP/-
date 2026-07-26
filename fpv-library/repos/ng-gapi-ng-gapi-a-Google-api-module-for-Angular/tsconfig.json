@@ -1,0 +1,41 @@
+{
+  "compilerOptions": {
+    "noImplicitAny": true,
+    "module": "esnext",
+    "target": "es2015",
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "declaration": true,
+    "moduleResolution": "node",
+    "noUnusedLocals": true,
+    "types": [
+      "node",
+      "gapi",
+      "gapi.auth2"
+    ],
+    "typeRoots": [
+      "./node_modules/@types"
+    ],
+    "lib": [
+      "es2018",
+      "dom"
+    ],
+    "outDir": "lib/"
+  },
+  "files": [
+    "./src/index.ts",
+    "./src/GoogleApiModule.ts",
+    "./src/GoogleApiService.ts",
+    "./src/GoogleAuthService.ts",
+    "./src/config/GoogleApiConfig.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "examples"
+  ],
+  "angularCompilerOptions": {
+    "strictMetadataEmit": true,
+    "genDir": "compiled",
+    "skipTemplateCodegen": true
+  }
+}

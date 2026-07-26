@@ -1,0 +1,423 @@
+{% extends "layout.html" %} {% block title %}{{ __('Results') }}{% endblock %} {% block head %}
+
+<script src="./static/showdown-1.9.1/showdown.min.js"></script>
+
+{% endblock %} {% block content %}
+<script type="text/javascript" charset="utf-8">
+	var data_dependencies = [
+		'all_languages',
+		'language',
+		'result_data',
+		{
+			'type': 'ui',
+			'value': 'results'
+		},
+	];
+
+	$(document).ready(function () {
+		socket.on('language', function (msg) {
+			if (msg.language) {
+				rotorhazard.interface_language = msg.language;
+			}
+		});
+
+		// set up markdown converter
+		var panel_converter = new showdown.Converter({
+			ghCodeBlocks: true,
+			ghCompatibleHeaderId: true,
+			literalMidWordUnderscores: true,
+			simpleLineBreaks: true,
+			headerLevelStart: 3
+		});
+
+		socket.on('ui', function (msg) {
+			if (msg.page == 'results') {
+				if (msg.replace_panels !== false) {
+					$('#custom-ui').empty();
+				}
+
+				for (var i in msg.panels) {
+					var panel = msg.panels[i];
+
+					if (msg.replace_panels === false) {
+						var panel_el = $('#ui-custom-' + panel.panel.name);
+						var panel_content_el = panel_el.children('.panel-content');
+						panel_content_el.empty();
+					} else {
+						var panel_el = $('<div class="panel collapsing active">');
+						panel_el.attr('id', 'ui-custom-' + panel.panel.name);
+						var panel_header_el = $('<div class="panel-header">');
+						panel_header_el.append('<h2><button class="no-style">' + panel.panel.label + '</button></h2>');
+						var panel_content_el = $('<div class="panel-content">');
+						panel_el.append(panel_header_el);
+
+						// panel open/close
+						if (panel.panel.open) {
+							panel_el.addClass('open');
+							panel_content_el.show();
+						} else {
+							panel_el.removeClass('open');
+							panel_content_el.hide();
+						}
+					}
+
+					// add markdown content
+					for (var md_idx in panel.markdowns) {
+						md_content = panel.markdowns[md_idx].desc;
+						md_output = panel_converter.makeHtml(md_content);
+						md_element = $('<div class="ui-md-el">').html(md_output);
+						panel_content_el.append(md_element);
+					}
+
+					var form_el = $('<ol class="form">');
+
+					for (var f_idx in panel.settings) {
+						var settings = { ...panel.settings[f_idx] };
+
+						settings.wrapperEl = 'li';
+						settings.fieldClass = 'set_ui_option';
+						settings.id = 'genericOption_' + settings.name;
+						settings.data = {
+							field: settings.name,
+						}
+
+						var field = rhui.buildField(settings);
+
+						form_el.append(field);
+					}
+					panel_content_el.append(form_el);
+					panel_content_el.append(rhui.buildQuickbuttons(panel.quickbuttons));
+
+					panel_el.append(panel_header_el);
+					panel_el.append(panel_content_el);
+
+					$('#custom-ui').append(panel_el);
+				}
+
+				// load panel state
+				for (var panel in rotorhazard.panelstates) {
+					var panel_obj = $('#' + panel);
+					var panelstate = rotorhazard.panelstates[panel];
+
+					if (panelstate) {
+						panel_obj.addClass('open');
+						panel_obj.children('.panel-content').stop().slideDown();
+					} else {
+						panel_obj.removeClass('open');
+						panel_obj.children('.panel-content').stop().slideUp();
+					}
+				}
+			}
+		});
+
+		$(document).on('change', '.set_ui_option', function (event) {
+			var field = $(this).data('field');
+			var section = $(this).data('section');
+			var value = rhui.getFieldVal(this);
+
+			if (section) {
+				var data = {
+					section: section,
+					key: field,
+					value: value
+				};
+				socket.emit('set_config', data);
+			} else {
+				var data = {
+					option: field,
+					value: value
+				};
+				socket.emit('set_option', data);
+			}
+		});
+
+		// set up markdown converter
+		var event_converter = new showdown.Converter({
+			ghCodeBlocks: true,
+			ghCompatibleHeaderId: true,
+			literalMidWordUnderscores: true,
+			simpleLineBreaks: true,
+			headerLevelStart: 3
+		});
+
+		var class_converter = new showdown.Converter({
+			ghCodeBlocks: true,
+			ghCompatibleHeaderId: true,
+			literalMidWordUnderscores: true,
+			simpleLineBreaks: true,
+			headerLevelStart: 4
+		});
+
+		md_output = event_converter.makeHtml({{ getOption('eventDescription')|tojson }});
+		$('#description').html($(md_output));
+
+		socket.on('result_data', function (msg) {
+			function order_boards(primary) {
+				var boards = ['by_race_time', 'by_fastest_lap', 'by_consecutives']
+				boards.sort(function(x,y){ return x == primary ? -1 : y == primary ? 1 : 0; });
+				return boards;
+			}
+
+			var defaultMeta = new Object;
+			defaultMeta.team_racing_mode = RACING_MODE_INDV;
+			defaultMeta.start_behavior = 0;
+			defaultMeta.consecutives_count = msg.consecutives_count;
+
+			var page = $('#results');
+			page.empty();
+
+			if (!$.isEmptyObject(msg.heats)) {
+				// move unclassified heats to end of list (Assumes Object.keys is ordered by ES6 rules, or as added by server)
+				var class_ordered = Object.keys(msg.heats_by_class)
+				// class_ordered = class_ordered.concat(class_ordered.splice(0, 1));
+
+				for (var class_id in class_ordered) {
+					var race_class = class_ordered[class_id];
+					var valid_heats = false;
+					if (msg.heats_by_class[race_class].length) {
+						for (var class_heat in msg.heats_by_class[race_class]) {
+							if (msg.heats[msg.heats_by_class[race_class][class_heat]]) {
+								valid_heats = true;
+								break;
+							}
+						}
+					}
+
+					if (valid_heats) {
+						var class_panel = $('<div id="class_' + class_id + '" class="panel collapsing">');
+						var class_panel_header = $('<div class="panel-header">');
+						var class_panel_content = $('<div class="panel-content" style="display: none">');
+
+						var current_class = msg.classes[race_class];
+						if (current_class) {
+							if (current_class.name) {
+								class_panel_header.append('<h2><button class="no-style">' + current_class.name + '</button></h2>');
+							} else {
+								class_panel_header.append('<h2><button class="no-style">' + __('Class') + ' ' + current_class.id + '</button></h2>');
+							}
+
+							var class_leaderboard = $('<div id="class_' + class_id + '_leaderboard" class="panel collapsing class-leaderboard open">');
+
+							var class_leaderboard_header = $('<div class="panel-header">');
+							class_leaderboard_header.append('<h3><button class="no-style">' + __('Class Summary') + '</button></h3>');
+							class_leaderboard.append(class_leaderboard_header);
+
+							var class_leaderboard_content = $('<div class="panel-content">');
+
+							if (current_class.ranking) {
+								class_leaderboard.removeClass('open');
+								class_leaderboard_content.hide();
+
+								var class_special = $('<div id="class_' + class_id + '_leaderboard" class="panel collapsing class-leaderboard open">');
+
+								var class_special_header = $('<div class="panel-header">');
+								var class_header_text = __('Class Ranking');
+								if (current_class.ranking?.meta?.method_label) {
+									class_header_text += '&#8212;' + current_class.ranking.meta.method_label;
+								}
+								class_special_header.append('<h3><button class="no-style">' + class_header_text + '</button></h3>');
+								class_special.append(class_special_header);
+
+								var class_special_content = $('<div class="panel-content">');
+
+								class_special_content.append(build_ranking(current_class.ranking))
+
+								class_special.append(class_special_content);
+								class_panel_content.append(class_special);
+							}
+
+							boards = order_boards(current_class.leaderboard.meta.primary_leaderboard);
+
+							for (var i in boards) {
+								if (boards[i] == 'by_race_time') {
+									class_leaderboard_content.append('<h4>' + __('Race Totals') + '</h4>');
+									class_leaderboard_content.append(build_leaderboard(current_class.leaderboard.by_race_time, 'by_race_time', current_class.leaderboard.meta, true));
+								} else if (boards[i] == 'by_fastest_lap') {
+									class_leaderboard_content.append('<h4>' + __('Fastest Laps') + '</h4>');
+									class_leaderboard_content.append(build_leaderboard(current_class.leaderboard.by_fastest_lap, 'by_fastest_lap', current_class.leaderboard.meta, true));
+								} else if (boards[i] == 'by_consecutives') {
+									class_leaderboard_content.append('<h4>' + __('Fastest Consecutive Laps') + '</h4>');
+									class_leaderboard_content.append(build_leaderboard(current_class.leaderboard.by_consecutives, 'by_consecutives', current_class.leaderboard.meta, true));
+								}
+							}
+
+							class_leaderboard.append(class_leaderboard_content);
+							class_panel_content.append(class_leaderboard);
+						} else {
+							if ($.isEmptyObject(msg.classes)) {
+								class_panel_header.append('<h2><button class="no-style">' + __('Heats') + '</button></h2>')
+							} else {
+								class_panel_header.append('<h2><button class="no-style">' + __('Unclassified') + '</button></h2>')
+							}
+						}
+
+						class_panel.append(class_panel_header);
+
+						for (var class_heat in msg.heats_by_class[race_class]) {
+							var heat = msg.heats[msg.heats_by_class[race_class][class_heat]]
+
+							if (heat) {
+								var panel = $('<div id="class_' + class_id + '_heat_' + class_heat + '" class="panel collapsing">');
+
+								var panel_header = $('<div class="panel-header">');
+
+								panel_header.append('<h3><button class="no-style">' + heat.displayname + '</button></h3>');
+								panel.append(panel_header);
+
+								var panel_content = $('<div class="panel-content" style="display: none">');
+
+								// heat leaderboards
+								if (heat.rounds.length > 1) {
+									var heat_summary_panel = $('<div id="class_' + class_id + '_heat_' + class_heat + '_leaderboard" class="panel collapsing open">');
+									heat_summary_panel.append('<div class="panel-header"><h4><button class="no-style">' + __('Heat Summary') + '</button></h4></div>')
+									var heat_summary_panel_content = $('<div class="panel-content">');
+									var heat_leaderboard = $('<div class="leaderboard">');
+									heat_leaderboard.append(build_leaderboard(heat.leaderboard[heat.leaderboard.meta.primary_leaderboard], 'heat', heat.leaderboard.meta, true));
+									heat_summary_panel_content.append(heat_leaderboard);
+									heat_summary_panel.append(heat_summary_panel_content);
+									panel_content.append(heat_summary_panel);
+								}
+
+								// rounds
+								for (var round_i in heat.rounds) {
+									var round = heat.rounds[round_i];
+									var round_div = $('<div id="class_' + class_id + '_heat_' + class_heat + '_round_' + round.id + '" class="round panel collapsing open">');
+
+									round_div.append('<div class="panel-header"><h4><button class="no-style">' + __('Round') + ' ' + round.id + ' (' + round.start_time_formatted + ')</button></h4></div>')
+
+									var round_content = $('<div class="panel-content">');
+									// race leaderboards
+									var race_leaderboard = $('<div class="leaderboard">');
+									race_leaderboard.append(build_leaderboard(round.leaderboard[round.leaderboard.meta.primary_leaderboard], 'round', round.leaderboard.meta));
+
+									var race_results = $('<div class="race-results">');
+
+									// race laps
+									for (var node_i in round.nodes) {
+										var node = round.nodes[node_i];
+										if (node.callsign !== null) {
+											var node_div = $('<div class="node">');
+
+											node_div.append('<h5>' + node.callsign + '</h5>')
+
+											var table = $('<table class="laps">');
+											var tbody = $('<tbody>');
+
+											if ('start_behavior' in round.leaderboard.meta && round.leaderboard.meta.start_behavior == 1) {
+												var lap_index = 1;
+											} else {
+												var lap_index = 0;
+											}
+											for (var lap_i in node.laps) {
+												var lap = node.laps[lap_i];
+												if (!lap.deleted) {
+													if (lap_index) {
+														if ('start_behavior' in round.leaderboard.meta && round.leaderboard.meta.start_behavior == 2) {
+															var timestamp = formatTimeMillis(lap.lap_time_stamp - node.laps[0].lap_time_stamp, {{ getOption('timeFormat')|tojson }}) + ' / ' + formatTimeMillis(lap.lap_time_stamp, {{ getConfig('UI', 'timeFormat')|tojson }})
+														} else {
+															var timestamp = formatTimeMillis(lap.lap_time_stamp, {{ getConfig('UI', 'timeFormat')|tojson }})
+														}
+														tbody.append('<tr class="lap_' + lap_index + '"><td>' + lap_index + '</td><td><span class="from_start">' + timestamp + '</span>' + formatTimeMillis(lap.lap_time, {{ getConfig('UI', 'timeFormat')|tojson }}) + '</td></tr>')
+													} else {
+														tbody.append('<tr class="lap_0"><td>0</td><td>' + formatTimeMillis(lap.lap_time, {{ getConfig('UI', 'timeFormat')|tojson }}) + '</td></tr>')
+													}
+													lap_index++;
+												}
+											}
+
+											table.append(tbody);
+											node_div.append(table);
+											race_results.append(node_div);
+										}
+									}
+
+									round_content.append(race_leaderboard);
+									round_content.append(race_results);
+									round_div.append(round_content);
+									panel_content.append(round_div);
+								}
+								panel.append(panel_content);
+
+								class_panel_content.append(panel);
+							}
+						}
+						class_panel.append(class_panel_content);
+						page.append(class_panel);
+					}
+				}
+
+				// event leaderboard
+				var panel = $('<div id="event_leaderboard" class="panel collapsing">');
+
+				var panel_header = $('<div class="panel-header">');
+				panel_header.append('<h2><button class="no-style">' + __('Event Totals') + '</button></h2>');
+				panel.append(panel_header);
+
+				// event leaderboards
+				var panel_content = $('<div class="panel-content" style="display: none">');
+				var event_leaderboard = $('<div class="event-leaderboards">');
+				event_leaderboard.append('<h3>' + __('Race Totals') + '</h3>');
+				event_leaderboard.append(build_leaderboard(msg.event_leaderboard.by_race_time, 'by_race_time', msg.event_leaderboard.meta, true));
+				event_leaderboard.append('<h3>' + __('Fastest Laps') + '</h3>');
+				event_leaderboard.append(build_leaderboard(msg.event_leaderboard.by_fastest_lap, 'by_fastest_lap', msg.event_leaderboard.meta));
+				event_leaderboard.append('<h3>' + __('Fastest Consecutive Laps') + '</h3>');
+				event_leaderboard.append(build_leaderboard(msg.event_leaderboard.by_consecutives, 'by_consecutives', msg.event_leaderboard.meta));
+				panel_content.append(event_leaderboard);
+				panel.append(panel_content);
+
+				page.append(panel)
+
+				// load panel state
+				for (var panel in rotorhazard.panelstates) {
+					var panel_obj = $('#' + panel);
+					var panelstate = rotorhazard.panelstates[panel];
+
+					if (panelstate) {
+						panel_obj.addClass('open');
+						panel_obj.children('.panel-content').stop().slideDown();
+					} else {
+						panel_obj.removeClass('open');
+						panel_obj.children('.panel-content').stop().slideUp();
+					}
+				}
+			} else {
+				page.append('<p>' + __('There is no saved race data available to view.') + '</p>');
+			}
+		});
+
+		$(document).on('click', '.leaderboard td', function(){
+			el = $(this);
+			source = el.data('source');
+			if (source) {
+				pilot = el.parent().children('.pilot').html()
+				push_message(__('Source for') + " " + pilot + ": " + source);
+			}
+		})
+
+		$(document).on("click", '.clean-cache', function (event) {
+			socket.emit('clean_cache');
+		});
+	});
+</script>
+<main class="page-rounds">
+
+<div id="section-event">
+	<h1>{{ __('Results') }}: {{ getOption('eventName') }}</h1>
+	<div id="description">
+		<p class="form-note">{{ __('Loading...') }}</p>
+	</div>
+</div>
+
+<div id="results">
+	<p>{{ __('Loading...') }}</p>
+</div>
+
+<!-- Custom UI -->
+<div id="custom-ui"></div>
+
+{% if Debug %}
+<p><button class="debug button-like clean-cache unprinted">{{ __('Clean Cache') }}</button></p>
+{% endif %}
+
+</main>
+{% endblock %}

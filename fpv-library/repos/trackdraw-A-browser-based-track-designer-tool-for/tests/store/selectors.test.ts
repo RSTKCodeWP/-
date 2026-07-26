@@ -1,0 +1,132 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  selectActiveTool,
+  selectDesignPolylineZRange,
+  selectDesignShapeCount,
+  selectDesignShapes,
+  selectDraftPath,
+  selectHasPath,
+  selectHasSelectedPolyline,
+  selectHoveredShapeId,
+  selectMarqueeRect,
+  selectPanOffset,
+  selectPrimaryPolyline,
+  selectRotationSession,
+  selectSelectedPolyline,
+  selectSelectedShapes,
+  selectSelectionLocked,
+  selectShapeById,
+  selectShapeRecordMap,
+  selectShapesByIds,
+  selectVertexSelection,
+  selectZoom,
+} from "@/store/selectors";
+import { useEditor } from "@/store/editor";
+import {
+  flagDraft,
+  gateDraft,
+  polylineDraft,
+  resetEditorStore,
+} from "../helpers/editor-store";
+
+describe("editor selectors", () => {
+  beforeEach(() => {
+    resetEditorStore();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("returns design-derived shape collections and cached references", () => {
+    const state = useEditor.getState();
+    const gateId = state.addShape(gateDraft({ width: 2.2, height: 1.9 }));
+    const flagId = state.addShape(flagDraft({ x: 14, y: 9 }));
+
+    const snapshot = useEditor.getState();
+    const shapes = selectDesignShapes(snapshot);
+    const shapesAgain = selectDesignShapes(snapshot);
+    const record = selectShapeRecordMap(snapshot);
+
+    expect(selectDesignShapeCount(snapshot)).toBe(2);
+    expect(shapes).toHaveLength(2);
+    expect(shapesAgain).toBe(shapes);
+    expect(record[gateId]?.kind).toBe("gate");
+    expect(selectShapeById(snapshot, flagId)?.kind).toBe("flag");
+    expect(selectShapesByIds(snapshot, [gateId, "missing"])).toHaveLength(1);
+  });
+
+  it("resolves selected and primary polylines plus path flags", () => {
+    const state = useEditor.getState();
+    state.addShape(gateDraft({ x: 3, y: 4 }));
+    const polylineId = state.addShape(
+      polylineDraft({
+        points: [
+          { x: 1, y: 2, z: 0.5 },
+          { x: 3, y: 4, z: 2 },
+        ],
+      })
+    );
+
+    state.setSelection([polylineId]);
+
+    const snapshot = useEditor.getState();
+    const selectedShapes = selectSelectedShapes(snapshot);
+
+    expect(selectedShapes).toHaveLength(1);
+    expect(selectSelectedShapes(snapshot)).toBe(selectedShapes);
+    expect(selectSelectedPolyline(snapshot)?.id).toBe(polylineId);
+    expect(selectPrimaryPolyline(snapshot)?.id).toBe(polylineId);
+    expect(selectHasPath(snapshot)).toBe(true);
+    expect(selectHasSelectedPolyline(snapshot)).toBe(true);
+    expect(selectDesignPolylineZRange(snapshot)).toEqual([0.5, 2]);
+  });
+
+  it("tracks locked selections and ui state selectors", () => {
+    const state = useEditor.getState();
+    const gateId = state.addShape(gateDraft({ x: 5, y: 6, locked: true }));
+    const secondGateId = state.addShape(
+      gateDraft({ x: 8, y: 9, locked: true })
+    );
+
+    state.setSelection([gateId, secondGateId]);
+    state.setActiveTool("grab");
+    state.setZoom(2.5);
+    state.setPanOffset({ x: 120, y: 80 });
+    state.setHoveredShapeId(gateId);
+    state.setVertexSelection({ shapeId: gateId, idx: 1 });
+    state.setDraftPath([{ x: 1, y: 2, z: 3 }]);
+    state.setMarqueeRect({ x: 10, y: 12, width: 30, height: 20 });
+    state.setRotationSession({
+      center: { x: 5, y: 6 },
+      shapeId: gateId,
+      initialRotation: 0,
+      startAngle: 15,
+      startRotation: 0,
+      previewRotation: 0,
+    });
+
+    const snapshot = useEditor.getState();
+
+    expect(selectSelectionLocked(snapshot)).toBe(true);
+    expect(selectActiveTool(snapshot)).toBe("grab");
+    expect(selectZoom(snapshot)).toBe(2.5);
+    expect(selectPanOffset(snapshot)).toEqual({ x: 120, y: 80 });
+    expect(selectHoveredShapeId(snapshot)).toBe(gateId);
+    expect(selectVertexSelection(snapshot)).toEqual({
+      shapeId: gateId,
+      idx: 1,
+    });
+    expect(selectDraftPath(snapshot)).toEqual([{ x: 1, y: 2, z: 3 }]);
+    expect(selectMarqueeRect(snapshot)).toEqual({
+      x: 10,
+      y: 12,
+      width: 30,
+      height: 20,
+    });
+    expect(selectRotationSession(snapshot)).toMatchObject({
+      shapeId: gateId,
+      startAngle: 15,
+    });
+  });
+});

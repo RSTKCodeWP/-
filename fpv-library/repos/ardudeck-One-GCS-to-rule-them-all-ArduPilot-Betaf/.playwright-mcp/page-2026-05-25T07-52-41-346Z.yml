@@ -1,0 +1,370 @@
+- generic [active] [ref=e1]:
+  - link "Skip to main content" [ref=e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - banner [ref=e3]:
+    - generic [ref=e5]:
+      - link "ArduDeck ArduDeck" [ref=e6] [cursor=pointer]:
+        - /url: /
+        - img "ArduDeck" [ref=e7]
+        - generic [ref=e8]: ArduDeck
+      - navigation "Main navigation" [ref=e9]:
+        - link "Features" [ref=e10] [cursor=pointer]:
+          - /url: /#features
+        - link "Showcase" [ref=e11] [cursor=pointer]:
+          - /url: /#showcase
+        - link "UAV Solutions" [ref=e12] [cursor=pointer]:
+          - /url: /solutions/
+        - link "Docs" [ref=e13] [cursor=pointer]:
+          - /url: /docs/
+        - link "Blog" [ref=e14] [cursor=pointer]:
+          - /url: /blog/
+        - link "Changelog" [ref=e15] [cursor=pointer]:
+          - /url: /changelog/
+        - link "Discord" [ref=e16] [cursor=pointer]:
+          - /url: https://discord.gg/JX2JdVXPPC
+          - text: Discord
+          - img [ref=e17]
+        - link "GitHub" [ref=e19] [cursor=pointer]:
+          - /url: https://github.com/rubenCodeforges/ardudeck
+          - text: GitHub
+          - img [ref=e20]
+        - link "Download" [ref=e22] [cursor=pointer]:
+          - /url: /#download
+  - main [ref=e23]:
+    - generic [ref=e24]:
+      - generic [ref=e25]:
+        - img
+      - generic [ref=e28]:
+        - generic [ref=e29]: Open Source Ground Control Station
+        - img "ArduDeck - Ground Control Station for ArduPilot drones" [ref=e32]
+        - heading "The Modern Way to Configure Your Drone" [level=1] [ref=e33]:
+          - text: The Modern Way to
+          - text: Configure Your Drone
+        - paragraph [ref=e34]: Free, open-source Mission Planner alternative for Mac, Windows, and Linux. Full ArduPilot ground control station with mission planning, flight logs, and real-time telemetry. Also supports iNav and Betaflight.
+        - generic [ref=e35]:
+          - link "Download for Free" [ref=e36] [cursor=pointer]:
+            - /url: "#download"
+            - img [ref=e37]
+            - text: Download for Free
+          - link "View on GitHub" [ref=e39] [cursor=pointer]:
+            - /url: https://github.com/rubenCodeforges/ardudeck
+            - img [ref=e40]
+            - text: View on GitHub
+        - generic [ref=e42]:
+          - link "90 Stars" [ref=e43] [cursor=pointer]:
+            - /url: https://github.com/rubenCodeforges/ardudeck/stargazers
+            - img [ref=e44]
+            - generic [ref=e46]: "90"
+            - generic [ref=e47]: Stars
+          - link "5.7k Downloads" [ref=e49] [cursor=pointer]:
+            - /url: https://github.com/rubenCodeforges/ardudeck/releases
+            - img [ref=e50]
+            - generic [ref=e52]: 5.7k
+            - generic [ref=e53]: Downloads
+          - link "20 Forks" [ref=e55] [cursor=pointer]:
+            - /url: https://github.com/rubenCodeforges/ardudeck/network/members
+            - img [ref=e56]
+            - generic [ref=e58]: "20"
+            - generic [ref=e59]: Forks
+        - generic [ref=e60]:
+          - paragraph [ref=e61]: Supports
+          - generic [ref=e62]:
+            - generic [ref=e63]: ArduPilot
+            - generic [ref=e65]: iNav
+            - generic [ref=e67]: Betaflight
+    - generic [ref=e69]:
+      - heading "See it in action" [level=2] [ref=e71]
+      - generic [ref=e72]:
+        - generic [ref=e73] [cursor=pointer]:
+          - img "ArduDeck Survey Grid Planner - automated survey grid with camera presets and overlap controls" [ref=e75]
+          - generic [ref=e76]:
+            - paragraph [ref=e77]: Survey Grid Planner
+            - paragraph [ref=e78]: Automated survey grid with camera presets, overlap controls, crosshatch patterns, and terrain collision detection
+        - generic [ref=e79] [cursor=pointer]:
+          - img "ArduDeck Lua Graph Editor - visual node-based scripting for ArduPilot" [ref=e81]
+          - generic [ref=e82]:
+            - paragraph [ref=e83]: Lua Graph Editor
+            - paragraph [ref=e84]: Visual node-based scripting for ArduPilot Lua with live code preview and 37+ nodes
+      - generic [ref=e85]:
+        - generic [ref=e86] [cursor=pointer]:
+          - img "ArduDeck Mission Planning" [ref=e88]
+          - paragraph [ref=e90]: ArduDeck Mission Planning
+        - generic [ref=e91] [cursor=pointer]:
+          - img "ArduDeck Lua - NeoPixel LED Controller" [ref=e93]
+          - paragraph [ref=e95]: ArduDeck Lua - NeoPixel LED Controller
+        - generic [ref=e96] [cursor=pointer]:
+          - img "ArduDeck Survey Grid - Pattern Config" [ref=e98]
+          - paragraph [ref=e100]: ArduDeck Survey Grid - Pattern Config
+        - generic [ref=e101] [cursor=pointer]:
+          - img "ArduDeck Mission + Telemetry Layout" [ref=e103]
+          - paragraph [ref=e105]: ArduDeck Mission + Telemetry Layout
+        - generic [ref=e106] [cursor=pointer]:
+          - img "ArduDeck Firmware Flash" [ref=e108]
+          - paragraph [ref=e110]: ArduDeck Firmware Flash
+        - generic [ref=e111] [cursor=pointer]:
+          - img "ArduDeck OSD Simulator" [ref=e113]
+          - paragraph [ref=e115]: ArduDeck OSD Simulator
+        - generic [ref=e116] [cursor=pointer]:
+          - img "ArduDeck Telemetry Dashboard" [ref=e118]
+          - paragraph [ref=e120]: ArduDeck Telemetry Dashboard
+        - generic [ref=e121] [cursor=pointer]:
+          - img "ArduDeck Modes Setup Wizard" [ref=e123]
+          - paragraph [ref=e125]: ArduDeck Modes Setup Wizard
+        - generic [ref=e126] [cursor=pointer]:
+          - img "ArduDeck Safety & Failsafe" [ref=e128]
+          - paragraph [ref=e130]: ArduDeck Safety & Failsafe
+    - generic [ref=e132]:
+      - generic [ref=e133]:
+        - paragraph [ref=e134]: Features
+        - heading "Everything you need in one app" [level=2] [ref=e135]
+        - paragraph [ref=e136]: From telemetry monitoring to firmware flashing, ArduDeck replaces multiple tools with a single, modern interface.
+      - generic [ref=e137]:
+        - generic [ref=e140]:
+          - img [ref=e142]
+          - heading "Real-Time Telemetry" [level=3] [ref=e144]
+          - paragraph [ref=e145]: Live attitude indicator, GPS tracking, battery monitoring, and customizable dockable panels. See everything at a glance.
+        - generic [ref=e148]:
+          - img [ref=e150]
+          - heading "Mission Planning" [level=3] [ref=e152]
+          - paragraph [ref=e153]: Waypoint CRUD, spline curves, terrain-aware altitude profiles, geofence polygons, and rally points on interactive maps.
+        - generic [ref=e156]:
+          - img [ref=e158]
+          - heading "Full Parameter Management" [level=3] [ref=e161]
+          - paragraph [ref=e162]: Browse, search, and edit every flight controller parameter with metadata, validation, and import/export from files.
+        - generic [ref=e165]:
+          - img [ref=e167]
+          - heading "Firmware Flashing" [level=3] [ref=e169]
+          - paragraph [ref=e170]: Multi-protocol board detection, STM32 DFU flashing, and automatic post-flash configuration. One-click firmware updates.
+        - generic [ref=e173]:
+          - img [ref=e175]
+          - heading "Lua Graphical Editor" [level=3] [ref=e177]
+          - paragraph [ref=e178]: Visual node-based scripting editor for ArduPilot Lua scripts. Drag-and-drop nodes, connect logic flows, and compile to Lua with live preview.
+        - generic [ref=e181]:
+          - img [ref=e183]
+          - heading "OSD Simulator" [level=3] [ref=e185]
+          - paragraph [ref=e186]: On-screen display preview with MCM font parsing, live and demo modes, 8 bundled fonts, and PAL/NTSC support.
+        - generic [ref=e189]:
+          - img [ref=e191]
+          - heading "MSP CLI Terminal" [level=3] [ref=e193]
+          - paragraph [ref=e194]: Built-in terminal for iNav and Betaflight boards with autocomplete, command history, and save/reboot handling.
+        - generic [ref=e197]:
+          - img [ref=e199]
+          - heading "Calibration Wizard" [level=3] [ref=e201]
+          - paragraph [ref=e202]: Step-by-step accelerometer and compass calibration with live status detection from arming flags.
+        - generic [ref=e205]:
+          - img [ref=e207]
+          - heading "Native on macOS, Windows & Linux" [level=3] [ref=e209]
+          - paragraph [ref=e210]: First-class macOS support with dedicated Apple Silicon and Intel builds. Also runs natively on Windows 10+ and Linux (x86_64).
+    - generic [ref=e212]:
+      - generic [ref=e213]:
+        - paragraph [ref=e214]: Activity
+        - heading "What's New" [level=2] [ref=e215]
+        - paragraph [ref=e216]:
+          - text: Latest updates shipped in ArduDeck — pulled live from our
+          - link "public project board" [ref=e217] [cursor=pointer]:
+            - /url: https://github.com/users/rubenCodeforges/projects/1
+          - text: .
+      - generic [ref=e218]:
+        - generic [ref=e219]:
+          - paragraph [ref=e220]: "--"
+          - paragraph [ref=e221]: Shipped
+        - generic [ref=e223]:
+          - paragraph [ref=e224]: "--"
+          - paragraph [ref=e225]: In Progress
+        - generic [ref=e227]:
+          - paragraph [ref=e228]: "--"
+          - paragraph [ref=e229]: Planned
+      - generic [ref=e230]:
+        - generic [ref=e231]:
+          - generic [ref=e232]:
+            - img [ref=e233]
+            - heading "Recently Shipped" [level=3] [ref=e235]
+          - generic [ref=e237]: Loading...
+        - generic [ref=e238]:
+          - generic [ref=e239]:
+            - img [ref=e240]
+            - heading "Up Next" [level=3] [ref=e242]
+          - generic [ref=e244]: Loading...
+      - link "View full project board" [ref=e246] [cursor=pointer]:
+        - /url: https://github.com/users/rubenCodeforges/projects/1
+        - text: View full project board
+        - img [ref=e247]
+    - generic [ref=e251]:
+      - generic [ref=e252]:
+        - paragraph [ref=e253]: Download
+        - heading "Get ArduDeck" [level=2] [ref=e254]
+        - paragraph [ref=e255]: Free and open source. Available for Windows, macOS, and Linux.
+      - generic [ref=e259]: "Latest: Alpha 30 (v0.0.30)"
+      - generic [ref=e260]:
+        - generic [ref=e263]:
+          - img [ref=e265]
+          - heading "Windows" [level=3] [ref=e267]
+          - paragraph [ref=e268]: Windows 10+ (x64)
+          - link "Download .exe" [ref=e269] [cursor=pointer]:
+            - /url: https://github.com/rubenCodeforges/ardudeck/releases/download/v0.0.30/ArduDeck-0.0.30-win-x64.exe
+            - img [ref=e270]
+            - generic [ref=e272]: Download .exe
+          - paragraph [ref=e273]: 103 MB
+        - generic [ref=e276]:
+          - img [ref=e278]
+          - heading "macOS" [level=3] [ref=e280]
+          - paragraph [ref=e281]: Apple Silicon (M1/M2/M3/M4)
+          - link "Download .dmg" [ref=e282] [cursor=pointer]:
+            - /url: https://github.com/rubenCodeforges/ardudeck/releases/download/v0.0.30/ArduDeck-0.0.30-mac-arm64.dmg
+            - img [ref=e283]
+            - generic [ref=e285]: Download .dmg
+          - paragraph [ref=e286]: 132 MB
+        - generic [ref=e289]:
+          - img [ref=e291]
+          - heading "macOS" [level=3] [ref=e293]
+          - paragraph [ref=e294]: Intel (x64)
+          - link "Download .dmg" [ref=e295] [cursor=pointer]:
+            - /url: https://github.com/rubenCodeforges/ardudeck/releases/download/v0.0.30/ArduDeck-0.0.30-mac-x64.dmg
+            - img [ref=e296]
+            - generic [ref=e298]: Download .dmg
+          - paragraph [ref=e299]: 138 MB
+        - generic [ref=e302]:
+          - img [ref=e304]
+          - heading "Linux" [level=3] [ref=e313]
+          - paragraph [ref=e314]: x86_64
+          - generic [ref=e315]:
+            - link "AppImage (141 MB)" [ref=e316] [cursor=pointer]:
+              - /url: https://github.com/rubenCodeforges/ardudeck/releases/download/v0.0.30/ArduDeck-0.0.30-linux-x86_64.AppImage
+              - img [ref=e317]
+              - generic [ref=e319]: AppImage (141 MB)
+            - link ".deb (105 MB)" [ref=e320] [cursor=pointer]:
+              - /url: https://github.com/rubenCodeforges/ardudeck/releases/download/v0.0.30/ArduDeck-0.0.30-linux-amd64.deb
+              - img [ref=e321]
+              - generic [ref=e323]: .deb (105 MB)
+          - paragraph
+      - link "View all releases and changelogs" [ref=e325] [cursor=pointer]:
+        - /url: /changelog/
+        - text: View all releases and changelogs
+        - img [ref=e326]
+    - generic [ref=e329]:
+      - generic [ref=e330]:
+        - paragraph [ref=e331]: FAQ
+        - heading "Frequently Asked Questions" [level=2] [ref=e332]
+      - generic [ref=e333]:
+        - group [ref=e334]:
+          - generic "Which flight controllers does ArduDeck support?" [ref=e335] [cursor=pointer]:
+            - generic [ref=e336]: Which flight controllers does ArduDeck support?
+            - img [ref=e337]
+        - group [ref=e339]:
+          - generic "Is ArduDeck free to use?" [ref=e340] [cursor=pointer]:
+            - generic [ref=e341]: Is ArduDeck free to use?
+            - img [ref=e342]
+        - group [ref=e344]:
+          - generic "What operating systems does ArduDeck run on?" [ref=e345] [cursor=pointer]:
+            - generic [ref=e346]: What operating systems does ArduDeck run on?
+            - img [ref=e347]
+        - group [ref=e349]:
+          - generic "Is there a mission planner for Mac?" [ref=e350] [cursor=pointer]:
+            - generic [ref=e351]: Is there a mission planner for Mac?
+            - img [ref=e352]
+        - group [ref=e354]:
+          - generic "Can I flash firmware with ArduDeck?" [ref=e355] [cursor=pointer]:
+            - generic [ref=e356]: Can I flash firmware with ArduDeck?
+            - img [ref=e357]
+        - group [ref=e359]:
+          - generic "Does ArduDeck support mission planning?" [ref=e360] [cursor=pointer]:
+            - generic [ref=e361]: Does ArduDeck support mission planning?
+            - img [ref=e362]
+        - group [ref=e364]:
+          - generic "What is the Lua Graph Editor?" [ref=e365] [cursor=pointer]:
+            - generic [ref=e366]: What is the Lua Graph Editor?
+            - img [ref=e367]
+        - group [ref=e369]:
+          - generic "How do I connect my flight controller to ArduDeck?" [ref=e370] [cursor=pointer]:
+            - generic [ref=e371]: How do I connect my flight controller to ArduDeck?
+            - img [ref=e372]
+        - group [ref=e374]:
+          - generic "Does ArduDeck work with ArduPilot?" [ref=e375] [cursor=pointer]:
+            - generic [ref=e376]: Does ArduDeck work with ArduPilot?
+            - img [ref=e377]
+        - group [ref=e379]:
+          - generic "Does ArduDeck work with iNav and Betaflight?" [ref=e380] [cursor=pointer]:
+            - generic [ref=e381]: Does ArduDeck work with iNav and Betaflight?
+            - img [ref=e382]
+        - group [ref=e384]:
+          - generic "What is a ground control station?" [ref=e385] [cursor=pointer]:
+            - generic [ref=e386]: What is a ground control station?
+            - img [ref=e387]
+        - group [ref=e389]:
+          - generic "Can I plan missions with ArduDeck?" [ref=e390] [cursor=pointer]:
+            - generic [ref=e391]: Can I plan missions with ArduDeck?
+            - img [ref=e392]
+  - generic [ref=e396]:
+    - generic [ref=e397]: Supported by
+    - link "Adlerblix" [ref=e399] [cursor=pointer]:
+      - /url: https://adlerblix.de
+      - img "Adlerblix" [ref=e400]
+  - contentinfo [ref=e401]:
+    - generic [ref=e402]:
+      - generic [ref=e403]:
+        - generic [ref=e404]:
+          - generic [ref=e405]:
+            - img "ArduDeck" [ref=e406]
+            - generic [ref=e407]: ArduDeck
+          - paragraph [ref=e408]: Modern, cross-platform ground control station for ArduPilot. Also supports iNav and Betaflight. Open source and free forever.
+        - generic [ref=e409]:
+          - heading "Product" [level=4] [ref=e410]
+          - list [ref=e411]:
+            - listitem [ref=e412]:
+              - link "Features" [ref=e413] [cursor=pointer]:
+                - /url: /#features
+            - listitem [ref=e414]:
+              - link "Solutions" [ref=e415] [cursor=pointer]:
+                - /url: /solutions/
+            - listitem [ref=e416]:
+              - link "Download" [ref=e417] [cursor=pointer]:
+                - /url: /#download
+            - listitem [ref=e418]:
+              - link "Documentation" [ref=e419] [cursor=pointer]:
+                - /url: /docs/
+            - listitem [ref=e420]:
+              - link "Blog" [ref=e421] [cursor=pointer]:
+                - /url: /blog/
+            - listitem [ref=e422]:
+              - link "Changelog" [ref=e423] [cursor=pointer]:
+                - /url: /changelog/
+        - generic [ref=e424]:
+          - heading "Community" [level=4] [ref=e425]
+          - list [ref=e426]:
+            - listitem [ref=e427]:
+              - link "Discord" [ref=e428] [cursor=pointer]:
+                - /url: https://discord.gg/JX2JdVXPPC
+            - listitem [ref=e429]:
+              - link "GitHub" [ref=e430] [cursor=pointer]:
+                - /url: https://github.com/rubenCodeforges/ardudeck
+            - listitem [ref=e431]:
+              - link "Report a Bug" [ref=e432] [cursor=pointer]:
+                - /url: https://github.com/rubenCodeforges/ardudeck/issues
+            - listitem [ref=e433]:
+              - link "Codeforges" [ref=e434] [cursor=pointer]:
+                - /url: https://www.codeforges.com
+      - generic [ref=e435]:
+        - paragraph [ref=e436]:
+          - text: © 2026 ArduDeck. Released under the GPL-3.0 License. Built by
+          - link "Codeforges" [ref=e437] [cursor=pointer]:
+            - /url: https://www.codeforges.com
+          - text: . Hardware support by
+          - link "Adlerblix" [ref=e438] [cursor=pointer]:
+            - /url: https://adlerblix.de
+          - text: .
+        - link [ref=e440] [cursor=pointer]:
+          - /url: https://github.com/rubenCodeforges/ardudeck
+          - img [ref=e441]
+  - generic [ref=e445]:
+    - button "Menu" [ref=e446]:
+      - img [ref=e448]
+      - generic: Menu
+    - button "Inspect" [ref=e452]:
+      - img [ref=e454]
+      - generic: Inspect
+    - button "Audit" [ref=e456]:
+      - img [ref=e458]
+      - generic: Audit
+    - button "Settings" [ref=e461]:
+      - img [ref=e463]
+      - generic: Settings

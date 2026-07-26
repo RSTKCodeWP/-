@@ -1,0 +1,171 @@
+# Project
+site_name: Stream Overlays
+site_url: https://overlays.dutchdronesquad.nl
+site_author: Klaas Schoute
+site_description: >-
+  A RotorHazard plugin with collection of stream overlays to use with OBS Studio or similar software.
+
+# Copyright
+copyright: |
+  &copy; 2026 <a href="https://dutchdronesquad.nl" target="_blank" rel="noopener">Dutch Drone Squad</a>
+
+# Repository
+repo_name: rh-stream-overlays
+repo_url: https://github.com/dutchdronesquad/rh-stream-overlays
+edit_uri: edit/main/docs/
+
+# Configuration
+theme:
+  name: material
+  favicon: assets/favicon.ico
+  language: en
+  icon:
+    logo: fontawesome/solid/clapperboard
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: blue
+      accent: orange
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: blue
+      accent: orange
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - announce.dismiss
+    - content.code.annotate
+    - content.code.copy
+    - content.tabs.link
+    - content.tooltips
+    - navigation.footer
+    - navigation.indexes
+    - navigation.instant
+    - navigation.instant.prefetch
+    - navigation.instant.progress
+    - navigation.path
+    - navigation.sections
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.top
+    - navigation.tracking
+    - search.highlight
+    - search.share
+    - search.suggest
+    - toc.follow
+
+plugins:
+  - blog
+  - search:
+      separator: '[\s\u200b\-_,:!=\[\]()"`/]+|\.(?!\d)|&[lg]t;|(?!\b)(?=[A-Z][a-z])'
+
+# Navigation
+nav:
+  - Home: index.md
+  - Getting Started:
+    - getting-started/index.md
+    - Installation: getting-started/installation.md
+    - OBS Setup: getting-started/obs-setup.md
+  - Overlays:
+    - overlays/index.md
+    - Theme Packages:
+      - Apex: overlays/apex.md
+      - Dutch Drone Squad: overlays/dds.md
+      - Liga Colombiana Drone Racing: overlays/lcdr.md
+    - Overlay Types:
+      - overlays/types/index.md
+      - Node Overlays: overlays/types/nodes.md
+      - Topbars: overlays/types/topbars.md
+      - Upcoming Heat: overlays/types/upcoming-heat.md
+      - Leaderboards: overlays/types/leaderboards.md
+  - Integrations:
+    - integrations/index.md
+    - TrackDraw:
+      - integrations/trackdraw/index.md
+      - Setup: integrations/trackdraw/setup.md
+      - Live Race Map: integrations/trackdraw/live-race-map.md
+      - Overview: integrations/trackdraw/overview.md
+  - Advanced:
+    - advanced/index.md
+    - OBS Scene Layouts: production/obs-scene-layouts.md
+    - Race Day Checklist: production/race-day-checklist.md
+    - Performance Tips: production/performance.md
+    - Local Development: installation/development.md
+    - Adding Overlays: contributing/adding-overlays.md
+  - FAQ:
+    - faq/index.md
+    - Installation: faq/installation.md
+    - OBS Setup: faq/obs-setup.md
+    - Customization: faq/customization.md
+    - Troubleshooting: faq/troubleshooting.md
+  - Blog:
+    - blog/index.md
+
+# Markdown extensions
+markdown_extensions:
+  - abbr
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - admonition
+  - pymdownx.betterem
+  - pymdownx.caret
+  - pymdownx.critic
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.snippets
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+      combine_header_slug: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
+  - toc:
+      permalink: true
+      toc_depth: 3
+
+# Extra
+extra:
+  analytics:
+    provider: google
+    property: G-SD7964ETPQ
+  status:
+    new: Recently added
+    deprecated: Deprecated
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/dutchdronesquad
+    - icon: fontawesome/brands/instagram
+      link: https://instagram.com/dutchdronesquad
+    - icon: fontawesome/brands/youtube
+      link: https://youtube.com/@dutchdronesquad
+    - icon: fontawesome/brands/facebook
+      link: https://facebook.com/dutchdronesquad
+
+extra_css:
+  - assets/css/styles.css
+  - assets/css/homepage.css
+
+extra_javascript:
+  - assets/js/site.js

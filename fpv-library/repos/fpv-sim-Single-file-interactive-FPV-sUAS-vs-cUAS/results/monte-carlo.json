@@ -1,0 +1,1885 @@
+{
+  "quick": false,
+  "meta": {
+    "generated": "2026-07-23T07:04:42.748Z",
+    "sim_commit": "1c0c32719bfe8c5149a7bc5cf711732a1bd62ac3",
+    "engine_commit": "fcab03c52b835a42e872b27391de8420576f3bec",
+    "engine_source": "https://github.com/wasomma/fpv-sim-mcp",
+    "total_runs": 22800
+  },
+  "experiments": {
+    "baseline": {
+      "runs": 10000,
+      "start_seed": 1,
+      "end_seed": 10000,
+      "outcomes": {
+        "BLUFOR": 3683,
+        "OPFOR": 2634,
+        "STALEMATE": 3683
+      },
+      "win_rates": {
+        "BLUFOR": 0.368,
+        "OPFOR": 0.263,
+        "STALEMATE": 0.368
+      },
+      "time_to_fix_s": {
+        "BLUFOR": {
+          "mean": 520,
+          "median": 378.9,
+          "p10": 89.5,
+          "p90": 1179.1,
+          "min": 39.9,
+          "max": 1935.9,
+          "n": 6850
+        },
+        "OPFOR": {
+          "mean": 573.2,
+          "median": 431.4,
+          "p10": 187.1,
+          "p90": 1199.9,
+          "min": 76.7,
+          "max": 1934.3,
+          "n": 3274
+        }
+      },
+      "time_to_kill_s": {
+        "mean": 718.6,
+        "median": 664.5,
+        "p10": 172.2,
+        "p90": 1155.7,
+        "min": 99.2,
+        "max": 1900.9,
+        "n": 6317
+      },
+      "duration_s": {
+        "mean": 1159.8,
+        "median": 1120.7,
+        "p10": 222.8,
+        "p90": 1942.5,
+        "min": 99.2,
+        "max": 1942.5,
+        "n": 10000
+      },
+      "stalemate_reasons": {
+        "both_drones_down": 3683
+      },
+      "notable_seeds": {
+        "fastest_kill": {
+          "seed": 5838,
+          "winner": "BLUFOR",
+          "t_s": 99.2
+        },
+        "slowest_kill": {
+          "seed": 4189,
+          "winner": "OPFOR",
+          "t_s": 1900.9
+        },
+        "example_stalemate": 1
+      },
+      "ci95": {
+        "BLUFOR": {
+          "p": 0.3683,
+          "lo": 0.3589,
+          "hi": 0.3778
+        },
+        "OPFOR": {
+          "p": 0.2634,
+          "lo": 0.2549,
+          "hi": 0.2721
+        },
+        "STALEMATE": {
+          "p": 0.3683,
+          "lo": 0.3589,
+          "hi": 0.3778
+        }
+      },
+      "histograms": {
+        "time_to_fix_s": {
+          "BLUFOR": {
+            "bin_width_s": 60,
+            "counts": [
+              75,
+              1239,
+              750,
+              511,
+              405,
+              334,
+              332,
+              290,
+              281,
+              258,
+              236,
+              252,
+              184,
+              190,
+              178,
+              153,
+              171,
+              138,
+              120,
+              105,
+              86,
+              75,
+              65,
+              68,
+              55,
+              55,
+              45,
+              42,
+              35,
+              43,
+              32,
+              39,
+              8
+            ],
+            "n": 6850
+          },
+          "OPFOR": {
+            "bin_width_s": 60,
+            "counts": [
+              0,
+              28,
+              266,
+              412,
+              365,
+              300,
+              230,
+              201,
+              161,
+              162,
+              108,
+              113,
+              112,
+              69,
+              90,
+              71,
+              75,
+              77,
+              58,
+              49,
+              40,
+              40,
+              31,
+              30,
+              45,
+              42,
+              23,
+              19,
+              14,
+              16,
+              11,
+              14,
+              2
+            ],
+            "n": 3274
+          }
+        },
+        "time_to_kill_s": {
+          "bin_width_s": 60,
+          "counts": [
+            0,
+            71,
+            643,
+            432,
+            396,
+            392,
+            348,
+            235,
+            212,
+            229,
+            175,
+            154,
+            157,
+            157,
+            122,
+            125,
+            104,
+            90,
+            1559,
+            144,
+            104,
+            70,
+            65,
+            61,
+            51,
+            57,
+            41,
+            32,
+            40,
+            26,
+            13,
+            12
+          ],
+          "n": 6317
+        }
+      }
+    },
+    "pairedStockArm": {
+      "runs": 2000,
+      "start_seed": 1,
+      "end_seed": 2000,
+      "outcomes": {
+        "BLUFOR": 741,
+        "OPFOR": 529,
+        "STALEMATE": 730
+      },
+      "win_rates": {
+        "BLUFOR": 0.371,
+        "OPFOR": 0.265,
+        "STALEMATE": 0.365
+      },
+      "time_to_fix_s": {
+        "BLUFOR": {
+          "mean": 506.5,
+          "median": 380.4,
+          "p10": 89.5,
+          "p90": 1118.3,
+          "min": 45.9,
+          "max": 1929.5,
+          "n": 1356
+        },
+        "OPFOR": {
+          "mean": 594.9,
+          "median": 443.4,
+          "p10": 190,
+          "p90": 1247.9,
+          "min": 100.7,
+          "max": 1931.1,
+          "n": 649
+        }
+      },
+      "time_to_kill_s": {
+        "mean": 712.9,
+        "median": 656,
+        "p10": 173.7,
+        "p90": 1172.6,
+        "min": 105,
+        "max": 1844.7,
+        "n": 1270
+      },
+      "duration_s": {
+        "mean": 1151.3,
+        "median": 1121.2,
+        "p10": 217.7,
+        "p90": 1942.5,
+        "min": 105,
+        "max": 1942.5,
+        "n": 2000
+      },
+      "stalemate_reasons": {
+        "both_drones_down": 730
+      },
+      "notable_seeds": {
+        "fastest_kill": {
+          "seed": 1760,
+          "winner": "BLUFOR",
+          "t_s": 105
+        },
+        "slowest_kill": {
+          "seed": 1112,
+          "winner": "BLUFOR",
+          "t_s": 1844.7
+        },
+        "example_stalemate": 1
+      },
+      "ci95": {
+        "BLUFOR": {
+          "p": 0.3705,
+          "lo": 0.3496,
+          "hi": 0.3919
+        },
+        "OPFOR": {
+          "p": 0.2645,
+          "lo": 0.2456,
+          "hi": 0.2843
+        },
+        "STALEMATE": {
+          "p": 0.365,
+          "lo": 0.3442,
+          "hi": 0.3863
+        }
+      },
+      "histograms": {
+        "time_to_fix_s": {
+          "BLUFOR": {
+            "bin_width_s": 60,
+            "counts": [
+              13,
+              267,
+              139,
+              105,
+              76,
+              54,
+              72,
+              59,
+              63,
+              53,
+              52,
+              38,
+              38,
+              34,
+              39,
+              38,
+              39,
+              21,
+              31,
+              13,
+              15,
+              15,
+              10,
+              11,
+              6,
+              9,
+              8,
+              8,
+              8,
+              4,
+              8,
+              9,
+              1
+            ],
+            "n": 1356
+          },
+          "OPFOR": {
+            "bin_width_s": 60,
+            "counts": [
+              0,
+              3,
+              53,
+              72,
+              70,
+              59,
+              50,
+              40,
+              33,
+              32,
+              14,
+              24,
+              26,
+              11,
+              15,
+              20,
+              15,
+              14,
+              11,
+              14,
+              10,
+              10,
+              3,
+              8,
+              10,
+              12,
+              5,
+              5,
+              3,
+              3,
+              2,
+              1,
+              1
+            ],
+            "n": 649
+          }
+        },
+        "time_to_kill_s": {
+          "bin_width_s": 60,
+          "counts": [
+            0,
+            12,
+            129,
+            93,
+            79,
+            87,
+            78,
+            48,
+            33,
+            50,
+            30,
+            30,
+            33,
+            28,
+            20,
+            22,
+            20,
+            21,
+            312,
+            30,
+            19,
+            12,
+            16,
+            12,
+            9,
+            17,
+            11,
+            7,
+            5,
+            4,
+            3
+          ],
+          "n": 1270
+        }
+      }
+    },
+    "opforAdoptsDiscipline": {
+      "variant": {
+        "runs": 2000,
+        "start_seed": 1,
+        "end_seed": 2000,
+        "outcomes": {
+          "BLUFOR": 587,
+          "OPFOR": 597,
+          "STALEMATE": 816
+        },
+        "win_rates": {
+          "BLUFOR": 0.294,
+          "OPFOR": 0.299,
+          "STALEMATE": 0.408
+        },
+        "time_to_fix_s": {
+          "BLUFOR": {
+            "mean": 628.3,
+            "median": 460.7,
+            "p10": 185.5,
+            "p90": 1374,
+            "min": 91.1,
+            "max": 1939.1,
+            "n": 804
+          },
+          "OPFOR": {
+            "mean": 624.1,
+            "median": 449.4,
+            "p10": 191.9,
+            "p90": 1382.9,
+            "min": 115.1,
+            "max": 1929.5,
+            "n": 733
+          }
+        },
+        "time_to_kill_s": {
+          "mean": 863.6,
+          "median": 1003.2,
+          "p10": 311.6,
+          "p90": 1331.2,
+          "min": 161.6,
+          "max": 1904.4,
+          "n": 1184
+        },
+        "duration_s": {
+          "mean": 1299.8,
+          "median": 1153.3,
+          "p10": 373,
+          "p90": 1942.5,
+          "min": 161.6,
+          "max": 1942.5,
+          "n": 2000
+        },
+        "stalemate_reasons": {
+          "both_drones_down": 816
+        },
+        "notable_seeds": {
+          "fastest_kill": {
+            "seed": 1821,
+            "winner": "OPFOR",
+            "t_s": 161.6
+          },
+          "slowest_kill": {
+            "seed": 85,
+            "winner": "BLUFOR",
+            "t_s": 1904.4
+          },
+          "example_stalemate": 1
+        },
+        "ci95": {
+          "BLUFOR": {
+            "p": 0.2935,
+            "lo": 0.274,
+            "hi": 0.3138
+          },
+          "OPFOR": {
+            "p": 0.2985,
+            "lo": 0.2788,
+            "hi": 0.3189
+          },
+          "STALEMATE": {
+            "p": 0.408,
+            "lo": 0.3867,
+            "hi": 0.4297
+          }
+        },
+        "histograms": {
+          "time_to_fix_s": {
+            "BLUFOR": {
+              "bin_width_s": 60,
+              "counts": [
+                0,
+                5,
+                70,
+                95,
+                76,
+                71,
+                58,
+                47,
+                39,
+                35,
+                22,
+                26,
+                21,
+                21,
+                14,
+                22,
+                22,
+                14,
+                7,
+                17,
+                16,
+                11,
+                17,
+                11,
+                7,
+                8,
+                11,
+                6,
+                9,
+                10,
+                6,
+                8,
+                2
+              ],
+              "n": 804
+            },
+            "OPFOR": {
+              "bin_width_s": 60,
+              "counts": [
+                0,
+                1,
+                56,
+                79,
+                90,
+                66,
+                56,
+                41,
+                35,
+                30,
+                26,
+                19,
+                20,
+                17,
+                22,
+                22,
+                8,
+                11,
+                17,
+                10,
+                9,
+                11,
+                13,
+                11,
+                14,
+                8,
+                8,
+                6,
+                10,
+                4,
+                5,
+                7,
+                1
+              ],
+              "n": 733
+            }
+          },
+          "time_to_kill_s": {
+            "bin_width_s": 60,
+            "counts": [
+              0,
+              0,
+              1,
+              35,
+              64,
+              77,
+              77,
+              53,
+              59,
+              48,
+              31,
+              34,
+              32,
+              28,
+              21,
+              22,
+              13,
+              18,
+              379,
+              25,
+              24,
+              23,
+              13,
+              21,
+              17,
+              13,
+              11,
+              8,
+              12,
+              8,
+              8,
+              9
+            ],
+            "n": 1184
+          }
+        }
+      },
+      "paired": {
+        "same_outcome": 1467,
+        "flips_total": 533,
+        "flips_sample": [
+          {
+            "seed": 6,
+            "a": "OPFOR",
+            "b": "STALEMATE"
+          },
+          {
+            "seed": 9,
+            "a": "BLUFOR",
+            "b": "OPFOR"
+          },
+          {
+            "seed": 12,
+            "a": "BLUFOR",
+            "b": "OPFOR"
+          },
+          {
+            "seed": 13,
+            "a": "STALEMATE",
+            "b": "BLUFOR"
+          },
+          {
+            "seed": 14,
+            "a": "STALEMATE",
+            "b": "BLUFOR"
+          },
+          {
+            "seed": 17,
+            "a": "OPFOR",
+            "b": "STALEMATE"
+          },
+          {
+            "seed": 29,
+            "a": "OPFOR",
+            "b": "BLUFOR"
+          },
+          {
+            "seed": 32,
+            "a": "OPFOR",
+            "b": "STALEMATE"
+          },
+          {
+            "seed": 33,
+            "a": "BLUFOR",
+            "b": "STALEMATE"
+          },
+          {
+            "seed": 34,
+            "a": "OPFOR",
+            "b": "BLUFOR"
+          },
+          {
+            "seed": 37,
+            "a": "BLUFOR",
+            "b": "OPFOR"
+          },
+          {
+            "seed": 48,
+            "a": "BLUFOR",
+            "b": "STALEMATE"
+          },
+          {
+            "seed": 54,
+            "a": "BLUFOR",
+            "b": "STALEMATE"
+          },
+          {
+            "seed": 59,
+            "a": "OPFOR",
+            "b": "STALEMATE"
+          },
+          {
+            "seed": 60,
+            "a": "BLUFOR",
+            "b": "STALEMATE"
+          },
+          {
+            "seed": 72,
+            "a": "BLUFOR",
+            "b": "STALEMATE"
+          },
+          {
+            "seed": 73,
+            "a": "BLUFOR",
+            "b": "OPFOR"
+          },
+          {
+            "seed": 75,
+            "a": "OPFOR",
+            "b": "STALEMATE"
+          },
+          {
+            "seed": 80,
+            "a": "STALEMATE",
+            "b": "BLUFOR"
+          },
+          {
+            "seed": 81,
+            "a": "STALEMATE",
+            "b": "OPFOR"
+          },
+          {
+            "seed": 82,
+            "a": "BLUFOR",
+            "b": "OPFOR"
+          },
+          {
+            "seed": 85,
+            "a": "STALEMATE",
+            "b": "BLUFOR"
+          },
+          {
+            "seed": 86,
+            "a": "BLUFOR",
+            "b": "OPFOR"
+          },
+          {
+            "seed": 89,
+            "a": "BLUFOR",
+            "b": "OPFOR"
+          },
+          {
+            "seed": 91,
+            "a": "STALEMATE",
+            "b": "OPFOR"
+          }
+        ],
+        "blufor_win_rate_delta": -0.077,
+        "opfor_win_rate_delta": 0.034,
+        "stalemate_rate_delta": 0.043,
+        "mean_time_to_fix_delta_s": {
+          "BLUFOR": 121.8,
+          "OPFOR": 29.2
+        }
+      }
+    },
+    "postureSwap": {
+      "variant": {
+        "runs": 2000,
+        "start_seed": 1,
+        "end_seed": 2000,
+        "outcomes": {
+          "BLUFOR": 529,
+          "OPFOR": 768,
+          "STALEMATE": 703
+        },
+        "win_rates": {
+          "BLUFOR": 0.265,
+          "OPFOR": 0.384,
+          "STALEMATE": 0.352
+        },
+        "time_to_fix_s": {
+          "BLUFOR": {
+            "mean": 580,
+            "median": 423.9,
+            "p10": 180.7,
+            "p90": 1206.3,
+            "min": 83.1,
+            "max": 1902.3,
+            "n": 709
+          },
+          "OPFOR": {
+            "mean": 548.2,
+            "median": 396.2,
+            "p10": 88.7,
+            "p90": 1301.5,
+            "min": 41.4,
+            "max": 1918.3,
+            "n": 1326
+          }
+        },
+        "time_to_kill_s": {
+          "mean": 740.2,
+          "median": 715.4,
+          "p10": 187.5,
+          "p90": 1175.4,
+          "min": 103.7,
+          "max": 1894.3,
+          "n": 1297
+        },
+        "duration_s": {
+          "mean": 1148.9,
+          "median": 1120.4,
+          "p10": 234.8,
+          "p90": 1942.5,
+          "min": 103.7,
+          "max": 1942.5,
+          "n": 2000
+        },
+        "stalemate_reasons": {
+          "both_drones_down": 703
+        },
+        "notable_seeds": {
+          "fastest_kill": {
+            "seed": 301,
+            "winner": "OPFOR",
+            "t_s": 103.7
+          },
+          "slowest_kill": {
+            "seed": 90,
+            "winner": "OPFOR",
+            "t_s": 1894.3
+          },
+          "example_stalemate": 1
+        },
+        "ci95": {
+          "BLUFOR": {
+            "p": 0.2645,
+            "lo": 0.2456,
+            "hi": 0.2843
+          },
+          "OPFOR": {
+            "p": 0.384,
+            "lo": 0.3629,
+            "hi": 0.4055
+          },
+          "STALEMATE": {
+            "p": 0.3515,
+            "lo": 0.3309,
+            "hi": 0.3727
+          }
+        },
+        "histograms": {
+          "time_to_fix_s": {
+            "BLUFOR": {
+              "bin_width_s": 60,
+              "counts": [
+                0,
+                8,
+                62,
+                99,
+                73,
+                61,
+                49,
+                35,
+                28,
+                29,
+                22,
+                26,
+                24,
+                26,
+                18,
+                20,
+                15,
+                23,
+                8,
+                9,
+                9,
+                6,
+                5,
+                7,
+                8,
+                9,
+                8,
+                8,
+                4,
+                6,
+                2,
+                2
+              ],
+              "n": 709
+            },
+            "OPFOR": {
+              "bin_width_s": 60,
+              "counts": [
+                22,
+                244,
+                128,
+                93,
+                76,
+                63,
+                64,
+                56,
+                41,
+                45,
+                52,
+                38,
+                42,
+                45,
+                26,
+                30,
+                31,
+                27,
+                24,
+                21,
+                17,
+                14,
+                20,
+                14,
+                18,
+                16,
+                10,
+                12,
+                7,
+                12,
+                10,
+                8
+              ],
+              "n": 1326
+            }
+          },
+          "time_to_kill_s": {
+            "bin_width_s": 60,
+            "counts": [
+              0,
+              12,
+              105,
+              92,
+              94,
+              73,
+              60,
+              57,
+              40,
+              40,
+              47,
+              32,
+              31,
+              35,
+              14,
+              29,
+              26,
+              21,
+              350,
+              16,
+              19,
+              19,
+              5,
+              16,
+              9,
+              11,
+              15,
+              4,
+              6,
+              10,
+              4,
+              5
+            ],
+            "n": 1297
+          }
+        }
+      },
+      "paired": {
+        "same_outcome": 1357,
+        "flips_total": 643,
+        "flips_sample": [
+          {
+            "seed": 3,
+            "a": "BLUFOR",
+            "b": "STALEMATE"
+          },
+          {
+            "seed": 7,
+            "a": "BLUFOR",
+            "b": "OPFOR"
+          },
+          {
+            "seed": 8,
+            "a": "STALEMATE",
+            "b": "BLUFOR"
+          },
+          {
+            "seed": 13,
+            "a": "STALEMATE",
+            "b": "BLUFOR"
+          },
+          {
+            "seed": 14,
+            "a": "STALEMATE",
+            "b": "BLUFOR"
+          },
+          {
+            "seed": 24,
+            "a": "BLUFOR",
+            "b": "OPFOR"
+          },
+          {
+            "seed": 27,
+            "a": "STALEMATE",
+            "b": "OPFOR"
+          },
+          {
+            "seed": 29,
+            "a": "OPFOR",
+            "b": "STALEMATE"
+          },
+          {
+            "seed": 33,
+            "a": "BLUFOR",
+            "b": "STALEMATE"
+          },
+          {
+            "seed": 36,
+            "a": "BLUFOR",
+            "b": "OPFOR"
+          },
+          {
+            "seed": 37,
+            "a": "BLUFOR",
+            "b": "OPFOR"
+          },
+          {
+            "seed": 39,
+            "a": "STALEMATE",
+            "b": "OPFOR"
+          },
+          {
+            "seed": 48,
+            "a": "BLUFOR",
+            "b": "STALEMATE"
+          },
+          {
+            "seed": 50,
+            "a": "BLUFOR",
+            "b": "OPFOR"
+          },
+          {
+            "seed": 54,
+            "a": "BLUFOR",
+            "b": "STALEMATE"
+          },
+          {
+            "seed": 56,
+            "a": "BLUFOR",
+            "b": "OPFOR"
+          },
+          {
+            "seed": 58,
+            "a": "STALEMATE",
+            "b": "OPFOR"
+          },
+          {
+            "seed": 60,
+            "a": "BLUFOR",
+            "b": "STALEMATE"
+          },
+          {
+            "seed": 65,
+            "a": "BLUFOR",
+            "b": "OPFOR"
+          },
+          {
+            "seed": 73,
+            "a": "BLUFOR",
+            "b": "OPFOR"
+          },
+          {
+            "seed": 74,
+            "a": "BLUFOR",
+            "b": "OPFOR"
+          },
+          {
+            "seed": 76,
+            "a": "STALEMATE",
+            "b": "OPFOR"
+          },
+          {
+            "seed": 77,
+            "a": "STALEMATE",
+            "b": "BLUFOR"
+          },
+          {
+            "seed": 80,
+            "a": "STALEMATE",
+            "b": "BLUFOR"
+          },
+          {
+            "seed": 82,
+            "a": "BLUFOR",
+            "b": "STALEMATE"
+          }
+        ],
+        "blufor_win_rate_delta": -0.106,
+        "opfor_win_rate_delta": 0.119,
+        "stalemate_rate_delta": -0.013,
+        "mean_time_to_fix_delta_s": {
+          "BLUFOR": 73.5,
+          "OPFOR": -46.7
+        }
+      }
+    },
+    "launchEqualized": {
+      "variant": {
+        "runs": 2000,
+        "start_seed": 1,
+        "end_seed": 2000,
+        "outcomes": {
+          "BLUFOR": 735,
+          "OPFOR": 525,
+          "STALEMATE": 740
+        },
+        "win_rates": {
+          "BLUFOR": 0.368,
+          "OPFOR": 0.263,
+          "STALEMATE": 0.37
+        },
+        "time_to_fix_s": {
+          "BLUFOR": {
+            "mean": 507.9,
+            "median": 366.2,
+            "p10": 86.3,
+            "p90": 1173.5,
+            "min": 42.9,
+            "max": 1934.3,
+            "n": 1374
+          },
+          "OPFOR": {
+            "mean": 589.9,
+            "median": 435.9,
+            "p10": 187.1,
+            "p90": 1272.5,
+            "min": 91.1,
+            "max": 1934.3,
+            "n": 654
+          }
+        },
+        "time_to_kill_s": {
+          "mean": 712.2,
+          "median": 648.3,
+          "p10": 174.7,
+          "p90": 1169.6,
+          "min": 100.1,
+          "max": 1888.9,
+          "n": 1260
+        },
+        "duration_s": {
+          "mean": 1157.7,
+          "median": 1116.6,
+          "p10": 217.9,
+          "p90": 1936.5,
+          "min": 100.1,
+          "max": 1936.5,
+          "n": 2000
+        },
+        "stalemate_reasons": {
+          "both_drones_down": 740
+        },
+        "notable_seeds": {
+          "fastest_kill": {
+            "seed": 1948,
+            "winner": "BLUFOR",
+            "t_s": 100.1
+          },
+          "slowest_kill": {
+            "seed": 217,
+            "winner": "BLUFOR",
+            "t_s": 1888.9
+          },
+          "example_stalemate": 4
+        },
+        "ci95": {
+          "BLUFOR": {
+            "p": 0.3675,
+            "lo": 0.3466,
+            "hi": 0.3889
+          },
+          "OPFOR": {
+            "p": 0.2625,
+            "lo": 0.2437,
+            "hi": 0.2822
+          },
+          "STALEMATE": {
+            "p": 0.37,
+            "lo": 0.3491,
+            "hi": 0.3914
+          }
+        },
+        "histograms": {
+          "time_to_fix_s": {
+            "BLUFOR": {
+              "bin_width_s": 60,
+              "counts": [
+                31,
+                265,
+                131,
+                99,
+                93,
+                62,
+                64,
+                64,
+                52,
+                60,
+                44,
+                48,
+                42,
+                33,
+                34,
+                31,
+                25,
+                28,
+                21,
+                18,
+                10,
+                13,
+                15,
+                9,
+                16,
+                18,
+                16,
+                6,
+                4,
+                5,
+                7,
+                7,
+                3
+              ],
+              "n": 1374
+            },
+            "OPFOR": {
+              "bin_width_s": 60,
+              "counts": [
+                0,
+                7,
+                53,
+                85,
+                65,
+                55,
+                50,
+                44,
+                27,
+                32,
+                23,
+                15,
+                19,
+                15,
+                24,
+                15,
+                12,
+                18,
+                12,
+                7,
+                10,
+                4,
+                8,
+                8,
+                11,
+                10,
+                9,
+                2,
+                5,
+                4,
+                2,
+                2,
+                1
+              ],
+              "n": 654
+            }
+          },
+          "time_to_kill_s": {
+            "bin_width_s": 60,
+            "counts": [
+              0,
+              28,
+              111,
+              100,
+              77,
+              80,
+              65,
+              58,
+              39,
+              39,
+              41,
+              37,
+              32,
+              24,
+              18,
+              21,
+              23,
+              11,
+              312,
+              25,
+              19,
+              18,
+              10,
+              16,
+              9,
+              9,
+              10,
+              9,
+              6,
+              7,
+              3,
+              3
+            ],
+            "n": 1260
+          }
+        }
+      },
+      "paired": {
+        "same_outcome": 1544,
+        "flips_total": 456,
+        "flips_sample": [
+          {
+            "seed": 1,
+            "a": "STALEMATE",
+            "b": "BLUFOR"
+          },
+          {
+            "seed": 2,
+            "a": "STALEMATE",
+            "b": "BLUFOR"
+          },
+          {
+            "seed": 7,
+            "a": "BLUFOR",
+            "b": "STALEMATE"
+          },
+          {
+            "seed": 13,
+            "a": "STALEMATE",
+            "b": "BLUFOR"
+          },
+          {
+            "seed": 14,
+            "a": "STALEMATE",
+            "b": "BLUFOR"
+          },
+          {
+            "seed": 15,
+            "a": "OPFOR",
+            "b": "BLUFOR"
+          },
+          {
+            "seed": 17,
+            "a": "OPFOR",
+            "b": "STALEMATE"
+          },
+          {
+            "seed": 25,
+            "a": "STALEMATE",
+            "b": "BLUFOR"
+          },
+          {
+            "seed": 29,
+            "a": "OPFOR",
+            "b": "BLUFOR"
+          },
+          {
+            "seed": 33,
+            "a": "BLUFOR",
+            "b": "STALEMATE"
+          },
+          {
+            "seed": 34,
+            "a": "OPFOR",
+            "b": "BLUFOR"
+          },
+          {
+            "seed": 48,
+            "a": "BLUFOR",
+            "b": "STALEMATE"
+          },
+          {
+            "seed": 54,
+            "a": "BLUFOR",
+            "b": "STALEMATE"
+          },
+          {
+            "seed": 59,
+            "a": "OPFOR",
+            "b": "BLUFOR"
+          },
+          {
+            "seed": 67,
+            "a": "OPFOR",
+            "b": "STALEMATE"
+          },
+          {
+            "seed": 72,
+            "a": "BLUFOR",
+            "b": "STALEMATE"
+          },
+          {
+            "seed": 73,
+            "a": "BLUFOR",
+            "b": "OPFOR"
+          },
+          {
+            "seed": 75,
+            "a": "OPFOR",
+            "b": "STALEMATE"
+          },
+          {
+            "seed": 76,
+            "a": "STALEMATE",
+            "b": "BLUFOR"
+          },
+          {
+            "seed": 77,
+            "a": "STALEMATE",
+            "b": "BLUFOR"
+          },
+          {
+            "seed": 81,
+            "a": "STALEMATE",
+            "b": "BLUFOR"
+          },
+          {
+            "seed": 94,
+            "a": "OPFOR",
+            "b": "STALEMATE"
+          },
+          {
+            "seed": 99,
+            "a": "STALEMATE",
+            "b": "BLUFOR"
+          },
+          {
+            "seed": 100,
+            "a": "STALEMATE",
+            "b": "OPFOR"
+          },
+          {
+            "seed": 101,
+            "a": "OPFOR",
+            "b": "STALEMATE"
+          }
+        ],
+        "blufor_win_rate_delta": -0.003,
+        "opfor_win_rate_delta": -0.002,
+        "stalemate_rate_delta": 0.005,
+        "mean_time_to_fix_delta_s": {
+          "BLUFOR": 1.4,
+          "OPFOR": -5
+        }
+      }
+    },
+    "uplinkDutySensitivity": {
+      "period_s": 14,
+      "seeds_per_cell": 400,
+      "cells": [
+        {
+          "opfor_uplink_on_s": 2,
+          "opfor_uplink_off_s": 12,
+          "opfor_uplink_duty": 0.143,
+          "opfor_video": "continuous",
+          "n": 400,
+          "outcomes": {
+            "BLUFOR": 93,
+            "OPFOR": 124,
+            "STALEMATE": 183
+          },
+          "win_rates": {
+            "BLUFOR": 0.233,
+            "OPFOR": 0.31,
+            "STALEMATE": 0.458
+          },
+          "ci95": {
+            "BLUFOR": {
+              "p": 0.2325,
+              "lo": 0.1938,
+              "hi": 0.2763
+            },
+            "OPFOR": {
+              "p": 0.31,
+              "lo": 0.2667,
+              "hi": 0.357
+            },
+            "STALEMATE": {
+              "p": 0.4575,
+              "lo": 0.4093,
+              "hi": 0.5065
+            }
+          },
+          "opfor_mean_ttf_by_blufor_s": 668.5
+        },
+        {
+          "opfor_uplink_on_s": 4,
+          "opfor_uplink_off_s": 10,
+          "opfor_uplink_duty": 0.286,
+          "opfor_video": "continuous",
+          "n": 400,
+          "outcomes": {
+            "BLUFOR": 121,
+            "OPFOR": 118,
+            "STALEMATE": 161
+          },
+          "win_rates": {
+            "BLUFOR": 0.303,
+            "OPFOR": 0.295,
+            "STALEMATE": 0.403
+          },
+          "ci95": {
+            "BLUFOR": {
+              "p": 0.3025,
+              "lo": 0.2595,
+              "hi": 0.3492
+            },
+            "OPFOR": {
+              "p": 0.295,
+              "lo": 0.2524,
+              "hi": 0.3415
+            },
+            "STALEMATE": {
+              "p": 0.4025,
+              "lo": 0.3556,
+              "hi": 0.4513
+            }
+          },
+          "opfor_mean_ttf_by_blufor_s": 575.3
+        },
+        {
+          "opfor_uplink_on_s": 6,
+          "opfor_uplink_off_s": 8,
+          "opfor_uplink_duty": 0.429,
+          "opfor_video": "continuous",
+          "n": 400,
+          "outcomes": {
+            "BLUFOR": 146,
+            "OPFOR": 112,
+            "STALEMATE": 142
+          },
+          "win_rates": {
+            "BLUFOR": 0.365,
+            "OPFOR": 0.28,
+            "STALEMATE": 0.355
+          },
+          "ci95": {
+            "BLUFOR": {
+              "p": 0.365,
+              "lo": 0.3193,
+              "hi": 0.4133
+            },
+            "OPFOR": {
+              "p": 0.28,
+              "lo": 0.2383,
+              "hi": 0.3259
+            },
+            "STALEMATE": {
+              "p": 0.355,
+              "lo": 0.3097,
+              "hi": 0.4031
+            }
+          },
+          "opfor_mean_ttf_by_blufor_s": 591.9
+        },
+        {
+          "opfor_uplink_on_s": 8,
+          "opfor_uplink_off_s": 6,
+          "opfor_uplink_duty": 0.571,
+          "opfor_video": "continuous",
+          "n": 400,
+          "outcomes": {
+            "BLUFOR": 151,
+            "OPFOR": 108,
+            "STALEMATE": 141
+          },
+          "win_rates": {
+            "BLUFOR": 0.378,
+            "OPFOR": 0.27,
+            "STALEMATE": 0.353
+          },
+          "ci95": {
+            "BLUFOR": {
+              "p": 0.3775,
+              "lo": 0.3314,
+              "hi": 0.426
+            },
+            "OPFOR": {
+              "p": 0.27,
+              "lo": 0.2288,
+              "hi": 0.3155
+            },
+            "STALEMATE": {
+              "p": 0.3525,
+              "lo": 0.3073,
+              "hi": 0.4005
+            }
+          },
+          "opfor_mean_ttf_by_blufor_s": 567
+        },
+        {
+          "opfor_uplink_on_s": 10,
+          "opfor_uplink_off_s": 4,
+          "opfor_uplink_duty": 0.714,
+          "opfor_video": "continuous",
+          "n": 400,
+          "outcomes": {
+            "BLUFOR": 143,
+            "OPFOR": 113,
+            "STALEMATE": 144
+          },
+          "win_rates": {
+            "BLUFOR": 0.358,
+            "OPFOR": 0.283,
+            "STALEMATE": 0.36
+          },
+          "ci95": {
+            "BLUFOR": {
+              "p": 0.3575,
+              "lo": 0.3121,
+              "hi": 0.4056
+            },
+            "OPFOR": {
+              "p": 0.2825,
+              "lo": 0.2406,
+              "hi": 0.3285
+            },
+            "STALEMATE": {
+              "p": 0.36,
+              "lo": 0.3145,
+              "hi": 0.4082
+            }
+          },
+          "opfor_mean_ttf_by_blufor_s": 495.2
+        },
+        {
+          "opfor_uplink_on_s": 12,
+          "opfor_uplink_off_s": 2,
+          "opfor_uplink_duty": 0.857,
+          "opfor_video": "continuous",
+          "n": 400,
+          "outcomes": {
+            "BLUFOR": 156,
+            "OPFOR": 103,
+            "STALEMATE": 141
+          },
+          "win_rates": {
+            "BLUFOR": 0.39,
+            "OPFOR": 0.258,
+            "STALEMATE": 0.353
+          },
+          "ci95": {
+            "BLUFOR": {
+              "p": 0.39,
+              "lo": 0.3435,
+              "hi": 0.4386
+            },
+            "OPFOR": {
+              "p": 0.2575,
+              "lo": 0.2171,
+              "hi": 0.3025
+            },
+            "STALEMATE": {
+              "p": 0.3525,
+              "lo": 0.3073,
+              "hi": 0.4005
+            }
+          },
+          "opfor_mean_ttf_by_blufor_s": 505.9
+        },
+        {
+          "opfor_uplink_on_s": 2,
+          "opfor_uplink_off_s": 12,
+          "opfor_uplink_duty": 0.143,
+          "opfor_video": "burst",
+          "n": 400,
+          "outcomes": {
+            "BLUFOR": 98,
+            "OPFOR": 137,
+            "STALEMATE": 165
+          },
+          "win_rates": {
+            "BLUFOR": 0.245,
+            "OPFOR": 0.343,
+            "STALEMATE": 0.413
+          },
+          "ci95": {
+            "BLUFOR": {
+              "p": 0.245,
+              "lo": 0.2054,
+              "hi": 0.2894
+            },
+            "OPFOR": {
+              "p": 0.3425,
+              "lo": 0.2977,
+              "hi": 0.3903
+            },
+            "STALEMATE": {
+              "p": 0.4125,
+              "lo": 0.3653,
+              "hi": 0.4614
+            }
+          },
+          "opfor_mean_ttf_by_blufor_s": 646.8
+        },
+        {
+          "opfor_uplink_on_s": 4,
+          "opfor_uplink_off_s": 10,
+          "opfor_uplink_duty": 0.286,
+          "opfor_video": "burst",
+          "n": 400,
+          "outcomes": {
+            "BLUFOR": 116,
+            "OPFOR": 116,
+            "STALEMATE": 168
+          },
+          "win_rates": {
+            "BLUFOR": 0.29,
+            "OPFOR": 0.29,
+            "STALEMATE": 0.42
+          },
+          "ci95": {
+            "BLUFOR": {
+              "p": 0.29,
+              "lo": 0.2477,
+              "hi": 0.3363
+            },
+            "OPFOR": {
+              "p": 0.29,
+              "lo": 0.2477,
+              "hi": 0.3363
+            },
+            "STALEMATE": {
+              "p": 0.42,
+              "lo": 0.3726,
+              "hi": 0.4689
+            }
+          },
+          "opfor_mean_ttf_by_blufor_s": 595.8
+        },
+        {
+          "opfor_uplink_on_s": 6,
+          "opfor_uplink_off_s": 8,
+          "opfor_uplink_duty": 0.429,
+          "opfor_video": "burst",
+          "n": 400,
+          "outcomes": {
+            "BLUFOR": 139,
+            "OPFOR": 104,
+            "STALEMATE": 157
+          },
+          "win_rates": {
+            "BLUFOR": 0.348,
+            "OPFOR": 0.26,
+            "STALEMATE": 0.393
+          },
+          "ci95": {
+            "BLUFOR": {
+              "p": 0.3475,
+              "lo": 0.3025,
+              "hi": 0.3954
+            },
+            "OPFOR": {
+              "p": 0.26,
+              "lo": 0.2194,
+              "hi": 0.3051
+            },
+            "STALEMATE": {
+              "p": 0.3925,
+              "lo": 0.3459,
+              "hi": 0.4412
+            }
+          },
+          "opfor_mean_ttf_by_blufor_s": 577.6
+        },
+        {
+          "opfor_uplink_on_s": 8,
+          "opfor_uplink_off_s": 6,
+          "opfor_uplink_duty": 0.571,
+          "opfor_video": "burst",
+          "n": 400,
+          "outcomes": {
+            "BLUFOR": 145,
+            "OPFOR": 103,
+            "STALEMATE": 152
+          },
+          "win_rates": {
+            "BLUFOR": 0.363,
+            "OPFOR": 0.258,
+            "STALEMATE": 0.38
+          },
+          "ci95": {
+            "BLUFOR": {
+              "p": 0.3625,
+              "lo": 0.3169,
+              "hi": 0.4107
+            },
+            "OPFOR": {
+              "p": 0.2575,
+              "lo": 0.2171,
+              "hi": 0.3025
+            },
+            "STALEMATE": {
+              "p": 0.38,
+              "lo": 0.3338,
+              "hi": 0.4285
+            }
+          },
+          "opfor_mean_ttf_by_blufor_s": 531.5
+        },
+        {
+          "opfor_uplink_on_s": 10,
+          "opfor_uplink_off_s": 4,
+          "opfor_uplink_duty": 0.714,
+          "opfor_video": "burst",
+          "n": 400,
+          "outcomes": {
+            "BLUFOR": 151,
+            "OPFOR": 99,
+            "STALEMATE": 150
+          },
+          "win_rates": {
+            "BLUFOR": 0.378,
+            "OPFOR": 0.248,
+            "STALEMATE": 0.375
+          },
+          "ci95": {
+            "BLUFOR": {
+              "p": 0.3775,
+              "lo": 0.3314,
+              "hi": 0.426
+            },
+            "OPFOR": {
+              "p": 0.2475,
+              "lo": 0.2077,
+              "hi": 0.2921
+            },
+            "STALEMATE": {
+              "p": 0.375,
+              "lo": 0.329,
+              "hi": 0.4234
+            }
+          },
+          "opfor_mean_ttf_by_blufor_s": 510.4
+        },
+        {
+          "opfor_uplink_on_s": 12,
+          "opfor_uplink_off_s": 2,
+          "opfor_uplink_duty": 0.857,
+          "opfor_video": "burst",
+          "n": 400,
+          "outcomes": {
+            "BLUFOR": 153,
+            "OPFOR": 115,
+            "STALEMATE": 132
+          },
+          "win_rates": {
+            "BLUFOR": 0.383,
+            "OPFOR": 0.288,
+            "STALEMATE": 0.33
+          },
+          "ci95": {
+            "BLUFOR": {
+              "p": 0.3825,
+              "lo": 0.3362,
+              "hi": 0.431
+            },
+            "OPFOR": {
+              "p": 0.2875,
+              "lo": 0.2453,
+              "hi": 0.3337
+            },
+            "STALEMATE": {
+              "p": 0.33,
+              "lo": 0.2857,
+              "hi": 0.3775
+            }
+          },
+          "opfor_mean_ttf_by_blufor_s": 503.7
+        }
+      ]
+    }
+  }
+}

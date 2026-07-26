@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
+<title>FPV sUAS vs cUAS // Monte Carlo Results</title>
+<style>
+  :root{
+    --bg:#0b0e10; --panel:#10161a; --panel2:#0d1216; --border:#1d2930;
+    --grid:#1a242b; --text:#c4d0d4; --dim:#6d7f86; --bright:#e8f2f5;
+    /* Data-mark palette: the sim's BLUFOR/OPFOR/RF hues snapped into the
+       validated dark-mode band (OKLCH L 0.48-0.67; CVD dE >= 8; >= 3:1 vs
+       surface). Chrome may use the sim's brighter originals; marks use these. */
+    --blufor:#229ed4; --opfor:#cf2d36; --stale:#b08600;
+    --blufor-hi:#57c7ff; --opfor-hi:#ff5d5d; --unclass:#2e7d32;
+    --mono:ui-monospace,"Cascadia Mono","JetBrains Mono","SF Mono",Consolas,"Liberation Mono",monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg); color:var(--text); font-family:var(--mono); font-size:13px}
+  .banner{
+    background:var(--unclass); color:#eaf5ea; text-align:center; font-size:11px;
+    letter-spacing:.25em; padding:2px 0; text-transform:uppercase; user-select:none;
+  }
+  header{
+    display:flex; align-items:center; flex-wrap:wrap; gap:14px;
+    padding:10px 18px; background:var(--panel); border-bottom:1px solid var(--border);
+  }
+  header .title{font-size:15px; letter-spacing:.12em}
+  header .title b{color:var(--bright); font-weight:600}
+  header .title span{color:var(--dim)}
+  header nav{margin-left:auto; display:flex; align-items:center; gap:10px; flex-wrap:wrap}
+  header a{
+    color:var(--text); text-decoration:none; border:1px solid var(--border);
+    padding:4px 10px; font-size:11px; letter-spacing:.12em;
+  }
+  header a:hover{border-color:var(--dim); color:var(--bright)}
+  select{
+    background:var(--panel2); color:var(--text); border:1px solid var(--border);
+    font-family:var(--mono); font-size:11px; padding:4px 6px;
+  }
+  main{max-width:1180px; margin:0 auto; padding:18px}
+  #status{color:var(--dim); padding:24px 4px; line-height:1.7}
+  #status code{color:var(--text)}
+  .tiles{display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px; margin-bottom:14px}
+  .tile{background:var(--panel); border:1px solid var(--border); padding:12px 14px}
+  .tile .lbl{font-size:10px; letter-spacing:.22em; color:var(--dim); text-transform:uppercase; display:flex; align-items:center; gap:7px}
+  .tile .swatch{width:9px; height:9px; border-radius:2px; display:inline-block}
+  .tile .val{font-size:30px; color:var(--bright); margin:6px 0 2px}
+  .tile .sub{font-size:11px; color:var(--dim)}
+  .card{background:var(--panel); border:1px solid var(--border); margin-bottom:14px}
+  .card h2{
+    font-size:11px; letter-spacing:.24em; color:var(--dim); font-weight:600;
+    text-transform:uppercase; padding:12px 16px 2px;
+  }
+  .card .sub{font-size:12px; color:var(--text); padding:2px 16px 6px; opacity:.85}
+  .card .plot{padding:4px 10px 6px}
+  svg{display:block; width:100%; height:auto}
+  svg text{font-family:var(--mono)}
+  .legend{display:flex; flex-wrap:wrap; gap:16px; padding:2px 16px 10px; font-size:11px; color:var(--text)}
+  .legend .key{display:inline-flex; align-items:center; gap:6px}
+  .legend svg{width:22px; height:10px; display:inline-block}
+  details.tbl{border-top:1px solid var(--border); padding:6px 16px 10px}
+  details.tbl summary{font-size:10px; letter-spacing:.2em; color:var(--dim); cursor:pointer; text-transform:uppercase}
+  details.tbl table{border-collapse:collapse; margin-top:8px; font-size:11px; width:100%}
+  details.tbl th, details.tbl td{
+    border:1px solid var(--border); padding:4px 8px; text-align:right;
+    font-variant-numeric:tabular-nums;
+  }
+  details.tbl th{color:var(--dim); font-weight:600; letter-spacing:.06em}
+  details.tbl td:first-child, details.tbl th:first-child{text-align:left}
+  #tooltip{
+    position:fixed; pointer-events:none; z-index:10; display:none;
+    background:var(--panel2); border:1px solid var(--dim); padding:7px 10px;
+    font-size:11px; line-height:1.6; max-width:280px;
+  }
+  #tooltip b{color:var(--bright)}
+  table.seeds{border-collapse:collapse; width:100%; font-size:12px; margin:4px 0 2px}
+  table.seeds th, table.seeds td{border-top:1px solid var(--border); padding:7px 16px; text-align:left}
+  table.seeds th{font-size:10px; letter-spacing:.2em; color:var(--dim); text-transform:uppercase; border-top:none}
+  table.seeds td.num{font-variant-numeric:tabular-nums}
+  table.seeds a{color:var(--blufor-hi); text-decoration:none}
+  table.seeds a:hover{text-decoration:underline}
+  .who-B{color:var(--blufor-hi)} .who-O{color:var(--opfor-hi)} .who-S{color:var(--stale)}
+  footer{color:var(--dim); font-size:11px; line-height:1.8; padding:8px 4px 30px}
+  footer code{color:var(--text)}
+</style>
+</head>
+<body>
+<div class="banner">Notional data — for demonstration only // Unclassified</div>
+<header>
+  <div class="title"><b>MONTE CARLO RESULTS</b> <span>// FPV sUAS vs cUAS // AO KATANA (NOTIONAL)</span></div>
+  <nav>
+    <label for="kindFilter" style="font-size:10px;letter-spacing:.2em;color:var(--dim)">SHOW</label>
+    <select id="kindFilter">
+      <option value="all">ALL DATASETS</option>
+      <option value="study">STUDIES ONLY</option>
+      <option value="adhoc">AD-HOC ONLY</option>
+    </select>
+    <label for="dataset" style="font-size:10px;letter-spacing:.2em;color:var(--dim)">DATASET</label>
+    <select id="dataset"></select>
+    <a href="index.html">OPEN SIMULATION</a>
+    <a href="https://github.com/wasomma/fpv-sim/blob/main/MONTE_CARLO.md">READ THE STUDY</a>
+  </nav>
+</header>
+<main>
+  <div id="status">Loading results&hellip;</div>
+  <div id="content" hidden>
+    <div class="tiles" id="tiles"></div>
+    <div id="charts"></div>
+    <div class="card" id="seedsCard">
+      <h2>Notable engagements — click to watch</h2>
+      <div class="sub">Every statistic on this page is an aggregate of individually replayable battles. These links open the simulation at the exact seed.</div>
+      <div id="seeds"></div>
+    </div>
+    <footer id="prov"></footer>
+  </div>
+</main>
+<div id="tooltip"></div>
+<script>
+"use strict";
+/* Monte Carlo results dashboard. Zero dependencies; reads the committed
+   datasets in results/ (manifest: results/index.json). Chart specs follow
+   the house dataviz rules: thin marks, solid hairline grid, legend for >=2
+   series, tooltips that enhance (a table view twin exists for every chart),
+   one axis per plot, colors validated for CVD on this surface. */
+
+const C = getComputedStyle(document.documentElement);
+const COL = {
+  B: C.getPropertyValue("--blufor").trim(),
+  O: C.getPropertyValue("--opfor").trim(),
+  S: C.getPropertyValue("--stale").trim(),
+  grid: C.getPropertyValue("--grid").trim(),
+  border: C.getPropertyValue("--border").trim(),
+  dim: C.getPropertyValue("--dim").trim(),
+  text: C.getPropertyValue("--text").trim(),
+  bright: C.getPropertyValue("--bright").trim(),
+  panel: C.getPropertyValue("--panel").trim(),
+};
+const pct = (v, d = 1) => (v * 100).toFixed(d) + "%";
+const fmtS = (s) => {
+  const m = Math.floor(s / 60), r = Math.round(s % 60);
+  return m + ":" + String(r).padStart(2, "0");
+};
+const SVGNS = "http://www.w3.org/2000/svg";
+function el(name, attrs, parent) {
+  const n = document.createElementNS(SVGNS, name);
+  for (const k in attrs) n.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(n);
+  return n;
+}
+function div(cls, parent, html) {
+  const d = document.createElement("div");
+  if (cls) d.className = cls;
+  if (html !== undefined) d.innerHTML = html;
+  if (parent) parent.appendChild(d);
+  return d;
+}
+
+/* ------------------------- tooltip ---------------------------------- */
+const tip = document.getElementById("tooltip");
+function showTip(html, ev) {
+  tip.innerHTML = html;
+  tip.style.display = "block";
+  const pad = 14, w = tip.offsetWidth, h = tip.offsetHeight;
+  let x = ev.clientX + pad, y = ev.clientY + pad;
+  if (x + w > innerWidth - 8) x = ev.clientX - w - pad;
+  if (y + h > innerHeight - 8) y = ev.clientY - h - pad;
+  tip.style.left = x + "px"; tip.style.top = y + "px";
+}
+const hideTip = () => { tip.style.display = "none"; };
+function hoverable(node, html) {
+  node.addEventListener("mousemove", (ev) => showTip(typeof html === "function" ? html() : html, ev));
+  node.addEventListener("mouseleave", hideTip);
+}
+
+/* ------------------------- chart scaffolding ------------------------ */
+function chartCard(title, subtitle) {
+  const card = div("card", document.getElementById("charts"));
+  const h = document.createElement("h2"); h.textContent = title; card.appendChild(h);
+  if (subtitle) div("sub", card, subtitle);
+  return card;
+}
+function legend(card, keys) {
+  // keys: [{label, color, dash}]
+  const lg = div("legend", card);
+  for (const k of keys) {
+    const item = div("key", lg);
+    const s = el("svg", { viewBox: "0 0 22 10" }, null);
+    if (k.mark === "dot") {
+      el("circle", { cx: 11, cy: 5, r: 4, fill: k.fill === false ? "none" : k.color, stroke: k.color, "stroke-width": 1.6 }, s);
+    } else {
+      el("line", { x1: 1, y1: 5, x2: 21, y2: 5, stroke: k.color, "stroke-width": 2,
+        ...(k.dash ? { "stroke-dasharray": k.dash } : {}) }, s);
+    }
+    item.appendChild(s);
+    item.appendChild(document.createTextNode(k.label));
+  }
+}
+function tableView(card, headers, rows) {
+  const det = document.createElement("details"); det.className = "tbl";
+  det.innerHTML = "<summary>Table view</summary>";
+  const t = document.createElement("table");
+  t.innerHTML = "<tr>" + headers.map((h) => `<th>${h}</th>`).join("") + "</tr>" +
+    rows.map((r) => "<tr>" + r.map((c) => `<td>${c}</td>`).join("") + "</tr>").join("");
+  det.appendChild(t);
+  card.appendChild(det);
+}
+function axisBottom(svg, x0, x1, y, ticks, fmt) {
+  el("line", { x1: x0, y1: y, x2: x1, y2: y, stroke: COL.border, "stroke-width": 1 }, svg);
+  for (const t of ticks) {
+    el("text", { x: t.px, y: y + 16, "text-anchor": "middle", "font-size": 10, fill: COL.dim }, svg)
+      .textContent = fmt(t.v);
+  }
+}
+function gridLeft(svg, y0, y1Ticks, x0, x1, fmt) {
+  for (const t of y1Ticks) {
+    el("line", { x1: x0, y1: t.px, x2: x1, y2: t.px, stroke: COL.grid, "stroke-width": 1 }, svg);
+    el("text", { x: x0 - 8, y: t.px + 3, "text-anchor": "end", "font-size": 10, fill: COL.dim }, svg)
+      .textContent = fmt(t.v);
+  }
+}
+/* Column with a 4px-rounded data end and a square baseline. */
+function column(svg, x, w, yTop, yBase, color) {
+  const r = Math.min(4, w / 2, Math.max(0, yBase - yTop));
+  const d = `M${x},${yBase} L${x},${yTop + r} Q${x},${yTop} ${x + r},${yTop} L${x + w - r},${yTop} Q${x + w},${yTop} ${x + w},${yTop + r} L${x + w},${yBase} Z`;
+  return el("path", { d, fill: color }, svg);
+}
+
+/* ------------------------- views ------------------------------------ */
+function renderTiles(data) {
+  const b = data.experiments.baseline;
+  const wrap = document.getElementById("tiles");
+  wrap.innerHTML = "";
+  const decisive = b.outcomes.BLUFOR + b.outcomes.OPFOR;
+  // The stock-posture qualifiers only describe the default config; ad-hoc
+  // datasets may override EMCON, so they get neutral labels.
+  const adhoc = data.kind === "adhoc";
+  const tiles = [
+    { lbl: adhoc ? "BLUFOR wins" : "BLUFOR wins (disciplined)", col: COL.B, v: pct(b.win_rates.BLUFOR),
+      sub: `95% CI ${pct(b.ci95.BLUFOR.lo)} – ${pct(b.ci95.BLUFOR.hi)} · n=${b.runs.toLocaleString()}` },
+    { lbl: adhoc ? "OPFOR wins" : "OPFOR wins (continuous)", col: COL.O, v: pct(b.win_rates.OPFOR),
+      sub: `95% CI ${pct(b.ci95.OPFOR.lo)} – ${pct(b.ci95.OPFOR.hi)} · n=${b.runs.toLocaleString()}` },
+    { lbl: "Stalemates (nobody fixes)", col: COL.S, v: pct(b.win_rates.STALEMATE),
+      sub: `95% CI ${pct(b.ci95.STALEMATE.lo)} – ${pct(b.ci95.STALEMATE.hi)} · all both-drones-down` },
+    { lbl: "Decisive fights won by BLUFOR", col: null, v: pct(b.outcomes.BLUFOR / decisive),
+      sub: `${b.outcomes.BLUFOR.toLocaleString()} of ${decisive.toLocaleString()} decisive engagements` },
+  ];
+  for (const t of tiles) {
+    const tile = div("tile", wrap);
+    div("lbl", tile, (t.col ? `<span class="swatch" style="background:${t.col}"></span>` : "") + t.lbl);
+    div("val", tile, t.v);
+    div("sub", tile, t.sub);
+  }
+}
+
+function renderDose(data) {
+  const e3 = data.experiments.uplinkDutySensitivity;
+  if (!e3) return; // ad-hoc datasets carry a single sweep, not the E3 grid
+  const card = chartCard(
+    "Dose response — OPFOR uplink duty cycle vs win rate",
+    "The more OPFOR transmits, the more its enemy wins. Uplink on-time swept 2–12 s of a fixed " +
+    e3.period_s + " s period, " + e3.seeds_per_cell + " seeds per cell; error bars are 95% CIs.");
+  const series = [];
+  for (const video of ["continuous", "burst"]) {
+    const cells = e3.cells.filter((c) => c.opfor_video === video);
+    series.push({ team: "B", video, color: COL.B, dash: video === "burst" ? "5 4" : null,
+      label: `BLUFOR win — OPFOR video ${video}`,
+      pts: cells.map((c) => ({ x: c.opfor_uplink_duty, y: c.win_rates.BLUFOR, ci: c.ci95.BLUFOR, cell: c })) });
+    series.push({ team: "O", video, color: COL.O, dash: video === "burst" ? "5 4" : null,
+      label: `OPFOR win — OPFOR video ${video}`,
+      pts: cells.map((c) => ({ x: c.opfor_uplink_duty, y: c.win_rates.OPFOR, ci: c.ci95.OPFOR, cell: c })) });
+  }
+  const W = 1100, H = 360, M = { l: 56, r: 24, t: 16, b: 40 };
+  const plot = div("plot", card);
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}` }, plot);
+  const xs = series[0].pts.map((p) => p.x);
+  const xmin = Math.min(...xs), xmax = Math.max(...xs);
+  const ymax = 0.5;
+  const X = (v) => M.l + ((v - xmin) / (xmax - xmin)) * (W - M.l - M.r);
+  const Y = (v) => H - M.b - (v / ymax) * (H - M.t - M.b);
+  gridLeft(svg, M.t, [0, .1, .2, .3, .4, .5].map((v) => ({ v, px: Y(v) })), M.l, W - M.r, (v) => pct(v, 0));
+  axisBottom(svg, M.l, W - M.r, H - M.b, xs.map((v) => ({ v, px: X(v) })), (v) => pct(v, 0));
+  el("text", { x: (M.l + W - M.r) / 2, y: H - 6, "text-anchor": "middle", "font-size": 10, fill: COL.dim }, svg)
+    .textContent = "OPFOR uplink duty cycle (share of time transmitting)";
+  for (const s of series) {
+    const d = s.pts.map((p, i) => (i ? "L" : "M") + X(p.x) + "," + Y(p.y)).join(" ");
+    el("path", { d, fill: "none", stroke: s.color, "stroke-width": 2,
+      "stroke-linejoin": "round", "stroke-linecap": "round",
+      ...(s.dash ? { "stroke-dasharray": s.dash } : {}) }, svg);
+    for (const p of s.pts) {
+      el("line", { x1: X(p.x), y1: Y(p.ci.lo), x2: X(p.x), y2: Y(p.ci.hi),
+        stroke: s.color, "stroke-width": 1, opacity: .55 }, svg);
+      el("circle", { cx: X(p.x), cy: Y(p.y), r: 4, fill: s.color,
+        stroke: COL.panel, "stroke-width": 2 }, svg);
+      const hit = el("circle", { cx: X(p.x), cy: Y(p.y), r: 12, fill: "transparent" }, svg);
+      hoverable(hit,
+        `<b>${s.label}</b><br>duty ${pct(p.x, 0)} (${p.cell.opfor_uplink_on_s}s on / ${p.cell.opfor_uplink_off_s}s off)` +
+        `<br>win rate <b>${pct(p.y)}</b> [${pct(p.ci.lo)}, ${pct(p.ci.hi)}]` +
+        `<br>BLUFOR mean time-to-fix ${fmtS(p.cell.opfor_mean_ttf_by_blufor_s)}` +
+        `<br>n=${p.cell.n}`);
+    }
+  }
+  legend(card, series.map((s) => ({ label: s.label, color: s.color, dash: s.dash })));
+  tableView(card, ["Duty", "OPFOR video", "BLUFOR win", "OPFOR win", "Stalemate", "BLUFOR mean TTF"],
+    e3.cells.map((c) => [pct(c.opfor_uplink_duty, 0) + ` (${c.opfor_uplink_on_s}/${c.opfor_uplink_off_s})`,
+      c.opfor_video, pct(c.win_rates.BLUFOR), pct(c.win_rates.OPFOR), pct(c.win_rates.STALEMATE),
+      fmtS(c.opfor_mean_ttf_by_blufor_s)]));
+}
+
+function renderPaired(data) {
+  const stock = data.experiments.pairedStockArm;
+  if (!stock) return; // ad-hoc datasets carry a single sweep, not the E2 pairs
+  const exps = [
+    { key: "opforAdoptsDiscipline", name: "OPFOR adopts BLUFOR discipline" },
+    { key: "postureSwap", name: "Full EMCON posture swap" },
+    { key: "launchEqualized", name: "Launch stagger equalized" },
+  ];
+  const card = chartCard(
+    "Paired comparisons — same seeds, one change",
+    "Each experiment reruns the identical " + stock.runs.toLocaleString() +
+    " seeds with one config change, so per-seed luck cancels. Hollow dot = stock, filled dot = variant.");
+  const rows = [];
+  for (const e of exps) {
+    const v = data.experiments[e.key].variant;
+    const p = data.experiments[e.key].paired;
+    rows.push({ exp: e.name, team: "B", color: COL.B, a: stock.win_rates.BLUFOR, b: v.win_rates.BLUFOR, paired: p });
+    rows.push({ exp: e.name, team: "O", color: COL.O, a: stock.win_rates.OPFOR, b: v.win_rates.OPFOR, paired: p });
+  }
+  const W = 1100, rowH = 34, M = { l: 330, r: 90, t: 14, b: 38 };
+  const H = M.t + rows.length * rowH + 10 + M.b + exps.length * 8;
+  const plot = div("plot", card);
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}` }, plot);
+  const xmax = 0.45;
+  const X = (v) => M.l + (v / xmax) * (W - M.l - M.r);
+  const ticks = [0, .1, .2, .3, .4];
+  for (const t of ticks)
+    el("line", { x1: X(t), y1: M.t, x2: X(t), y2: H - M.b, stroke: COL.grid, "stroke-width": 1 }, svg);
+  let y = M.t + 16;
+  let lastExp = null;
+  for (const r of rows) {
+    if (lastExp !== r.exp) {
+      if (lastExp !== null) y += 8;
+      el("text", { x: 8, y: y + 4, "font-size": 11, fill: COL.text }, svg).textContent = r.exp;
+      lastExp = r.exp;
+    }
+    el("text", { x: M.l - 12, y: y + 4, "text-anchor": "end", "font-size": 10, fill: COL.dim }, svg)
+      .textContent = r.team === "B" ? "BLUFOR" : "OPFOR";
+    el("line", { x1: X(r.a), y1: y, x2: X(r.b), y2: y, stroke: r.color, "stroke-width": 2, opacity: .7 }, svg);
+    el("circle", { cx: X(r.a), cy: y, r: 4.5, fill: COL.panel, stroke: r.color, "stroke-width": 2 }, svg);
+    el("circle", { cx: X(r.b), cy: y, r: 4.5, fill: r.color, stroke: COL.panel, "stroke-width": 2 }, svg);
+    const delta = r.b - r.a;
+    el("text", { x: X(Math.max(r.a, r.b)) + 12, y: y + 4, "font-size": 10,
+      fill: Math.abs(delta) < 0.005 ? COL.dim : COL.text }, svg)
+      .textContent = (delta >= 0 ? "+" : "−") + pct(Math.abs(delta));
+    const hit = el("rect", { x: M.l, y: y - rowH / 2, width: W - M.l - M.r, height: rowH, fill: "transparent" }, svg);
+    hoverable(hit,
+      `<b>${r.exp}</b> — ${r.team === "B" ? "BLUFOR" : "OPFOR"}` +
+      `<br>stock ${pct(r.a)} → variant ${pct(r.b)} (${delta >= 0 ? "+" : "−"}${pct(Math.abs(delta))})` +
+      `<br>outcome flips: ${r.paired.flips_total} of ${stock.runs.toLocaleString()} seeds`);
+    y += rowH;
+  }
+  axisBottom(svg, M.l, W - M.r, H - M.b + 4, ticks.map((v) => ({ v, px: X(v) })), (v) => pct(v, 0));
+  el("text", { x: (M.l + W - M.r) / 2, y: H - 8, "text-anchor": "middle", "font-size": 10, fill: COL.dim }, svg)
+    .textContent = "win rate";
+  legend(card, [
+    { label: "BLUFOR", color: COL.B, mark: "dot" },
+    { label: "OPFOR", color: COL.O, mark: "dot" },
+    { label: "stock (hollow)", color: COL.dim, mark: "dot", fill: false },
+  ]);
+  tableView(card, ["Experiment", "Team", "Stock", "Variant", "Δ (points)", "Flips"],
+    rows.map((r) => [r.exp, r.team === "B" ? "BLUFOR" : "OPFOR", pct(r.a), pct(r.b),
+      ((r.b - r.a) >= 0 ? "+" : "−") + pct(Math.abs(r.b - r.a)), r.paired.flips_total]));
+}
+
+function renderHistograms(data) {
+  const b = data.experiments.baseline;
+  const specs = [
+    { h: b.histograms.time_to_fix_s.BLUFOR, color: COL.B, name: "BLUFOR time-to-fix",
+      note: "fix achieved in " + b.histograms.time_to_fix_s.BLUFOR.n.toLocaleString() + " of " + b.runs.toLocaleString() + " runs" },
+    { h: b.histograms.time_to_fix_s.OPFOR, color: COL.O, name: "OPFOR time-to-fix",
+      note: "fix achieved in " + b.histograms.time_to_fix_s.OPFOR.n.toLocaleString() + " of " + b.runs.toLocaleString() + " runs" },
+    { h: b.histograms.time_to_kill_s, color: COL.dim, name: "Time to kill (decisive only)",
+      note: b.histograms.time_to_kill_s.n.toLocaleString() + " decisive engagements, either winner" },
+  ];
+  const card = chartCard(
+    "Baseline timelines — distribution shapes",
+    "Small multiples on identical axes, " + specs[0].h.bin_width_s + " s bins. The disciplined side's fix " +
+    "distribution leads the continuous emitter's, and reaches a fix far more often.");
+  const plot = div("plot", card);
+  plot.style.display = "grid";
+  plot.style.gridTemplateColumns = "repeat(auto-fit,minmax(320px,1fr))";
+  plot.style.gap = "6px";
+  const maxBins = Math.max(...specs.map((s) => s.h.counts.length));
+  const maxCount = Math.max(...specs.map((s) => Math.max(...s.h.counts)));
+  const W = 360, H = 190, M = { l: 44, r: 28, t: 26, b: 34 };
+  for (const s of specs) {
+    const wrap = document.createElement("div");
+    plot.appendChild(wrap);
+    const svg = el("svg", { viewBox: `0 0 ${W} ${H}` }, wrap);
+    el("text", { x: M.l, y: 13, "font-size": 10, fill: COL.text, "letter-spacing": ".08em" }, svg)
+      .textContent = s.name.toUpperCase();
+    const X = (bin) => M.l + (bin / maxBins) * (W - M.l - M.r);
+    const Y = (c) => H - M.b - (c / maxCount) * (H - M.t - M.b);
+    const yticks = [0, Math.round(maxCount / 2), maxCount];
+    gridLeft(svg, M.t, yticks.map((v) => ({ v, px: Y(v) })), M.l, W - M.r, (v) => v.toLocaleString());
+    const bw = (W - M.l - M.r) / maxBins;
+    s.h.counts.forEach((c, i) => {
+      if (!c) return;
+      const bar = column(svg, X(i) + 1, Math.max(1, bw - 2), Y(c), H - M.b, s.color);
+      hoverable(bar, `<b>${s.name}</b><br>${fmtS(i * s.h.bin_width_s)}–${fmtS((i + 1) * s.h.bin_width_s)}` +
+        `<br><b>${c.toLocaleString()}</b> engagements (${pct(c / s.h.n)})`);
+    });
+    const xt = [0, Math.round(maxBins / 2), maxBins];
+    axisBottom(svg, M.l, W - M.r, H - M.b, xt.map((v) => ({ v, px: X(v) })), (v) => fmtS(v * s.h.bin_width_s));
+    el("text", { x: M.l, y: H - 4, "font-size": 9, fill: COL.dim }, svg).textContent = s.note;
+  }
+  tableView(card, ["Bin start", ...specs.map((s) => s.name)],
+    Array.from({ length: maxBins }, (_, i) =>
+      [fmtS(i * specs[0].h.bin_width_s), ...specs.map((s) => (s.h.counts[i] ?? 0).toLocaleString())]));
+}
+
+function renderSeeds(data) {
+  const rows = [];
+  const add = (label, entry, extra) => {
+    if (!entry) return;
+    if (typeof entry === "number") rows.push({ label, seed: entry, who: "S", detail: extra ?? "stalemate — nobody commits" });
+    else rows.push({ label, seed: entry.seed, who: entry.winner === "BLUFOR" ? "B" : "O",
+      detail: `${entry.winner} victory at T+${fmtS(entry.t_s)}` });
+  };
+  const adhoc = data.kind === "adhoc";
+  const b = data.experiments.baseline.notable_seeds;
+  add(adhoc ? "Fastest kill in this sweep" : "Fastest kill in the baseline", b.fastest_kill);
+  add(adhoc ? "Slowest kill in this sweep" : "Slowest kill in the baseline", b.slowest_kill);
+  add("A representative stalemate", b.example_stalemate);
+  const swap = data.experiments.postureSwap?.variant.notable_seeds;
+  if (swap) add("Fastest kill with postures swapped", swap.fastest_kill);
+  const host = document.getElementById("seeds");
+  host.innerHTML = "";
+  const t = document.createElement("table");
+  t.className = "seeds";
+  t.innerHTML = "<tr><th>What it shows</th><th>Seed</th><th>Outcome</th><th></th></tr>" +
+    rows.map((r) =>
+      `<tr><td>${r.label}</td><td class="num">${r.seed}</td>` +
+      `<td class="who-${r.who}">${r.detail}</td>` +
+      `<td><a href="index.html?seed=${r.seed}&play=1">WATCH ▸</a></td></tr>`).join("");
+  host.appendChild(t);
+}
+
+function renderProvenance(data, entry) {
+  const m = data.meta ?? {};
+  const short = (c) => (c ? c.slice(0, 7) : "unknown");
+  const kindTag = data.kind === "adhoc"
+    ? `AD-HOC sweep "${data.label ?? "unlabeled"}"` +
+      (m.seed_range ? ` · seeds ${m.seed_range.start}–${m.seed_range.start + m.seed_range.count - 1}` : "") +
+      (m.overrides ? ` · overrides <code>${JSON.stringify(m.overrides)}</code>` : " · stock config") + "<br>"
+    : "";
+  document.getElementById("prov").innerHTML = kindTag +
+    `Dataset: <code>${entry.file}</code> · generated ${m.generated ? m.generated.slice(0, 10) : "?"} · ` +
+    `${(m.total_runs ?? 0).toLocaleString()} engagements · ` +
+    `sim <code>${short(m.sim_commit)}</code> · engine <code>${short(m.engine_commit)}</code><br>` +
+    `Deterministic and reproducible: <code>${data.kind === "adhoc"
+      ? `node scripts/run-sweep.mjs --label "${data.label ?? ""}" --start ${m.seed_range?.start ?? 1} --count ${m.seed_range?.count ?? 0}` +
+        (m.overrides ? ` --overrides '${JSON.stringify(m.overrides)}'` : "")
+      : "node scripts/monte-carlo-study.mjs"}</code> regenerates every number ` +
+    `(see <a style="color:var(--blufor-hi)" href="https://github.com/wasomma/fpv-sim/blob/main/MONTE_CARLO.md">MONTE_CARLO.md</a>). ` +
+    `All data is notional and unclassified.`;
+}
+
+/* ------------------------- load ------------------------------------- */
+async function loadDataset(entry) {
+  const res = await fetch("results/" + entry.file);
+  const data = await res.json();
+  document.getElementById("charts").innerHTML = "";
+  renderTiles(data);
+  renderDose(data);
+  renderPaired(data);
+  renderHistograms(data);
+  renderSeeds(data);
+  renderProvenance(data, entry);
+  document.getElementById("status").hidden = true;
+  document.getElementById("content").hidden = false;
+}
+
+async function init() {
+  let manifest;
+  try {
+    manifest = await (await fetch("results/index.json")).json();
+  } catch (err) {
+    document.getElementById("status").innerHTML =
+      "Could not load <code>results/index.json</code>. If you opened this file directly " +
+      "(<code>file://</code>), browsers block local fetch — serve the folder instead " +
+      "(<code>python3 -m http.server</code>) or use the hosted page at " +
+      '<a style="color:var(--blufor-hi)" href="https://wasomma.github.io/fpv-sim/dashboard.html">wasomma.github.io/fpv-sim/dashboard.html</a>.';
+    return;
+  }
+  const sel = document.getElementById("dataset");
+  const kindSel = document.getElementById("kindFilter");
+  const kindOf = (d) => d.kind ?? "study"; // pre-kind manifest entries are studies
+  const labelOf = (d) => d.label ?? "Full study";
+  function repopulate() {
+    const list = manifest.datasets.filter((d) => kindSel.value === "all" || kindOf(d) === kindSel.value);
+    sel.innerHTML = "";
+    for (const d of list) {
+      const o = document.createElement("option");
+      o.value = manifest.datasets.indexOf(d);
+      o.textContent = `${kindOf(d) === "adhoc" ? "AD-HOC" : "STUDY"} · ${labelOf(d)} · ` +
+        `${d.generated.slice(0, 10)} · ${d.total_runs.toLocaleString()} runs`;
+      sel.appendChild(o);
+    }
+    return list;
+  }
+  async function applyFilter() {
+    const list = repopulate();
+    if (list.length === 0) {
+      document.getElementById("content").hidden = true;
+      const st = document.getElementById("status");
+      st.hidden = false;
+      st.textContent = "No datasets match this filter.";
+      return;
+    }
+    await loadDataset(list[0]);
+  }
+  kindSel.addEventListener("change", applyFilter);
+  sel.addEventListener("change", () => loadDataset(manifest.datasets[Number(sel.value)]));
+  await applyFilter();
+}
+init();
+</script>
+</body>
+</html>

@@ -1,0 +1,1346 @@
+import { create } from 'zustand';
+import { subscribeWithSelector } from 'zustand/middleware';
+import type { TelemetrySpeed, BoardStats, PersistedSurveyPreset } from '../../shared/ipc-channels.js';
+import type { CameraPreset } from '../components/survey/survey-types';
+import type { FirmwareSource } from '../../shared/firmware-types.js';
+import type { NonDefaultColorKey } from '../components/parameters/non-default-palette.js';
+import { DEFAULT_NON_DEFAULT_COLOR } from '../components/parameters/non-default-palette.js';
+import { DEFAULT_USER_UNIT_PREFERENCES, normalizeUserUnitPreferences, type UserUnitPreferences } from '../../shared/user-units.js';
+
+/**
+ * Vehicle type for visualization
+ */
+export type VehicleType = 'copter' | 'plane' | 'vtol' | 'rover' | 'boat' | 'sub';
+
+/**
+ * Vehicle profile for performance calculations
+ * Uses user-friendly inputs that pilots actually know
+ */
+export type { BoardStats } from '../../shared/ipc-channels.js';
+
+/**
+ * Configuration specifier values shared across plane/vtol templates.
+ * These are orthogonal axes: a profile combines vehicle `type` with some
+ * subset of these to describe any ArduPilot-supported airframe.
+ */
+export type WingShape = 'standard' | 'delta' | 'flying-wing' | 'v-tail' | 'biplane' | 'inverted-v';
+export type VtolStyle = 'quadplane' | 'tailsitter' | 'tiltrotor' | 'tiltwing';
+export type MotorArrangement =
+  | 'quad-x' | 'quad-plus' | 'quad-h'
+  | 'hex-x' | 'hex-plus'
+  | 'octo-x' | 'octo-plus'
+  | 'y6' | 'tri' | 'coaxial'
+  | 'inline-2' | 'twin-tractor' | 'twin-pusher';
+
+/** Snapshot of where a profile was last applied (SITL vs real FC). */
+export interface ProfileApplyTarget {
+  isSitl: boolean;
+  sysid: number;
+  label: string;  // user-facing connection label
+}
+
+export interface VehicleProfile {
+  id: string;
+  name: string;
+  type: VehicleType;
+
+  // Board identification
+  boardUid?: string;           // Unique board identifier from AUTOPILOT_VERSION uid/uid2
+  boardId?: string;            // Board type name (e.g., "fmuv3", "Pixhawk4")
+  boardName?: string;          // Human-friendly display name
+  lastConnected?: string;      // ISO date of last connection
+  boardStats?: BoardStats;     // Flight stats from STAT_* parameters
+
+  // Common physical
+  weight: number;             // grams (AUW - all up weight with battery)
+
+  // Battery - common to all
+  batteryCells: number;       // Cell count (3S=3, 4S=4, 6S=6, etc.)
+  batteryCapacity: number;    // mAh
+  batteryChemistry?: 'lipo' | 'lihv' | 'lion' | 'life';  // Battery chemistry type (default: lipo)
+  batteryDischarge?: number;  // C rating (optional, for advanced users)
+
+  // === COPTER-SPECIFIC ===
+  frameSize?: number;         // mm diagonal (127=5", 178=7", 254=10", 320, 450, etc.)
+  motorCount?: number;        // 3=tri, 4=quad, 6=hex, 8=octo
+  motorKv?: number;           // Motor KV rating
+  propSize?: string;          // e.g., "5x4.5", "10x4.7"
+  escRating?: number;         // ESC amps per motor
+
+  // === PLANE-SPECIFIC ===
+  wingspan?: number;          // mm
+  wingArea?: number;          // cm² (for wing loading calc)
+  stallSpeed?: number;        // m/s (user can enter if known)
+
+  // === VTOL-SPECIFIC ===
+  // Uses both copter (frameSize, motorCount) and plane (wingspan) fields
+  vtolMotorCount?: number;    // Number of vertical lift motors
+  transitionSpeed?: number;   // m/s - speed for VTOL transition
+
+  // === ROVER-SPECIFIC ===
+  wheelbase?: number;         // mm - distance between axles
+  wheelDiameter?: number;     // mm
+  driveType?: 'differential' | 'ackermann' | 'skid';  // Steering type
+  maxSpeed?: number;          // m/s (user-entered, used for estimates)
+
+  // === BOAT-SPECIFIC ===
+  hullLength?: number;        // mm
+  hullType?: 'displacement' | 'planing' | 'catamaran' | 'pontoon';
+  propellerType?: 'prop' | 'jet' | 'paddle';
+  displacement?: number;      // grams (water displaced, ~= buoyancy)
+
+  // === SUB-SPECIFIC ===
+  maxDepth?: number;          // meters - rated depth
+  thrusterCount?: number;     // Number of thrusters
+  buoyancy?: 'positive' | 'neutral' | 'negative';
+
+  // === CONFIG SPECIFIERS (orthogonal axes) ===
+  // These drive which ArduPilot FRAME_CLASS / FRAME_TYPE / Q_* params a template emits.
+  wingShape?: WingShape;
+  vtolStyle?: VtolStyle;
+  motorArrangement?: MotorArrangement;
+
+  // === PHYSICS (advanced, for SITL SIM_* fidelity) ===
+  cogOffset?: { x: number; y: number; z: number };  // mm from airframe center
+  thrustToWeight?: number;                           // ratio, used for SIM engine tuning
+  propDiameter?: number;                             // mm (distinct from propSize string)
+  dragCoefficient?: number;                          // optional advanced; SIM_DRAG_COEF
+  servoSpeed?: number;                               // deg/sec, SIM_SERVO_SPEED
+
+  // === TEMPLATE BINDING ===
+  templateSlug?: string;       // which vehicle-template seeded this profile
+  autoApplyOnSitl?: boolean;   // auto re-apply when SITL starts
+
+  // === APPLY TRACKING ===
+  lastAppliedAt?: string;              // ISO timestamp of last apply
+  lastAppliedTo?: ProfileApplyTarget;  // where it was last applied
+  lastSnapshotId?: string;             // id of snapshot for undo
+
+  // Notes
+  notes?: string;
+
+  // Computed/cached (calculated from above)
+  _cruiseSpeed?: number;      // m/s - calculated
+  _maxSpeed?: number;         // m/s - calculated
+  _avgPowerDraw?: number;     // Watts - calculated
+}
+
+/**
+ * Flight statistics (persisted)
+ */
+export interface FlightStats {
+  totalFlightTimeSeconds: number;
+  totalDistanceMeters: number;
+  totalMissions: number;
+  lastFlightDate: string | null;
+  lastConnectionDate: string | null;
+}
+
+/**
+ * Mission planning defaults
+ */
+export type MissionFirmware = 'ardupilot' | 'inav';
+
+/**
+ * Altitude reference frame for mission planning.
+ * - 'relative': Altitude relative to home position
+ * - 'asl': Altitude above mean sea level
+ * - 'terrain': Altitude above terrain (AGL) at each waypoint
+ */
+export type DefaultAltitudeReference = 'relative' | 'asl' | 'terrain';
+
+export interface MissionDefaults {
+  safeAltitudeBuffer: number;     // meters above terrain for collision warning
+  defaultWaypointAltitude: number; // meters - default altitude for new waypoints
+  defaultTakeoffAltitude: number;  // meters - default takeoff altitude
+  defaultAltitudeReference: DefaultAltitudeReference; // Default altitude reference frame
+  advancedMissionLabels: boolean;  // false = friendly labels ("Fly here"), true = standard ("WP")
+  missionFirmware: MissionFirmware; // Which firmware's commands to show when disconnected
+  showSegmentColors: boolean;      // Color-coded path segments on map (camera, ROI, speed, etc.)
+}
+
+/**
+ * Survey planner performance tuning. These are global guardrails, not
+ * per-survey geometry — they bound how much work the map and importer do so a
+ * huge imported boundary doesn't stall the app.
+ */
+export interface SurveyPerformance {
+  /** RDP tolerance (meters) for simplifying imported GIS boundary rings. */
+  importSimplifyToleranceM: number;
+  /** Above this many boundary vertices, per-vertex drag handles are hidden. */
+  maxEditableVertices: number;
+  /** Above this many photo positions, the dots are not drawn on the map. */
+  maxPhotoMarkers: number;
+  /**
+   * Cap on waypoint markers drawn on the mission/telemetry maps. Beyond this the
+   * markers are decimated (every Nth kept, plus the active one); the full path
+   * line is always drawn. Guards against tens of thousands of markers OOM'ing
+   * the map on large survey missions.
+   */
+  maxWaypointMarkers: number;
+  /**
+   * Mission editor marker tier: real (draggable) waypoint markers materialize
+   * only while the number of waypoints in view is at or below this. Above it,
+   * waypoints stay on the batched canvas layer (every one still drawn as a
+   * dot) - zoom in until markers condense to edit. The selected waypoint
+   * always materializes regardless.
+   */
+  maxInteractiveWaypoints: number;
+}
+
+export const DEFAULT_SURVEY_PERFORMANCE: SurveyPerformance = {
+  importSimplifyToleranceM: 1.0,
+  maxEditableVertices: 200,
+  maxPhotoMarkers: 1500,
+  maxWaypointMarkers: 1000,
+  maxInteractiveWaypoints: 200,
+};
+
+/**
+ * Experience level controls visibility of educational UI elements
+ */
+export type ExperienceLevel = 'beginner' | 'advanced';
+
+/**
+ * Granular UI visibility settings
+ */
+export interface UiVisibility {
+  showInfoCards: boolean;
+  showExplanationCards: boolean;
+  showTips: boolean;
+  showQuickPresets: boolean;
+  showSectionDescriptions: boolean;
+  defaultAdvancedViews: boolean;
+}
+
+const BEGINNER_UI_VISIBILITY: UiVisibility = {
+  showInfoCards: true,
+  showExplanationCards: true,
+  showTips: true,
+  showQuickPresets: true,
+  showSectionDescriptions: true,
+  defaultAdvancedViews: false,
+};
+
+const ADVANCED_UI_VISIBILITY: UiVisibility = {
+  showInfoCards: false,
+  showExplanationCards: false,
+  showTips: false,
+  showQuickPresets: false,
+  showSectionDescriptions: false,
+  defaultAdvancedViews: true,
+};
+
+/**
+ * A saved network connection entry for the recent connections list
+ */
+export interface SavedConnection {
+  type: 'tcp' | 'udp';
+  label: string;  // e.g. "217.154.114.45:20001 (MAVLink)"
+  host?: string;
+  port: number;
+  protocol: 'mavlink' | 'msp';
+  udpMode?: 'listen' | 'client';
+  udpRemoteHost?: string;
+  udpRemotePort?: number;
+  udpClientLocalPort?: number;
+  lastUsed: number; // timestamp
+}
+
+/**
+ * Connection memory - remembers last used connection settings
+ */
+export interface ConnectionMemory {
+  lastSerialPort?: string;
+  lastBaudRate?: number;
+  lastTcpHost?: string;
+  lastTcpPort?: number;
+  lastTcpProtocol?: 'mavlink' | 'msp';
+  lastUdpPort?: number;
+  lastUdpMode?: 'listen' | 'client';
+  lastUdpRemoteHost?: string;
+  lastUdpRemotePort?: number;
+  lastUdpClientLocalPort?: number;
+  lastUdpProtocol?: 'mavlink' | 'msp';
+  lastConnectionType?: 'serial' | 'tcp' | 'udp';
+  /** Recent TCP/UDP connections for quick reconnect */
+  recentConnections?: SavedConnection[];
+}
+
+/**
+ * Default SITL type for quick-start button
+ */
+export type DefaultSitlType = 'inav' | 'ardupilot';
+
+/**
+ * Theme preference
+ * 'dark' = dark theme (default), 'light' = light theme, 'system' = follow OS preference
+ */
+export type ThemePreference = 'dark' | 'light' | 'system';
+
+/**
+ * App-level settings store
+ */
+interface SettingsStore {
+  // Persistence state
+  _isInitialized: boolean;
+  _isSaving: boolean;
+
+  // Non-persisted: SITL switch flag (set when SITL starts, cleared when ConnectionPanel reads it)
+  pendingSitlSwitch: boolean;
+  setPendingSitlSwitch: (value: boolean) => void;
+
+  // Experimental features
+  companionUnlocked: boolean;
+  setCompanionUnlocked: (enabled: boolean) => void;
+  /**
+   * Advanced map commands - one experimental umbrella covering:
+   *  - Orbit and Land tabs in the map command popup (mode-changing ops)
+   *  - The Lua script installer for FC-side commands (writes to SD card,
+   *    may set parameters and require a reboot)
+   * Off by default. When off, only Move is exposed and no Lua install
+   * machinery is reachable.
+   */
+  advancedCommandsUnlocked: boolean;
+  setAdvancedCommandsUnlocked: (enabled: boolean) => void;
+
+  // Console
+  showDebugLogs: boolean;
+  setShowDebugLogs: (enabled: boolean) => void;
+
+  // AI Analysis
+  aiProvider: 'claude' | 'openai' | 'gemini' | null;
+  setAiProvider: (provider: 'claude' | 'openai' | 'gemini' | null) => void;
+  aiWarningDismissed: boolean;
+  setAiWarningDismissed: (dismissed: boolean) => void;
+
+  // Mission defaults
+  missionDefaults: MissionDefaults;
+
+  // Survey planner performance tuning
+  surveyPerformance: SurveyPerformance;
+  updateSurveyPerformance: (updates: Partial<SurveyPerformance>) => void;
+
+  // Connection sidebar collapsed state, remembered PER CONTEXT and persisted.
+  // The context key is "connected" when a vehicle is connected (one shared
+  // state - the connect panel is rarely needed once connected) and
+  // "offline:<viewId>" otherwise, so a manual minimize is remembered per screen
+  // while offline (e.g. collapsed on Mission Planning, open on Telemetry).
+  // Absent key falls back to: collapsed when connected, expanded when offline.
+  sidebarCollapsedByContext: Record<string, boolean>;
+  setSidebarCollapsedForContext: (contextKey: string, collapsed: boolean) => void;
+
+  // Vehicle profiles
+  vehicles: VehicleProfile[];
+  activeVehicleId: string | null;
+
+  // Flight stats
+  flightStats: FlightStats;
+
+  // Connection memory
+  connectionMemory: ConnectionMemory;
+
+  // SITL preferences
+  defaultSitlType: DefaultSitlType;
+
+  // Firmware preferences
+  preferredFirmwareSource: FirmwareSource;
+
+  // Telemetry stream rate
+  telemetrySpeed: TelemetrySpeed;
+
+  // Display unit preferences
+  unitPreferences: UserUnitPreferences;
+  setUnitPreference: <K extends keyof UserUnitPreferences>(kind: K, unit: UserUnitPreferences[K]) => void;
+
+  // Theme
+  theme: ThemePreference;
+  setTheme: (theme: ThemePreference) => void;
+
+  // Parameter view: color used to highlight non-default param values
+  nonDefaultHighlightColor: NonDefaultColorKey;
+  setNonDefaultHighlightColor: (color: NonDefaultColorKey) => void;
+
+  // Experience level
+  experienceLevel: ExperienceLevel | null;
+  experienceLevelVersion: string | null;
+  setExperienceLevel: (level: ExperienceLevel, version: string) => void;
+
+  // UI visibility (granular control)
+  uiVisibility: UiVisibility;
+  setUiVisibility: (updates: Partial<UiVisibility>) => void;
+
+  // Survey planner — user-saved presets and last-used selection.
+  // Built-in presets live in code (survey-presets.ts); this is the user slice.
+  surveyPresets: PersistedSurveyPreset[];
+  lastSurveyPresetId: string | null;
+  surveySavedConfig: Record<string, unknown> | null;
+  saveSurveyPreset: (preset: PersistedSurveyPreset) => void;
+  removeSurveyPreset: (id: string) => void;
+  setLastSurveyPresetId: (id: string | null) => void;
+  setSurveySavedConfig: (config: Record<string, unknown> | null) => void;
+  /** Imported boundary guides shown on the mission map (guide-store owns the shape). */
+  mapGuides: Record<string, unknown>[];
+  setMapGuides: (guides: Record<string, unknown>[]) => void;
+  /** Last mission-map camera, restored across sessions so the map opens where you work. */
+  missionMapViewport: { lat: number; lng: number; zoom: number } | null;
+  setMissionMapViewport: (v: { lat: number; lng: number; zoom: number }) => void;
+
+  // User-saved camera presets (added to the camera dropdown). Built-in cameras
+  // live in code (camera-presets.ts); this is the user slice, keyed by name.
+  userCameraPresets: CameraPreset[];
+  saveCameraPreset: (camera: CameraPreset) => void;
+  removeCameraPreset: (name: string) => void;
+
+  // Computed
+  getActiveVehicle: () => VehicleProfile | null;
+  getCruiseSpeed: () => number;
+  getEstimatedFlightTime: () => number;  // seconds
+  getEstimatedRange: () => number;       // meters
+
+  // Persistence actions
+  loadSettings: () => Promise<void>;
+  _saveSettings: () => Promise<void>;
+
+  // Actions - Mission defaults
+  updateMissionDefaults: (updates: Partial<MissionDefaults>) => void;
+
+  // Actions - Vehicles
+  addVehicle: (vehicle: Omit<VehicleProfile, 'id'>) => string;  // Returns the new vehicle's ID
+  updateVehicle: (id: string, updates: Partial<VehicleProfile>) => void;
+  removeVehicle: (id: string) => void;
+  setActiveVehicle: (id: string | null) => void;
+
+  // Actions - Board association
+  /**
+   * Associate a board with the active profile, or switch to / create a profile for this board.
+   * Returns the profile ID that ended up associated.
+   * - If a profile already has this boardUid → switch to it
+   * - If active profile has no boardUid → assign this board to it
+   * - If active profile has a different boardUid → create new profile (cloned from active) and switch
+   */
+  associateBoard: (boardUid: string, boardId?: string, boardName?: string) => string;
+  /** Update board stats from STAT_* parameters on the active profile */
+  updateBoardStats: (stats: BoardStats) => void;
+
+  // Actions - Flight stats
+  updateFlightStats: (updates: Partial<FlightStats>) => void;
+  incrementMissionCount: () => void;
+  addFlightTime: (seconds: number, distanceMeters: number) => void;
+
+  // Actions - Connection memory
+  updateConnectionMemory: (updates: Partial<ConnectionMemory>) => void;
+  removeRecentConnection: (label: string) => void;
+
+  // Actions - SITL preferences
+  setDefaultSitlType: (type: DefaultSitlType) => void;
+
+  // Actions - Firmware preferences
+  setPreferredFirmwareSource: (source: FirmwareSource) => void;
+
+  // Actions - Telemetry
+  setTelemetrySpeed: (speed: TelemetrySpeed) => void;
+
+  // Reset
+  resetToDefaults: () => void;
+}
+
+// Default values
+const DEFAULT_MISSION_DEFAULTS: MissionDefaults = {
+  safeAltitudeBuffer: 30,        // 30m above terrain
+  defaultWaypointAltitude: 100,  // 100m default altitude
+  defaultTakeoffAltitude: 50,    // 50m takeoff altitude
+  defaultAltitudeReference: 'relative', // Altitude relative to home by default
+  advancedMissionLabels: false,  // Friendly labels by default
+  missionFirmware: 'ardupilot',  // Default firmware for offline mission planning
+  showSegmentColors: true,       // Color-coded path segments on by default
+};
+
+const DEFAULT_VEHICLE: VehicleProfile = {
+  id: 'default',
+  name: 'My Vehicle',
+  type: 'copter',
+  frameSize: 127,        // 5" quad (127mm)
+  weight: 600,           // 600g AUW
+  batteryCells: 4,       // 4S
+  batteryCapacity: 1500, // 1500 mAh
+};
+
+/**
+ * Get nominal voltage from cell count
+ */
+const CHEMISTRY_NOMINAL: Record<string, number> = {
+  lipo: 3.7, lihv: 3.8, lion: 3.6, life: 3.3,
+};
+
+function getCellVoltage(cells: number, chemistry?: string): number {
+  return cells * (CHEMISTRY_NOMINAL[chemistry || 'lipo'] ?? 3.7);
+}
+
+/**
+ * Estimate cruise speed based on vehicle type and properties
+ */
+function estimateCruiseSpeed(vehicle: VehicleProfile): number {
+  // If user provided max speed, use 70% for cruise estimate
+  if (vehicle.maxSpeed) {
+    return vehicle.maxSpeed * 0.7;
+  }
+
+  switch (vehicle.type) {
+    case 'copter': {
+      // If prop pitch is known, use it for a better speed estimate
+      // Pitch speed (theoretical max) = pitch(in) × RPM / 1056
+      // Cruise ≈ 40-50% of pitch speed
+      const prop = parsePropSize(vehicle.propSize);
+      if (prop && vehicle.motorKv) {
+        const voltage = getCellVoltage(vehicle.batteryCells || 4, vehicle.batteryChemistry);
+        const maxRPM = vehicle.motorKv * voltage;
+        // Pitch speed in m/s = pitch(in) × RPM × 0.0254 / 60
+        const pitchSpeed = prop.pitch * maxRPM * 0.0254 / 60;
+        return Math.min(pitchSpeed * 0.45, 40); // Cruise at ~45% pitch speed, cap at 40 m/s
+      }
+      // Fallback: frame size heuristic
+      const frameSizeInches = (vehicle.frameSize || 127) / 25.4;
+      const motorFactor = vehicle.motorCount ? (4 / vehicle.motorCount) * 0.9 + 0.1 : 1;
+      return (8 + frameSizeInches * 0.8) * motorFactor; // 5" quad = ~12 m/s
+    }
+    case 'plane': {
+      if (vehicle.stallSpeed && vehicle.stallSpeed > 0) {
+        return vehicle.stallSpeed * 1.5;
+      }
+      // Prop pitch speed is a hard physical ceiling — cruise is a fraction of it
+      const prop = parsePropSize(vehicle.propSize);
+      if (prop && vehicle.motorKv) {
+        const voltage = getCellVoltage(vehicle.batteryCells || 4, vehicle.batteryChemistry);
+        const maxRPM = vehicle.motorKv * voltage;
+        const pitchSpeed = prop.pitch * maxRPM * 0.0254 / 60; // m/s
+        // Planes are more aerodynamically efficient than copters — cruise at ~60% pitch speed
+        return Math.min(pitchSpeed * 0.6, 80);
+      }
+      // Fallback: wing loading heuristic
+      const wingspan = vehicle.wingspan || 1200;
+      const wingArea = vehicle.wingArea || ((wingspan * wingspan * 0.15) / 100);
+      if (wingArea <= 0 || vehicle.weight <= 0) return 15;
+      const wingLoading = vehicle.weight / (wingArea / 100); // g/dm²
+      if (!isFinite(wingLoading)) return 15;
+      return 10 + Math.sqrt(wingLoading) * 0.8;
+    }
+    case 'vtol': {
+      if (vehicle.transitionSpeed) {
+        return vehicle.transitionSpeed * 1.2;
+      }
+      // Same physics — pitch speed limits forward flight
+      const prop = parsePropSize(vehicle.propSize);
+      if (prop && vehicle.motorKv) {
+        const voltage = getCellVoltage(vehicle.batteryCells || 4, vehicle.batteryChemistry);
+        const maxRPM = vehicle.motorKv * voltage;
+        const pitchSpeed = prop.pitch * maxRPM * 0.0254 / 60;
+        // VTOL forward flight: ~55% pitch speed (more drag than pure plane)
+        return Math.min(pitchSpeed * 0.55, 60);
+      }
+      const wingspan = vehicle.wingspan || 1500;
+      return 12 + (wingspan / 200);
+    }
+    case 'rover': {
+      // Wheel size affects max practical speed
+      const wheelDiameter = vehicle.wheelDiameter || 100;
+      return 2 + (wheelDiameter / 50); // 100mm wheels = ~4 m/s
+    }
+    case 'boat': {
+      // Hull speed formula — displacement hulls have a hard limit
+      const hullLength = vehicle.hullLength || 600;
+      const hullSpeedKnots = 1.34 * Math.sqrt(hullLength / 304.8);
+      let multiplier = 1.0;
+      if (vehicle.hullType === 'planing') multiplier = 2.0;
+      if (vehicle.hullType === 'catamaran') multiplier = 1.3;
+      const hullSpeedMs = hullSpeedKnots * 0.514 * multiplier;
+      // For prop-driven boats, pitch speed is also a ceiling
+      const prop = parsePropSize(vehicle.propSize);
+      if (prop && vehicle.motorKv) {
+        const voltage = getCellVoltage(vehicle.batteryCells || 4, vehicle.batteryChemistry);
+        const maxRPM = vehicle.motorKv * voltage;
+        const pitchSpeed = prop.pitch * maxRPM * 0.0254 / 60;
+        // Water props are ~30% efficient; real limit is min of hull speed and pitch speed
+        return Math.min(pitchSpeed * 0.3, hullSpeedMs);
+      }
+      return hullSpeedMs;
+    }
+    case 'sub': {
+      // Thrusters affect speed capability
+      const thrusterCount = vehicle.thrusterCount || 4;
+      return 0.5 + (thrusterCount * 0.2);
+    }
+    default:
+      return 10;
+  }
+}
+
+/**
+ * Parse prop size string "5x4.5" → { diameter, pitch } in inches
+ */
+function parsePropSize(propSize: string | undefined): { diameter: number; pitch: number } | null {
+  if (!propSize) return null;
+  const match = propSize.match(/^(\d+(?:\.\d+)?)x(\d+(?:\.\d+)?)$/);
+  if (!match?.[1] || !match[2]) return null;
+  return { diameter: parseFloat(match[1]), pitch: parseFloat(match[2]) };
+}
+
+/**
+ * Estimate power draw based on vehicle type and properties.
+ * Uses advanced fields (motor KV, ESC rating, prop size) when available
+ * for more accurate estimates; falls back to weight-based formulas.
+ */
+function estimatePowerDraw(vehicle: VehicleProfile): number {
+  const weight = vehicle.weight || 1000;
+  const weightKg = weight / 1000;
+  const voltage = getCellVoltage(vehicle.batteryCells || 4, vehicle.batteryChemistry);
+  const prop = parsePropSize(vehicle.propSize);
+
+  switch (vehicle.type) {
+    case 'copter': {
+      const motorCount = vehicle.motorCount || 4;
+
+      // Best: ESC rating known → max power × hover throttle fraction
+      if (vehicle.escRating) {
+        const maxPower = voltage * vehicle.escRating * motorCount;
+        const gramsPerMotor = weight / motorCount;
+        const hoverThrottle = Math.min(0.85, Math.max(0.3, 0.4 + (gramsPerMotor / 1500)));
+        return maxPower * hoverThrottle;
+      }
+
+      // Frame size + motor count heuristic
+      const frameSizeInches = (vehicle.frameSize || 127) / 25.4;
+      let wattsPerKg = 200 - (motorCount - 4) * 5 - (frameSizeInches - 5) * 3;
+      wattsPerKg = Math.max(140, wattsPerKg);
+
+      if (prop) {
+        // Known prop: scale efficiency by diameter (5" = baseline 1.0)
+        const effFactor = Math.max(0.5, (prop.diameter / 5) ** 0.7);
+        wattsPerKg /= effFactor;
+
+        // KV + prop: penalize KV/prop mismatch
+        if (vehicle.motorKv) {
+          const cells = vehicle.batteryCells || 4;
+          const optimalKv = 30000 / (prop.diameter * Math.sqrt(cells));
+          const kvDeviation = Math.abs(vehicle.motorKv / optimalKv - 1);
+          wattsPerKg *= (1 + kvDeviation * 0.15);
+        }
+      } else {
+        // No prop data: assume average/suboptimal propulsion (+15% conservative)
+        wattsPerKg *= 1.15;
+      }
+
+      return weightKg * wattsPerKg;
+    }
+    case 'plane': {
+      // Best: ESC rating known → max power × cruise throttle fraction
+      if (vehicle.escRating) {
+        const maxPower = voltage * vehicle.escRating;
+        let cruiseThrottle = 0.35;
+        if (vehicle.wingArea && vehicle.wingArea > 0) {
+          const wingLoading = weight / (vehicle.wingArea / 100);
+          if (isFinite(wingLoading)) {
+            cruiseThrottle = Math.min(0.6, 0.25 + wingLoading * 0.001);
+          }
+        }
+        // With prop data we can refine; without, assume average efficiency
+        if (!prop) cruiseThrottle *= 1.1;
+        return maxPower * cruiseThrottle;
+      }
+
+      // Fallback: wing loading based estimate
+      let basePower: number;
+      if (vehicle.wingArea && vehicle.wingArea > 0) {
+        const wingLoading = weight / (vehicle.wingArea / 100); // g/dm²
+        basePower = isFinite(wingLoading)
+          ? weightKg * (50 + wingLoading * 0.3)
+          : weightKg * 65;
+      } else {
+        basePower = weightKg * 65;
+      }
+
+      if (prop) {
+        // Known prop: larger diameter = better propulsive efficiency
+        const effFactor = Math.max(0.5, (prop.diameter / 10) ** 0.5);
+        basePower /= effFactor;
+        // High pitch/diameter = speed-optimized, less efficient cruise
+        const pitchRatio = prop.pitch / prop.diameter;
+        if (pitchRatio > 0.6) {
+          basePower *= (1 + (pitchRatio - 0.6) * 0.3);
+        }
+      } else {
+        // No prop data: assume average propulsion efficiency (+20% conservative)
+        basePower *= 1.2;
+      }
+
+      return basePower;
+    }
+    case 'vtol': {
+      // VTOL: hover phase + forward flight phase
+      const hoverMotors = vehicle.vtolMotorCount || 4;
+      let hoverPower: number;
+      if (vehicle.escRating) {
+        const maxHoverPower = voltage * vehicle.escRating * hoverMotors;
+        hoverPower = maxHoverPower * 0.55;
+      } else {
+        hoverPower = weightKg * (prop ? 170 : 195); // prop known = better estimate
+      }
+      const forwardPower = weightKg * (prop ? 60 : 72);
+      // Typical mission: ~40% hover (takeoff/landing/loiter), 60% forward flight
+      return hoverPower * 0.4 + forwardPower * 0.6;
+    }
+    case 'rover': {
+      let efficiency = 1.0;
+      if (vehicle.driveType === 'skid') efficiency = 1.3;
+      if (vehicle.driveType === 'ackermann') efficiency = 0.9;
+      // ESC-based if available
+      if (vehicle.escRating) {
+        return voltage * vehicle.escRating * 0.4 * efficiency;
+      }
+      return weightKg * 30 * efficiency;
+    }
+    case 'boat': {
+      let hullEfficiency = 1.0;
+      if (vehicle.hullType === 'planing') hullEfficiency = 2.5;
+      if (vehicle.hullType === 'catamaran') hullEfficiency = 0.8;
+      if (vehicle.hullType === 'pontoon') hullEfficiency = 1.2;
+      let propEfficiency = 1.0;
+      if (vehicle.propellerType === 'jet') propEfficiency = 1.5;
+      if (vehicle.propellerType === 'paddle') propEfficiency = 1.3;
+      if (vehicle.escRating) {
+        return voltage * vehicle.escRating * 0.45 * hullEfficiency * propEfficiency;
+      }
+      return weightKg * 40 * hullEfficiency * propEfficiency;
+    }
+    case 'sub': {
+      const thrusterCount = vehicle.thrusterCount || 4;
+      if (vehicle.escRating) {
+        return voltage * vehicle.escRating * thrusterCount * 0.35;
+      }
+      return weightKg * (35 + thrusterCount * 5);
+    }
+    default:
+      return 150;
+  }
+}
+
+const DEFAULT_FLIGHT_STATS: FlightStats = {
+  totalFlightTimeSeconds: 0,
+  totalDistanceMeters: 0,
+  totalMissions: 0,
+  lastFlightDate: null,
+  lastConnectionDate: null,
+};
+
+const DEFAULT_CONNECTION_MEMORY: ConnectionMemory = {
+  lastBaudRate: 115200,
+  lastConnectionType: 'serial',
+};
+
+// Debounce timer for auto-save
+let saveTimeout: ReturnType<typeof setTimeout> | null = null;
+
+export const useSettingsStore = create<SettingsStore>()(
+  subscribeWithSelector((set, get) => ({
+  // Persistence state
+  _isInitialized: false,
+  _isSaving: false,
+
+  // Non-persisted: SITL switch flag
+  pendingSitlSwitch: false,
+  setPendingSitlSwitch: (value: boolean) => set({ pendingSitlSwitch: value }),
+
+  // Experimental features
+  companionUnlocked: false,
+  setCompanionUnlocked: (enabled: boolean) => {
+    set({ companionUnlocked: enabled });
+  },
+  advancedCommandsUnlocked: false,
+  setAdvancedCommandsUnlocked: (enabled: boolean) => {
+    set({ advancedCommandsUnlocked: enabled });
+  },
+
+  showDebugLogs: false,
+  setShowDebugLogs: (enabled: boolean) => {
+    set({ showDebugLogs: enabled });
+  },
+
+  aiProvider: null,
+  setAiProvider: (provider) => {
+    set({ aiProvider: provider });
+  },
+  aiWarningDismissed: false,
+  setAiWarningDismissed: (dismissed) => {
+    set({ aiWarningDismissed: dismissed });
+  },
+
+  // Initial state (will be replaced by loadSettings)
+  missionDefaults: { ...DEFAULT_MISSION_DEFAULTS },
+  surveyPerformance: { ...DEFAULT_SURVEY_PERFORMANCE },
+  updateSurveyPerformance: (updates) => {
+    set((state) => ({
+      surveyPerformance: { ...state.surveyPerformance, ...updates },
+    }));
+  },
+  sidebarCollapsedByContext: {},
+  setSidebarCollapsedForContext: (contextKey, collapsed) => {
+    set((state) => ({
+      sidebarCollapsedByContext: { ...state.sidebarCollapsedByContext, [contextKey]: collapsed },
+    }));
+  },
+  vehicles: [{ ...DEFAULT_VEHICLE }],
+  activeVehicleId: 'default',
+  flightStats: { ...DEFAULT_FLIGHT_STATS },
+  connectionMemory: { ...DEFAULT_CONNECTION_MEMORY },
+  defaultSitlType: 'ardupilot',
+  preferredFirmwareSource: 'ardupilot' as FirmwareSource,
+  telemetrySpeed: 'normal' as TelemetrySpeed,
+  unitPreferences: { ...DEFAULT_USER_UNIT_PREFERENCES },
+  theme: 'dark' as ThemePreference,
+  nonDefaultHighlightColor: DEFAULT_NON_DEFAULT_COLOR,
+  experienceLevel: null as ExperienceLevel | null,
+  experienceLevelVersion: null as string | null,
+  uiVisibility: { ...BEGINNER_UI_VISIBILITY },
+
+  surveyPresets: [] as PersistedSurveyPreset[],
+  lastSurveyPresetId: null as string | null,
+  surveySavedConfig: null as Record<string, unknown> | null,
+  mapGuides: [] as Record<string, unknown>[],
+  missionMapViewport: null as { lat: number; lng: number; zoom: number } | null,
+  saveSurveyPreset: (preset: PersistedSurveyPreset) => {
+    set((s) => {
+      const others = s.surveyPresets.filter((p) => p.id !== preset.id);
+      return { surveyPresets: [...others, preset] };
+    });
+  },
+  removeSurveyPreset: (id: string) => {
+    set((s) => ({
+      surveyPresets: s.surveyPresets.filter((p) => p.id !== id),
+      // Clear the "last used" pointer if we just removed it; otherwise startup
+      // tries to restore a preset that no longer exists.
+      lastSurveyPresetId: s.lastSurveyPresetId === id ? null : s.lastSurveyPresetId,
+    }));
+  },
+  setLastSurveyPresetId: (id: string | null) => {
+    set({ lastSurveyPresetId: id });
+  },
+
+  userCameraPresets: [] as CameraPreset[],
+  saveCameraPreset: (camera: CameraPreset) => {
+    set((s) => {
+      // Replace any existing entry with the same name so re-saving updates it.
+      const others = s.userCameraPresets.filter((c) => c.name !== camera.name);
+      return { userCameraPresets: [...others, camera] };
+    });
+  },
+  removeCameraPreset: (name: string) => {
+    set((s) => ({ userCameraPresets: s.userCameraPresets.filter((c) => c.name !== name) }));
+  },
+  setSurveySavedConfig: (config) => {
+    set({ surveySavedConfig: config });
+  },
+  setMapGuides: (guides) => {
+    set({ mapGuides: guides });
+  },
+  setMissionMapViewport: (v) => {
+    set({ missionMapViewport: v });
+  },
+
+  // Computed
+  getActiveVehicle: () => {
+    const { vehicles, activeVehicleId } = get();
+    return vehicles.find(v => v.id === activeVehicleId) || null;
+  },
+
+  getCruiseSpeed: () => {
+    const vehicle = get().getActiveVehicle();
+    if (!vehicle) return 10;
+    return vehicle._cruiseSpeed || estimateCruiseSpeed(vehicle);
+  },
+
+  // Estimated flight time in seconds based on battery and power draw
+  getEstimatedFlightTime: () => {
+    const vehicle = get().getActiveVehicle();
+    if (!vehicle) return 20 * 60; // Default 20 minutes
+
+    const voltage = getCellVoltage(vehicle.batteryCells || 4, vehicle.batteryChemistry);
+    const powerDraw = vehicle._avgPowerDraw || estimatePowerDraw(vehicle);
+
+    if (!powerDraw || powerDraw <= 0 || !isFinite(powerDraw)) return 20 * 60;
+
+    // Energy in Wh = (mAh * V) / 1000
+    const energyWh = (vehicle.batteryCapacity * voltage) / 1000;
+    // Time in hours = Energy / Power, convert to seconds
+    // Apply 80% usable capacity for safety
+    const flightTimeSeconds = ((energyWh / powerDraw) * 0.8) * 3600;
+
+    // Guard against NaN/Infinity from edge-case inputs
+    if (!isFinite(flightTimeSeconds) || flightTimeSeconds < 0) return 20 * 60;
+    // Cap at 24 hours - anything beyond is clearly an estimation error
+    return Math.min(Math.round(flightTimeSeconds), 24 * 3600);
+  },
+
+  // Estimated range in meters
+  getEstimatedRange: () => {
+    const vehicle = get().getActiveVehicle();
+    if (!vehicle) return 0;
+
+    const flightTime = get().getEstimatedFlightTime();
+    const cruiseSpeed = vehicle._cruiseSpeed || estimateCruiseSpeed(vehicle);
+
+    if (!isFinite(cruiseSpeed) || cruiseSpeed < 0) return 0;
+    const range = flightTime * cruiseSpeed;
+    // Guard against NaN/Infinity, cap at 10000km
+    if (!isFinite(range) || range < 0) return 0;
+    return Math.min(Math.round(range), 10_000_000);
+  },
+
+  // Persistence actions
+  loadSettings: async () => {
+    try {
+      const settings = await window.electronAPI?.getSettings();
+      if (settings) {
+        const settingsRecord = settings as unknown as Record<string, unknown>;
+        const unitPreferences = normalizeUserUnitPreferences(settingsRecord.unitPreferences, {
+          displayUnits: settingsRecord.displayUnits,
+          surveyUnits: settingsRecord.surveyUnits,
+        });
+        set({
+          missionDefaults: { ...DEFAULT_MISSION_DEFAULTS, ...settings.missionDefaults },
+          surveyPerformance: {
+            ...DEFAULT_SURVEY_PERFORMANCE,
+            ...(settingsRecord.surveyPerformance as Partial<SurveyPerformance> | undefined),
+          },
+          sidebarCollapsedByContext: (settingsRecord.sidebarCollapsedByContext as Record<string, boolean> | undefined) ?? {},
+          vehicles: settings.vehicles?.length ? settings.vehicles : [{ ...DEFAULT_VEHICLE }],
+          activeVehicleId: settings.activeVehicleId || settings.vehicles?.[0]?.id || 'default',
+          flightStats: settings.flightStats || { ...DEFAULT_FLIGHT_STATS },
+          connectionMemory: settings.connectionMemory || { ...DEFAULT_CONNECTION_MEMORY },
+          defaultSitlType: settingsRecord.defaultSitlType as DefaultSitlType || 'ardupilot',
+          preferredFirmwareSource: (settingsRecord.preferredFirmwareSource as FirmwareSource) || 'ardupilot',
+          telemetrySpeed: (settingsRecord.telemetrySpeed as TelemetrySpeed) || 'normal',
+          unitPreferences,
+          theme: (settingsRecord.theme as ThemePreference) || 'dark',
+          nonDefaultHighlightColor: (settingsRecord.nonDefaultHighlightColor as NonDefaultColorKey) || DEFAULT_NON_DEFAULT_COLOR,
+          experienceLevel: (settingsRecord.experienceLevel as ExperienceLevel) || null,
+          experienceLevelVersion: (settingsRecord.experienceLevelVersion as string) || null,
+          uiVisibility: {
+            ...BEGINNER_UI_VISIBILITY,
+            ...(settingsRecord.uiVisibility as Partial<UiVisibility> | undefined),
+          },
+          companionUnlocked: !!settingsRecord.companionUnlocked,
+          advancedCommandsUnlocked: !!settingsRecord.advancedCommandsUnlocked,
+          showDebugLogs: !!settingsRecord.showDebugLogs,
+          aiProvider: (settingsRecord.aiProvider as 'claude' | 'openai' | 'gemini' | null) ?? null,
+          aiWarningDismissed: !!settingsRecord.aiWarningDismissed,
+          surveyPresets: (settings.surveyPresets ?? []) as PersistedSurveyPreset[],
+          lastSurveyPresetId: settings.lastSurveyPresetId ?? null,
+          surveySavedConfig: (settings.surveySavedConfig as Record<string, unknown> | undefined) ?? null,
+          mapGuides: (settingsRecord.mapGuides as Record<string, unknown>[] | undefined) ?? [],
+          missionMapViewport: (settingsRecord.missionMapViewport as { lat: number; lng: number; zoom: number } | undefined) ?? null,
+          userCameraPresets: (settingsRecord.userCameraPresets as CameraPreset[] | undefined) ?? [],
+          _isInitialized: true,
+        });
+      } else {
+        set({ _isInitialized: true });
+      }
+    } catch (error) {
+      console.error('[Settings] Failed to load:', error);
+      set({ _isInitialized: true });
+    }
+  },
+
+  _saveSettings: async () => {
+    const state = get();
+    if (!state._isInitialized || state._isSaving) return;
+
+    set({ _isSaving: true });
+    try {
+      const payload = {
+        missionDefaults: state.missionDefaults,
+        surveyPerformance: state.surveyPerformance,
+        sidebarCollapsedByContext: state.sidebarCollapsedByContext,
+        vehicles: state.vehicles,
+        activeVehicleId: state.activeVehicleId,
+        flightStats: state.flightStats,
+        connectionMemory: state.connectionMemory,
+        defaultSitlType: state.defaultSitlType,
+        preferredFirmwareSource: state.preferredFirmwareSource,
+        telemetrySpeed: state.telemetrySpeed,
+        unitPreferences: state.unitPreferences,
+        theme: state.theme,
+        nonDefaultHighlightColor: state.nonDefaultHighlightColor,
+        ...(state.experienceLevel ? { experienceLevel: state.experienceLevel } : {}),
+        ...(state.experienceLevelVersion ? { experienceLevelVersion: state.experienceLevelVersion } : {}),
+        uiVisibility: state.uiVisibility,
+        companionUnlocked: state.companionUnlocked,
+        advancedCommandsUnlocked: state.advancedCommandsUnlocked,
+        showDebugLogs: state.showDebugLogs,
+        aiProvider: state.aiProvider,
+        aiWarningDismissed: state.aiWarningDismissed,
+        surveyPresets: state.surveyPresets,
+        ...(state.lastSurveyPresetId ? { lastSurveyPresetId: state.lastSurveyPresetId } : {}),
+        ...(state.surveySavedConfig ? { surveySavedConfig: state.surveySavedConfig } : {}),
+        userCameraPresets: state.userCameraPresets,
+        mapGuides: state.mapGuides,
+    missionMapViewport: state.missionMapViewport,
+        ...(state.missionMapViewport ? { missionMapViewport: state.missionMapViewport } : {}),
+      };
+      await window.electronAPI?.saveSettings(payload);
+    } catch (error) {
+      console.error('[Settings] Failed to save:', error);
+    } finally {
+      set({ _isSaving: false });
+    }
+  },
+
+  // Actions - Mission defaults
+  updateMissionDefaults: (updates) => {
+    set((state) => ({
+      missionDefaults: { ...state.missionDefaults, ...updates },
+    }));
+  },
+
+  // Actions - Vehicles
+  addVehicle: (vehicleData) => {
+    const id = `vehicle-${Date.now()}`;
+    const vehicle: VehicleProfile = {
+      ...vehicleData,
+      id,
+      // Ensure required fields have defaults
+      batteryCells: vehicleData.batteryCells || 4,
+      batteryCapacity: vehicleData.batteryCapacity || 1500,
+      weight: vehicleData.weight || 500,
+    };
+    set((state) => ({
+      vehicles: [...state.vehicles, vehicle],
+    }));
+    return id;  // Return the new vehicle's ID
+  },
+
+  updateVehicle: (id, updates) => {
+    set((state) => ({
+      vehicles: state.vehicles.map(v =>
+        v.id === id ? { ...v, ...updates } : v
+      ),
+    }));
+  },
+
+  removeVehicle: (id) => {
+    set((state) => {
+      // Don't remove if it's the only vehicle
+      if (state.vehicles.length <= 1) return state;
+
+      const newVehicles = state.vehicles.filter(v => v.id !== id);
+      // If removing active vehicle, switch to first available
+      const newActiveId = state.activeVehicleId === id
+        ? newVehicles[0]?.id || null
+        : state.activeVehicleId;
+
+      return {
+        vehicles: newVehicles,
+        activeVehicleId: newActiveId,
+      };
+    });
+  },
+
+  setActiveVehicle: (id) => {
+    set({ activeVehicleId: id });
+  },
+
+  // Actions - Board association
+  associateBoard: (boardUid, boardId, boardName) => {
+    const state = get();
+    const now = new Date().toISOString();
+
+    // 1. Check if any existing profile already has this boardUid
+    const existingProfile = state.vehicles.find(v => v.boardUid === boardUid);
+    if (existingProfile) {
+      // Switch to it and update connection timestamp
+      set((s) => ({
+        activeVehicleId: existingProfile.id,
+        vehicles: s.vehicles.map(v =>
+          v.id === existingProfile.id
+            ? { ...v, lastConnected: now, ...(boardId && { boardId }), ...(boardName && { boardName }) }
+            : v
+        ),
+      }));
+      return existingProfile.id;
+    }
+
+    // 2. Active profile has no boardUid → claim it for this board
+    const activeProfile = state.vehicles.find(v => v.id === state.activeVehicleId);
+    if (activeProfile && !activeProfile.boardUid) {
+      set((s) => ({
+        vehicles: s.vehicles.map(v =>
+          v.id === activeProfile.id
+            ? { ...v, boardUid, lastConnected: now, ...(boardId && { boardId }), ...(boardName && { boardName }) }
+            : v
+        ),
+      }));
+      return activeProfile.id;
+    }
+
+    // 3. Active profile has a different boardUid → create a blank profile for the new board
+    const newId = `vehicle-${Date.now()}`;
+    const displayName = boardName || boardId || 'New Board';
+    const newVehicle: VehicleProfile = {
+      id: newId,
+      name: displayName,
+      type: 'copter' as VehicleType,
+      weight: 500,
+      batteryCells: 4,
+      batteryCapacity: 1500,
+      boardUid,
+      boardId,
+      boardName,
+      lastConnected: now,
+    };
+    set((s) => ({
+      vehicles: [...s.vehicles, newVehicle],
+      activeVehicleId: newId,
+    }));
+    return newId;
+  },
+
+  updateBoardStats: (stats) => {
+    const state = get();
+    if (!state.activeVehicleId) return;
+    set((s) => ({
+      vehicles: s.vehicles.map(v =>
+        v.id === s.activeVehicleId
+          ? { ...v, boardStats: { ...v.boardStats, ...stats, lastUpdated: new Date().toISOString() } }
+          : v
+      ),
+    }));
+  },
+
+  // Actions - Flight stats
+  updateFlightStats: (updates) => {
+    set((state) => ({
+      flightStats: { ...state.flightStats, ...updates },
+    }));
+  },
+
+  incrementMissionCount: () => {
+    set((state) => ({
+      flightStats: {
+        ...state.flightStats,
+        totalMissions: state.flightStats.totalMissions + 1,
+      },
+    }));
+  },
+
+  addFlightTime: (seconds, distanceMeters) => {
+    set((state) => ({
+      flightStats: {
+        ...state.flightStats,
+        totalFlightTimeSeconds: state.flightStats.totalFlightTimeSeconds + seconds,
+        totalDistanceMeters: state.flightStats.totalDistanceMeters + distanceMeters,
+        lastFlightDate: new Date().toISOString(),
+      },
+    }));
+  },
+
+  // Actions - Connection memory
+  updateConnectionMemory: (updates) => {
+    set((state) => {
+      const mem = { ...state.connectionMemory, ...updates };
+
+      // Auto-add to recent connections for TCP/UDP
+      if (updates.lastConnectionType === 'tcp' || updates.lastConnectionType === 'udp') {
+        const recent = [...(mem.recentConnections ?? [])];
+        const entry: SavedConnection = updates.lastConnectionType === 'tcp'
+          ? {
+              type: 'tcp',
+              label: `${updates.lastTcpHost ?? mem.lastTcpHost}:${updates.lastTcpPort ?? mem.lastTcpPort} (${(updates.lastTcpProtocol ?? mem.lastTcpProtocol ?? 'mavlink').toUpperCase()})`,
+              host: updates.lastTcpHost ?? mem.lastTcpHost,
+              port: updates.lastTcpPort ?? mem.lastTcpPort ?? 5760,
+              protocol: updates.lastTcpProtocol ?? mem.lastTcpProtocol ?? 'mavlink',
+              lastUsed: Date.now(),
+            }
+          : {
+              type: 'udp',
+              label: (updates.lastUdpMode ?? mem.lastUdpMode) === 'client'
+                ? `${updates.lastUdpRemoteHost ?? mem.lastUdpRemoteHost}:${updates.lastUdpRemotePort ?? mem.lastUdpRemotePort} (UDP ${(updates.lastUdpProtocol ?? mem.lastUdpProtocol ?? 'mavlink').toUpperCase()})`
+                : `UDP :${updates.lastUdpPort ?? mem.lastUdpPort} listen (${(updates.lastUdpProtocol ?? mem.lastUdpProtocol ?? 'mavlink').toUpperCase()})`,
+              host: (updates.lastUdpMode ?? mem.lastUdpMode) === 'client' ? (updates.lastUdpRemoteHost ?? mem.lastUdpRemoteHost) : undefined,
+              port: (updates.lastUdpMode ?? mem.lastUdpMode) === 'client' ? (updates.lastUdpRemotePort ?? mem.lastUdpRemotePort ?? 14550) : (updates.lastUdpPort ?? mem.lastUdpPort ?? 14550),
+              protocol: updates.lastUdpProtocol ?? mem.lastUdpProtocol ?? 'mavlink',
+              udpMode: updates.lastUdpMode ?? mem.lastUdpMode,
+              udpRemoteHost: updates.lastUdpRemoteHost ?? mem.lastUdpRemoteHost,
+              udpRemotePort: updates.lastUdpRemotePort ?? mem.lastUdpRemotePort,
+              udpClientLocalPort: updates.lastUdpClientLocalPort ?? mem.lastUdpClientLocalPort,
+              lastUsed: Date.now(),
+            };
+
+        // Deduplicate by label, keep max 10
+        const idx = recent.findIndex(c => c.label === entry.label);
+        if (idx >= 0) recent.splice(idx, 1);
+        recent.unshift(entry);
+        mem.recentConnections = recent.slice(0, 10);
+      }
+
+      return { connectionMemory: mem };
+    });
+  },
+
+  removeRecentConnection: (label) => {
+    set((state) => ({
+      connectionMemory: {
+        ...state.connectionMemory,
+        recentConnections: (state.connectionMemory.recentConnections ?? []).filter((c) => c.label !== label),
+      },
+    }));
+  },
+
+  // Actions - SITL preferences
+  setDefaultSitlType: (type) => {
+    set({ defaultSitlType: type });
+  },
+
+  // Actions - Firmware preferences
+  setPreferredFirmwareSource: (source) => {
+    set({ preferredFirmwareSource: source });
+  },
+
+  // Actions - Telemetry
+  setTelemetrySpeed: (speed) => {
+    set({ telemetrySpeed: speed });
+  },
+
+  setUnitPreference: (kind, unit) => {
+    set((state) => ({
+      unitPreferences: { ...state.unitPreferences, [kind]: unit },
+    }));
+  },
+
+  setTheme: (theme) => {
+    set({ theme });
+  },
+
+  setNonDefaultHighlightColor: (color) => {
+    set({ nonDefaultHighlightColor: color });
+  },
+
+  setExperienceLevel: (level, version) => {
+    const uiVis = level === 'advanced' ? { ...ADVANCED_UI_VISIBILITY } : { ...BEGINNER_UI_VISIBILITY };
+    set((state) => ({
+      experienceLevel: level,
+      experienceLevelVersion: version,
+      uiVisibility: uiVis,
+      missionDefaults: { ...state.missionDefaults, advancedMissionLabels: uiVis.defaultAdvancedViews },
+    }));
+  },
+
+  setUiVisibility: (updates) => {
+    set((state) => {
+      const newUiVisibility = { ...state.uiVisibility, ...updates };
+      // Sync advancedMissionLabels when defaultAdvancedViews changes
+      if (updates.defaultAdvancedViews !== undefined) {
+        return {
+          uiVisibility: newUiVisibility,
+          missionDefaults: { ...state.missionDefaults, advancedMissionLabels: updates.defaultAdvancedViews },
+        };
+      }
+      return { uiVisibility: newUiVisibility };
+    });
+  },
+
+  // Reset
+  resetToDefaults: () => {
+    set({
+      missionDefaults: { ...DEFAULT_MISSION_DEFAULTS },
+      vehicles: [{ ...DEFAULT_VEHICLE }],
+      activeVehicleId: 'default',
+      flightStats: { ...DEFAULT_FLIGHT_STATS },
+      connectionMemory: { ...DEFAULT_CONNECTION_MEMORY },
+      defaultSitlType: 'ardupilot',
+      preferredFirmwareSource: 'ardupilot',
+      telemetrySpeed: 'normal',
+      unitPreferences: { ...DEFAULT_USER_UNIT_PREFERENCES },
+    });
+  },
+})));
+
+// Debounced auto-save when relevant state changes
+const debouncedSave = () => {
+  if (saveTimeout) clearTimeout(saveTimeout);
+  saveTimeout = setTimeout(() => {
+    useSettingsStore.getState()._saveSettings();
+  }, 500); // 500ms debounce
+};
+
+// Subscribe to state changes and auto-save (skip internal state like _isInitialized)
+useSettingsStore.subscribe(
+  (state) => ({
+    missionDefaults: state.missionDefaults,
+    surveyPerformance: state.surveyPerformance,
+    sidebarCollapsedByContext: state.sidebarCollapsedByContext,
+    vehicles: state.vehicles,
+    activeVehicleId: state.activeVehicleId,
+    flightStats: state.flightStats,
+    connectionMemory: state.connectionMemory,
+    defaultSitlType: state.defaultSitlType,
+    preferredFirmwareSource: state.preferredFirmwareSource,
+    telemetrySpeed: state.telemetrySpeed,
+    unitPreferences: state.unitPreferences,
+    theme: state.theme,
+    nonDefaultHighlightColor: state.nonDefaultHighlightColor,
+    experienceLevel: state.experienceLevel,
+    experienceLevelVersion: state.experienceLevelVersion,
+    uiVisibility: state.uiVisibility,
+    companionUnlocked: state.companionUnlocked,
+    advancedCommandsUnlocked: state.advancedCommandsUnlocked,
+    showDebugLogs: state.showDebugLogs,
+    aiProvider: state.aiProvider,
+    aiWarningDismissed: state.aiWarningDismissed,
+    surveyPresets: state.surveyPresets,
+    mapGuides: state.mapGuides,
+    lastSurveyPresetId: state.lastSurveyPresetId,
+    surveySavedConfig: state.surveySavedConfig,
+    userCameraPresets: state.userCameraPresets,
+  }),
+  (curr, prev) => {
+    // Only save if initialized and something changed
+    if (useSettingsStore.getState()._isInitialized) {
+      // Check if anything actually changed (shallow comparison)
+      if (
+        curr.missionDefaults !== prev.missionDefaults ||
+        curr.surveyPerformance !== prev.surveyPerformance ||
+        curr.sidebarCollapsedByContext !== prev.sidebarCollapsedByContext ||
+        curr.vehicles !== prev.vehicles ||
+        curr.activeVehicleId !== prev.activeVehicleId ||
+        curr.flightStats !== prev.flightStats ||
+        curr.connectionMemory !== prev.connectionMemory ||
+        curr.defaultSitlType !== prev.defaultSitlType ||
+        curr.preferredFirmwareSource !== prev.preferredFirmwareSource ||
+        curr.telemetrySpeed !== prev.telemetrySpeed ||
+        curr.unitPreferences !== prev.unitPreferences ||
+        curr.theme !== prev.theme ||
+        curr.experienceLevel !== prev.experienceLevel ||
+        curr.experienceLevelVersion !== prev.experienceLevelVersion ||
+        curr.uiVisibility !== prev.uiVisibility ||
+        curr.companionUnlocked !== prev.companionUnlocked ||
+        curr.advancedCommandsUnlocked !== prev.advancedCommandsUnlocked ||
+        curr.showDebugLogs !== prev.showDebugLogs ||
+        curr.aiProvider !== prev.aiProvider ||
+        curr.aiWarningDismissed !== prev.aiWarningDismissed ||
+        curr.surveyPresets !== prev.surveyPresets ||
+        curr.lastSurveyPresetId !== prev.lastSurveyPresetId ||
+        curr.surveySavedConfig !== prev.surveySavedConfig ||
+        curr.userCameraPresets !== prev.userCameraPresets
+      ) {
+        debouncedSave();
+      }
+    }
+  },
+  { fireImmediately: false }
+);
+
+// Export a function to initialize settings (call from App.tsx)
+export const initializeSettings = () => {
+  if (typeof window !== 'undefined' && window.electronAPI && !useSettingsStore.getState()._isInitialized) {
+    useSettingsStore.getState().loadSettings();
+  }
+};

@@ -1,0 +1,5 @@
+resolution,recall,precision,chosen
+640,0.417,0.689,false
+960,0.51,0.624,true
+1280,0.511,0.559,false
+1920,0.452,0.442,false

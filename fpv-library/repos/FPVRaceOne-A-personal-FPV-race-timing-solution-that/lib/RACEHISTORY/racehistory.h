@@ -1,0 +1,50 @@
+#ifndef RACEHISTORY_H
+#define RACEHISTORY_H
+
+#include <Arduino.h>
+#include <ArduinoJson.h>
+#include <vector>
+#include "storage.h"
+
+#define MAX_RACES 50
+#define RACES_DIR "/races"
+
+struct RaceSession {
+    uint32_t timestamp;
+    std::vector<uint32_t> lapTimes;
+    uint32_t fastestLap;
+    uint32_t medianLap;
+    uint32_t best3LapsTotal;
+    String name;
+    String tag;
+    String pilotName;
+    uint16_t frequency;
+    String band;
+    uint8_t channel;
+    uint32_t trackId;
+    String trackName;
+    float totalDistance;
+};
+
+class RaceHistory {
+   public:
+    RaceHistory();
+    bool init(Storage* storage);
+    bool saveRace(const RaceSession& race);
+    bool loadRaces();
+    bool deleteRace(uint32_t timestamp);
+    bool updateRace(uint32_t timestamp, const String& name, const String& tag, float totalDistance = -1.0f);
+    bool updateLaps(uint32_t timestamp, const std::vector<uint32_t>& newLapTimes);
+    bool clearAll();
+    String toJsonString();
+    bool fromJsonString(const String& json);
+    const std::vector<RaceSession>& getRaces() const { return races; }
+    size_t getRaceCount() const { return races.size(); }
+    bool isPersistenceEnabled() const;
+
+   private:
+    std::vector<RaceSession> races;
+    Storage* storage;
+};
+
+#endif

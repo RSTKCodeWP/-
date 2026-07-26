@@ -1,0 +1,44 @@
+---
+name: Request for repository removal
+description: Report a repository that should be removed from the community plugins database.
+title: "Request for removal of "
+labels: removal
+assignees: klaasnicolaas
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before submitting a request, please check existing issues to avoid duplicates.
+
+        This form is strictly for requesting the removal of repositories from the community plugins database. Please provide as much relevant information as possible.
+  - type: input
+    id: repo
+    attributes:
+      label: Repository
+      description: "Provide the repository to be removed (format: owner/repository)."
+    validations:
+      required: true
+  - type: checkboxes
+    attributes:
+      label: Checklist
+      options:
+        - label: I understand that this form is only for requesting the removal of repositories.
+          required: true
+        - label: I acknowledge that a bug or issue with the repository is not a valid reason for removal.
+          required: true
+        - label: This repository is currently listed in the community plugins database.
+          required: true
+        - label: I have attempted to contact the repository author regarding the removal request.
+          required: true
+  - type: textarea
+    attributes:
+      label: Reason for Removal
+      placeholder: Explain why this repository should be removed. Providing clear reasoning will help in processing the request.
+    validations:
+      required: true
+  - type: input
+    attributes:
+      label: Link to issue (if applicable)
+      description: Provide a link to an issue or discussion where you attempted to contact the repository author.
+    validations:
+      required: false

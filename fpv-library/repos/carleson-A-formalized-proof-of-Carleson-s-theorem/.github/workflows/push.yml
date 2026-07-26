@@ -1,0 +1,77 @@
+on:
+  push:
+    branches:
+      - master
+
+# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  style_lint:
+    name: Lint style
+    runs-on: ubuntu-latest
+    steps:
+      - name: Don't 'import Mathlib', use precise imports
+        if: always()
+        run: |
+          ! (find Carleson -name "*.lean" -type f -print0 | xargs -0 grep -E -n '^import Mathlib$')
+
+  build_project:
+    runs-on: ubuntu-latest
+    name: Build project
+    steps:
+      - name: Cleanup to free disk space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: false
+          android: true
+          dotnet: false
+          haskell: false
+          large-packages: false
+          docker-images: false
+          swap-storage: false
+
+      - name: Checkout project
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+
+      - name: Build and lint project
+        uses: leanprover/lean-action@38fbc41a8c28c4cbaec22d7f7de508ec2e7c0dd9 # 2025-07-02
+        with:
+          build: true
+          lint: true
+          mk_all-check: false # would need to pass '--lib Carleson' to mk_all to enable
+
+      - name: Build comparator files
+        run: ~/.elan/bin/lake build Challenge Solution
+
+      - name: Upstreaming dashboard
+        uses: leanprover-community/upstreaming-dashboard-action@main
+        with:
+          website-directory: ./docs
+          project-name: Carleson
+          search-root: Carleson.ToMathlib
+          relevant-labels: carleson
+          include-drafts: true
+          branch-name: master
+
+      - name: Generate the paper PDF and add it to the website
+        uses: xu-cheng/texlive-action@22c04326a5d855880f9d39bb955138bf11c6df80 # v3
+        with:
+          docker_image: ghcr.io/xu-cheng/texlive-full:20251002
+          run: |
+            cd paper
+            latexmk main.tex
+            latexmk -c
+            cd ..
+            cp paper/main.pdf docs/paper.pdf
+
+      - name: Compile blueprint and documentation
+        uses: leanprover-community/docgen-action@7b5b9a1822650bd45aaeb4182d94bceba2030f89 # 2026-04-14
+        with:
+          blueprint: true
+          homepage: docs

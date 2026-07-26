@@ -1,0 +1,75 @@
+{% extends "layout.html" %} {% block title %}{{ __('Home') }}{% endblock %} {% block head %}
+
+<script src="./static/showdown-1.9.1/showdown.min.js"></script>
+
+{% endblock %} {% block content %}
+<script type="text/javascript" charset="utf-8">
+	var data_dependencies = [
+		'all_languages',
+		'language',
+	];
+
+	$(document).ready(function () {
+		socket.on('language', function (msg) {
+			if (msg.language) {
+				rotorhazard.interface_language = msg.language;
+			}
+		});
+
+		// set up markdown converter
+		var converter = new showdown.Converter({
+			ghCodeBlocks: true,
+			ghCompatibleHeaderId: true,
+			literalMidWordUnderscores: true,
+			simpleLineBreaks: true,
+			headerLevelStart: 4
+		});
+
+		md_output = converter.makeHtml({{ getOption('eventDescription')|tojson }});
+		$('#description').html($(md_output));
+	});
+</script>
+
+<main class="page-home">
+
+<div class="header">
+	<h1>
+		{% if getConfig('UI', 'timerLogo') %}
+			<div class="screen-reader-text">{{ getConfig('UI', 'timerName') }}</div>
+			<img src="/shared/{{ getConfig('UI', 'timerLogo') }}" alt="" />
+		{% else %}
+			<div class="screen-reader-text">RotorHazard</div>
+			<div class="rh-logo"></div>
+		{% endif %}
+	</h1>
+</div>
+
+<div class="panel">
+	<div class="panel-header">
+		<h2>{{ __("Current Event") }}</h2>
+	</div>
+	<div class="panel-content">
+		<h3>{{ getOption('eventName') }}</h3>
+		<div id="description"></div>
+	</div>
+</div>
+
+<div class="panel">
+	<div class="panel-header">
+		<h2>{{ __("Actions") }}</h2>
+	</div>
+	<div class="panel-content">
+		<ul class="home-menu">
+			<li><a class="button-like" href="/event">{{ __("View Event Details") }}</a></li>
+			<li><a class="button-like" href="/results">{{ __("View Race Results") }}</a></li>
+			<li><a class="button-like" href="/current">{{ __("Spectate Current Race") }}</a></li>
+			<li class="admin-hide"><a class="button-like" href="/race">{{ __("Start Race") }}</a></li>
+			<li class="admin-hide"><a class="button-like" href="/marshal">{{ __("Marshal Race Data") }}</a></li>
+			<li class="admin-hide"><a class="button-like" href="/format">{{ __("Event Setup and Format") }}</a></li>
+			<li><a class="button-like" href="/settings">{{ __("Admin / Settings") }}</a></li>
+		</ul>
+	</div>
+</div>
+
+</main>
+{% endblock %}

@@ -1,0 +1,339 @@
+#include "output_socket.h"
+
+#include <arpa/inet.h>
+#include <errno.h>
+#include <limits.h>
+#include <linux/sockios.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <string.h>
+#include <sys/ioctl.h>
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <unistd.h>
+
+static int fill_unix_destination(const char *name,
+	struct sockaddr_storage *dst, socklen_t *dst_len)
+{
+	struct sockaddr_un *addr;
+	size_t name_len;
+
+	if (!name || !name[0] || !dst || !dst_len)
+		return -1;
+
+	name_len = strlen(name);
+	addr = (struct sockaddr_un *)dst;
+	if (name_len > sizeof(addr->sun_path) - 2) {
+		fprintf(stderr, "[output_socket] unix:// socket name too long\n");
+		return -1;
+	}
+
+	memset(dst, 0, sizeof(*dst));
+	addr->sun_family = AF_UNIX;
+	memcpy(addr->sun_path + 1, name, name_len);
+	*dst_len = (socklen_t)(offsetof(struct sockaddr_un, sun_path) + 1 + name_len);
+	return 0;
+}
+
+/* Size the kernel send buffer for one IDR burst at stress-level bitrates
+ * (25+ Mbps at 120 fps). Embedded defaults can be well under 64 KiB and
+ * would cause head-of-line blocking on IDR frames. Raising here is
+ * advisory — setsockopt failure is non-fatal. */
+#define OUTPUT_SOCKET_SNDBUF_BYTES (512 * 1024)
+
+static int open_socket(int *socket_handle, VencOutputUriType type)
+{
+	int domain;
+	int sndbuf;
+
+	if (!socket_handle)
+		return -1;
+
+	switch (type) {
+	case VENC_OUTPUT_URI_UDP:
+		domain = AF_INET;
+		break;
+	case VENC_OUTPUT_URI_UNIX:
+		domain = AF_UNIX;
+		break;
+	default:
+		fprintf(stderr, "[output_socket] unsupported socket transport\n");
+		return -1;
+	}
+
+	*socket_handle = socket(domain, SOCK_DGRAM | SOCK_CLOEXEC, 0);
+	if (*socket_handle < 0) {
+		fprintf(stderr, "[output_socket] socket() failed: %s\n",
+			strerror(errno));
+		return -1;
+	}
+
+	sndbuf = OUTPUT_SOCKET_SNDBUF_BYTES;
+	if (setsockopt(*socket_handle, SOL_SOCKET, SO_SNDBUF,
+		&sndbuf, sizeof(sndbuf)) != 0) {
+		fprintf(stderr, "[output_socket] SO_SNDBUF(%d) failed: %s "
+			"(keeping kernel default)\n", sndbuf, strerror(errno));
+	}
+
+	return 0;
+}
+
+static void close_socket_if_open(int *socket_handle)
+{
+	if (!socket_handle || *socket_handle < 0)
+		return;
+
+	close(*socket_handle);
+	*socket_handle = -1;
+}
+
+static void disconnect_udp_socket(int socket_handle)
+{
+	struct sockaddr addr;
+
+	if (socket_handle < 0)
+		return;
+
+	memset(&addr, 0, sizeof(addr));
+	addr.sa_family = AF_UNSPEC;
+	(void)connect(socket_handle, &addr, sizeof(addr));
+}
+
+int output_socket_fill_udp_destination(const char *host, uint16_t port,
+	struct sockaddr_storage *dst, socklen_t *dst_len)
+{
+	struct sockaddr_in *addr;
+
+	if (!host || !host[0] || port == 0 || !dst || !dst_len)
+		return -1;
+
+	memset(dst, 0, sizeof(*dst));
+	addr = (struct sockaddr_in *)dst;
+	addr->sin_family = AF_INET;
+	addr->sin_port = htons(port);
+	if (inet_pton(AF_INET, host, &addr->sin_addr) != 1) {
+		fprintf(stderr, "[output_socket] invalid IPv4 address '%s'\n", host);
+		return -1;
+	}
+	*dst_len = sizeof(*addr);
+	return 0;
+}
+
+int output_socket_fill_destination(const VencOutputUri *uri,
+	struct sockaddr_storage *dst, socklen_t *dst_len)
+{
+	if (!uri || !dst || !dst_len)
+		return -1;
+
+	switch (uri->type) {
+	case VENC_OUTPUT_URI_UDP:
+		return output_socket_fill_udp_destination(uri->host, uri->port,
+			dst, dst_len);
+	case VENC_OUTPUT_URI_UNIX:
+		return fill_unix_destination(uri->endpoint, dst, dst_len);
+	default:
+		fprintf(stderr, "[output_socket] shm:// is not a datagram socket transport\n");
+		return -1;
+	}
+}
+
+int output_socket_configure(int *socket_handle, struct sockaddr_storage *dst,
+	socklen_t *dst_len, VencOutputUriType *transport,
+	const VencOutputUri *uri, int requested_connected_udp,
+	int *connected_udp)
+{
+	int want_connected;
+
+	if (!socket_handle || !dst || !dst_len || !transport || !uri)
+		return -1;
+	if (uri->type == VENC_OUTPUT_URI_SHM) {
+		fprintf(stderr, "[output_socket] shm:// requires ring-buffer output\n");
+		return -1;
+	}
+
+	if (*socket_handle < 0 || *transport != uri->type) {
+		close_socket_if_open(socket_handle);
+		if (open_socket(socket_handle, uri->type) != 0)
+			return -1;
+		*transport = uri->type;
+	}
+
+	if (output_socket_fill_destination(uri, dst, dst_len) != 0) {
+		close_socket_if_open(socket_handle);
+		return -1;
+	}
+	if (!connected_udp)
+		return 0;
+
+	want_connected = (uri->type == VENC_OUTPUT_URI_UDP && requested_connected_udp) ?
+		1 : 0;
+	if (uri->type == VENC_OUTPUT_URI_UDP && !want_connected)
+		disconnect_udp_socket(*socket_handle);
+
+	*connected_udp = 0;
+	if (!want_connected)
+		return 0;
+
+	if (connect(*socket_handle, (const struct sockaddr *)dst, *dst_len) != 0) {
+		fprintf(stderr, "[output_socket] UDP connect() failed: %s\n",
+			strerror(errno));
+		return 0;
+	}
+
+	*connected_udp = 1;
+	return 0;
+}
+
+int output_socket_send_parts(int socket_handle,
+	const struct sockaddr_storage *dst, socklen_t dst_len,
+	int connected_udp,
+	const uint8_t *header, size_t header_len,
+	const uint8_t *payload1, size_t payload1_len,
+	const uint8_t *payload2, size_t payload2_len)
+{
+	struct iovec vec[3];
+	struct msghdr msg;
+	int iovcnt;
+	ssize_t sent;
+
+	if (socket_handle < 0 || !header || !payload1 ||
+	    header_len == 0 || payload1_len == 0) {
+		return -1;
+	}
+	if (!connected_udp && (!dst || dst_len == 0))
+		return -1;
+
+	vec[0].iov_base = (void *)header;
+	vec[0].iov_len = header_len;
+	vec[1].iov_base = (void *)payload1;
+	vec[1].iov_len = payload1_len;
+	iovcnt = 2;
+	if (payload2 && payload2_len > 0) {
+		vec[2].iov_base = (void *)payload2;
+		vec[2].iov_len = payload2_len;
+		iovcnt = 3;
+	}
+
+	memset(&msg, 0, sizeof(msg));
+	if (connected_udp) {
+		msg.msg_name = NULL;
+		msg.msg_namelen = 0;
+	} else {
+		msg.msg_name = (void *)dst;
+		msg.msg_namelen = dst_len;
+	}
+	msg.msg_iov = vec;
+	msg.msg_iovlen = iovcnt;
+	sent = sendmsg(socket_handle, &msg, 0);
+	return sent < 0 ? -1 : 0;
+}
+
+int output_socket_capture_capacity(int socket_handle, int *out_capacity)
+{
+	int sndbuf = 0;
+	socklen_t sndbuf_len = sizeof(sndbuf);
+
+	if (socket_handle < 0 || !out_capacity)
+		return -1;
+	if (getsockopt(socket_handle, SOL_SOCKET, SO_SNDBUF, &sndbuf,
+	    &sndbuf_len) != 0)
+		return -1;
+	if (sndbuf <= 0)
+		return -1;
+	*out_capacity = sndbuf;
+	return 0;
+}
+
+/* AF_UNIX SOCK_DGRAM blocks on the peer's receive queue length (capped by
+ * /proc/sys/net/unix/max_dgram_qlen, default 10), not on the sender's
+ * SO_SNDBUF.  SIOCOUTQ on the sender returns sk_wmem_alloc — the sum of
+ * per-skb truesize for in-flight datagrams — which saturates at roughly
+ * (qlen × per_skb_truesize) when the receiver hangs.  AVG_SKB_TRUESIZE_BYTES
+ * is the per-datagram kernel-overhead estimate (skb header + slab padding +
+ * a typical RTP/audio payload between 256 B and 2.5 KiB).  Larger payloads
+ * just saturate fill_pct earlier, which is the safe side for a backpressure
+ * trigger. */
+#define UNIX_DGRAM_AVG_SKB_TRUESIZE_BYTES 4096
+
+static int read_unix_max_dgram_qlen(void)
+{
+	static int cached = -1;
+	FILE *f;
+	int v = 10;  /* kernel default when /proc is missing */
+
+	if (cached > 0)
+		return cached;
+	f = fopen("/proc/sys/net/unix/max_dgram_qlen", "re");
+	if (f) {
+		if (fscanf(f, "%d", &v) != 1 || v <= 0)
+			v = 10;
+		fclose(f);
+	}
+	cached = v;
+	return cached;
+}
+
+static int socket_is_unix_dgram(int socket_handle)
+{
+	struct sockaddr_storage ss;
+	socklen_t sslen = sizeof(ss);
+
+	memset(&ss, 0, sizeof(ss));
+	if (getsockname(socket_handle, (struct sockaddr *)&ss, &sslen) != 0)
+		return 0;
+	return ss.ss_family == AF_UNIX;
+}
+
+int output_socket_get_fill_pct(int socket_handle, int sndbuf_capacity,
+	uint8_t *out_pct)
+{
+	int queued = 0;
+	int denom;
+	uint64_t pct;
+
+	if (socket_handle < 0 || !out_pct)
+		return -1;
+	if (ioctl(socket_handle, SIOCOUTQ, &queued) != 0)
+		return -1;
+	if (queued < 0)
+		queued = 0;
+
+	if (socket_is_unix_dgram(socket_handle)) {
+		/* For UNIX datagram, the actual binding limit is
+		 * min(qlen × avg_skb_truesize, sender SO_SNDBUF).  Whichever
+		 * is smaller dictates when sendto() returns EAGAIN.  Without
+		 * this clamp, fill_pct floors at a few percent and the
+		 * 75 %-high-water backpressure trigger never fires on
+		 * unix:// transports.  Compute the qlen × truesize product in
+		 * 64-bit and saturate to INT_MAX so a tuned-up qlen sysctl
+		 * (some hosts run ≥ 100k) cannot wrap the int denominator. */
+		uint64_t denom64 = (uint64_t)read_unix_max_dgram_qlen() *
+			UNIX_DGRAM_AVG_SKB_TRUESIZE_BYTES;
+		int sndbuf;
+		denom = denom64 > (uint64_t)INT_MAX ? INT_MAX : (int)denom64;
+		if (sndbuf_capacity > 0)
+			sndbuf = sndbuf_capacity;
+		else if (output_socket_capture_capacity(socket_handle,
+		         &sndbuf) != 0)
+			sndbuf = 0;
+		if (sndbuf > 0 && sndbuf < denom)
+			denom = sndbuf;
+	} else if (sndbuf_capacity > 0) {
+		denom = sndbuf_capacity;
+	} else if (output_socket_capture_capacity(socket_handle, &denom) != 0) {
+		return -1;
+	}
+
+	if (denom <= 0)
+		return -1;
+
+	/* Linux reports SO_SNDBUF as 2× the requested size (kernel internal
+	 * accounting).  Both queued and sndbuf use the same units, so the
+	 * ratio is correct without correcting the doubling — what matters
+	 * is "queued / capacity-as-the-kernel-sees-it". */
+	pct = (uint64_t)queued * 100u / (uint64_t)denom;
+	if (pct > 100)
+		pct = 100;
+	*out_pct = (uint8_t)pct;
+	return 0;
+}

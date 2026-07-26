@@ -1,0 +1,16 @@
+*.bak
+*~
+*.orig
+optB_files/
+patch_*.py
+apply_*.sh
+FIRE
+LOCK
+RTL
+SEARCH
+TRACK
+build/
+install/
+log/
+__pycache__/
+*.zip

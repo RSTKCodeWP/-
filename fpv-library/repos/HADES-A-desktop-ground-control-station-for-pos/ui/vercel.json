@@ -1,0 +1,13 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "pnpm build:landing && cp dist-landing/landing.html dist-landing/index.html",
+  "outputDirectory": "dist-landing",
+  "installCommand": "pnpm install --frozen-lockfile",
+  "framework": null,
+  "headers": [
+    {
+      "source": "/(.*)\\.glb",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
+    }
+  ]
+}

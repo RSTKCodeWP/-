@@ -1,0 +1,373 @@
+"use client";
+
+import dynamic from "next/dynamic";
+import Image from "next/image";
+import Link from "next/link";
+import { getToolbarToolGroups } from "@/components/editor/tool-icons";
+import { useTheme } from "@/hooks/useTheme";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/AppTooltip";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarSeparator,
+} from "@/components/ui/sidebar";
+import { Kbd } from "@/components/ui/kbd";
+import { cn } from "@/lib/utils";
+import { useEditor } from "@/store/editor";
+import { useSessionActions, useUiActions } from "@/store/actions";
+import { authClient } from "@/lib/auth-client";
+import { useEffect, useState } from "react";
+import { Download, FolderOpen, Import } from "lucide-react";
+import { useTranslations } from "next-intl";
+import type { Translate } from "@/lib/editor/tool-registry";
+
+const AccountMenu = dynamic(() => import("@/components/editor/AccountMenu"), {
+  ssr: false,
+});
+
+function TrackDrawIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 200 200"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+    >
+      <path
+        d="M69.1143 154.352C71.111 164.983 66.655 174.763 61 180C52.2997 188.056 38 200 38 200H113.167C125.739 189.061 129.7 170.101 123.485 154.352C118.093 140.688 122.123 130.029 134.216 125.911C135.157 125.591 137 125.319 137 125.319L137 108C132.179 109.165 137 108 123.078 111.35C120.173 112.049 93.8158 118.051 80.5256 127.04C72.0136 132.798 67.1177 143.72 69.1143 154.352Z"
+        fill="currentColor"
+      />
+      <path
+        d="M143 48C156.807 48 168 59.1929 168 73V149C168 151.209 166.209 153 164 153H147C144.791 153 143 151.209 143 149V89C143 80.1634 135.837 73 127 73H74C65.1634 73 58 80.1634 58 89V149C58 151.209 56.2091 153 54 153H37C34.7909 153 33 151.209 33 149V73C33 59.1929 44.1929 48 58 48H143Z"
+        fill="currentColor"
+      />
+      <rect
+        x="4"
+        y="4"
+        width="192"
+        height="192"
+        rx="31"
+        stroke="currentColor"
+        strokeWidth="8"
+      />
+    </svg>
+  );
+}
+
+interface ToolbarProps {
+  onImport: () => void;
+  onExport: () => void;
+  onOpenProjectManager: () => void;
+  onOpenPresets: () => void;
+  collapsed: boolean;
+  onToggleCollapsed: () => void;
+}
+
+function AccountMenuFallback({ collapsed }: { collapsed: boolean }) {
+  return (
+    <div
+      className={cn(
+        "text-sidebar-foreground/50 flex items-center rounded-xl",
+        collapsed
+          ? "h-9 w-full justify-center"
+          : "h-10 w-full gap-2.5 px-2.5 text-[13px]"
+      )}
+      aria-hidden="true"
+    >
+      <span className="bg-muted/70 flex size-6 shrink-0 items-center justify-center rounded-full" />
+      {!collapsed ? (
+        <span className="bg-muted/70 h-3.5 w-20 rounded-full" />
+      ) : null}
+    </div>
+  );
+}
+
+export default function Toolbar({
+  onImport,
+  onExport,
+  onOpenProjectManager,
+  onOpenPresets,
+  collapsed,
+}: ToolbarProps) {
+  const t = useTranslations("editor");
+  const tShapes = useTranslations("shapes") as unknown as Translate;
+  const toolbarToolGroups = getToolbarToolGroups(tShapes);
+  const activeTool = useEditor((state) => state.ui.activeTool);
+  const { setActiveTool } = useUiActions();
+  const { setSelection } = useSessionActions();
+  const theme = useTheme();
+  const { data: authSession } = authClient.useSession();
+  const isSignedIn = Boolean(authSession?.user?.id);
+  const [showAccountMenu, setShowAccountMenu] = useState(false);
+
+  useEffect(() => {
+    if (showAccountMenu) return;
+
+    let timeoutId: ReturnType<typeof globalThis.setTimeout> | null = null;
+    let idleId: number | null = null;
+
+    const enable = () => {
+      setShowAccountMenu(true);
+    };
+
+    if ("requestIdleCallback" in window) {
+      idleId = window.requestIdleCallback(enable, { timeout: 1200 });
+    } else {
+      timeoutId = globalThis.setTimeout(enable, 300);
+    }
+
+    return () => {
+      if (idleId !== null) {
+        window.cancelIdleCallback(idleId);
+      }
+      if (timeoutId !== null) {
+        globalThis.clearTimeout(timeoutId);
+      }
+    };
+  }, [showAccountMenu]);
+
+  function handleToolSelect(
+    tool: (typeof toolbarToolGroups)[number]["tools"][number]["id"]
+  ) {
+    setSelection([]);
+    if (tool === "preset") {
+      onOpenPresets();
+      return;
+    }
+    setActiveTool(tool);
+  }
+
+  function renderFooterAction({
+    key,
+    label,
+    tooltip,
+    icon,
+    onClick,
+  }: {
+    key: string;
+    label: string;
+    tooltip: string;
+    icon: React.ReactNode;
+    onClick: () => void;
+  }) {
+    const btn = (
+      <SidebarMenuButton
+        onClick={onClick}
+        className={cn(
+          "text-sidebar-foreground hover:border-border/80 hover:bg-muted hover:text-foreground h-9 rounded-xl border border-transparent transition-all duration-200 active:scale-[0.985]",
+          collapsed ? "justify-center px-0" : "gap-2.5"
+        )}
+      >
+        <span className="flex size-4 shrink-0 items-center justify-center">
+          {icon}
+        </span>
+        {!collapsed && <span className="text-[13px]">{label}</span>}
+      </SidebarMenuButton>
+    );
+
+    return (
+      <SidebarMenuItem key={key}>
+        {collapsed ? (
+          <Tooltip>
+            <TooltipTrigger
+              onClick={onClick}
+              className="text-sidebar-foreground/90 hover:border-border/80 hover:bg-muted hover:text-foreground flex h-9 w-full items-center justify-center rounded-xl border border-transparent transition-colors"
+            >
+              {icon}
+            </TooltipTrigger>
+            <TooltipContent side="right" sideOffset={8}>
+              {tooltip}
+            </TooltipContent>
+          </Tooltip>
+        ) : (
+          btn
+        )}
+      </SidebarMenuItem>
+    );
+  }
+
+  return (
+    <SidebarProvider
+      className="hidden h-full min-h-0! w-auto! shrink-0 lg:flex"
+      style={
+        {
+          "--sidebar-width": collapsed ? "3.5rem" : "12.5rem",
+        } as React.CSSProperties
+      }
+    >
+      <Sidebar
+        collapsible="none"
+        className="border-border h-full overflow-hidden border-r transition-[width] duration-200 ease-in-out"
+        style={{ width: "var(--sidebar-width)" }}
+      >
+        {/* Logo header */}
+        <SidebarHeader className="border-border/60 flex h-11 items-center justify-center border-b px-3 py-0">
+          <Link
+            href="/"
+            className="flex items-center justify-center rounded-md opacity-90 transition-opacity hover:opacity-100"
+            aria-label={t("toolbar.homepageLabel")}
+          >
+            {collapsed ? (
+              <TrackDrawIcon className="text-foreground/80 size-6" />
+            ) : (
+              <span className="relative block h-7.5 w-34 select-none">
+                <Image
+                  src={`/assets/brand/trackdraw-logo-mono-${theme === "dark" ? "darkbg" : "lightbg"}.svg`}
+                  alt="TrackDraw"
+                  fill
+                  unoptimized
+                  className="object-contain"
+                  draggable={false}
+                />
+              </span>
+            )}
+          </Link>
+        </SidebarHeader>
+
+        <SidebarContent className="gap-0 py-2">
+          {toolbarToolGroups.map((group, gi) => (
+            <SidebarGroup key={gi} className="px-2 py-0">
+              {gi > 0 &&
+                (collapsed ? (
+                  <SidebarSeparator className="my-2" />
+                ) : group.title ? (
+                  <SidebarGroupLabel className="text-sidebar-foreground/70 h-8 text-[11px] tracking-widest uppercase">
+                    {group.title}
+                  </SidebarGroupLabel>
+                ) : (
+                  <div className="h-2" />
+                ))}
+              <SidebarMenu className="gap-0 space-y-1">
+                {group.tools
+                  .filter((tool) => tool.id !== "preset" || isSignedIn)
+                  .map((tool) => {
+                    const active = tool.id === activeTool;
+                    const btn = (
+                      <SidebarMenuButton
+                        aria-pressed={active}
+                        onClick={() => handleToolSelect(tool.id)}
+                        className={cn(
+                          "relative h-9 overflow-hidden rounded-xl border transition-all duration-150 active:scale-[0.985]",
+                          collapsed ? "justify-center px-0" : "gap-2.5",
+                          active
+                            ? "border-brand-primary/30 bg-brand-primary/14 text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
+                            : "text-sidebar-foreground hover:border-border/80 hover:bg-muted hover:text-foreground border-transparent"
+                        )}
+                      >
+                        {active && (
+                          <span className="bg-brand-primary/12 absolute inset-0 rounded-lg" />
+                        )}
+                        <span
+                          className={cn(
+                            "flex size-4 shrink-0 items-center justify-center transition-colors",
+                            active
+                              ? "text-brand-primary"
+                              : "text-sidebar-foreground/90 group-hover/menu-button:text-foreground"
+                          )}
+                        >
+                          {tool.icon}
+                        </span>
+                        {!collapsed && (
+                          <span className="flex-1 truncate text-[13px]">
+                            {tool.label}
+                          </span>
+                        )}
+                        {!collapsed && tool.shortcut && (
+                          <Kbd
+                            className={cn(
+                              "h-4 min-w-4 px-1 font-mono text-[9px] leading-none shadow-none",
+                              active
+                                ? "bg-brand-primary/10 text-foreground/55"
+                                : "bg-muted/80 text-muted-foreground/80"
+                            )}
+                          >
+                            {tool.shortcut}
+                          </Kbd>
+                        )}
+                      </SidebarMenuButton>
+                    );
+                    return (
+                      <SidebarMenuItem key={tool.id}>
+                        {collapsed ? (
+                          <Tooltip>
+                            <TooltipTrigger
+                              onClick={() => handleToolSelect(tool.id)}
+                              className={cn(
+                                "flex h-9 w-full items-center justify-center rounded-xl border transition-colors duration-150",
+                                active
+                                  ? "border-brand-primary/30 bg-brand-primary/14 text-brand-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
+                                  : "text-sidebar-foreground/90 hover:border-border/80 hover:bg-muted hover:text-foreground border-transparent"
+                              )}
+                            >
+                              {tool.icon}
+                            </TooltipTrigger>
+                            <TooltipContent side="right" sideOffset={8}>
+                              <span>{tool.label}</span>
+                              {tool.shortcut ? (
+                                <span className="ml-2 inline-flex">
+                                  <Kbd className="h-4 min-w-4 px-1 font-mono text-[9px] shadow-none">
+                                    {tool.shortcut}
+                                  </Kbd>
+                                </span>
+                              ) : null}
+                            </TooltipContent>
+                          </Tooltip>
+                        ) : (
+                          btn
+                        )}
+                      </SidebarMenuItem>
+                    );
+                  })}
+              </SidebarMenu>
+            </SidebarGroup>
+          ))}
+        </SidebarContent>
+
+        <SidebarFooter className="border-border/60 gap-0 border-t p-2">
+          <SidebarMenu className="gap-0 space-y-1" key="projects-footer-v3">
+            {renderFooterAction({
+              key: "projects",
+              label: t("toolbar.projects"),
+              tooltip: t("toolbar.projectsTooltip"),
+              icon: <FolderOpen className="size-3.5" />,
+              onClick: onOpenProjectManager,
+            })}
+            {renderFooterAction({
+              key: "import",
+              label: t("toolbar.import"),
+              tooltip: t("toolbar.importTooltip"),
+              icon: <Import className="size-3.5" />,
+              onClick: onImport,
+            })}
+            {renderFooterAction({
+              key: "export",
+              label: t("toolbar.export"),
+              tooltip: t("toolbar.exportTooltip"),
+              icon: <Download className="size-3.5" />,
+              onClick: onExport,
+            })}
+          </SidebarMenu>
+          <div className="border-border/70 mt-3 border-t pt-3">
+            {showAccountMenu ? (
+              <AccountMenu collapsed={collapsed} />
+            ) : (
+              <AccountMenuFallback collapsed={collapsed} />
+            )}
+          </div>
+        </SidebarFooter>
+      </Sidebar>
+    </SidebarProvider>
+  );
+}

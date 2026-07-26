@@ -1,0 +1,56 @@
+---
+# This workflow will build and deploy the documentation to GitHub Pages
+name: Docs deployment
+
+# yamllint disable-line rule:truthy
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "docs/**"
+      - "zensical.toml"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-docs:
+    name: Build documentation
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: ⤵️ Check out code from GitHub
+        uses: actions/checkout@v7.0.1
+      - name: 🏗 Set up UV
+        uses: astral-sh/setup-uv@v9.0.0
+        with:
+          version: "latest"
+      - name: 🏗 Install dependencies
+        run: uv sync --group docs
+      - name: 🏗 Build documentation
+        run: uv run zensical build
+      - name: ⬆️ Upload pages artifacts
+        uses: actions/upload-pages-artifact@v5.0.0
+        with:
+          path: site
+
+  deploy:
+    name: Deploy to GitHub Pages
+    runs-on: ubuntu-latest
+    needs: build-docs
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: 🏗️ Setup Github Pages
+        uses: actions/configure-pages@v6.0.0
+      - name: 🚀 Deploy to Github Pages
+        uses: actions/deploy-pages@v5.0.0
+        id: deployment

@@ -1,0 +1,126 @@
+@import url("https://fonts.googleapis.com/css2?family=Teko:wght@300;400;500;600;700&display=swap");
+
+:root {
+    --dds-numeric-features: "tnum" 1, "lnum" 1;
+}
+
+/* General styling */
+.container {
+    margin: 120px 120px 0 120px;
+    width: 100%;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: var(--dds-numeric-features);
+}
+
+/* Center the container in the screen */
+@media (max-height: 720px) {
+    .container {
+        margin: 20px 50px 0 50px;
+    }
+}
+
+@media (min-height: 1080px) {
+    .container {
+        margin: 160px 100px 0 100px;
+    }
+}
+
+/* Header styling */
+#header {
+    background-color: white;
+    color: black;
+    text-align: center;
+
+    height: 60px;
+    margin-bottom: 25px;
+    border-radius: 15px 15px 0 0;
+}
+
+#header h1 {
+    font-family: "Teko", sans-serif;
+    font-size: 2.4rem;
+    line-height: 1.6;
+    margin: 0;
+}
+
+/* Leaderboard styling */
+.leaderboard {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    grid-gap: 30px;
+}
+
+.leaderboard>p {
+    background: black;
+    color: white;
+    padding: 15px;
+    border-radius: 0 0 15px 15px;
+}
+
+.column {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+/* Entry styling */
+.entry {
+    display: flex;
+    align-items: center;
+    background-color: rgba(0, 0, 0, 1);
+    color: white;
+    border-radius: 15px 0;
+    text-align: center;
+    width: 100%;
+    height: 60px;
+    margin-bottom: 15px;
+
+    /* Animation */
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.8s cubic-bezier(0.55, 0, 0.1, 1), transform 0.8s cubic-bezier(0.55, 0, 0.1, 1);
+}
+
+.entry.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.entry>.position {
+    flex: 0 0 65px;
+    width: 65px;
+    height: 60px;
+    background-color: darkorange;
+    z-index: 2;
+    border-radius: 15px 0 15px 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.entry>.position>p {
+    font-size: 1.8rem;
+    line-height: 2.2;
+}
+
+/* Font styling for the entry */
+.box>p,
+.entry>p {
+    font-family: "Teko", sans-serif;
+    margin: auto;
+    font-size: 2.4rem;
+    line-height: 1.2;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: var(--dds-numeric-features);
+}
+
+.entry > p.pilot_name {
+    height: 100%;
+    margin: 0 0 0 16px;
+    padding-left: 0;
+    text-align: left;
+    display: flex;
+    align-items: center;
+    font-size: 2rem;
+    line-height: 1.2;
+}

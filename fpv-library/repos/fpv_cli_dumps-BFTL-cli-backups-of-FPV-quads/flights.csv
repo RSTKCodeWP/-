@@ -1,0 +1,3 @@
+quad,date,time,board,craft,firmware,duration_s,frames,cells,v_start,v_min,v_end,sag_v,cell_min_v,a_avg,a_peak,mah,avg_throttle_pct,avg_motor_pct,motor_sat_pct,desync_pct,desync_motors,flags,log_index,file
+KRONOS,2026-07-15,13:35:27,HOBBYWING_XROTORF7CONV,Kronos,Betaflight 4.5.1 (77d01ba3b) STM32F7X2,7.7,15442,6,24.96,20.3,20.61,4.66,3.38,5.0,54.5,11,10,16,7.2,1.36,"m0,m3","MOTOR_DESYNC(m0,m3)",1,BTFL_BLACKBOX_LOG_KRONOS_20260715_133527_HOBBYWING_XROTORF7CONV.BBL
+KRONOS,2026-07-20,18:01:14,HOBBYWING_XROTORF7CONV,Kronos,Betaflight 4.5.1 (77d01ba3b) STM32F7X2,14.3,28481,6,24.72,24.03,24.1,0.69,4.0,1.9,7.1,7,18,19,0.0,0.0,,,2,BTFL_BLACKBOX_LOG_KRONOS_20260720_180114_HOBBYWING_XROTORF7CONV.BBL

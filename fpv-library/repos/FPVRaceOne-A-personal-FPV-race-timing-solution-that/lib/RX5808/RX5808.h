@@ -1,0 +1,52 @@
+#ifndef RX5808_H
+#define RX5808_H
+
+#include <stdint.h>
+
+#define RX5808_MIN_TUNETIME 35    // after set freq need to wait this long before read RSSI
+#define RX5808_MIN_BUSTIME 30     // after set freq need to wait this long before setting again
+#define POWER_DOWN_FREQ_MHZ 1111  // signal to power down the module
+
+class RX5808 {
+   public:
+    RX5808(uint8_t _rssiInputPin, uint8_t _rx5808DataPin, uint8_t _rx5808SelPin, uint8_t _rx5808ClkPin);
+    void init();
+    void setFrequency(uint16_t frequency);
+    uint8_t readRssi();
+    void handleFrequencyChange(uint32_t currentTimeMs, uint16_t potentiallyNewFreq);
+    bool verifyFrequency();
+    bool isSettingFrequency();
+    // Whatever frequency setFrequency() last programmed.  Exposed for the
+    // selftest's cleanup path: after the frequency-sweep loop it needs to
+    // restore this value and re-verify so the UI's "Calibrating pilot
+    // frequency" banner gets its expected "RX5808 frequency verified
+    // properly" log line.
+    uint16_t getCurrentFrequency() const { return currentFrequency; }
+    bool recentSetFreqFlag = false;
+
+   private:
+    uint8_t rx5808DataPin = 0;  // DATA (CH1) output line to RX5808 module
+    uint8_t rx5808ClkPin = 0;   // CLK (CH3) output line to RX5808 module
+    uint8_t rx5808SelPin = 0;   // SEL (CH2) output line to RX5808 module
+    uint8_t rssiInputPin = 0;   // RSSI input from RX5808
+
+    uint16_t currentFrequency = 0;
+    bool settingFrequency = false;
+
+    bool rxPoweredDown = false;
+    uint32_t lastSetFreqTimeMs = 0;
+
+    void rx5808SerialSendBit1();
+    void rx5808SerialSendBit0();
+    void rx5808SerialEnableLow();
+    void rx5808SerialEnableHigh();
+
+    void setRxModulePower(uint32_t options);
+    void resetRxModule();
+    void setupRxModule();
+    void powerDownRxModule();
+
+    static uint16_t freqMhzToRegVal(uint16_t freqInMhz);
+};
+
+#endif

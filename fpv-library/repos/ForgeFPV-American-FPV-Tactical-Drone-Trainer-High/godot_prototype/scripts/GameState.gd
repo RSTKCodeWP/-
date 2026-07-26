@@ -1,0 +1,1 @@
+Added full_reset() to GameState

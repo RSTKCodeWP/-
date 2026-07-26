@@ -1,0 +1,502 @@
+{
+  "toolbar": {
+    "homepageLabel": "Naar de homepage",
+    "projects": "Projecten",
+    "projectsTooltip": "Projecten beheren",
+    "import": "Importeren",
+    "importTooltip": "JSON importeren",
+    "export": "Exporteren",
+    "exportTooltip": "Track exporteren"
+  },
+  "contextMenu": {
+    "quickActions": "Snelle acties",
+    "selectedCount": "{count, plural, one {1 geselecteerd} other {{count} geselecteerd}}",
+    "segmentSelected": "Segment geselecteerd",
+    "waypointSelected": "Waypoint geselecteerd",
+    "addWaypoint": "Waypoint toevoegen",
+    "deleteWaypoint": "Waypoint verwijderen",
+    "arrange": "Rangschikken",
+    "bringForward": "Naar voren brengen",
+    "sendBackward": "Naar achteren brengen",
+    "rotate": "Roteren",
+    "rotateLeft": "Links roteren",
+    "rotateRight": "Rechts roteren"
+  },
+  "canvasOverlay": {
+    "pathEditing": "Path bewerken",
+    "addPoints": "Waypoints toevoegen",
+    "finish": "afronden",
+    "cancel": "annuleren",
+    "connectEnds": "Klik om uiteinden te verbinden",
+    "grid": "Grid {grid}",
+    "snapOn": "Snap aan: grid, objecten, routes",
+    "snapOff": "Snap uit: vrije plaatsing",
+    "midClick": "Middelklik",
+    "rightClick": "Rechtsklik",
+    "pan": "pannen",
+    "menu": "menu",
+    "bypass": "omzeilen",
+    "fitToWindow": "Passend in venster",
+    "viewerPanZoom": "Sleep om te pannen, scroll om te zoomen"
+  },
+  "preview3dOverlay": {
+    "pause": "Pauzeren",
+    "play": "Afspelen",
+    "speed": "Snelheid",
+    "toggleFpv": "FPV-cameragedrag wisselen",
+    "on": "Aan",
+    "off": "Uit",
+    "exit": "Sluiten",
+    "flyThrough": "Fly-through",
+    "dragWaypointMobile": "Sleep een waypoint-grip omhoog of omlaag om hoogte aan te passen",
+    "dragWaypointDesktop": "Sleep waypoint-handles omhoog of omlaag om hoogte aan te passen",
+    "dragDiveGateMobile": "Sleep ring om te draaien · oranje puck om te kantelen",
+    "dragDiveGateDesktop": "Sleep ring om te draaien · sleep oranje puck om te kantelen",
+    "dragRing": "Sleep ring om te draaien",
+    "orbitHint": "Orbit om te inspecteren · scroll om te zoomen · middelslepen om te pannen",
+    "drawRoute": "Teken de route in 2D om fly-through in te schakelen"
+  },
+  "statusBar": {
+    "snapActive": "Snap",
+    "snapOn": "Snap aan",
+    "snapOff": "Snap uit",
+    "snapIsOn": "Snap staat aan",
+    "snapIsOff": "Snap staat uit",
+    "snapOnDescription": "Waypoints en slepen vergrendelen naar nabije rasterposities, objecten en route-waypoints. Houd Alt ingedrukt tijdens plaatsen of slepen om het eenmalig te omzeilen.",
+    "snapOffDescription": "Plaatsen en slepen blijven vrij totdat je snap weer aanzet.",
+    "selected": "{count} geselecteerd",
+    "grouped": "Gegroepeerd",
+    "groupNamed": "Groep: {name}",
+    "groups": "{count} groepen",
+    "devOn": "Dev aan",
+    "dev": "Dev"
+  },
+  "accountMenu": {
+    "checkingAuth": "Authenticatie controleren…",
+    "signIn": "Inloggen",
+    "signedIn": "Ingelogd",
+    "noDisplayName": "Geen weergavenaam ingesteld",
+    "trackdrawAccount": "TrackDraw-account",
+    "profile": "Profiel",
+    "dashboard": "Dashboard",
+    "signOut": "Uitloggen",
+    "signingOut": "Uitloggen…"
+  },
+  "common": {
+    "canvas2d": "2D-canvas",
+    "preview3d": "3D-preview"
+  },
+  "elementPlacementControl": {
+    "official": "Officieel",
+    "typeLabel": "{tool}-type"
+  },
+  "header": {
+    "untitledTitle": "Naamloos",
+    "statusFailed": "Mislukt",
+    "statusPending": "In behandeling",
+    "statusSyncing": "Synchroniseren",
+    "statusSynced": "Gesynchroniseerd",
+    "expandSidebar": "Zijbalk uitklappen",
+    "collapseSidebar": "Zijbalk inklappen",
+    "sharedReviewBadge": "Gedeelde review",
+    "makeEditableCopy": "Bewerkbare kopie maken",
+    "undo": "Ongedaan maken",
+    "redo": "Opnieuw",
+    "saveSnapshot": "Snapshot opslaan",
+    "keyboardShortcuts": "Toetsenbord-snelkoppelingen",
+    "retrySync": "Accountsync opnieuw proberen ({status})",
+    "share": "Delen",
+    "export": "Exporteren",
+    "openAppMenu": "App-menu openen",
+    "hideObstacleNumbers": "Obstakelnummers verbergen",
+    "showObstacleNumbers": "Obstakelnummers tonen"
+  },
+  "sharedHeader": {
+    "embedLabel": "Embed",
+    "sharedPreviewLabel": "Gedeelde preview"
+  },
+  "mobileAppMenu": {
+    "openAppMenu": "App-menu openen",
+    "title": "TrackDraw",
+    "subtitle": "Projecten, delen, account en app-instellingen",
+    "signIn": "Inloggen",
+    "yourAccount": "Jouw TrackDraw-account",
+    "trackdrawAccount": "TrackDraw-account",
+    "projectsSection": "Projecten",
+    "projectsLabel": "Projecten",
+    "projectsDescription": "Open en beheer opgeslagen projecten",
+    "accountSection": "Account",
+    "profileLabel": "Profiel",
+    "profileDescription": "Beheer profiel, beveiliging en API-sleutels",
+    "dashboardLabel": "Dashboard",
+    "dashboardDescription": "Open moderatie- en admintools",
+    "shareSection": "Delen en overdragen",
+    "shareLabel": "Delen",
+    "shareDescription": "Publiceer een alleen-lezen link voor deze track",
+    "importLabel": "Importeren",
+    "importDescription": "Importeer een JSON-projectbestand",
+    "exportLabel": "Exporteren",
+    "exportDescription": "Download PNG, PDF, SVG of JSON",
+    "themeLabel": "Thema",
+    "themeDescription": "Wissel tussen licht, donker of systeem",
+    "signOut": "Uitloggen",
+    "signingOut": "Uitloggen…"
+  },
+  "layoutPresetPicker": {
+    "itemsCount": "{count} items",
+    "renamePresetTooltip": "Preset hernoemen",
+    "deletePresetTooltip": "Preset verwijderen",
+    "signInTitle": "Log in om presets te gebruiken",
+    "signInDescription": "Presets worden opgeslagen in je account zodat ze altijd beschikbaar zijn op al je apparaten.",
+    "noPresetsTitle": "Nog geen presets",
+    "noPresetsDescription": "Selecteer meerdere vormen op het canvas en gebruik <strong>Opslaan als preset</strong> in de inspector om je eerste preset hier toe te voegen.",
+    "comingSoonTitle": "Binnenkort beschikbaar",
+    "comingSoonDescription": "Door de community gedeelde presets verschijnen hier. Sla je eigen presets op en deel ze met de TrackDraw-community.",
+    "myPresetsNav": "Mijn presets",
+    "storeNav": "Store",
+    "soonBadge": "Binnenkort",
+    "mobileTitle": "Presets",
+    "mobileSubtitle": "Kies een preset en tik daarna eenmaal op het canvas om te plaatsen.",
+    "placeFlowTitle": "Plaatsingsflow",
+    "placeFlowDescription": "Selecteer hier een preset en tik dan op het canvas. Het resultaat wordt direct omgezet naar gewone bewerkbare vormen.",
+    "desktopTitle": "Layout-presets",
+    "desktopSubtitle": "Kies een preset, plaats hem op het canvas en bewerk de geplaatste vormen daarna gewoon verder.",
+    "tipText": "Selecteer vormen op het canvas en gebruik <strong>Opslaan als preset</strong> in de inspector om je eigen preset toe te voegen."
+  },
+  "starterOverlay": {
+    "dialog": {
+      "title": "Welkom bij TrackDraw",
+      "mobileSubtitle": "Plaats een paar gates, teken de route, controleer in 3D en deel zodra de track klaar is.",
+      "studioEyebrow": "Studio",
+      "desktopDescription": "Ontwerp de layout in 2D, bekijk de hoogte in 3D en deel een alleen-lezen link zodra de track klaar is.",
+      "dismissAria": "Startdialoog sluiten"
+    },
+    "hints": {
+      "gate": {
+        "badge": "Begeleid",
+        "title": "Plaats je eerste gate",
+        "description": "Tik of klik op het canvas om de eerste gate te plaatsen. Voeg een paar gates toe voor je naar Path wisselt.",
+        "action": "Begrepen",
+        "dismiss": "Gate-plaatsingshint sluiten"
+      },
+      "path": {
+        "badge": "Begeleid",
+        "title": "Teken nu de route",
+        "description": "Plaats eerst een paar gates en wissel dan naar Path om de ronde door ze te trekken. Maak de route af voor je 3D bekijkt.",
+        "action": "Path starten",
+        "dismiss": "Path-onboardinghint sluiten"
+      },
+      "preview3d": {
+        "badge": "Preview",
+        "title": "3D werkt het best na de route",
+        "description": "Obstakelplaatsing toont hier al een preview, maar pas de route maakt hoogte- en flythrough-review nuttig.",
+        "action": "Teken pad in 2D",
+        "dismiss": "3D-preview-onboardinghint sluiten"
+      },
+      "review3d": {
+        "badge": "Begeleid",
+        "title": "Bekijk het nu in 3D",
+        "description": "Draai om de route, controleer hoogte en afstand, en deel of exporteer zodra de layout goed aanvoelt.",
+        "action": "Volgende: delen of exporteren",
+        "dismiss": "3D-reviewhint sluiten"
+      },
+      "postPath": {
+        "badge": "Volgende stap",
+        "title": "Route klaar — controleer in 3D",
+        "description": "Wissel nu naar het 3D-tabblad om de route te bekijken voor je verder gaat met obstakelplaatsing.",
+        "action": "Wisselen naar 3D",
+        "dismiss": "Post-pad 3D-melding sluiten"
+      }
+    }
+  },
+  "starterFlow": {
+    "intro": {
+      "goodFirstSteps": "Goede eerste stappen"
+    },
+    "steps": {
+      "step1": {
+        "title": "Plaats een paar gates en obstakels",
+        "description": "Begin klein zodat de baanstructuur snel zichtbaar wordt."
+      },
+      "step2": {
+        "title": "Teken het racepad erdoorheen",
+        "description": "Het pad maakt de layout meestal sneller duidelijk dan alleen obstakels aanpassen."
+      },
+      "step3": {
+        "title": "Bekijk in 3D, exporteer of deel dan",
+        "description": "Bekijk de route vroeg en stuur een alleen-lezen link zodra het klaar is."
+      }
+    },
+    "starterLayouts": {
+      "label": "Startlayouts",
+      "layouts": {
+        "open-practice": {
+          "name": "Vrije training",
+          "title": "Layout voor vrije training",
+          "description": "Open baanindeling met een startgebied en ruimte om je eigen ronde te ontwerpen."
+        },
+        "compact-race-start": {
+          "name": "Compacte racestart",
+          "title": "Compacte racestart",
+          "description": "Krappe opening met direct een lijn van gates en een vroege bocht."
+        },
+        "technical-ladder-line": {
+          "name": "Technische ladderlijn",
+          "title": "Technische ladderlijn",
+          "description": "Eerste gate, twee ladders en een opvolgende gate voor een snel ritme."
+        }
+      }
+    },
+    "guided": {
+      "label": "Begeleide start",
+      "title": "Start met begeleiding",
+      "descriptionDesktop": "Open een leeg veld met `Gate` geselecteerd zodat je eerst de baan kunt uitzetten. Teken het pad zodra de eerste obstakels staan.",
+      "descriptionMobile": "Open een leeg veld met Gate geselecteerd. Teken het pad zodra de eerste obstakels staan."
+    },
+    "empty": {
+      "label": "Lege start",
+      "continue": "Doorgaan met leeg canvas",
+      "description": "Sla de begeleide start over en open direct de lege studio."
+    },
+    "shortcuts": {
+      "gate": "plaatst gates",
+      "path": "start de route",
+      "finish": "maakt het pad af"
+    }
+  },
+  "saveAsPresetDialog": {
+    "title": "Opslaan als preset",
+    "subtitle": "Geef je selectie een naam zodat je hem later opnieuw kunt plaatsen vanuit de presetkiezer.",
+    "shapeCount": "{count, plural, one {# vorm} other {# vormen}}",
+    "pathsExcluded": "{count, plural, one {1 pad wordt uitgesloten} other {# paden worden uitgesloten}} — presets bevatten alleen niet-pad-vormen.",
+    "presetNameLabel": "Presetnaam",
+    "presetNamePlaceholder": "bijv. Timing gate setup",
+    "savePreset": "Preset opslaan"
+  },
+  "mobilePanels": {
+    "viewControls": {
+      "mode": {
+        "current": "Huidige modus",
+        "viewModeLabel": "Weergavemodus"
+      },
+      "controls": {
+        "fitToField": {
+          "label": "Passend aan veld",
+          "description": "Centreer het huidige ontwerp in beeld"
+        },
+        "snap": {
+          "label": "Snap",
+          "description": "Vergrendel naar nabije rasterposities en objecten"
+        },
+        "rulers": {
+          "label": "Linialen",
+          "description": "Toon boven- en linkerlinialen op mobiel"
+        },
+        "obstacleNumbers": {
+          "label": "Obstakelnummers",
+          "description": "Toon padnummers op route-obstakels"
+        },
+        "flyThrough": {
+          "label": "Flythrough",
+          "descriptions": {
+            "available": "Start de race line-previewcamera",
+            "readOnly": "Geen route in deze gedeelde track",
+            "draw": "Teken eerst een pad in 2D om dit te activeren"
+          }
+        },
+        "gizmo": {
+          "label": "Gizmo",
+          "description": "Toon de as-helper in 3D-preview"
+        }
+      },
+      "readOnly": {
+        "review3dWithPath": "Alleen-lezen 3D-review met flythrough beschikbaar voor deze gedeelde track.",
+        "review3dNoPath": "Alleen-lezen 3D-review voor deze gedeelde track. Geen route beschikbaar voor flythrough.",
+        "review2dWithPath": "Alleen-lezen 2D-review voor deze gedeelde track. Wissel naar 3D voor flythrough.",
+        "review2dNoPath": "Alleen-lezen 2D-review voor deze gedeelde track."
+      },
+      "share": {
+        "sectionLabel": "Delen",
+        "editableCopy": "Bewerkbare kopie",
+        "shareButton": "Delen"
+      }
+    },
+    "multiSelect": {
+      "header": {
+        "title": "Multi-select",
+        "lockedHint": "Vergrendelde selectie. Ontgrendel voor verplaatsen of vergroten.",
+        "tapHint": "Tik op items om ze toe te voegen of te verwijderen."
+      },
+      "fields": {
+        "groupNamePlaceholder": "Groepsnaam"
+      },
+      "actions": {
+        "duplicate": "Kopieer",
+        "lock": "Vastzetten",
+        "unlock": "Losmaken",
+        "delete": "Verwijder",
+        "ungroup": "Opheffen",
+        "group": "Groeperen"
+      }
+    },
+    "pathBuilder": {
+      "header": {
+        "title": "Path builder"
+      },
+      "status": {
+        "loopConnected": "Loop verbonden · {count} waypoints · {length}",
+        "pointsCount": "{count} waypoints · {length}",
+        "tapToStart": "Tik op het canvas om het eerste waypoint te plaatsen"
+      },
+      "actions": {
+        "undo": "Ongedaan maken",
+        "connectEnds": "Einden verbinden",
+        "finish": "Afronden",
+        "cancel": "Annuleren"
+      }
+    },
+    "editorPanels": {
+      "quickActions": {
+        "title": "Snelle acties",
+        "adjustTitle": "Aanpassen",
+        "hints": {
+          "addPoint": "Waypoint toevoegen op geselecteerd segment",
+          "deleteWaypoint": "Geselecteerd waypoint verwijderen",
+          "resume": "Hervat of pas dit pad aan",
+          "selectionStep": "{label} · {step} stap",
+          "selectionFallback": "Selectie"
+        },
+        "actions": {
+          "addPoint": "Waypoint toevoegen",
+          "editPath": "Path bewerken",
+          "duplicate": "Kopieer",
+          "lock": "Vastzetten",
+          "unlock": "Losmaken",
+          "delete": "Verwijder",
+          "deletePoint": "Waypoint wissen",
+          "adjust": "Aanpassen",
+          "back": "Terug"
+        },
+        "adjust": {
+          "step": "Stap",
+          "left": "Links",
+          "up": "Omhoog",
+          "down": "Omlaag",
+          "right": "Rechts"
+        }
+      },
+      "nav": {
+        "exit": "Sluiten",
+        "select": "Selecteren",
+        "tools": "Tools",
+        "inspect": "Inspecteren",
+        "view": "Weergave",
+        "review": "Review",
+        "share": "Delen",
+        "editCopy": "Kopie bewerken",
+        "preview": "Preview"
+      },
+      "inspector": {
+        "designSettingsHint": "Ontwerpinstellingen",
+        "title": "Inspector",
+        "subtitles": {
+          "empty": "Ontwerpinstellingen en geplaatste items",
+          "selected": "Selectie-eigenschappen en bewerken"
+        }
+      },
+      "tools": {
+        "title": "Tools",
+        "sections": {
+          "items": "Trackitems",
+          "tools": "Canvastools"
+        },
+        "toolDescriptions": {
+          "startfinish": "Markeer start- of timingpads",
+          "cone": "Plaats parcoursmarkeringen",
+          "label": "Voeg notities toe op het canvas",
+          "polyline": "Teken of bewerk de racelijn"
+        },
+        "subtitles": {
+          "preview3d": "Projectacties voor de huidige 3D-sessie",
+          "canvas2d": "Teken- en bewerkingstools"
+        }
+      },
+      "view": {
+        "title": "Weergave",
+        "subtitle": "Canvasmodus, hulplijnen en viewport-instellingen"
+      }
+    }
+  },
+  "viewModeSwitch": {
+    "ariaLabel": "Weergavemodus",
+    "canvas2dShort": "2D",
+    "preview3dShort": "3D",
+    "canvas2dDrawer": "2D-canvas",
+    "preview3dDrawer": "3D-preview"
+  },
+  "desktopInspectorPanel": {
+    "ariaLabel": "Inspector",
+    "expandTooltip": "Inspector uitklappen",
+    "collapseTooltip": "Inspector inklappen",
+    "verticalLabel": "Inspector"
+  },
+  "shell": {
+    "untitledTrack": "Naamloze track",
+    "untitledFallback": "Naamloos",
+    "untitledTrackCopy": "Kopie van naamloze track",
+    "copyOfTitle": "Kopie van {title}",
+    "savingLocally": "Lokaal opslaan…",
+    "savedLocallyAt": "Lokaal opgeslagen om {time}",
+    "localAutosaveFailed": "Lokale automatische opslag mislukt",
+    "localAutosaveFailedDescription": "De nieuwste wijzigingen staan nog op het canvas, maar TrackDraw kon geen lokale kopie opslaan. Probeer het nu opnieuw of exporteer een JSON-back-up voordat je deze browser verlaat.",
+    "retry": "Opnieuw proberen",
+    "localAutosaveRecovered": "Lokale automatische opslag hersteld",
+    "latestLocalCopySaved": "De nieuwste lokale kopie is opgeslagen.",
+    "localAutosaveStillFailing": "Lokale automatische opslag blijft mislukken",
+    "localAutosaveStillFailingDescription": "Exporteer een JSON-back-up voordat je meer wijzigingen maakt als browseropslag blijft falen.",
+    "editableCopyCreated": "Bewerkbare kopie gemaakt",
+    "restoredFromLocalDraft": "Hersteld vanuit lokaal concept",
+    "freshLocalProject": "Nieuw lokaal project",
+    "editing": "Bezig met bewerken…",
+    "snapshotSaved": "Snapshot opgeslagen",
+    "snapshotSavedAt": "Snapshot opgeslagen om {time}",
+    "restorePointCreatedAt": "Herstelpunt aangemaakt om {time}",
+    "projectOpened": "Project geopend",
+    "restoredFromSnapshot": "Hersteld vanuit snapshot",
+    "exportFailed": "Exporteren mislukt",
+    "exportFailedDescription": "{message} Probeer opnieuw, of open Exporteren en download daar een project-JSON-back-up.",
+    "exportFailedNoProjectDescription": "TrackDraw kon dit lokale project niet laden. Open het eerst of kies een ander opgeslagen project.",
+    "exportSuccess": "Project-JSON geëxporteerd",
+    "embeddedTrack": "Ingesloten track",
+    "sharedPreview": "Gedeelde preview",
+    "loading3d": "3D laden…"
+  },
+  "languagePicker": {
+    "ariaLabel": "Taal"
+  },
+  "performanceHud": {
+    "title": "Developer-HUD",
+    "summary": "Tool {tool} · {count} geselecteerd",
+    "reset": "Resetten",
+    "close": "Sluiten",
+    "metrics": {
+      "canvas2d": "2D-canvas",
+      "preview3d": "3D-weergave",
+      "inspector": "Inspector",
+      "autosave": "Autosave"
+    },
+    "levels": {
+      "noData": "Geen data",
+      "heavy": "Zwaar",
+      "busy": "Druk",
+      "ok": "OK"
+    }
+  },
+  "textureDebug": {
+    "title": "Texture-debug",
+    "copyConfig": "Config kopiëren",
+    "copied": "Gekopieerd",
+    "noPanels": "Nog geen panels geregistreerd",
+    "flip": "flip"
+  }
+}

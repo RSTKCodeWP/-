@@ -1,0 +1,25 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - link "ArduDeck Marketplace" [ref=e6] [cursor=pointer]:
+        - /url: /
+        - img [ref=e8]
+        - generic [ref=e12]: ArduDeck Marketplace
+      - navigation [ref=e13]:
+        - link "Sign In" [ref=e14] [cursor=pointer]:
+          - /url: /login
+        - link "Sign Up" [ref=e15] [cursor=pointer]:
+          - /url: /register
+  - main [ref=e16]:
+    - generic [ref=e17]:
+      - heading "Sign In" [level=1] [ref=e18]
+      - generic [ref=e19]:
+        - generic [ref=e20]:
+          - generic [ref=e21]: Email
+          - textbox [ref=e22]
+        - generic [ref=e23]:
+          - generic [ref=e24]: Password
+          - textbox [ref=e25]
+        - button "Sign In" [ref=e26] [cursor=pointer]
+  - contentinfo [ref=e27]:
+    - generic [ref=e28]: ArduDeck Marketplace

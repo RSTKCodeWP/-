@@ -1,0 +1,10 @@
+[submodule "app/wfbngrtl8812/src/main/cpp/devourer"]
+	path = app/wfbngrtl8812/src/main/cpp/devourer
+	url = https://github.com/openipc/devourer.git
+	branch = master
+
+[submodule "app/wfbngrtl8812/src/main/cpp/wfb-ng"]
+	path = app/wfbngrtl8812/src/main/cpp/wfb-ng
+	url = https://github.com/svpcom/wfb-ng.git
+	branch = master
+

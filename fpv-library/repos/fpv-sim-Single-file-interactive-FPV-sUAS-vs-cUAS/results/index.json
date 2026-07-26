@@ -1,0 +1,41 @@
+{
+  "datasets": [
+    {
+      "file": "adhoc-df-bearing-error-doubled-8-deg-2026-07-23.json",
+      "kind": "adhoc",
+      "label": "DF bearing error doubled (8 deg)",
+      "generated": "2026-07-23T08:29:15.258Z",
+      "sim_commit": "decd4fa58b07c8eaa1ee3a8ceba5ccaea13658d8",
+      "engine_commit": "dd3c0375ab88cf552cba5507735cb4ee3f468dd8",
+      "total_runs": 1000,
+      "overrides": {
+        "CUAS": {
+          "BRG_SIGMA_DEG": 8
+        }
+      },
+      "baseline": {
+        "runs": 1000,
+        "win_rates": {
+          "BLUFOR": 0.163,
+          "OPFOR": 0.098,
+          "STALEMATE": 0.739
+        }
+      }
+    },
+    {
+      "file": "monte-carlo.json",
+      "generated": "2026-07-23T07:04:42.748Z",
+      "sim_commit": "1c0c32719bfe8c5149a7bc5cf711732a1bd62ac3",
+      "engine_commit": "fcab03c52b835a42e872b27391de8420576f3bec",
+      "total_runs": 22800,
+      "baseline": {
+        "runs": 10000,
+        "win_rates": {
+          "BLUFOR": 0.368,
+          "OPFOR": 0.263,
+          "STALEMATE": 0.368
+        }
+      }
+    }
+  ]
+}

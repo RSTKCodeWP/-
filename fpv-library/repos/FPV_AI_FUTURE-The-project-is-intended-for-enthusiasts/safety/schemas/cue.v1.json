@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "g2u.cue.v1",
+  "title": "G2U Cue Event v1 — search cone",
+  "type": "object",
+  "required": ["schema", "event_id", "track_id", "ts_utc", "ts_source", "node_id", "cone", "expires_ts"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": { "const": "g2u.cue.v1" },
+    "event_id": { "type": "string", "minLength": 8 },
+    "track_id": { "type": "string", "minLength": 1 },
+    "ts_utc": { "type": "number" },
+    "ts_source": { "enum": ["ptp", "gps_pps", "ntp", "monotonic"] },
+    "node_id": { "type": "string" },
+    "cone": {
+      "type": "object",
+      "required": ["anchor_wgs84", "azimuth_deg", "elevation_deg", "half_angle_deg"],
+      "properties": {
+        "anchor_wgs84": {
+          "type": "object",
+          "required": ["lat", "lon", "alt_m"],
+          "properties": {
+            "lat": { "type": "number" },
+            "lon": { "type": "number" },
+            "alt_m": { "type": "number" }
+          }
+        },
+        "azimuth_deg":   { "type": "number", "minimum": 0,  "maximum": 360 },
+        "elevation_deg": { "type": "number", "minimum": -10, "maximum": 90 },
+        "half_angle_deg": { "type": "number", "minimum": 0, "maximum": 45 },
+        "range_min_m":   { "type": "number", "minimum": 0 },
+        "range_max_m":   { "type": "number", "minimum": 0 }
+      }
+    },
+    "expires_ts": { "type": "number" },
+    "reason": { "enum": ["new_track", "ambiguous_class", "lost_track_recover", "operator_request"] }
+  }
+}

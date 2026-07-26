@@ -1,0 +1,652 @@
+#include "server.h"
+
+#define MAX_CLIENTS 50
+#define REQSIZE 512 * 1024
+
+IMPORT_STR(.rodata, "../res/index.html", indexhtml);
+extern const char indexhtml[];
+
+typedef struct {
+    int clntFd;
+    char *input, *method, *payload, *prot, *query, *uri;
+    int paysize, total;
+} http_request_t;
+
+struct {
+    int sockFd;
+} client_fds[MAX_CLIENTS];
+
+typedef struct {
+    char *name, *value;
+} http_header_t;
+
+typedef struct {
+    int code;
+    const char *msg, *desc;
+} http_error_t;
+
+const http_error_t http_errors[] = {
+    {400, "Bad Request", "The server has no handler to the request."},
+    {401, "Unauthorized", "You are not authorized to access this resource."},
+    {403, "Forbidden", "You have been denied access to this resource."},
+    {404, "Not Found", "The requested resource was not found."},
+    {405, "Method Not Allowed", "This method is not handled on this endpoint."},
+    {500, "Internal Server Error", "An invalid operation was caught on this request."},
+    {501, "Not Implemented", "The server does not support the functionality."}
+};
+http_header_t http_headers[17] = {{"\0", "\0"}};
+
+int server_fd = -1;
+pthread_t server_thread_id;
+pthread_mutex_t client_fds_mutex;
+
+static bool is_local_address(const char *client_ip) {
+    if (!client_ip) return false;
+    
+    if (!strcmp(client_ip, "127.0.0.1") ||
+        !strncmp(client_ip, "127.", 4))
+        return true;
+    
+    if (!strcmp(client_ip, "::1"))
+        return true;
+    
+    if (!strncmp(client_ip, "::ffff:127.", 11))
+        return true;
+    
+    return false;
+}
+
+static void close_socket_fd(int sockFd) {
+    shutdown(sockFd, SHUT_RDWR);
+    close(sockFd);
+}
+
+void free_client(int i) {
+    if (client_fds[i].sockFd < 0) return;
+
+    close_socket_fd(client_fds[i].sockFd);
+    client_fds[i].sockFd = -1;
+}
+
+int send_to_fd(int fd, char *buf, ssize_t size) {
+    ssize_t sent = 0, len = 0;
+    if (fd < 0) return -1;
+
+    while (sent < size) {
+        len = send(fd, buf + sent, size - sent, MSG_NOSIGNAL);
+        if (len < 0) return -1;
+        sent += len;
+    }
+
+    return EXIT_SUCCESS;
+}
+
+int send_to_fd_nonblock(int fd, char *buf, ssize_t size) {
+    if (fd < 0) return -1;
+
+    send(fd, buf, size, MSG_DONTWAIT | MSG_NOSIGNAL);
+
+    return EXIT_SUCCESS;
+}
+
+int send_to_client(int i, char *buf, ssize_t size) {
+    if (send_to_fd(client_fds[i].sockFd, buf, size) < 0) {
+        free_client(i);
+        return EXIT_FAILURE;
+    }
+    
+    return EXIT_SUCCESS;
+}
+
+static void send_and_close(int client_fd, char *buf, ssize_t size) {
+    send_to_fd(client_fd, buf, size);
+    close_socket_fd(client_fd);
+}
+
+void send_http_error(int fd, int code) {
+    const char *desc = "\0", *msg = "Unspecified";
+    char buffer[256];
+    int len;
+    
+    for (int i = 0; i < sizeof(http_errors) / sizeof(*http_errors); i++) {
+        if (http_errors[i].code == code) {
+            desc = http_errors[i].desc;
+            msg = http_errors[i].msg;
+            break;
+        }
+    }
+    
+    len = snprintf(buffer, sizeof(buffer),
+        "HTTP/1.1 %d %s\r\n"
+        "Content-Type: text/plain\r\n"
+        "Connection: close\r\n"
+        "\r\n%s\r\n",
+        code, msg, desc);
+    
+    send_and_close(fd, buffer, len);
+}
+
+int send_file(const int client_fd, const char *path) {
+    if (!access(path, F_OK)) {
+        const char *mime = (path);
+        FILE *file = fopen(path, "r");
+        if (file == NULL) {
+            close_socket_fd(client_fd);
+            return EXIT_SUCCESS;
+        }
+        char header[1024];
+        int header_len = sprintf(header,
+            "HTTP/1.1 200 OK\r\n"
+            "Content-Type: %s\r\n"
+            "Transfer-Encoding: chunked\r\n"
+            "Connection: keep-alive\r\n\r\n", mime);
+        send_to_fd(client_fd, header, header_len); // zero ending string!
+        const int buf_size = 1024;
+        char buf[buf_size + 2];
+        char len_buf[50];
+        ssize_t len_size;
+        while (1) {
+            ssize_t size = fread(buf, sizeof(char), buf_size, file);
+            if (size <= 0) break;
+            len_size = sprintf(len_buf, "%zX\r\n", size);
+            buf[size++] = '\r';
+            buf[size++] = '\n';
+            send_to_fd(client_fd, len_buf, len_size); // send <SIZE>\r\n
+            send_to_fd(client_fd, buf, size);         // send <DATA>\r\n
+        }
+        char end[] = "0\r\n\r\n";
+        send_to_fd(client_fd, end, sizeof(end));
+        fclose(file);
+        close_socket_fd(client_fd);
+        return EXIT_FAILURE;
+    }
+
+    send_http_error(client_fd, 404);
+    return EXIT_FAILURE;
+}
+
+void send_binary(const int fd, const char *data, const long size) {
+    char *buf;
+    int buf_len = asprintf(&buf,
+        "HTTP/1.1 200 OK\r\n" \
+        "Content-Type: application/octet-stream\r\n" \
+        "Content-Length: %zu\r\n" \
+        "Connection: close\r\n\r\n", size);
+    send_to_fd(fd, buf, buf_len);
+    send_to_fd(fd, (char*)data, size);
+    send_to_fd(fd, "\r\n", 2);
+    close_socket_fd(fd);
+    free(buf);
+}
+
+void send_html(const int fd, const char *data) {
+    char *buf;
+    int buf_len = asprintf(&buf,
+        "HTTP/1.1 200 OK\r\n" \
+        "Content-Type: text/html\r\n" \
+        "Content-Length: %zu\r\n" \
+        "Connection: close\r\n" \
+        "\r\n%s", strlen(data), data);
+    buf[buf_len++] = 0;
+    send_and_close(fd, buf, buf_len);
+    free(buf);
+}
+
+char *request_header(const char *name) {
+    http_header_t *h = http_headers;
+    for (; h->name; h++)
+        if (!strcasecmp(h->name, name))
+            return h->value;
+    return NULL;
+}
+
+http_header_t *request_headers(void) { return http_headers; }
+
+void parse_request(http_request_t *req) {
+    struct sockaddr_in client_sock;
+    socklen_t client_sock_len = sizeof(client_sock);
+    memset(&client_sock, 0, client_sock_len);
+
+    getpeername(req->clntFd,
+        (struct sockaddr *)&client_sock, &client_sock_len);
+    char *client_ip = inet_ntoa(client_sock.sin_addr);
+
+    if (!EMPTY(*app_config.web_whitelist)) {
+        for (int i = 0; app_config.web_whitelist[i] && *app_config.web_whitelist[i]; i++)
+            if (ip_in_cidr(client_ip, app_config.web_whitelist[i])) goto grant_access;
+        close_socket_fd(req->clntFd);
+        req->clntFd = -1;
+        req->total = 0;
+        return;
+    }
+
+grant_access:
+    req->total = 0;
+    int received = recv(req->clntFd, req->input, REQSIZE, 0);
+    if (received < 0)
+        HAL_WARNING("server", "Reading from client failed!\n");
+    else if (!received)
+        HAL_WARNING("server", "Client disconnected unexpectedly!\n");
+    req->total += received;
+
+    if (req->total <= 0) return;
+
+    char *state = NULL;
+    req->method = strtok_r(req->input, " \t\r\n", &state);
+    req->uri = strtok_r(NULL, " \t", &state);
+    req->prot = strtok_r(NULL, " \t\r\n", &state);
+
+    HAL_INFO("server", "\x1b[32mNew request: (%s) %s\n"
+        "         Received from: %s\x1b[0m\n",
+        req->method, req->uri, client_ip);
+
+    if (req->query = strchr(req->uri, '?'))
+        *req->query++ = '\0';
+    else
+        req->query = req->uri - 1;
+
+    http_header_t *h = http_headers;
+    char *l;
+    while (h < http_headers + 16) {
+        char *k, *v, *e;
+        if (!(k = strtok_r(NULL, "\r\n: \t", &state)))
+            break;
+        v = strtok_r(NULL, "\r\n", &state);
+        while (*v && *v == ' ' && v++);
+        h->name = k;
+        h++->value = v;
+#ifdef DEBUG_HTTP
+        fprintf(stderr, "         (H) %s: %s\n", k, v);
+#endif
+        e = v + 1 + strlen(v);
+        if (e[1] == '\r' && e[2] == '\n')
+            break;
+    }
+
+    l = request_header("Content-Length");
+    req->paysize = l ? atol(l) : 0;
+
+    while (l && req->total < req->paysize) {
+        received = recv(req->clntFd, req->input + req->total, REQSIZE - req->total, 0);
+        if (received < 0) {
+            HAL_WARNING("server", "Reading from client failed!\n");
+            break;
+        } else if (!received) {
+            HAL_WARNING("server", "Client disconnected unexpectedly!\n");
+            break;
+        }
+        req->total += received;
+    }
+
+    req->payload = strtok_r(NULL, "\r\n", &state);
+}
+
+void respond_request(http_request_t *req) {
+    char response[256];
+    int respLen = 0;
+
+    if (req->clntFd < 0) return;
+
+    if (!EQUALS(req->method, "GET") && !EQUALS(req->method, "POST")) {
+        send_http_error(req->clntFd, 405);
+        return;
+    }
+
+    if (app_config.web_enable_auth) {
+        bool should_skip_auth = false;
+
+        if (app_config.web_auth_skiplocal) {
+            struct sockaddr_in client_sock;
+            socklen_t client_sock_len = sizeof(client_sock);
+            memset(&client_sock, 0, client_sock_len);
+
+            if (getpeername(req->clntFd, (struct sockaddr *)&client_sock, &client_sock_len) == 0) {
+                char *client_ip = inet_ntoa(client_sock.sin_addr);
+                should_skip_auth = is_local_address(client_ip);
+            }
+        }
+
+        if (!should_skip_auth) {
+            char *auth = request_header("Authorization");
+            char cred[66], valid[256];
+
+            strcpy(cred, app_config.web_auth_user);
+            strcpy(cred + strlen(app_config.web_auth_user), ":");
+            strcpy(cred + strlen(app_config.web_auth_user) + 1, app_config.web_auth_pass);
+            strcpy(valid, "Basic ");
+            base64_encode(valid + 6, cred, strlen(cred));
+
+            if (!auth || !EQUALS(auth, valid)) {
+                respLen = sprintf(response,
+                    "HTTP/1.1 401 Unauthorized\r\n"
+                    "Content-Type: text/plain\r\n"
+                    "WWW-Authenticate: Basic realm=\"Access the camera services\"\r\n"
+                    "Connection: close\r\n\r\n");
+                send_and_close(req->clntFd, response, respLen);
+                return;
+            }
+        }
+    }
+
+    if (EQUALS(req->uri, "/exit")) {
+        respLen = sprintf(
+            response, "HTTP/1.1 200 OK\r\n"
+                    "Connection: close\r\n\r\n"
+                    "Closing...");
+        send_and_close(req->clntFd, response, respLen);
+        keepRunning = 0;
+        graceful = 1;
+        return;
+    }
+
+    if (EQUALS(req->uri, "/") || EQUALS(req->uri, "/index.htm") || EQUALS(req->uri, "/index.html")) {
+        send_html(req->clntFd, indexhtml);
+        return;
+    }
+
+    if (EQUALS(req->uri, "/api/cmd")) {
+        int result = -1;
+        if (!EMPTY(req->query)) {
+            char *remain;
+            while (req->query) {
+                char *value = split(&req->query, "&");
+                if (!value || !*value) continue;
+                unescape_uri(value);
+                char *key = split(&value, "=");
+                if (!key || !*key) continue;
+                if (EQUALS(key, "save")) {
+                    result = save_app_config();
+                    if (!result)
+                        HAL_INFO("server", "Configuration saved!\n");
+                    else
+                        HAL_WARNING("server", "Failed to save configuration!\n");
+                    break;
+                }
+            }
+        }
+
+        respLen = sprintf(response,
+            "HTTP/1.1 200 OK\r\n"
+            "Content-Type: application/json;charset=UTF-8\r\n"
+            "Connection: close\r\n"
+            "\r\n"
+            "{\"code\":%d}", result);
+        send_and_close(req->clntFd, response, respLen);
+        return;
+    }
+
+    if (STARTS_WITH(req->uri, "/api/osd/")) {
+        char *remain;
+        int respLen;
+        short id = strtol(req->uri + 9, &remain, 10);
+        if (remain == req->uri + 9 || id < 0 || id >= MAX_OSD) {
+            send_http_error(req->clntFd, 404);
+            return;
+        }
+        if (EQUALS(req->method, "POST")) {
+            char *type = request_header("Content-Type");
+            if (STARTS_WITH(type, "multipart/form-data")) {
+                char *bound = strstr(type, "boundary=") + strlen("boundary=");
+
+                char *payloadb = strstr(req->payload, bound);
+                payloadb = memstr(payloadb, "\r\n\r\n", req->total - (payloadb - req->input), 4);
+                if (payloadb) payloadb += 4;
+
+                char *payloade = memstr(payloadb, bound,
+                    req->total - (payloadb - req->input), strlen(bound));
+                if (payloade) payloade -= 4;
+
+                char path[32];
+
+                if (!memcmp(payloadb, "\x89\x50\x4E\x47\xD\xA\x1A\xA", 8)) 
+                    sprintf(path, "/tmp/osd%d.png", id);
+                else
+                    sprintf(path, "/tmp/osd%d.bmp", id);
+
+                FILE *img = fopen(path, "wb");
+                fwrite(payloadb, sizeof(char), payloade - payloadb, img);
+                fclose(img);
+
+                strcpy(osds[id].text, "");
+                osds[id].updt = 1;
+            } else {
+                respLen = sprintf(response,
+                    "HTTP/1.1 415 Unsupported Media Type\r\n"
+                    "Content-Type: text/plain\r\n"
+                    "Connection: close\r\n"
+                    "\r\n"
+                    "The payload must be presented as multipart/form-data.\r\n"
+                );
+                send_and_close(req->clntFd, response, respLen);
+                return;
+            }
+        }
+        if (!EMPTY(req->query))
+        {
+            char *remain;
+            while (req->query) {
+                char *value = split(&req->query, "&");
+                if (!value || !*value) continue;
+                unescape_uri(value);
+                char *key = split(&value, "=");
+                if (!key || !*key || !value || !*value) continue;
+                if (EQUALS(key, "img"))
+                    strncpy(osds[id].img, value,
+                        sizeof(osds[id].img) - 1);
+                else if (EQUALS(key, "font"))
+                    strncpy(osds[id].font, !EMPTY(value) ? value : DEF_FONT,
+                        sizeof(osds[id].font) - 1);
+                else if (EQUALS(key, "text"))
+                    strncpy(osds[id].text, value,
+                        sizeof(osds[id].text) - 1);
+                else if (EQUALS(key, "size")) {
+                    double result = strtod(value, &remain);
+                    if (remain == value) continue;
+                    osds[id].size = (result != 0 ? result : DEF_SIZE);
+                }
+                else if (EQUALS(key, "color")) {
+                    int result = color_parse(value);
+                    osds[id].color = result;
+                }
+                else if (EQUALS(key, "opal")) {
+                    short result = strtol(value, &remain, 10);
+                    if (remain != value)
+                        osds[id].opal = result & 0xFF;
+                }
+                else if (EQUALS(key, "posx")) {
+                    short result = strtol(value, &remain, 10);
+                    if (remain != value)
+                        osds[id].posx = result;
+                }
+                else if (EQUALS(key, "posy")) {
+                    short result = strtol(value, &remain, 10);
+                    if (remain != value)
+                        osds[id].posy = result;
+                }
+                else if (EQUALS(key, "pos")) {
+                    int x, y;
+                    if (sscanf(value, "%d,%d", &x, &y) == 2) {
+                        osds[id].posx = x;
+                        osds[id].posy = y;
+                    }
+                }
+                else if (EQUALS(key, "outl")) {
+                    int result = color_parse(value);
+                    osds[id].outl = result;
+                }
+                else if (EQUALS(key, "thick")) {
+                    double result = strtod(value, &remain);
+                    if (remain == value) continue;
+                        osds[id].thick = result;
+                }
+            }
+            osds[id].updt = 1;
+        }
+        int color = (((osds[id].color >> 10) & 0x1F) * 255 / 31) << 16 |
+                    (((osds[id].color >> 5) & 0x1F) * 255 / 31) << 8 |
+                    ((osds[id].color & 0x1F) * 255 / 31);
+        respLen = sprintf(response,
+            "HTTP/1.1 200 OK\r\n"
+            "Content-Type: application/json;charset=UTF-8\r\n"
+            "Connection: close\r\n"
+            "\r\n"
+            "{\"id\":%d,\"color\":\"#%x\",\"opal\":%d,\"pos\":[%d,%d],"
+            "\"font\":\"%s\",\"size\":%.1f,\"text\":\"%s\",\"img\":\"%s\","
+            "\"outl\":\"#%x\",\"thick\":%.1f}",
+            id, color, osds[id].opal, osds[id].posx, osds[id].posy,
+            osds[id].font, osds[id].size, osds[id].text, osds[id].img,
+            osds[id].outl, osds[id].thick);
+        send_and_close(req->clntFd, response, respLen);
+        return;
+    }
+
+    if (EQUALS(req->uri, "/api/status")) {
+        struct sysinfo si;
+        sysinfo(&si);
+        char memory[16], uptime[48];
+        short free = (si.freeram + si.bufferram) / 1024 / 1024;
+        short total = si.totalram / 1024 / 1024;
+        sprintf(memory, "%d/%dMB", total - free, total);
+        if (si.uptime > 86400)
+            sprintf(uptime, "%ld days, %ld:%02ld:%02ld", si.uptime / 86400, (si.uptime % 86400) / 3600, (si.uptime % 3600) / 60, si.uptime % 60);
+        else if (si.uptime > 3600)
+            sprintf(uptime, "%ld:%02ld:%02ld", si.uptime / 3600, (si.uptime % 3600) / 60, si.uptime % 60);
+        else
+            sprintf(uptime, "%ld:%02ld", si.uptime / 60, si.uptime % 60);
+        respLen = sprintf(response,
+            "HTTP/1.1 200 OK\r\n"
+            "Content-Type: application/json;charset=UTF-8\r\n"
+            "Connection: close\r\n"
+            "\r\n"
+            "{\"chip\":\"%s\",\"loadavg\":[%.2f,%.2f,%.2f],\"memory\":\"%s\","
+            "\"temp\":\"%.1f\u00B0C\",\"uptime\":\"%s\"}",
+            chip, si.loads[0] / 65536.0, si.loads[1] / 65536.0, si.loads[2] / 65536.0, 
+            memory, hal_temperature_read(), uptime);
+        send_and_close(req->clntFd, response, respLen);
+        return;
+    }
+
+    if (EQUALS(req->uri, "/api/time")) {
+        struct timespec t;
+        char saved = 0;
+        if (!EMPTY(req->query)) {
+            char *remain;
+            while (req->query) {
+                char *value = split(&req->query, "&");
+                if (!value || !*value) continue;
+                unescape_uri(value);
+                char *key = split(&value, "=");
+                if (!key || !*key || !value || !*value) continue;
+                if (EQUALS(key, "fmt")) {
+                    strncpy(timefmt, value, 32);
+                } else if (EQUALS(key, "ts")) {
+                    short result = strtol(value, &remain, 10);
+                    if (remain == value) continue;
+                    t.tv_sec = result;
+                    clock_settime(0, &t);
+                } else if (EQUALS(key, "save") && 
+                    (EQUALS_CASE(value, "true") || EQUALS(value, "1"))) {
+                    saved = save_app_config();
+                    if (!saved)
+                        HAL_INFO("server", "Configuration saved!\n");
+                    else
+                        HAL_WARNING("server", "Failed to save configuration!\n");
+                    break;
+                }
+            }
+        }
+        clock_gettime(0, &t);
+        respLen = sprintf(response,
+            "HTTP/1.1 200 OK\r\n"
+            "Content-Type: application/json;charset=UTF-8\r\n"
+            "Connection: close\r\n"
+            "\r\n"
+            "{\"fmt\":\"%s\",\"ts\":%zu}", timefmt, t.tv_sec);
+        send_and_close(req->clntFd, response, respLen);
+        return;
+    }
+
+    if (app_config.web_enable_static && send_file(req->clntFd, req->uri))
+        return;
+
+    send_http_error(req->clntFd, 400);
+}
+
+void *server_thread(void *vargp) {
+    http_request_t req = {0};
+    int ret, server_fd = *((int *)vargp);
+    int enable = 1;
+    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) < 0) {
+        HAL_WARNING("server", "setsockopt(SO_REUSEADDR) failed");
+        fflush(stdout);
+    }
+    struct sockaddr_in client, server = {
+        .sin_family = AF_INET,
+        .sin_port = htons(app_config.web_port),
+        .sin_addr.s_addr = htonl(INADDR_ANY)
+    };
+    if (ret = bind(server_fd, (struct sockaddr *)&server, sizeof(server))) {
+        HAL_DANGER("server", "%s (%d)\n", strerror(errno), errno);
+        keepRunning = 0;
+        close_socket_fd(server_fd);
+        return NULL;
+    }
+    listen(server_fd, 128);
+
+    req.input = malloc(REQSIZE);
+
+    while (keepRunning) {
+        if ((req.clntFd = accept(server_fd, NULL, NULL)) == -1)
+            break;
+
+        parse_request(&req);
+
+        respond_request(&req);
+    }
+
+    if (req.input)
+        free(req.input);
+
+    close_socket_fd(server_fd);
+    HAL_INFO("server", "Thread has exited\n");
+    return NULL;
+}
+
+int start_server() {
+    for (unsigned int i = 0; i < MAX_CLIENTS; i++) {
+        client_fds[i].sockFd = -1;
+    }
+    pthread_mutex_init(&client_fds_mutex, NULL);
+
+    server_fd = socket(AF_INET, SOCK_STREAM, 0);
+
+    {
+        pthread_attr_t thread_attr;
+        pthread_attr_init(&thread_attr);
+        size_t stacksize;
+        pthread_attr_getstacksize(&thread_attr, &stacksize);
+        size_t new_stacksize = app_config.web_server_thread_stack_size + REQSIZE;
+        if (pthread_attr_setstacksize(&thread_attr, new_stacksize))
+            HAL_WARNING("server", "Can't set stack size %zu\n", new_stacksize);
+        if (pthread_create(
+            &server_thread_id, &thread_attr, server_thread, (void *)&server_fd))
+            HAL_ERROR("server", "Starting the server thread failed!\n");
+        if (pthread_attr_setstacksize(&thread_attr, stacksize))
+            HAL_DANGER("server", "Can't set stack size %zu\n", stacksize);
+        pthread_attr_destroy(&thread_attr);
+    }
+
+    return EXIT_SUCCESS;
+}
+
+int stop_server() {
+    keepRunning = 0;
+
+    close_socket_fd(server_fd);
+    pthread_join(server_thread_id, NULL);
+
+    pthread_mutex_destroy(&client_fds_mutex);
+    HAL_INFO("server", "Shutting down server...\n");
+
+    return EXIT_SUCCESS;
+}

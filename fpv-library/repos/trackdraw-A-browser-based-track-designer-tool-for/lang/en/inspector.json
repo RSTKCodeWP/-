@@ -1,0 +1,344 @@
+{
+  "tabs": {
+    "ariaLabel": "Inspector panels",
+    "layout": "Layout",
+    "selection": "Selection"
+  },
+  "emptyState": {
+    "title": "No selection",
+    "body": "Select one or more items on the canvas to edit object properties here."
+  },
+  "actions": {
+    "group": "Group",
+    "continueEditing": "Continue",
+    "connectEnds": "Connect",
+    "deleteShort": "Delete",
+    "duplicateShort": "Duplicate",
+    "ungroup": "Ungroup",
+    "groupSelection": "Group selection",
+    "ungroupSelection": "Ungroup selection",
+    "lockShort": "Lock",
+    "unlockShort": "Unlock",
+    "savePreset": "Save as preset",
+    "joinPaths": "Join paths",
+    "remove": "Remove",
+    "removeItem": "Remove item"
+  },
+  "hints": {
+    "locked": "Locked on the canvas. Unlock before moving, resizing, or continuing path edits."
+  },
+  "group": {
+    "sectionTitle": "Group",
+    "nameLabel": "Group name",
+    "namePlaceholder": "Optional group name"
+  },
+  "raceTiming": {
+    "sectionTitle": "Race timing",
+    "ariaLabel": "Timing role",
+    "splitIdLabel": "Split ID",
+    "splitIdPlaceholder": "split-1",
+    "roleStart": "Start",
+    "roleSplit": "Split",
+    "metaTimingStart": "timing: start",
+    "metaTimingSplit": "timing: {id}",
+    "metaGrouped": "grouped",
+    "metaLocked": "locked",
+    "metaEditable": "editable"
+  },
+  "transform": {
+    "sectionTitle": "Transform",
+    "positionLabel": "Position",
+    "rotationLabel": "Rotation (deg)",
+    "colorLabel": "Color",
+    "pickColorAriaLabel": "Pick color",
+    "editingSubtitle": "Editing {kind} properties and placement."
+  },
+  "ladder": {
+    "sectionTitle": "Ladder"
+  },
+  "tower": {
+    "sectionTitle": "Tower"
+  },
+  "catalog": {
+    "sectionTitle": "Catalog",
+    "sourceLabel": "Source",
+    "sizeLabel": "Size",
+    "officialBadge": "Official"
+  },
+  "dimensions": {
+    "widthLabel": "Width ({unit})",
+    "heightLabel": "Height ({unit})",
+    "gridLabel": "Grid ({unit})",
+    "thicknessLabel": "Thickness ({unit})",
+    "radiusLabel": "Radius ({unit})",
+    "poleHeightLabel": "Pole height ({unit})",
+    "tiltLabel": "Tilt (deg)",
+    "gatesLabel": "Gates",
+    "elevationLabel": "Elevation ({unit})",
+    "levelsLabel": "Levels",
+    "sizeLabel": "Size ({unit})",
+    "openingHeightLabel": "Opening height ({unit})"
+  },
+  "label": {
+    "sectionTitle": "Label",
+    "textLabel": "Text",
+    "fontSizeLabel": "Font size (px)",
+    "threeDModeLabel": "3D mode",
+    "floatOption": "Float (billboard)",
+    "groundOption": "Project on ground"
+  },
+  "multiSelection": {
+    "sectionTitle": "Selection",
+    "mixedTypesPlaceholder": "Mixed types",
+    "titleSelected": "{count, plural, one {1 item selected} other {{count} items selected}}",
+    "subtitle": "Bulk actions are available here. Open a single item from the canvas when you need detailed editing.",
+    "groupCountMeta": "{count, plural, one {1 group} other {{count} groups}}",
+    "joinAvailableMeta": "join available",
+    "saveSectionLabel": "Save section",
+    "lockedItemsNote": "Locked items stay unchanged."
+  },
+  "polyline": {
+    "sectionTitle": "Race Line",
+    "flowLabel": "Flow",
+    "directionLabel": "Direction",
+    "waypointsTitle": "Waypoints",
+    "waypointsSubtitle": "Adjust each point and its elevation.",
+    "elevationColumn": "elev",
+    "editColumn": "edit",
+    "insertPointAfter": "Insert point after",
+    "removePoint": "Remove point",
+    "addPoint": "Add point"
+  },
+  "listPanel": {
+    "panelTitle": "Track items",
+    "placedItemsTitle": "Placed items",
+    "placedItemsSubtitle": "Select an item from the list.",
+    "filterPlaceholder": "Filter items",
+    "filterAll": "All",
+    "filterObstacles": "Obstacles",
+    "itemColumn": "Item",
+    "pathColumn": "Path",
+    "noItemsMatchFilter": "No items match this filter.",
+    "routeStatus": {
+      "off": "off"
+    }
+  },
+  "layout": {
+    "mapReference": {
+      "title": "Map reference",
+      "fields": {
+        "opacity": "Opacity",
+        "rotation": "Rotation"
+      },
+      "actions": {
+        "removeTitle": "Remove map reference",
+        "editTitle": "Edit map reference",
+        "addTitle": "Add map reference",
+        "edit": "Edit",
+        "add": "Add map",
+        "showTitle": "Show map reference",
+        "hideTitle": "Hide map reference",
+        "show": "Show"
+      }
+    },
+    "sections": {
+      "routeNumbering": "Route numbering",
+      "inventory": "Inventory",
+      "field": "Field"
+    },
+    "field": {
+      "unitsLabel": "Units",
+      "renderScaleLabel": "Render scale",
+      "renderScaleTooltip": "Internal canvas density in pixels per meter",
+      "pxPerMeterAriaLabel": "pixels per meter, internal canvas scale"
+    },
+    "project": {
+      "titlePlaceholder": "Untitled Track",
+      "subtitle": "Tune the project title, field setup, and available obstacle stock."
+    },
+    "overview": {
+      "title": "Current layout",
+      "subtitle": "Review placed items, route numbering, and buildability for the current layout.",
+      "emptyTitle": "No items placed yet",
+      "emptyDescription": "Add a few objects on the canvas to review the layout and compare it against your inventory."
+    },
+    "inventory": {
+      "status": {
+        "buildable": "Buildable",
+        "short": "Short"
+      },
+      "labels": {
+        "missing": "Missing",
+        "types": "Types"
+      },
+      "description": "TrackDraw compares the current layout against the obstacle stock saved in this project.",
+      "needCountSuffix": "need {count}",
+      "stockOk": "ok"
+    },
+    "meta": {
+      "itemsCount": "{count} items",
+      "grid": "grid {grid}",
+      "buildable": "buildable",
+      "shortItems": "{count, plural, one {short 1 item} other {short {count} items}}",
+      "stockCovered": "stock covered",
+      "typesShort": "{count, plural, one {1 type short} other {{count} types short}}",
+      "numbered": "{count} numbered",
+      "numberingIdle": "numbering idle",
+      "numberingNeedsReview": "numbering needs review"
+    }
+  },
+  "routeNumbering": {
+    "status": {
+      "ready": "Ready",
+      "partial": "Needs review",
+      "noRouteMatches": "No matches",
+      "missingRoute": "Missing route",
+      "noNumberedObstacles": "No route obstacles",
+      "empty": "Empty"
+    },
+    "messages": {
+      "ready": "{count, plural, one {1 route obstacle numbered.} other {{count} route obstacles numbered.}}",
+      "partial": "{mapped} of {total} route obstacles are numbered.",
+      "noRouteMatches": "{count, plural, one {1 route obstacle found, but none sit close enough to the race line.} other {{count} route obstacles found, but none sit close enough to the race line.}}",
+      "missingRoute": "Supported obstacles are ready for a race line.",
+      "noNumberedObstacles": "Gates, ladders, and dive gates will appear in route numbering.",
+      "empty": "Add route obstacles first."
+    },
+    "issues": {
+      "offRoutePrefix": "Off route: {names}",
+      "moreSuffix": " +{count} more"
+    },
+    "meta": {
+      "numbered": "Numbered",
+      "issues": "Issues",
+      "raceLine": "Race line"
+    },
+    "generate": {
+      "button": "Generate race line",
+      "regenerateButton": "Regenerate race line",
+      "success": "Race line generated.",
+      "errors": {
+        "noObstacles": "Couldn't generate a race line — add at least two supported obstacles (gates, ladders, or dive gates) first."
+      },
+      "warnings": {
+        "unsupportedShapes": "{count, plural, one {1 obstacle isn't supported yet and was skipped.} other {{count} obstacles aren't supported yet and were skipped.}}",
+        "tooFewObstacles": "Add more supported obstacles for a more useful race line.",
+        "closeObstacles": "{count, plural, one {1 pair of obstacles is very close together — check the generated path.} other {{count} pairs of obstacles are very close together — check the generated path.}}"
+      }
+    }
+  },
+  "elevationChart": {
+    "noRouteSelected": "No race line selected",
+    "title": "Elevation Profile",
+    "subtitle": "Route height, colored warning sections, and route-review notes.",
+    "openDetailsAria": "Open elevation details",
+    "detailsTooltip": "Elevation details",
+    "chartAriaLabel": "Elevation profile chart",
+    "routeDistance": "{distance} route",
+    "elevationRange": "{min}-{max} elevation",
+    "moreCount": "+{count} more",
+    "maneuversHeading": "Maneuvers",
+    "maneuverDetected": "Detected {maneuver} near {range}",
+    "apexSuffix": ", apex {index}",
+    "waypointSingle": "waypoint {index}",
+    "waypointRange": "waypoints {start}-{end}",
+    "waypointMarkerAria": "Select waypoint {index} in elevation profile",
+    "warningMarkerAria": "Jump to {warning} segment {segment}",
+    "timingMarkerAria": "Select timing marker {label} in elevation profile",
+    "obstacleMarkerAria": "Select obstacle {index} in elevation profile",
+    "routeReviewHeading": "Route Review",
+    "warningSegmentsHeading": "Warning segments",
+    "jumpToSegment": "Jump to segment {segment}",
+    "noWarnings": "No route warnings for this path.",
+    "normal": "Normal",
+    "timingMarkersLegend": "Timing",
+    "obstacleMarkersLegend": "Obstacles",
+    "warningMarkersLegend": "Warnings",
+    "maneuvers": {
+      "powerloop": "Powerloop",
+      "split-s": "Split-S"
+    },
+    "warnings": {
+      "stub": {
+        "summary": "Path needs at least 2 waypoints to form a route",
+        "shortLabel": "Incomplete route",
+        "title": "Route is incomplete",
+        "problem": "The path needs at least two waypoints before TrackDraw can review it as a route.",
+        "fix": "Add another waypoint or finish drawing the race line."
+      },
+      "flat": {
+        "summary": "No elevation set - 3D preview will be flat",
+        "shortLabel": "Flat elevation",
+        "title": "No elevation has been set",
+        "problem": "All waypoints are still at 0 m, so the 3D preview and elevation chart stay flat.",
+        "fix": "Set waypoint elevations in the inspector or 3D view if the route should climb or drop."
+      },
+      "steep": {
+        "summary": "{count, plural, one {Steep grade near waypoint {first}} other {Steep grade at {count} segments}}",
+        "shortLabel": "Steep grade",
+        "title": "Grade changes too quickly",
+        "problem": "One section climbs or drops sharply over a short distance, which can make the 3D line feel abrupt.",
+        "fix": "Spread the height change across more distance or add an intermediate waypoint."
+      },
+      "hairpin": {
+        "summary": "{count, plural, one {Tight turn at waypoint {first}} other {{count} tight turns}}",
+        "shortLabel": "Tight turn",
+        "title": "Turn is very tight",
+        "problem": "A waypoint creates a sharp reversal that may be hard to fly cleanly at speed.",
+        "fix": "Move the waypoint outward or add more room before and after the turn."
+      },
+      "close-points": {
+        "summary": "{count, plural, one {Close waypoints near {first}} other {{count} closely spaced waypoints}}",
+        "shortLabel": "Close points",
+        "title": "Waypoints are too close",
+        "problem": "Two waypoints are so close together that they create a tiny route segment.",
+        "fix": "Delete one of the points or move it farther away from its neighbor."
+      },
+      "spacing-shift": {
+        "summary": "{count, plural, one {Abrupt spacing shift near waypoint {first}} other {{count} abrupt spacing shifts}}",
+        "shortLabel": "Spacing shift",
+        "title": "Gate rhythm changes abruptly",
+        "problem": "The distance before and after a waypoint changes suddenly, which can make the route feel uneven.",
+        "fix": "Reposition nearby waypoints so the spacing changes more gradually."
+      },
+      "rhythm-break": {
+        "summary": "{count, plural, one {Short correction segment near waypoint {first}} other {{count} short correction segments}}",
+        "shortLabel": "Short correction",
+        "title": "Short correction breaks the flow",
+        "problem": "A short middle segment interrupts longer surrounding sections and can create an awkward wobble.",
+        "fix": "Smooth the correction by moving the point, deleting it, or adding a gentler transition."
+      }
+    }
+  },
+  "mapReference": {
+    "title": "Map reference",
+    "subtitle": "Choose the field center and align the field footprint.",
+    "searchPlaceholder": "Search place or paste coordinates",
+    "searching": "Searching",
+    "enterHint": "Enter",
+    "zoomLabel": "Zoom {zoom}",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "resetRotation": "Reset rotation",
+    "rotateLeft15": "Rotate left 15 degrees",
+    "rotateLeft1": "Rotate left 1 degree",
+    "rotateRight1": "Rotate right 1 degree",
+    "rotateRight15": "Rotate right 15 degrees",
+    "latitude": "Latitude",
+    "longitude": "Longitude",
+    "rotation": "Rotation",
+    "rotationValue": "{deg} deg",
+    "view": "View",
+    "out": "Out",
+    "in": "In",
+    "previewZoom": "Preview zoom {zoom}",
+    "center": "Center",
+    "useLocation": "Use location",
+    "locating": "Locating",
+    "saveMap": "Save map",
+    "locationUnavailable": "Location is unavailable in this browser.",
+    "locationPermissionDenied": "Location permission was denied.",
+    "locationTimeout": "Location lookup timed out.",
+    "locationError": "Could not determine your location."
+  }
+}

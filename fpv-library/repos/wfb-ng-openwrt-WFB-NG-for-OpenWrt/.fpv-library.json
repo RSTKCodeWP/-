@@ -1,0 +1,8 @@
+{
+  "source": "OpenIPC/wfb-ng-openwrt",
+  "upstream_commit": "3090b33ab166b86c6b8a711870f9c1c421e6c52c",
+  "upstream_updated": "2024-11-15T06:27:04Z",
+  "synced_at": "2026-07-26T23:21:46+00:00",
+  "discovered_via": "owner:OpenIPC",
+  "score": 7.5
+}

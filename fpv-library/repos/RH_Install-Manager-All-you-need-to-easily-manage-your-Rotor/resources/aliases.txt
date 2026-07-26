@@ -1,0 +1,21 @@
+### RotorHazard Install-Manager aliases
+### Aliases can be used in a terminal window ###
+#       ALIAS                           WHAT IT DOES
+alias rh="cd ~/RotorHazard/src/server && python3 server.py"    # starts the RH-server
+alias cfg="nano ~/RotorHazard/src/server/config.json"          # opens RH config.json file
+alias rhdir="cd ~/RotorHazard/src/server"                      # goes to RH server file location
+alias py="python3"                                             # "py" can be used instead of "python"
+alias py3="python3"                                            # "py3" can be used instead of "python3"
+alias sts="sudo systemctl stop rotorhazard"                    # stops RotorHazard service
+alias rhimdir="cd ~/RH_Install-Manager"                        # goes to the Manager directory
+alias ota="cd ~/RH_Install-Manager && sh ./rhim.sh"            # opens Manager software
+alias rhim="cd ~/RH_Install-Manager && sh ./rhim.sh"           # opens Manager software
+alias rcfg="sudo raspi-config"                                 # open Raspberry's configs
+alias gitrhman="git clone -b stable https://github.com/RotorHazard/Install-Manager.git"    # clones Manager repo
+alias rhmancfg="nano ~/RH_Install-Manager/updater-config.json" # opens Manager conf. file
+alias als="nano ~/.bashrc"                                     # opens file with aliases
+alias rld="source ~/.bashrc"                                   # reloads aliases file
+
+### Every manual addition or change to aliases should be followed by a "source ~/.bashrc" command
+### Reboot will also cause changes to be implemented.
+### end of RotorHazard Install-Manager aliases

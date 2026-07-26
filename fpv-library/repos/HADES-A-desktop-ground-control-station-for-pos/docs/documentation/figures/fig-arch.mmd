@@ -1,0 +1,33 @@
+graph LR
+  FS["FrameSource
+yields (frame, timestamp, seq)
+drop-to-latest"]
+  DET["Detector
+stateless frame to Detection[]
+YOLO11s, person, Core ML"]
+  TRK["Tracker
+ByteTrack persistent IDs
+bridges 10 to 30 fps"]
+  PRJ["Projector
+per-detection
+ray to ground point"]
+  CNF["Confirmation
+persistence + confidence
++ world-clustering"]
+  FUSE["Fuse+Quantify (Localizer)
+multi-frame average
++ Monte Carlo uncertainty"]
+  UI["UI
+Electron/React: map + video + list
+one selection model"]
+  TEL["TelemetrySource
+pose, time-synced by frame_id"]
+
+  FS --> DET --> TRK --> PRJ --> CNF --> FUSE --> UI
+  TEL -.-> PRJ
+  TEL -.-> FUSE
+
+  classDef stage fill:#141821,stroke:#33456A,stroke-width:1px,color:#E6EDF3;
+  classDef input fill:#1C222E,stroke:#5E9BD6,stroke-width:1px,color:#AAB4C0;
+  class FS,DET,TRK,PRJ,CNF,FUSE,UI stage;
+  class TEL input;

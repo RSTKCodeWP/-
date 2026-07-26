@@ -1,0 +1,4 @@
+track_id,lat,lon,r95_m,actionability_class,confidence,kind
+19,NaN,NaN,200.0,CUE_ONLY,NaN,pipeline_real_scene_synthetic
+37,30.214650285667506,-88.51874721305181,2.0952856170662613,SWEEP,NaN,pipeline_real_scene_synthetic
+42,30.214992712743506,-88.52000617439549,4.442915861416393,PINPOINT,NaN,pipeline_real_scene_synthetic

@@ -1,0 +1,2362 @@
+/**
+ * Electron Preload Script
+ * Exposes safe APIs to the renderer process
+ */
+
+import { contextBridge, ipcRenderer } from 'electron';
+import { IPC_CHANNELS, type ConnectOptions, type ConnectionState, type ConsoleLogEntry, type SavedLayout, type SettingsStoreSchema, type MSPConnectOptions, type MSPConnectionState, type MSPTelemetryData, type SitlConfig, type SitlStatus, type SitlExitData, type VirtualRCState, type ArduPilotSitlConfig, type ArduPilotSitlStatus, type ArduPilotSitlExitData, type ArduPilotFlightGearConfig, type ArduPilotSitlDownloadProgress, type ArduPilotSitlBinaryInfo, type ArduPilotFrameCatalog, type ArduPilotVehicleType, type ArduPilotReleaseTrack, type SwarmSitlConfig, type SwarmSitlStatus, type SwarmInstanceStatus, type SwarmSitlLogLine, type AppUpdateInfo, type SigningStatus, type TelemetrySpeed, type StatusMessage, type TileCacheStats, type TileCacheDownloadProgress, type TileCacheSettings, type TileCacheDownloadRegion, type CompanionConnectOptions, type CompanionConnectionIpcState, type CompanionDiscoveryResult, type TransportInfoIpc, type VehicleInfoIpc, type SetActiveSelectionPayload, type VehicleCommand, type MissionVehicleProgress, type OrchestrationIntentIpc, type OrchestrationStatusIpc, type OrchestratorSource, type OrchestratorStatus, type CameraSourceConfig, type CameraStartResult, type CameraMediaActionResult, type MediaEngineStatus, type GimbalCommand, type CameraCommand, type VideoStreamInfoIpc, type GimbalAttitudeIpc, type GimbalInfoIpc } from '../shared/ipc-channels.js';
+import type { SigningAuditSnapshot } from '../shared/signing-audit-types.js';
+import type { StreamDiagnosis, ElrsModuleInfo, ElrsSetModeResult, ElrsProgressEvent } from '../shared/link-doctor-types.js';
+import type { WfbngStatus } from '../shared/camera-types.js';
+import type { VehicleFlightHistory } from '../shared/fleet-log-types.js';
+import type { DetachedWindowInfo, OpenDetachedRequest } from '../shared/window-types.js';
+import type { ExportArea } from '../shared/kml-export.js';
+import type { AuthoredObstacle } from '../shared/sim-obstacle-types.js';
+import type { TrafficBatch, TrafficConfig, TrafficSource, ViewportBbox } from '../shared/traffic-types.js';
+import type { NtripConfig, NtripStatus, NtripSourcetableResult } from '../shared/ntrip-types.js';
+import type { SystemInfo, NetworkInfo, MetricsData, ProcessInfo, LogEntry, FileEntry, ServiceInfo, ServiceAction, ContainerInfo, ContainerAction, ExtensionInfo } from '@ardudeck/companion-types';
+import type { InstalledModule, ModuleProgress, UpdateAvailable } from '../shared/module-types.js';
+import type { ParamChange, ParamCheckpoint } from '../shared/param-history-types.js';
+import type { AttitudeData, PositionData, GpsData, BatteryData, VfrHudData, WindData, FlightState, RcChannelsData } from '../shared/telemetry-types.js';
+import type { MotorTestStartRequest, MotorTestResponse } from '../shared/motor-test-types.js';
+import type { ParamValuePayload, ParameterProgress } from '../shared/parameter-types.js';
+import type { ParameterMetadataStore } from '../shared/parameter-metadata.js';
+import type { MissionItem, MissionProgress } from '../shared/mission-types.js';
+import type { MissionMirrorSnapshot } from '../shared/mission-group-types.js';
+import type { FenceItem, FenceStatus } from '../shared/fence-types.js';
+import type { RallyItem } from '../shared/rally-types.js';
+import type { DetectedBoard, FirmwareVersion, FlashProgress, FlashResult, FirmwareSource, FirmwareVehicleType, FirmwareManifest, FlashOptions } from '../shared/firmware-types.js';
+import type { CalibrationData, CalibrationProgressEvent, CalibrationCompleteEvent } from '../shared/calibration-types.js';
+import type { MissionSummary, StoredMission, SaveMissionPayload, FlightLog, MissionListFilter, MissionSortOptions } from '../shared/mission-library-types.js';
+import type { DroneBridgeInfo, DroneBridgeStats, DroneBridgeSettings, DroneBridgeClients, DroneBridgeDetected } from '../shared/dronebridge-types.js';
+import type { RainViewerMeta, AirspaceData, AirportData, GeocodeResult } from '../shared/overlay-types.js';
+import type { WindField, WindFetchParams } from '../shared/wind-types.js';
+
+type TelemetryUpdate =
+  | { type: 'attitude'; data: AttitudeData }
+  | { type: 'position'; data: PositionData }
+  | { type: 'gps'; data: GpsData }
+  | { type: 'battery'; data: BatteryData }
+  | { type: 'vfrHud'; data: VfrHudData }
+  | { type: 'flight'; data: FlightState };
+
+/** Batched telemetry update - reduces IPC overhead from 6 messages to 1 */
+interface TelemetryBatch {
+  attitude?: AttitudeData;
+  position?: PositionData;
+  gps?: GpsData;
+  gps2?: GpsData;
+  battery?: BatteryData;
+  vfrHud?: VfrHudData;
+  wind?: WindData;
+  flight?: FlightState;
+  rcChannels?: RcChannelsData;
+  /** Source vehicle key, tagged by the main process for per-vehicle routing. */
+  __vehicleKey?: string;
+}
+import type { SerialPortInfo, ScanResult } from '@ardudeck/comms';
+
+/** A shape committed from the Area Editor: a closed area or an open corridor. */
+interface CommitArea {
+  polygon: Array<{ lat: number; lng: number }>;
+  holes?: Array<Array<{ lat: number; lng: number }>>;
+  name?: string;
+  /** 'corridor' marks an open centerline (linear survey); absent/'area' = closed polygon. */
+  kind?: 'area' | 'corridor';
+  /** Corridor swath width in meters (only meaningful when kind === 'corridor'). */
+  corridorWidth?: number;
+  /** Corridor branch centerlines that fork off the main one (kind === 'corridor'). */
+  corridorBranches?: Array<Array<{ lat: number; lng: number }>>;
+  /**
+   * The Area Editor's survey generation config (camera, overlaps, altitude,
+   * pattern params) minus the polygon. Carried so the mission reproduces the
+   * exact survey the editor's briefing showed, instead of re-deriving it with
+   * the planner's own config. Loosely typed: it is the renderer's SurveyConfig.
+   */
+  config?: Record<string, unknown>;
+  /**
+   * Allowed-flight-area outer ring from the editor's workspace-role object,
+   * attached to every committed area (consumed by remote coverage engines).
+   */
+  workspace?: Array<{ lat: number; lng: number }>;
+}
+
+/**
+ * Exposed API for renderer process
+ */
+const api = {
+  // App environment — matches main process isDev logic
+  isDev: process.env.NODE_ENV === 'development',
+
+  // Port management
+  listPorts: (): Promise<SerialPortInfo[]> =>
+    ipcRenderer.invoke(IPC_CHANNELS.COMMS_LIST_PORTS),
+
+  scanPorts: (): Promise<ScanResult[]> =>
+    ipcRenderer.invoke(IPC_CHANNELS.COMMS_SCAN_PORTS),
+
+  connect: (options: ConnectOptions): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.COMMS_CONNECT, options),
+
+  disconnect: (): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.COMMS_DISCONNECT),
+
+  // Cancel auto-reconnect (during expected reboots)
+  cancelReconnect: (): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.RECONNECT_CANCEL),
+
+  // Multi-vehicle connection registry
+  listTransports: (): Promise<TransportInfoIpc[]> =>
+    ipcRenderer.invoke(IPC_CHANNELS.COMMS_LIST_TRANSPORTS),
+
+  listVehicles: (): Promise<VehicleInfoIpc[]> =>
+    ipcRenderer.invoke(IPC_CHANNELS.COMMS_LIST_VEHICLES),
+
+  setActiveVehicle: (payload: SetActiveSelectionPayload): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.COMMS_SET_ACTIVE, payload),
+
+  addTransport: (options: ConnectOptions): Promise<string> =>
+    ipcRenderer.invoke(IPC_CHANNELS.COMMS_ADD_TRANSPORT, options),
+
+  removeTransport: (transportId: string): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.COMMS_REMOVE_TRANSPORT, transportId),
+
+  addOrchestrationLink: (url: string, token?: string): Promise<string> =>
+    ipcRenderer.invoke(IPC_CHANNELS.COMMS_ADD_ORCHESTRATION_LINK, url, token),
+
+  submitIntent: (transportId: string, intent: OrchestrationIntentIpc): Promise<string | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.COMMS_SUBMIT_INTENT, transportId, intent),
+
+  onOrchestrationStatus: (callback: (status: OrchestrationStatusIpc) => void) => {
+    const handler = (_: unknown, status: OrchestrationStatusIpc) => callback(status);
+    ipcRenderer.on(IPC_CHANNELS.COMMS_ORCHESTRATION_STATUS, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.COMMS_ORCHESTRATION_STATUS, handler);
+  },
+
+  // Local orchestrator engine (the invisible multi-vehicle engine).
+  orchestratorStart: (sources?: OrchestratorSource[]): Promise<OrchestratorStatus> =>
+    ipcRenderer.invoke(IPC_CHANNELS.ORCHESTRATOR_START, sources),
+  orchestratorStop: (): Promise<OrchestratorStatus> =>
+    ipcRenderer.invoke(IPC_CHANNELS.ORCHESTRATOR_STOP),
+  orchestratorGetStatus: (): Promise<OrchestratorStatus> =>
+    ipcRenderer.invoke(IPC_CHANNELS.ORCHESTRATOR_STATUS),
+  orchestratorSetSources: (sources: OrchestratorSource[]): Promise<OrchestratorStatus> =>
+    ipcRenderer.invoke(IPC_CHANNELS.ORCHESTRATOR_SET_SOURCES, sources),
+  onOrchestratorState: (callback: (status: OrchestratorStatus) => void) => {
+    const handler = (_: unknown, status: OrchestratorStatus) => callback(status);
+    ipcRenderer.on(IPC_CHANNELS.ORCHESTRATOR_STATE, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.ORCHESTRATOR_STATE, handler);
+  },
+  onOrchestratorLog: (callback: (line: { level: string; message: string; ts: number }) => void) => {
+    const handler = (_: unknown, line: { level: string; message: string; ts: number }) => callback(line);
+    ipcRenderer.on(IPC_CHANNELS.ORCHESTRATOR_LOG, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.ORCHESTRATOR_LOG, handler);
+  },
+
+  vehicleCommand: (vehicleKey: string, cmd: VehicleCommand): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MAVLINK_VEHICLE_COMMAND, vehicleKey, cmd),
+
+  // ==================== Camera / video ====================
+  cameraStart: (source: CameraSourceConfig, resolvedUrl?: string): Promise<CameraStartResult> =>
+    ipcRenderer.invoke(IPC_CHANNELS.CAMERA_START, source, resolvedUrl),
+  cameraStop: (sourceId: string): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.CAMERA_STOP, sourceId),
+  cameraSnapshot: (sourceId: string): Promise<CameraMediaActionResult> =>
+    ipcRenderer.invoke(IPC_CHANNELS.CAMERA_SNAPSHOT, sourceId),
+  cameraRecordToggle: (sourceId: string): Promise<CameraMediaActionResult> =>
+    ipcRenderer.invoke(IPC_CHANNELS.CAMERA_RECORD_TOGGLE, sourceId),
+  cameraEngineStatus: (): Promise<MediaEngineStatus> =>
+    ipcRenderer.invoke(IPC_CHANNELS.CAMERA_ENGINE_STATUS),
+  cameraEngineInstall: (): Promise<MediaEngineStatus> =>
+    ipcRenderer.invoke(IPC_CHANNELS.CAMERA_ENGINE_INSTALL),
+  onCameraEngineInstallLog: (callback: (line: string) => void) => {
+    const handler = (_: unknown, line: string) => callback(line);
+    ipcRenderer.on(IPC_CHANNELS.CAMERA_ENGINE_INSTALL_LOG, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.CAMERA_ENGINE_INSTALL_LOG, handler);
+  },
+  cameraGimbalCommand: (vehicleKey: string, cmd: GimbalCommand): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.CAMERA_GIMBAL_COMMAND, vehicleKey, cmd),
+  cameraCameraCommand: (vehicleKey: string, cmd: CameraCommand): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.CAMERA_CAMERA_COMMAND, vehicleKey, cmd),
+  onCameraVideoStreamInfo: (callback: (info: VideoStreamInfoIpc) => void) => {
+    const handler = (_: unknown, info: VideoStreamInfoIpc) => callback(info);
+    ipcRenderer.on(IPC_CHANNELS.CAMERA_VIDEO_STREAM_INFO, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.CAMERA_VIDEO_STREAM_INFO, handler);
+  },
+  onCameraGimbalAttitude: (callback: (att: GimbalAttitudeIpc) => void) => {
+    const handler = (_: unknown, att: GimbalAttitudeIpc) => callback(att);
+    ipcRenderer.on(IPC_CHANNELS.CAMERA_GIMBAL_ATTITUDE, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.CAMERA_GIMBAL_ATTITUDE, handler);
+  },
+  onCameraGimbalInfo: (callback: (info: GimbalInfoIpc) => void) => {
+    const handler = (_: unknown, info: GimbalInfoIpc) => callback(info);
+    ipcRenderer.on(IPC_CHANNELS.CAMERA_GIMBAL_INFO, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.CAMERA_GIMBAL_INFO, handler);
+  },
+
+  uploadMissionToVehicle: (vehicleKey: string, items: MissionItem[]): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MISSION_UPLOAD_TO_VEHICLE, vehicleKey, items),
+
+  onMissionVehicleProgress: (callback: (progress: MissionVehicleProgress) => void) => {
+    const handler = (_: unknown, progress: MissionVehicleProgress) => callback(progress);
+    ipcRenderer.on(IPC_CHANNELS.MISSION_VEHICLE_PROGRESS, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.MISSION_VEHICLE_PROGRESS, handler);
+  },
+
+  // Port watching for detecting new devices
+  startPortWatch: (): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.COMMS_START_PORT_WATCH),
+
+  stopPortWatch: (): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.COMMS_STOP_PORT_WATCH),
+
+  onPortChange: (callback: (event: { newPorts: SerialPortInfo[]; removedPorts: string[] }) => void) => {
+    const handler = (_: unknown, event: { newPorts: SerialPortInfo[]; removedPorts: string[] }) => callback(event);
+    ipcRenderer.on(IPC_CHANNELS.COMMS_NEW_PORT, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.COMMS_NEW_PORT, handler);
+  },
+
+  // MAVLink
+  sendMessage: (payload: number[]): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MAVLINK_SEND, payload),
+
+  mavlinkReboot: (): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MAVLINK_REBOOT),
+
+  mavlinkArmDisarm: (arm: boolean, force?: boolean): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MAVLINK_ARM_DISARM, arm, force),
+
+  mavlinkSetMode: (customMode: number): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MAVLINK_SET_MODE, customMode),
+
+  mavlinkTakeoff: (altitude: number, pitchDeg?: number): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MAVLINK_COMMAND_TAKEOFF, altitude, pitchDeg),
+
+  mavlinkVtolTakeoff: (altitude: number): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MAVLINK_COMMAND_VTOL_TAKEOFF, altitude),
+
+  mavlinkGoto: (lat: number, lon: number, alt: number): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MAVLINK_GOTO, lat, lon, alt),
+
+  mavlinkOrbit: (lat: number, lon: number, alt: number, radius: number): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MAVLINK_ORBIT, lat, lon, alt, radius),
+
+  mavlinkLand: (lat: number, lon: number): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MAVLINK_LAND, lat, lon),
+
+  mavlinkUserCommand: (
+    cmdId: number,
+    lat: number,
+    lon: number,
+    alt: number,
+    param1: number,
+    param2: number,
+    param3?: number,
+    param4?: number,
+  ): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MAVLINK_USER_COMMAND, cmdId, lat, lon, alt, param1, param2, param3 ?? 0, param4 ?? 0),
+
+  // Script installer
+  scriptInstallerGetManifest: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.SCRIPT_INSTALLER_GET_MANIFEST),
+  scriptInstallerGetSource: (): Promise<string> =>
+    ipcRenderer.invoke(IPC_CHANNELS.SCRIPT_INSTALLER_GET_SOURCE),
+  scriptInstallerRunPreflight: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.SCRIPT_INSTALLER_RUN_PREFLIGHT),
+  scriptInstallerBegin: (): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.SCRIPT_INSTALLER_BEGIN),
+  scriptInstallerGrantConsent: (): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.SCRIPT_INSTALLER_GRANT_CONSENT),
+  scriptInstallerApplyFix: (fix: unknown): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.SCRIPT_INSTALLER_APPLY_FIX, fix),
+  scriptInstallerCancel: (): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.SCRIPT_INSTALLER_CANCEL),
+  scriptInstallerGetRegistry: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.SCRIPT_INSTALLER_GET_REGISTRY),
+  scriptInstallerGetAllRegistry: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.SCRIPT_INSTALLER_GET_ALL_REGISTRY),
+  scriptInstallerUninstall: (): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.SCRIPT_INSTALLER_UNINSTALL),
+  scriptInstallerSaveToDisk: (): Promise<{ success: boolean; filePath?: string; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.SCRIPT_INSTALLER_SAVE_TO_DISK),
+
+  // ─── MAVLink-FTP file browser ──────────────────────────────────────
+  mavlinkFtpList: (path: string): Promise<{
+    success: boolean;
+    entries?: Array<{ kind: 'dir' | 'file'; name: string; size?: number }>;
+    error?: string;
+  }> => ipcRenderer.invoke(IPC_CHANNELS.MAVLINK_FTP_LIST, path),
+  mavlinkFtpDownload: (fcPath: string): Promise<{
+    success: boolean;
+    savedTo?: string;
+    bytes?: number;
+    error?: string;
+  }> => ipcRenderer.invoke(IPC_CHANNELS.MAVLINK_FTP_DOWNLOAD, fcPath),
+  mavlinkFtpUpload: (targetDir: string): Promise<{
+    success: boolean;
+    /** FC-side path the file was written to (when success). */
+    fcPath?: string;
+    /** Local source path (when success). */
+    sourcePath?: string;
+    bytes?: number;
+    error?: string;
+    /** True when the user dismissed the file picker - caller should treat as a no-op. */
+    cancelled?: boolean;
+  }> => ipcRenderer.invoke(IPC_CHANNELS.MAVLINK_FTP_UPLOAD, targetDir),
+  mavlinkFtpDelete: (fcPath: string, kind: 'file' | 'dir'): Promise<{
+    success: boolean;
+    error?: string;
+  }> => ipcRenderer.invoke(IPC_CHANNELS.MAVLINK_FTP_DELETE, fcPath, kind),
+  mavlinkFtpRename: (oldPath: string, newPath: string): Promise<{
+    success: boolean;
+    error?: string;
+  }> => ipcRenderer.invoke(IPC_CHANNELS.MAVLINK_FTP_RENAME, oldPath, newPath),
+  /** Subscribe to install state push events. Returns an unsubscribe function. */
+  onScriptInstallerState: (callback: (phase: unknown) => void): (() => void) => {
+    const handler = (_: unknown, phase: unknown) => callback(phase);
+    ipcRenderer.on(IPC_CHANNELS.SCRIPT_INSTALLER_STATE, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.SCRIPT_INSTALLER_STATE, handler);
+  },
+  onScriptHealthChanged: (callback: (health: unknown) => void): (() => void) => {
+    const handler = (_: unknown, health: unknown) => callback(health);
+    ipcRenderer.on(IPC_CHANNELS.SCRIPT_HEALTH_CHANGED, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.SCRIPT_HEALTH_CHANGED, handler);
+  },
+
+  // Motor Test
+  motorTestStart: (request: MotorTestStartRequest): Promise<MotorTestResponse> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MOTOR_TEST_START, request),
+  motorTestStop: (motorCount: number): Promise<MotorTestResponse> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MOTOR_TEST_STOP, motorCount),
+
+  // Servo Test — pulse a single channel to a specific PWM via MAV_CMD_DO_SET_SERVO
+  servoTestPulse: (channel: number, pwm: number): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.SERVO_TEST_PULSE, { channel, pwm }),
+  servoTestRelease: (channel: number): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.SERVO_TEST_RELEASE, { channel }),
+
+  // RC override stick test — drives RC1..RC4 (Roll/Pitch/Throttle/Yaw) so
+  // the ArduPlane mixer translates them to whatever outputs they're mapped to.
+  rcOverrideSet: (roll: number, pitch: number, throttle: number, yaw: number, modeChannel?: number, modePwm?: number): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.RC_OVERRIDE_SET, { roll, pitch, throttle, yaw, modeChannel, modePwm }),
+  rcOverrideRelease: (): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.RC_OVERRIDE_RELEASE),
+
+  // MAVLink Signing
+  signingSetKey: (passphrase: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MAVLINK_SIGNING_SET_KEY, passphrase),
+
+  signingEnable: (): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MAVLINK_SIGNING_ENABLE),
+
+  signingDisable: (): Promise<{ success: boolean }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MAVLINK_SIGNING_DISABLE),
+
+  signingGetStatus: (): Promise<SigningStatus> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MAVLINK_SIGNING_GET_STATUS),
+
+  signingSendToFc: (): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MAVLINK_SIGNING_SEND_TO_FC),
+
+  signingRemoveKey: (): Promise<{ success: boolean }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MAVLINK_SIGNING_REMOVE_KEY),
+
+  signingAuditGet: (): Promise<SigningAuditSnapshot> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MAVLINK_SIGNING_AUDIT_GET),
+
+  signingExportEvidence: (): Promise<{ success: boolean; error?: string; path?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MAVLINK_SIGNING_EVIDENCE_EXPORT),
+
+  onSigningStatus: (callback: (status: SigningStatus) => void) => {
+    const handler = (_: unknown, status: SigningStatus) => callback(status);
+    ipcRenderer.on(IPC_CHANNELS.MAVLINK_SIGNING_STATUS, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.MAVLINK_SIGNING_STATUS, handler);
+  },
+
+  // Raw MAVLink frame stream — feeds the MAVLink Inspector and FieldGraph
+  // pop-outs. Every successfully-parsed packet from the FC is emitted here.
+  onPacket: (
+    callback: (packet: {
+      msgid: number;
+      sysid: number;
+      compid: number;
+      seq: number;
+      payload: number[];
+      rxtime: number;
+      isMavlink2: boolean;
+      isSigned: boolean;
+    }) => void,
+  ) => {
+    const handler = (_: unknown, packet: {
+      msgid: number;
+      sysid: number;
+      compid: number;
+      seq: number;
+      payload: number[];
+      rxtime: number;
+      isMavlink2: boolean;
+      isSigned: boolean;
+    }) => callback(packet);
+    ipcRenderer.on(IPC_CHANNELS.MAVLINK_PACKET, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.MAVLINK_PACKET, handler);
+  },
+
+  onConnectionState: (callback: (state: ConnectionState) => void) => {
+    const handler = (_: unknown, state: ConnectionState) => callback(state);
+    ipcRenderer.on(IPC_CHANNELS.CONNECTION_STATE, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.CONNECTION_STATE, handler);
+  },
+
+  getConnectionState: (): Promise<ConnectionState> =>
+    ipcRenderer.invoke(IPC_CHANNELS.CONNECTION_GET_STATE),
+
+  onVehicleDiscovered: (callback: (vehicle: VehicleInfoIpc) => void) => {
+    const handler = (_: unknown, vehicle: VehicleInfoIpc) => callback(vehicle);
+    ipcRenderer.on(IPC_CHANNELS.COMMS_VEHICLE_DISCOVERED, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.COMMS_VEHICLE_DISCOVERED, handler);
+  },
+
+  onVehicleLost: (callback: (vehicleKey: string) => void) => {
+    const handler = (_: unknown, vehicleKey: string) => callback(vehicleKey);
+    ipcRenderer.on(IPC_CHANNELS.COMMS_VEHICLE_LOST, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.COMMS_VEHICLE_LOST, handler);
+  },
+
+  onActiveVehicleChanged: (callback: (payload: SetActiveSelectionPayload) => void) => {
+    const handler = (_: unknown, payload: SetActiveSelectionPayload) => callback(payload);
+    ipcRenderer.on(IPC_CHANNELS.COMMS_ACTIVE_CHANGED, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.COMMS_ACTIVE_CHANGED, handler);
+  },
+
+  onScanProgress: (callback: (progress: { port: string; baudRate: number; status: string }) => void) => {
+    const handler = (_: unknown, progress: { port: string; baudRate: number; status: string }) => callback(progress);
+    ipcRenderer.on('scan:progress', handler);
+    return () => ipcRenderer.removeListener('scan:progress', handler);
+  },
+
+  onConnectionError: (callback: (error: string) => void) => {
+    const handler = (_: unknown, error: string) => callback(error);
+    ipcRenderer.on('connection:error', handler);
+    return () => ipcRenderer.removeListener('connection:error', handler);
+  },
+
+  // Link Doctor / ELRS module setup
+  onConnectionDiagnosis: (callback: (diagnosis: StreamDiagnosis) => void) => {
+    const handler = (_: unknown, diagnosis: StreamDiagnosis) => callback(diagnosis);
+    ipcRenderer.on(IPC_CHANNELS.CONNECTION_DIAGNOSIS, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.CONNECTION_DIAGNOSIS, handler);
+  },
+
+  linkDoctorProbe: (port: string, baudRate: number): Promise<StreamDiagnosis> =>
+    ipcRenderer.invoke(IPC_CHANNELS.LINKDOCTOR_PROBE, port, baudRate),
+
+  linkDoctorProbeUdp: (port: number): Promise<{ diagnosis: StreamDiagnosis; sender: string | null }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.LINKDOCTOR_PROBE_UDP, port),
+
+  elrsDetect: (port: string): Promise<ElrsModuleInfo | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.ELRS_DETECT, port),
+
+  elrsSetLinkMode: (port: string, targetMode: string): Promise<ElrsSetModeResult> =>
+    ipcRenderer.invoke(IPC_CHANNELS.ELRS_SET_LINK_MODE, port, targetMode),
+
+  elrsCancel: (): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.ELRS_CANCEL),
+
+  onElrsProgress: (callback: (progress: ElrsProgressEvent) => void) => {
+    const handler = (_: unknown, progress: ElrsProgressEvent) => callback(progress);
+    ipcRenderer.on(IPC_CHANNELS.ELRS_PROGRESS, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.ELRS_PROGRESS, handler);
+  },
+
+  wfbngStatus: (): Promise<WfbngStatus> =>
+    ipcRenderer.invoke(IPC_CHANNELS.WFBNG_STATUS),
+
+  wfbngImportKey: (): Promise<{ imported: boolean }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.WFBNG_IMPORT_KEY),
+
+  wfbngSetOptions: (opts: { channel?: number; bandwidth?: 20 | 40 }): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.WFBNG_SET_OPTIONS, opts),
+
+  wfbngInstall: (): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.WFBNG_INSTALL),
+
+  wfbngLocalIps: (): Promise<string[]> =>
+    ipcRenderer.invoke(IPC_CHANNELS.WFBNG_LOCAL_IPS),
+
+  onConsoleLog: (callback: (entry: ConsoleLogEntry) => void) => {
+    const handler = (_: unknown, entry: ConsoleLogEntry) => callback(entry);
+    ipcRenderer.on(IPC_CHANNELS.CONSOLE_LOG, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.CONSOLE_LOG, handler);
+  },
+
+  onTelemetryUpdate: (callback: (update: TelemetryUpdate) => void) => {
+    const handler = (_: unknown, update: TelemetryUpdate) => callback(update);
+    ipcRenderer.on(IPC_CHANNELS.TELEMETRY_UPDATE, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.TELEMETRY_UPDATE, handler);
+  },
+
+  // Batched telemetry update - single IPC message instead of 6 for better performance
+  onTelemetryBatch: (callback: (batch: TelemetryBatch) => void) => {
+    const handler = (_: unknown, batch: TelemetryBatch) => callback(batch);
+    ipcRenderer.on(IPC_CHANNELS.TELEMETRY_BATCH, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.TELEMETRY_BATCH, handler);
+  },
+
+  // MAVLink STATUSTEXT messages
+  onStatusText: (callback: (msg: { severity: number; severityLabel: string; text: string }) => void) => {
+    const handler = (_: unknown, msg: { severity: number; severityLabel: string; text: string }) => callback(msg);
+    ipcRenderer.on(IPC_CHANNELS.MAVLINK_STATUSTEXT, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.MAVLINK_STATUSTEXT, handler);
+  },
+
+  // Telemetry stream rate control (MAVLink only)
+  setTelemetryStreamRate: (speed: TelemetrySpeed): Promise<{ success: boolean }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.TELEMETRY_SET_STREAM_RATE, speed),
+
+  // Layout management
+  getAllLayouts: (): Promise<Record<string, SavedLayout>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.LAYOUT_GET_ALL),
+
+  getLayout: (name: string): Promise<SavedLayout | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.LAYOUT_GET, name),
+
+  saveLayout: (name: string, data: unknown): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.LAYOUT_SAVE, name, data),
+
+  deleteLayout: (name: string): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.LAYOUT_DELETE, name),
+
+  setActiveLayout: (name: string): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.LAYOUT_SET_ACTIVE, name),
+
+  getActiveLayout: (): Promise<string> =>
+    ipcRenderer.invoke(IPC_CHANNELS.LAYOUT_GET_ACTIVE),
+
+  // Parameter management
+  requestAllParameters: (): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.PARAM_REQUEST_ALL),
+
+  setParameter: (paramId: string, value: number, type: number): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.PARAM_SET, paramId, value, type),
+
+  setParameterBatch: (params: Array<{ paramId: string; value: number; type: number }>): Promise<{
+    success: boolean;
+    sent: number;
+    confirmed: number;
+    failed: string[];
+    error?: string;
+  }> => ipcRenderer.invoke(IPC_CHANNELS.PARAM_SET_BATCH, params),
+
+  // Read a batch of params by name (forces fresh values from FC, bypasses cache)
+  readParameterBatch: (paramIds: string[]): Promise<{
+    success: boolean;
+    values: Record<string, number>;
+    types: Record<string, number>;
+    missing: string[];
+    error?: string;
+  }> => ipcRenderer.invoke(IPC_CHANNELS.PARAM_READ_BATCH, paramIds),
+
+  onParamValue: (callback: (param: ParamValuePayload) => void) => {
+    const handler = (_: unknown, param: ParamValuePayload) => callback(param);
+    ipcRenderer.on(IPC_CHANNELS.PARAM_VALUE, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.PARAM_VALUE, handler);
+  },
+
+  onParamBulkLoad: (callback: (params: ParamValuePayload[]) => void) => {
+    const handler = (_: unknown, params: ParamValuePayload[]) => callback(params);
+    ipcRenderer.on(IPC_CHANNELS.PARAM_BULK_LOAD, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.PARAM_BULK_LOAD, handler);
+  },
+
+  onParamProgress: (callback: (progress: ParameterProgress) => void) => {
+    const handler = (_: unknown, progress: ParameterProgress) => callback(progress);
+    ipcRenderer.on(IPC_CHANNELS.PARAM_PROGRESS, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.PARAM_PROGRESS, handler);
+  },
+
+  onParamSetBatchProgress: (callback: (progress: { sent: number; confirmed: number; total: number }) => void) => {
+    const handler = (_: unknown, progress: { sent: number; confirmed: number; total: number }) => callback(progress);
+    ipcRenderer.on(IPC_CHANNELS.PARAM_SET_BATCH_PROGRESS, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.PARAM_SET_BATCH_PROGRESS, handler);
+  },
+
+  onParamComplete: (callback: () => void) => {
+    const handler = () => callback();
+    ipcRenderer.on(IPC_CHANNELS.PARAM_COMPLETE, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.PARAM_COMPLETE, handler);
+  },
+
+  onParamError: (callback: (error: string) => void) => {
+    const handler = (_: unknown, error: string) => callback(error);
+    ipcRenderer.on(IPC_CHANNELS.PARAM_ERROR, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.PARAM_ERROR, handler);
+  },
+
+  // Parameter metadata
+  fetchParameterMetadata: (mavType: number): Promise<{ success: boolean; metadata?: ParameterMetadataStore; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.PARAM_METADATA_FETCH, mavType),
+
+  // Parameter file operations
+  writeParamsToFlash: (): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.PARAM_WRITE_FLASH),
+
+  saveParamsToFile: (params: Array<{ id: string; value: number }>, vehicleType?: string): Promise<{ success: boolean; error?: string; filePath?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.PARAM_SAVE_FILE, params, vehicleType),
+
+  loadParamsFromFile: (): Promise<{ success: boolean; error?: string; params?: Array<{ id: string; value: number }>; vehicleType?: string; filePath?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.PARAM_LOAD_FILE),
+
+  saveParamsToPath: (params: Array<{ id: string; value: number }>, filePath: string, vehicleType?: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.PARAM_SAVE_TO_PATH, params, filePath, vehicleType),
+
+  // Parameter history (version control)
+  saveParamCheckpoint: (boardUid: string, boardName: string, changes: ParamChange[], vehicleType?: string): Promise<{ success: boolean; checkpointId?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.PARAM_HISTORY_SAVE, boardUid, boardName, changes, vehicleType),
+
+  getParamHistory: (boardUid: string): Promise<ParamCheckpoint[]> =>
+    ipcRenderer.invoke(IPC_CHANNELS.PARAM_HISTORY_LIST, boardUid),
+
+  restoreParamCheckpoint: (boardUid: string, checkpointId: string): Promise<{ success: boolean; changes?: ParamChange[] }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.PARAM_HISTORY_RESTORE, boardUid, checkpointId),
+
+  deleteParamCheckpoint: (boardUid: string, checkpointId: string): Promise<{ success: boolean }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.PARAM_HISTORY_DELETE, boardUid, checkpointId),
+
+  // Mission planning
+  downloadMission: (): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MISSION_DOWNLOAD),
+
+  uploadMission: (items: MissionItem[]): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MISSION_UPLOAD, items),
+
+  clearMission: (): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MISSION_CLEAR),
+
+  setCurrentWaypoint: (seq: number): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MISSION_SET_CURRENT, seq),
+
+  saveMissionToFile: (items: MissionItem[], format?: 'waypoints' | 'plan' | 'kmz'): Promise<{ success: boolean; filePath?: string; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MISSION_SAVE_FILE, items, format),
+
+  loadMissionFromFile: (): Promise<{ success: boolean; items?: MissionItem[]; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MISSION_LOAD_FILE),
+
+  importSurveyArea: (): Promise<{ success: boolean; error?: string; format?: 'kml' | 'geojson'; content?: string; fileName?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MISSION_IMPORT_AREA),
+
+  // Mission event listeners
+  onMissionItem: (callback: (item: MissionItem) => void) => {
+    const handler = (_: unknown, item: MissionItem) => callback(item);
+    ipcRenderer.on(IPC_CHANNELS.MISSION_ITEM, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.MISSION_ITEM, handler);
+  },
+
+  onMissionProgress: (callback: (progress: MissionProgress) => void) => {
+    const handler = (_: unknown, progress: MissionProgress) => callback(progress);
+    ipcRenderer.on(IPC_CHANNELS.MISSION_PROGRESS, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.MISSION_PROGRESS, handler);
+  },
+
+  onMissionComplete: (callback: (items: MissionItem[]) => void) => {
+    const handler = (_: unknown, items: MissionItem[]) => callback(items);
+    ipcRenderer.on(IPC_CHANNELS.MISSION_COMPLETE, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.MISSION_COMPLETE, handler);
+  },
+
+  onMissionError: (callback: (error: string) => void) => {
+    const handler = (_: unknown, error: string) => callback(error);
+    ipcRenderer.on(IPC_CHANNELS.MISSION_ERROR, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.MISSION_ERROR, handler);
+  },
+
+  onMissionCurrent: (callback: (seq: number) => void) => {
+    const handler = (_: unknown, seq: number) => callback(seq);
+    ipcRenderer.on(IPC_CHANNELS.MISSION_CURRENT, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.MISSION_CURRENT, handler);
+  },
+
+  /**
+   * Mission mirror (primary window → detached pop-outs). The primary window
+   * publishes its authored mission snapshot; a detached window requests the
+   * cached one on mount and subscribes for live pushes. See IPC_CHANNELS.
+   * MISSION_MIRROR.
+   */
+  publishMissionMirror: (snapshot: MissionMirrorSnapshot): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MISSION_MIRROR, snapshot),
+  requestMissionMirror: (): Promise<MissionMirrorSnapshot | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MISSION_MIRROR_REQUEST),
+  onMissionMirror: (callback: (snapshot: MissionMirrorSnapshot) => void) => {
+    const handler = (_: unknown, snapshot: MissionMirrorSnapshot) => callback(snapshot);
+    ipcRenderer.on(IPC_CHANNELS.MISSION_MIRROR, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.MISSION_MIRROR, handler);
+  },
+
+  onMissionReached: (callback: (seq: number) => void) => {
+    const handler = (_: unknown, seq: number) => callback(seq);
+    ipcRenderer.on(IPC_CHANNELS.MISSION_REACHED, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.MISSION_REACHED, handler);
+  },
+
+  onMissionUploadComplete: (callback: (itemCount: number) => void) => {
+    const handler = (_: unknown, itemCount: number) => callback(itemCount);
+    ipcRenderer.on(IPC_CHANNELS.MISSION_UPLOAD_COMPLETE, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.MISSION_UPLOAD_COMPLETE, handler);
+  },
+
+  onMissionClearComplete: (callback: () => void) => {
+    const handler = () => callback();
+    ipcRenderer.on(IPC_CHANNELS.MISSION_CLEAR_COMPLETE, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.MISSION_CLEAR_COMPLETE, handler);
+  },
+
+  // ============================================================================
+  // Geofencing (mission_type = FENCE)
+  // ============================================================================
+
+  downloadFence: (): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.FENCE_DOWNLOAD),
+
+  uploadFence: (items: FenceItem[]): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.FENCE_UPLOAD, items),
+
+  clearFence: (): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.FENCE_CLEAR),
+
+  saveFenceToFile: (items: FenceItem[]): Promise<{ success: boolean; filePath?: string; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.FENCE_SAVE_FILE, items),
+
+  loadFenceFromFile: (): Promise<{ success: boolean; items?: FenceItem[]; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.FENCE_LOAD_FILE),
+
+  // Fence event listeners
+  onFenceItem: (callback: (item: FenceItem) => void) => {
+    const handler = (_: unknown, item: FenceItem) => callback(item);
+    ipcRenderer.on(IPC_CHANNELS.FENCE_ITEM, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.FENCE_ITEM, handler);
+  },
+
+  onFenceProgress: (callback: (progress: MissionProgress) => void) => {
+    const handler = (_: unknown, progress: MissionProgress) => callback(progress);
+    ipcRenderer.on(IPC_CHANNELS.FENCE_PROGRESS, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.FENCE_PROGRESS, handler);
+  },
+
+  onFenceComplete: (callback: (items: FenceItem[]) => void) => {
+    const handler = (_: unknown, items: FenceItem[]) => callback(items);
+    ipcRenderer.on(IPC_CHANNELS.FENCE_COMPLETE, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.FENCE_COMPLETE, handler);
+  },
+
+  onFenceError: (callback: (error: string) => void) => {
+    const handler = (_: unknown, error: string) => callback(error);
+    ipcRenderer.on(IPC_CHANNELS.FENCE_ERROR, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.FENCE_ERROR, handler);
+  },
+
+  onFenceUploadComplete: (callback: (itemCount: number) => void) => {
+    const handler = (_: unknown, itemCount: number) => callback(itemCount);
+    ipcRenderer.on(IPC_CHANNELS.FENCE_UPLOAD_COMPLETE, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.FENCE_UPLOAD_COMPLETE, handler);
+  },
+
+  onFenceClearComplete: (callback: () => void) => {
+    const handler = () => callback();
+    ipcRenderer.on(IPC_CHANNELS.FENCE_CLEAR_COMPLETE, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.FENCE_CLEAR_COMPLETE, handler);
+  },
+
+  onFenceStatus: (callback: (status: FenceStatus) => void) => {
+    const handler = (_: unknown, status: FenceStatus) => callback(status);
+    ipcRenderer.on(IPC_CHANNELS.FENCE_STATUS, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.FENCE_STATUS, handler);
+  },
+
+  // ============================================================================
+  // Rally Points (mission_type = RALLY)
+  // ============================================================================
+
+  downloadRally: (): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.RALLY_DOWNLOAD),
+
+  uploadRally: (items: RallyItem[]): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.RALLY_UPLOAD, items),
+
+  clearRally: (): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.RALLY_CLEAR),
+
+  saveRallyToFile: (items: RallyItem[]): Promise<{ success: boolean; filePath?: string; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.RALLY_SAVE_FILE, items),
+
+  loadRallyFromFile: (): Promise<{ success: boolean; items?: RallyItem[]; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.RALLY_LOAD_FILE),
+
+  // Rally event listeners
+  onRallyItem: (callback: (item: RallyItem) => void) => {
+    const handler = (_: unknown, item: RallyItem) => callback(item);
+    ipcRenderer.on(IPC_CHANNELS.RALLY_ITEM, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.RALLY_ITEM, handler);
+  },
+
+  onRallyProgress: (callback: (progress: MissionProgress) => void) => {
+    const handler = (_: unknown, progress: MissionProgress) => callback(progress);
+    ipcRenderer.on(IPC_CHANNELS.RALLY_PROGRESS, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.RALLY_PROGRESS, handler);
+  },
+
+  onRallyComplete: (callback: (items: RallyItem[]) => void) => {
+    const handler = (_: unknown, items: RallyItem[]) => callback(items);
+    ipcRenderer.on(IPC_CHANNELS.RALLY_COMPLETE, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.RALLY_COMPLETE, handler);
+  },
+
+  onRallyError: (callback: (error: string) => void) => {
+    const handler = (_: unknown, error: string) => callback(error);
+    ipcRenderer.on(IPC_CHANNELS.RALLY_ERROR, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.RALLY_ERROR, handler);
+  },
+
+  onRallyUploadComplete: (callback: (itemCount: number) => void) => {
+    const handler = (_: unknown, itemCount: number) => callback(itemCount);
+    ipcRenderer.on(IPC_CHANNELS.RALLY_UPLOAD_COMPLETE, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.RALLY_UPLOAD_COMPLETE, handler);
+  },
+
+  onRallyClearComplete: (callback: () => void) => {
+    const handler = () => callback();
+    ipcRenderer.on(IPC_CHANNELS.RALLY_CLEAR_COMPLETE, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.RALLY_CLEAR_COMPLETE, handler);
+  },
+
+  // Settings/Vehicle profiles
+  getSettings: (): Promise<SettingsStoreSchema> =>
+    ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_GET),
+
+  saveSettings: (settings: SettingsStoreSchema): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_SAVE, settings),
+
+  getSimObstacles: (siteId: string): Promise<AuthoredObstacle[]> =>
+    ipcRenderer.invoke(IPC_CHANNELS.SIM_OBSTACLES_GET, siteId),
+
+  saveSimObstacles: (siteId: string, obstacles: AuthoredObstacle[]): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.SIM_OBSTACLES_SAVE, siteId, obstacles),
+
+  // ============================================================================
+  // Log Download & Diagnostics
+  // ============================================================================
+
+  logListRequest: (): Promise<unknown[]> =>
+    ipcRenderer.invoke(IPC_CHANNELS.LOG_LIST_REQUEST),
+
+  logDownload: (logId: number, logSize: number): Promise<string | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.LOG_DOWNLOAD, logId, logSize),
+
+  logDownloadCancel: (): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.LOG_DOWNLOAD_CANCEL),
+
+  logOpenDialog: (): Promise<{ path: string } | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.LOG_OPEN_DIALOG),
+
+  /** Read + parse a .bin in main process. Streams progress on the
+   *  LOG_PARSE_PROGRESS channel; subscribe via onLogParseProgress to drive
+   *  the UI bar. */
+  logParseFile: (filePath: string): Promise<unknown> =>
+    ipcRenderer.invoke(IPC_CHANNELS.LOG_PARSE_FILE, filePath),
+
+  logAiAnalyze: (args: {
+    provider: 'claude' | 'openai' | 'gemini';
+    messages: { role: 'user' | 'assistant'; content: string }[];
+    systemContext: string;
+  }): Promise<{ success: boolean; response?: string; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.LOG_AI_ANALYZE, args),
+
+  /** Proxy a single Claude Messages call (with tools) for the renderer-driven
+   *  tool-use loop. `messages` carries Claude-native content blocks (text +
+   *  tool_use + tool_result); the renderer executes tools against the log. */
+  logAiClaudeTool: (args: {
+    system: string;
+    messages: unknown[];
+    tools: unknown[];
+  }): Promise<{ success: boolean; content?: unknown[]; stop_reason?: string; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.LOG_AI_CLAUDE_TOOL, args),
+
+  logChatSave: (args: {
+    logPath: string;
+    messages: { role: string; content: string }[];
+    insightCards: unknown[];
+  }): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.LOG_CHAT_SAVE, args),
+
+  logChatLoad: (logPath: string): Promise<{ messages: { role: string; content: string }[]; insightCards: unknown[] } | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.LOG_CHAT_LOAD, logPath),
+
+  logRecentGet: (): Promise<{ path: string; name: string; size: number; openedAt: number }[]> =>
+    ipcRenderer.invoke(IPC_CHANNELS.LOG_RECENT_GET),
+
+  logRecentAdd: (entry: { path: string; name: string; size: number }): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.LOG_RECENT_ADD, entry),
+
+  logRecentRemove: (filePath: string): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.LOG_RECENT_REMOVE, filePath),
+
+  logRecentClear: (): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.LOG_RECENT_CLEAR),
+
+  fleetLogHistoryGet: (): Promise<VehicleFlightHistory[]> =>
+    ipcRenderer.invoke(IPC_CHANNELS.FLEET_LOG_HISTORY_GET),
+  fleetLogHistoryClear: (): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.FLEET_LOG_HISTORY_CLEAR),
+  fleetLogListRequest: (virtualSysid: number): Promise<{ ok: boolean; id?: string; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.FLEET_LOG_LIST_REQUEST, virtualSysid),
+  fleetLogFetch: (virtualSysid: number, logId: number): Promise<{ ok: boolean; id?: string; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.FLEET_LOG_FETCH, virtualSysid, logId),
+  fleetLogFetchCancel: (virtualSysid: number): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.FLEET_LOG_FETCH_CANCEL, virtualSysid),
+  onFleetLogJobEvent: (callback: (msg: Record<string, unknown>) => void): (() => void) => {
+    const handler = (_: unknown, msg: Record<string, unknown>) => callback(msg);
+    ipcRenderer.on(IPC_CHANNELS.FLEET_LOG_JOB_EVENT, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.FLEET_LOG_JOB_EVENT, handler);
+  },
+
+  onLogDownloadProgress: (callback: (progress: { logId: number; received: number; total: number }) => void) => {
+    const handler = (_: unknown, progress: { logId: number; received: number; total: number }) => callback(progress);
+    ipcRenderer.on(IPC_CHANNELS.LOG_DOWNLOAD_PROGRESS, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.LOG_DOWNLOAD_PROGRESS, handler);
+  },
+
+  onLogDownloadComplete: (callback: (result: { logId: number; path: string; size: number }) => void) => {
+    const handler = (_: unknown, result: { logId: number; path: string; size: number }) => callback(result);
+    ipcRenderer.on(IPC_CHANNELS.LOG_DOWNLOAD_COMPLETE, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.LOG_DOWNLOAD_COMPLETE, handler);
+  },
+
+  onLogDownloadError: (callback: (error: { logId: number; error: string }) => void) => {
+    const handler = (_: unknown, error: { logId: number; error: string }) => callback(error);
+    ipcRenderer.on(IPC_CHANNELS.LOG_DOWNLOAD_ERROR, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.LOG_DOWNLOAD_ERROR, handler);
+  },
+
+  onLogParseProgress: (callback: (progress: { bytesConsumed: number; totalBytes: number }) => void) => {
+    const handler = (_: unknown, progress: { bytesConsumed: number; totalBytes: number }) => callback(progress);
+    ipcRenderer.on(IPC_CHANNELS.LOG_PARSE_PROGRESS, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.LOG_PARSE_PROGRESS, handler);
+  },
+
+  // ============================================================================
+  // Firmware Flash
+  // ============================================================================
+
+  detectBoard: (): Promise<{ success: boolean; boards?: DetectedBoard[]; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.FIRMWARE_DETECT_BOARD),
+
+  fetchFirmwareManifest: (
+    source: FirmwareSource,
+    vehicleType: FirmwareVehicleType,
+    boardId: string
+  ): Promise<{ success: boolean; manifest?: FirmwareManifest; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.FIRMWARE_FETCH_MANIFEST, source, vehicleType, boardId),
+
+  fetchFirmwareBoards: (
+    source: FirmwareSource,
+    vehicleType: FirmwareVehicleType
+  ): Promise<{ success: boolean; boards?: Array<{ id: string; name: string; category: string }>; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.FIRMWARE_FETCH_BOARDS, source, vehicleType),
+
+  fetchFirmwareVersions: (
+    source: FirmwareSource,
+    vehicleType: FirmwareVehicleType,
+    boardId: string
+  ): Promise<{ success: boolean; groups?: Array<{ major: string; label: string; versions: FirmwareVersion[]; isLatest: boolean }>; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.FIRMWARE_FETCH_VERSIONS, source, vehicleType, boardId),
+
+  downloadFirmware: (version: FirmwareVersion): Promise<{ success: boolean; filePath?: string; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.FIRMWARE_DOWNLOAD, version),
+
+  flashFirmware: (firmwarePath: string, board: DetectedBoard, options?: FlashOptions): Promise<{ success: boolean; result?: FlashResult; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.FIRMWARE_FLASH, firmwarePath, board, options),
+
+  abortFlash: (): Promise<{ success: boolean }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.FIRMWARE_ABORT),
+
+  selectFirmwareFile: (): Promise<{ success: boolean; filePath?: string; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.FIRMWARE_SELECT_FILE),
+
+  enterBootloader: (): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.FIRMWARE_ENTER_BOOTLOADER),
+
+  listSerialPorts: (): Promise<{
+    success: boolean;
+    ports?: Array<{ path: string; manufacturer?: string; vendorId?: string; productId?: string; friendlyName?: string }>;
+    error?: string;
+  }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.FIRMWARE_LIST_PORTS),
+
+  probeSTM32: (port: string): Promise<{
+    success: boolean;
+    chipId?: number;
+    mcu?: string;
+    family?: string;
+    error?: string;
+  }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.FIRMWARE_PROBE_STM32, port),
+
+  queryMavlinkBoard: (port: string, baudRate?: number): Promise<{
+    success: boolean;
+    boardName?: string;
+    boardId?: number;
+    vehicleType?: string;
+    firmwareVersion?: string;
+    error?: string;
+  }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.FIRMWARE_QUERY_MAVLINK, port, baudRate),
+
+  queryMspBoard: (port: string, baudRate?: number): Promise<{
+    success: boolean;
+    firmware?: string;
+    firmwareVersion?: string;
+    boardId?: string;
+    boardName?: string;
+    error?: string;
+  }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.FIRMWARE_QUERY_MSP, port, baudRate),
+
+  autoDetectBoard: (port: string): Promise<{
+    success: boolean;
+    protocol?: 'mavlink' | 'msp' | 'dfu' | 'usb';
+    boardName?: string;
+    boardId?: string;
+    targetName?: string;
+    fcVariant?: string;
+    firmware?: string;
+    firmwareVersion?: string;
+    mcuType?: string;
+    error?: string;
+  }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.FIRMWARE_AUTO_DETECT, port),
+
+  // ESP32 flashing
+  esp32CheckEsptool: (): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.ESP32_CHECK_ESPTOOL),
+  esp32DownloadEsptool: (): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.ESP32_DOWNLOAD_ESPTOOL),
+  esp32Detect: (port: string): Promise<{ chip: string; mac: string } | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.ESP32_DETECT, port),
+  esp32Flash: (options: { port: string; chip: string; firmwarePath: string; flashOffset?: string; baudRate?: number; eraseAll?: boolean }): Promise<FlashResult> =>
+    ipcRenderer.invoke(IPC_CHANNELS.ESP32_FLASH, options),
+  esp32FlashTemplate: (options: { templateId: string; port: string; detectedChip?: string; eraseAll?: boolean }): Promise<FlashResult> =>
+    ipcRenderer.invoke(IPC_CHANNELS.ESP32_FLASH_TEMPLATE, options),
+
+  // DroneBridge ESP32
+  dronebridgeDetect: (ip?: string): Promise<DroneBridgeDetected | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.DRONEBRIDGE_DETECT, ip),
+  dronebridgeGetInfo: (ip: string): Promise<DroneBridgeInfo | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.DRONEBRIDGE_GET_INFO, ip),
+  dronebridgeGetStats: (ip: string): Promise<DroneBridgeStats | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.DRONEBRIDGE_GET_STATS, ip),
+  dronebridgeGetSettings: (ip: string): Promise<DroneBridgeSettings | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.DRONEBRIDGE_GET_SETTINGS, ip),
+  dronebridgeUpdateSettings: (ip: string, settings: Partial<DroneBridgeSettings>): Promise<{ status: string; msg: string } | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.DRONEBRIDGE_UPDATE_SETTINGS, ip, settings),
+  dronebridgeGetClients: (ip: string): Promise<DroneBridgeClients | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.DRONEBRIDGE_GET_CLIENTS, ip),
+  dronebridgeAddUdpClient: (ip: string, clientIp: string, clientPort: number): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.DRONEBRIDGE_ADD_UDP_CLIENT, ip, clientIp, clientPort),
+  dronebridgeClearUdpClients: (ip: string): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.DRONEBRIDGE_CLEAR_UDP_CLIENTS, ip),
+  dronebridgeReadSerial: (port: string): Promise<{ settings: Record<string, unknown> | null; apIp: string | null; ssid: string | null; rawLog: string } | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.DRONEBRIDGE_READ_SERIAL, port),
+  dronebridgeReadSerialReset: (port: string): Promise<{ settings: Record<string, unknown> | null; apIp: string | null; ssid: string | null; rawLog: string } | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.DRONEBRIDGE_READ_SERIAL_RESET, port),
+  onDroneBridgeDetected: (callback: (data: DroneBridgeDetected) => void) => {
+    const handler = (_: unknown, data: DroneBridgeDetected) => callback(data);
+    ipcRenderer.on(IPC_CHANNELS.DRONEBRIDGE_DETECTED, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.DRONEBRIDGE_DETECTED, handler);
+  },
+
+  // Firmware event listeners
+  onFlashProgress: (callback: (progress: FlashProgress) => void) => {
+    const handler = (_: unknown, progress: FlashProgress) => callback(progress);
+    ipcRenderer.on(IPC_CHANNELS.FIRMWARE_PROGRESS, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.FIRMWARE_PROGRESS, handler);
+  },
+
+  onFlashComplete: (callback: (result: FlashResult) => void) => {
+    const handler = (_: unknown, result: FlashResult) => callback(result);
+    ipcRenderer.on(IPC_CHANNELS.FIRMWARE_COMPLETE, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.FIRMWARE_COMPLETE, handler);
+  },
+
+  onFlashError: (callback: (error: string) => void) => {
+    const handler = (_: unknown, error: string) => callback(error);
+    ipcRenderer.on(IPC_CHANNELS.FIRMWARE_ERROR, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.FIRMWARE_ERROR, handler);
+  },
+
+  // ============================================================================
+  // MSP (Betaflight/iNav/Cleanflight)
+  // ============================================================================
+
+  // MSP Connection
+  mspConnect: (options: MSPConnectOptions): Promise<MSPConnectionState> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_CONNECT, options),
+
+  mspDisconnect: (): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_DISCONNECT),
+
+  // MSP Telemetry
+  mspStartTelemetry: (rateHz?: number): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_START_TELEMETRY, rateHz),
+
+  mspStopTelemetry: (): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_STOP_TELEMETRY),
+
+  // GPS MSP sender (for SITL with gps_provider=MSP)
+  mspStartGpsSender: (): Promise<{ success: boolean }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_START_GPS_SENDER),
+
+  mspStopGpsSender: (): Promise<{ success: boolean }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_STOP_GPS_SENDER),
+
+  // MSP Config
+  mspGetPid: (): Promise<unknown> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_GET_PID),
+
+  mspSetPid: (pid: unknown): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_SET_PID, pid),
+
+  mspGetRcTuning: (): Promise<unknown> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_GET_RC_TUNING),
+
+  mspSetRcTuning: (rcTuning: unknown): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_SET_RC_TUNING, rcTuning),
+
+  mspGetModeRanges: (): Promise<unknown> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_GET_MODE_RANGES),
+
+  mspSetModeRange: (index: number, mode: unknown): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_SET_MODE_RANGE, index, mode),
+
+  mspGetBoxNames: (): Promise<string[] | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_GET_BOX_NAMES),
+
+  mspGetBoxIds: (): Promise<number[] | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_GET_BOX_IDS),
+
+  mspGetFeatures: (): Promise<number | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_GET_FEATURES),
+
+  mspSetFeatures: (features: number): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_SET_FEATURES, features),
+
+  mspGetStatus: (): Promise<{ activeSensors: number; armingFlags: number; flightModeFlags: number } | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_GET_STATUS),
+
+  mspGetMixerConfig: (): Promise<{ mixer: number; isMultirotor: boolean } | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_GET_MIXER_CONFIG),
+
+  mspSetMixerConfig: (mixerType: number): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_SET_MIXER_CONFIG, mixerType),
+
+  // iNav-specific mixer config (proper MSP2 commands for platform type)
+  mspGetInavMixerConfig: (): Promise<{
+    yawMotorDirection: number;
+    yawJumpPreventionLimit: number;
+    motorStopOnLow: number;
+    platformType: number;  // 0=multirotor, 1=airplane, 2=helicopter, 3=tricopter
+    hasFlaps: number;
+    appliedMixerPreset: number;
+    numberOfMotors: number;
+    numberOfServos: number;
+  } | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_GET_INAV_MIXER_CONFIG),
+
+  mspSetInavPlatformType: (platformType: number, mixerType?: number): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_SET_INAV_PLATFORM_TYPE, platformType, mixerType),
+
+  mspGetRc: (): Promise<{ channels: number[] } | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_GET_RC),
+
+  // MSP RC Control (GCS arm/disarm, mode switching)
+  mspSetRawRc: (channels: number[]): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_SET_RAW_RC, channels),
+
+  mspGetActiveBoxes: (): Promise<{ boxModes: number } | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_GET_ACTIVE_BOXES),
+
+  // MSP Servo Config (iNav)
+  mspGetServoConfigs: (): Promise<unknown> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_GET_SERVO_CONFIGS),
+
+  mspSetServoConfig: (index: number, config: unknown): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_SET_SERVO_CONFIG, index, config),
+
+  mspSaveServoCli: (): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_SAVE_SERVO_CLI),
+
+  mspGetServoValues: (): Promise<number[] | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_GET_SERVO_VALUES),
+
+  mspGetServoMixer: (): Promise<unknown> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_GET_SERVO_MIXER),
+
+  mspSetServoMixer: (index: number, rule: unknown): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_SET_SERVO_MIXER, index, rule),
+
+  mspGetServoConfigMode: (): Promise<{ usesCli: boolean; minValue: number; maxValue: number }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_GET_SERVO_CONFIG_MODE),
+
+  // MSP Motor Mixer (modern boards)
+  mspGetMotorMixer: (): Promise<Array<{ throttle: number; roll: number; pitch: number; yaw: number }> | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_GET_MOTOR_MIXER),
+
+  mspSetMotorMixer: (rules: Array<{ throttle: number; roll: number; pitch: number; yaw: number }>): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_SET_MOTOR_MIXER, rules),
+
+  mspSetMotorMixerCli: (rules: Array<{
+    motorIndex: number;
+    throttle: number;
+    roll: number;
+    pitch: number;
+    yaw: number;
+  }>): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_SET_MOTOR_MIXER_CLI, rules),
+
+  mspSetServoMixerCli: (rules: Array<{
+    servoIndex: number;
+    inputSource: number;
+    rate: number;
+  }>): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_SET_SERVO_MIXER_CLI, rules),
+
+  mspReadSmixCli: (): Promise<Array<{ index: number; target: number; input: number; rate: number }> | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_READ_SMIX_CLI),
+
+  mspReadMmixCli: (): Promise<Array<{ index: number; throttle: number; roll: number; pitch: number; yaw: number }> | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_READ_MMIX_CLI),
+
+  // MSP Waypoint/Mission (iNav)
+  mspGetWaypoints: (): Promise<Array<{
+    wpNo: number;
+    action: number;
+    lat: number;
+    lon: number;
+    altitude: number;
+    p1: number;
+    p2: number;
+    p3: number;
+    flag: number;
+  }> | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_GET_WAYPOINTS),
+
+  mspSetWaypoint: (wp: {
+    wpNo: number;
+    action: number;
+    lat: number;
+    lon: number;
+    altitude: number;
+    p1: number;
+    p2: number;
+    p3: number;
+    flag: number;
+  }): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_SET_WAYPOINT, wp),
+
+  mspSaveWaypoints: (waypoints: Array<{
+    wpNo: number;
+    action: number;
+    lat: number;
+    lon: number;
+    altitude: number;
+    p1: number;
+    p2: number;
+    p3: number;
+    flag: number;
+  }>): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_SAVE_WAYPOINTS, waypoints),
+
+  mspClearWaypoints: (): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_CLEAR_WAYPOINTS),
+
+  mspGetMissionInfo: (): Promise<{
+    reserved: number;
+    navVersion: number;
+    waypointCount: number;
+    isValid: boolean;
+    waypointListMaximum: number;
+  } | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_GET_MISSION_INFO),
+
+  // MSP Navigation Config (iNav)
+  mspGetNavConfig: (): Promise<unknown> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_GET_NAV_CONFIG),
+
+  mspSetNavConfig: (config: unknown): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_SET_NAV_CONFIG, config),
+
+  mspGetGpsConfig: (): Promise<unknown> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_GET_GPS_CONFIG),
+
+  mspSetGpsConfig: (config: unknown): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_SET_GPS_CONFIG, config),
+
+  // MSP Failsafe Configuration
+  mspGetFailsafeConfig: (): Promise<unknown> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_GET_FAILSAFE_CONFIG),
+
+  mspSetFailsafeConfig: (config: unknown): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_SET_FAILSAFE_CONFIG, config),
+
+  // MSP GPS Rescue Configuration (Betaflight)
+  mspGetGpsRescue: (): Promise<unknown> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_GET_GPS_RESCUE),
+
+  mspSetGpsRescue: (config: unknown): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_SET_GPS_RESCUE, config),
+
+  mspGetGpsRescuePids: (): Promise<unknown> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_GET_GPS_RESCUE_PIDS),
+
+  mspSetGpsRescuePids: (pids: unknown): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_SET_GPS_RESCUE_PIDS, pids),
+
+  // MSP Filter Configuration (Betaflight)
+  mspGetFilterConfig: (): Promise<unknown> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_GET_FILTER_CONFIG),
+
+  mspSetFilterConfig: (config: unknown): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_SET_FILTER_CONFIG, config),
+
+  // MSP VTX Configuration
+  mspGetVtxConfig: (): Promise<unknown> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_GET_VTX_CONFIG),
+
+  mspSetVtxConfig: (config: unknown): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_SET_VTX_CONFIG, config),
+
+  // MSP OSD Configuration
+  mspGetOsdConfig: (): Promise<unknown> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_GET_OSD_CONFIG),
+
+  mspSetOsdConfig: (
+    elements: Array<{ index: number; x: number; y: number; visible: boolean }>,
+  ): Promise<{ success: boolean; written: number; total: number; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_SET_OSD_CONFIG, elements),
+
+  mspUploadOsdFont: (
+    chars: Array<{ address: number; bytes: number[] }>,
+  ): Promise<{ success: boolean; written: number; total: number; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_UPLOAD_OSD_FONT, chars),
+
+  // MSP RX Configuration
+  mspGetRxConfig: (): Promise<{
+    serialrxProvider: number;
+    serialrxProviderName: string;
+    receiverType: number | null;
+    receiverTypeName: string | null;
+  } | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_GET_RX_CONFIG),
+  mspSetRxConfig: (newProvider: number, newReceiverType?: number): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_SET_RX_CONFIG, newProvider, newReceiverType),
+
+  // MSP Serial Port Configuration
+  mspGetSerialConfig: (): Promise<{
+    ports: Array<{
+      identifier: number;
+      functionMask: number;
+      mspBaudrate: number;
+      sensorsBaudrate: number;
+      telemetryBaudrate: number;
+      peripheralsBaudrate: number;
+    }>;
+  } | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_GET_SERIAL_CONFIG),
+
+  mspSetSerialConfig: (config: {
+    ports: Array<{
+      identifier: number;
+      functionMask: number;
+      mspBaudrate: number;
+      sensorsBaudrate: number;
+      telemetryBaudrate: number;
+      peripheralsBaudrate: number;
+    }>;
+  }): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_SET_SERIAL_CONFIG, config),
+
+  // MSP RX Map (channel mapping)
+  mspGetRxMap: (): Promise<number[] | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_GET_RX_MAP),
+
+  mspSetRxMap: (map: number[]): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_SET_RX_MAP, map),
+
+  // MSP RC Deadband
+  mspGetRcDeadband: (): Promise<{
+    deadband: number;
+    yawDeadband: number;
+    altHoldDeadband: number;
+    deadbandThrottle: number;
+  } | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_GET_RC_DEADBAND),
+
+  mspSetRcDeadband: (config: {
+    deadband: number;
+    yawDeadband: number;
+    altHoldDeadband: number;
+    deadbandThrottle: number;
+  }): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_SET_RC_DEADBAND, config),
+
+  // MSP Generic Settings API (read/write any CLI setting via MSP)
+  mspGetSetting: (name: string): Promise<{ value: string | number; info: unknown } | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_GET_SETTING, name),
+
+  mspSetSetting: (name: string, value: string | number): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_SET_SETTING, name, value),
+
+  mspGetSettings: (names: string[]): Promise<Record<string, string | number | null>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_GET_SETTINGS, names),
+
+  mspSetSettings: (settings: Record<string, string | number>): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_SET_SETTINGS, settings),
+
+  // MSP Commands
+  mspSaveEeprom: (): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_SAVE_EEPROM),
+
+  mspCalibrateAcc: (): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_CALIBRATE_ACC),
+
+  mspCalibrateMag: (): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_CALIBRATE_MAG),
+
+  mspReboot: (): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MSP_REBOOT),
+
+  // MSP Event Listeners
+  onMspConnectionState: (callback: (state: MSPConnectionState) => void) => {
+    const handler = (_: unknown, state: MSPConnectionState) => callback(state);
+    ipcRenderer.on(IPC_CHANNELS.MSP_CONNECTION_STATE, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.MSP_CONNECTION_STATE, handler);
+  },
+
+  onMspTelemetryUpdate: (callback: (data: MSPTelemetryData) => void) => {
+    const handler = (_: unknown, data: MSPTelemetryData) => callback(data);
+    ipcRenderer.on(IPC_CHANNELS.MSP_TELEMETRY_UPDATE, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.MSP_TELEMETRY_UPDATE, handler);
+  },
+
+  // ============================================================================
+  // CLI Terminal (iNav/Betaflight raw CLI access)
+  // ============================================================================
+
+  cliEnterMode: (): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.CLI_ENTER_MODE),
+
+  cliExitMode: (): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.CLI_EXIT_MODE),
+
+  cliResetAllFlags: (): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.CLI_RESET_ALL_FLAGS),
+
+  cliSendCommand: (command: string): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.CLI_SEND_COMMAND, command),
+
+  cliSendRaw: (data: string): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.CLI_SEND_RAW, data),
+
+  cliGetDump: (): Promise<string> =>
+    ipcRenderer.invoke(IPC_CHANNELS.CLI_GET_DUMP),
+
+  cliSaveOutput: (content: string): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.CLI_SAVE_OUTPUT, content),
+
+  cliSaveOutputJson: (data: {
+    rawDump: string;
+    fcVariant: string;
+    fcVersion: string;
+  }): Promise<boolean> => ipcRenderer.invoke(IPC_CHANNELS.CLI_SAVE_OUTPUT_JSON, data),
+
+  onCliData: (callback: (data: string) => void) => {
+    const handler = (_: unknown, data: string) => callback(data);
+    ipcRenderer.on(IPC_CHANNELS.CLI_DATA_RECEIVED, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.CLI_DATA_RECEIVED, handler);
+  },
+
+  // Driver utilities
+  openBundledDriver: (driverName: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.DRIVER_OPEN_BUNDLED, driverName),
+
+  // ============================================================================
+  // SITL (Software-In-The-Loop Simulation)
+  // ============================================================================
+
+  sitlStart: (config: SitlConfig): Promise<{ success: boolean; command?: string; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.SITL_START, config),
+
+  sitlStop: (): Promise<{ success: boolean }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.SITL_STOP),
+
+  sitlGetStatus: (): Promise<SitlStatus> =>
+    ipcRenderer.invoke(IPC_CHANNELS.SITL_STATUS),
+
+  sitlDeleteEeprom: (filename: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.SITL_DELETE_EEPROM, filename),
+
+  onSitlStdout: (callback: (data: string) => void) => {
+    const handler = (_: unknown, data: string) => callback(data);
+    ipcRenderer.on(IPC_CHANNELS.SITL_STDOUT, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.SITL_STDOUT, handler);
+  },
+
+  onSitlStderr: (callback: (data: string) => void) => {
+    const handler = (_: unknown, data: string) => callback(data);
+    ipcRenderer.on(IPC_CHANNELS.SITL_STDERR, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.SITL_STDERR, handler);
+  },
+
+  onSitlError: (callback: (error: string) => void) => {
+    const handler = (_: unknown, error: string) => callback(error);
+    ipcRenderer.on(IPC_CHANNELS.SITL_ERROR, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.SITL_ERROR, handler);
+  },
+
+  onSitlExit: (callback: (data: SitlExitData) => void) => {
+    const handler = (_: unknown, data: SitlExitData) => callback(data);
+    ipcRenderer.on(IPC_CHANNELS.SITL_EXIT, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.SITL_EXIT, handler);
+  },
+
+  // ============================================================================
+  // ArduPilot SITL (MAVLink-based)
+  // ============================================================================
+
+  ardupilotSitlStart: (config: ArduPilotSitlConfig): Promise<{ success: boolean; command?: string; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.ARDUPILOT_SITL_START, config),
+
+  ardupilotSitlStop: (): Promise<{ success: boolean }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.ARDUPILOT_SITL_STOP),
+
+  ardupilotSitlGetStatus: (): Promise<ArduPilotSitlStatus> =>
+    ipcRenderer.invoke(IPC_CHANNELS.ARDUPILOT_SITL_STATUS),
+
+  ardupilotSitlDownload: (vehicleType: ArduPilotVehicleType, releaseTrack: ArduPilotReleaseTrack): Promise<{ success: boolean; path?: string; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.ARDUPILOT_SITL_DOWNLOAD, vehicleType, releaseTrack),
+
+  ardupilotSitlCheckBinary: (vehicleType: ArduPilotVehicleType, releaseTrack: ArduPilotReleaseTrack): Promise<ArduPilotSitlBinaryInfo> =>
+    ipcRenderer.invoke(IPC_CHANNELS.ARDUPILOT_SITL_CHECK_BINARY, vehicleType, releaseTrack),
+
+  ardupilotSitlCheckPlatform: (): Promise<{ supported: boolean; useDocker: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.ARDUPILOT_SITL_CHECK_PLATFORM),
+
+  ardupilotSitlRcSend: (state: Partial<VirtualRCState>): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.ARDUPILOT_SITL_RC_SEND, state),
+
+  ardupilotSitlRcStart: (): Promise<{ success: boolean }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.ARDUPILOT_SITL_RC_START),
+
+  ardupilotSitlRcStop: (): Promise<{ success: boolean }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.ARDUPILOT_SITL_RC_STOP),
+
+  ardupilotSitlListFrames: (): Promise<ArduPilotFrameCatalog> =>
+    ipcRenderer.invoke(IPC_CHANNELS.ARDUPILOT_SITL_LIST_FRAMES),
+
+  ardupilotSitlRefreshFrames: (): Promise<ArduPilotFrameCatalog> =>
+    ipcRenderer.invoke(IPC_CHANNELS.ARDUPILOT_SITL_REFRESH_FRAMES),
+
+  // SITL custom frames
+  ardupilotSitlCustomFrameList: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.ARDUPILOT_SITL_CUSTOM_FRAME_LIST),
+  ardupilotSitlCustomFrameLoad: (id: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.ARDUPILOT_SITL_CUSTOM_FRAME_LOAD, id),
+  ardupilotSitlCustomFrameSave: (payload: { name: string; frame: import('../shared/sitl-custom-frame').SitlCustomFrame; existingId?: string }) =>
+    ipcRenderer.invoke(IPC_CHANNELS.ARDUPILOT_SITL_CUSTOM_FRAME_SAVE, payload),
+  ardupilotSitlCustomFrameDelete: (id: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.ARDUPILOT_SITL_CUSTOM_FRAME_DELETE, id),
+  ardupilotSitlCustomFrameImport: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.ARDUPILOT_SITL_CUSTOM_FRAME_IMPORT),
+  ardupilotSitlCustomFrameExport: (id: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.ARDUPILOT_SITL_CUSTOM_FRAME_EXPORT, id),
+
+  // ArduPilot SITL -> FlightGear viewer (external-FDM, no bridge)
+  ardupilotFlightGearDetect: (customPath?: string): Promise<{ installed: boolean; path: string | null; version: string | null }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.ARDUPILOT_FG_DETECT, customPath),
+  ardupilotFlightGearBrowse: (): Promise<{ success: boolean; path?: string; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.ARDUPILOT_FG_BROWSE),
+  ardupilotFlightGearLaunch: (config: ArduPilotFlightGearConfig, customPath?: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.ARDUPILOT_FG_LAUNCH, config, customPath),
+  ardupilotFlightGearStop: (): Promise<{ success: boolean }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.ARDUPILOT_FG_STOP),
+  ardupilotFlightGearStatus: (): Promise<{ running: boolean; pid: number | null; aircraft: string | null }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.ARDUPILOT_FG_STATUS),
+
+  onArdupilotSitlStdout: (callback: (data: string) => void) => {
+    const handler = (_: unknown, data: string) => callback(data);
+    ipcRenderer.on(IPC_CHANNELS.ARDUPILOT_SITL_STDOUT, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.ARDUPILOT_SITL_STDOUT, handler);
+  },
+
+  onArdupilotSitlStderr: (callback: (data: string) => void) => {
+    const handler = (_: unknown, data: string) => callback(data);
+    ipcRenderer.on(IPC_CHANNELS.ARDUPILOT_SITL_STDERR, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.ARDUPILOT_SITL_STDERR, handler);
+  },
+
+  onArdupilotSitlError: (callback: (error: string) => void) => {
+    const handler = (_: unknown, error: string) => callback(error);
+    ipcRenderer.on(IPC_CHANNELS.ARDUPILOT_SITL_ERROR, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.ARDUPILOT_SITL_ERROR, handler);
+  },
+
+  onArdupilotSitlExit: (callback: (data: ArduPilotSitlExitData) => void) => {
+    const handler = (_: unknown, data: ArduPilotSitlExitData) => callback(data);
+    ipcRenderer.on(IPC_CHANNELS.ARDUPILOT_SITL_EXIT, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.ARDUPILOT_SITL_EXIT, handler);
+  },
+
+  onArdupilotSitlDownloadProgress: (callback: (progress: ArduPilotSitlDownloadProgress) => void) => {
+    const handler = (_: unknown, progress: ArduPilotSitlDownloadProgress) => callback(progress);
+    ipcRenderer.on(IPC_CHANNELS.ARDUPILOT_SITL_DOWNLOAD_PROGRESS, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.ARDUPILOT_SITL_DOWNLOAD_PROGRESS, handler);
+  },
+
+  // ============================================================================
+  // Swarm SITL (multiple instances → fleet)
+  // ============================================================================
+
+  swarmSitlStart: (config: SwarmSitlConfig): Promise<{ success: boolean; error?: string; instances?: SwarmInstanceStatus[] }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.SWARM_SITL_START, config),
+
+  swarmSitlStop: (): Promise<{ success: boolean }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.SWARM_SITL_STOP),
+
+  swarmSitlGetStatus: (): Promise<SwarmSitlStatus> =>
+    ipcRenderer.invoke(IPC_CHANNELS.SWARM_SITL_STATUS),
+
+  onSwarmSitlInstance: (callback: (instance: SwarmInstanceStatus) => void) => {
+    const handler = (_: unknown, instance: SwarmInstanceStatus) => callback(instance);
+    ipcRenderer.on(IPC_CHANNELS.SWARM_SITL_INSTANCE, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.SWARM_SITL_INSTANCE, handler);
+  },
+
+  onSwarmSitlState: (callback: (status: SwarmSitlStatus) => void) => {
+    const handler = (_: unknown, status: SwarmSitlStatus) => callback(status);
+    ipcRenderer.on(IPC_CHANNELS.SWARM_SITL_STATE, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.SWARM_SITL_STATE, handler);
+  },
+
+  onSwarmSitlLog: (callback: (line: SwarmSitlLogLine) => void) => {
+    const handler = (_: unknown, line: SwarmSitlLogLine) => callback(line);
+    ipcRenderer.on(IPC_CHANNELS.SWARM_SITL_LOG, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.SWARM_SITL_LOG, handler);
+  },
+
+  // ============================================================================
+  // Visual Simulators (FlightGear, X-Plane integration)
+  // ============================================================================
+
+  simulatorDetect: (customFlightGearPath?: string, customXPlanePath?: string): Promise<Array<{
+    name: 'flightgear' | 'xplane';
+    installed: boolean;
+    path: string | null;
+    version: string | null;
+  }>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.SIMULATOR_DETECT, customFlightGearPath, customXPlanePath),
+
+  simulatorBrowseFlightGear: (): Promise<{ success: boolean; path?: string; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.SIMULATOR_BROWSE_FG),
+
+  simulatorLaunchFlightGear: (config: {
+    aircraft?: string;
+    airport?: string;
+    runwayId?: string;
+    timeOfDay?: 'dawn' | 'morning' | 'noon' | 'afternoon' | 'dusk' | 'night';
+    weather?: 'clear' | 'cloudy' | 'rain';
+  }, customFlightGearPath?: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.SIMULATOR_LAUNCH_FG, config, customFlightGearPath),
+
+  simulatorStopFlightGear: (): Promise<{ success: boolean }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.SIMULATOR_STOP_FG),
+
+  simulatorFlightGearStatus: (): Promise<{ running: boolean; pid?: number }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.SIMULATOR_FG_STATUS),
+
+  // X-Plane
+  simulatorBrowseXPlane: (): Promise<{ success: boolean; path?: string; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.SIMULATOR_BROWSE_XP),
+
+  simulatorLaunchXPlane: (config: {
+    sitlHost?: string;
+    dataOutPort?: number;
+    dataInPort?: number;
+    fullscreen?: boolean;
+  }, customXPlanePath?: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.SIMULATOR_LAUNCH_XP, config, customXPlanePath),
+
+  simulatorStopXPlane: (): Promise<{ success: boolean }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.SIMULATOR_STOP_XP),
+
+  simulatorXPlaneStatus: (): Promise<{ running: boolean; pid?: number }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.SIMULATOR_XP_STATUS),
+
+  bridgeStart: (config?: {
+    fgOutPort?: number;
+    fgInPort?: number;
+    sitlHost?: string;
+    sitlSimPort?: number;
+  }): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.BRIDGE_START, config),
+
+  bridgeStop: (): Promise<{ success: boolean }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.BRIDGE_STOP),
+
+  bridgeStatus: (): Promise<{ running: boolean }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.BRIDGE_STATUS),
+
+  // =============================================================================
+  // Virtual RC Control (for SITL testing)
+  // =============================================================================
+
+  /** Set virtual RC channel values for SITL testing */
+  virtualRCSet: (state: Partial<VirtualRCState>): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.VIRTUAL_RC_SET, state),
+
+  /** Get current virtual RC values */
+  virtualRCGet: (): Promise<VirtualRCState> =>
+    ipcRenderer.invoke(IPC_CHANNELS.VIRTUAL_RC_GET),
+
+  /** Reset virtual RC to defaults */
+  virtualRCReset: (): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.VIRTUAL_RC_RESET),
+
+  // =============================================================================
+  // Bug Report / Logging
+  // =============================================================================
+
+  /** Collect logs from the last N hours */
+  reportCollectLogs: (hours?: number): Promise<unknown[]> =>
+    ipcRenderer.invoke(IPC_CHANNELS.REPORT_COLLECT_LOGS, hours),
+
+  /** Get system info for bug report */
+  reportGetSystemInfo: (): Promise<unknown> =>
+    ipcRenderer.invoke(IPC_CHANNELS.REPORT_GET_SYSTEM_INFO),
+
+  /** Get encryption configuration info */
+  reportGetEncryptionInfo: (): Promise<{ isPlaceholderKey: boolean; keyVersion: number; formatVersion: number }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.REPORT_GET_ENCRYPTION_INFO),
+
+  /** Collect MSP board dump (enters CLI mode, board will reboot) */
+  reportCollectMspDump: (): Promise<{ success: boolean; dump?: unknown; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.REPORT_COLLECT_MSP_DUMP),
+
+  /** Collect MAVLink board dump (uses cached parameter data) */
+  reportCollectMavlinkDump: (): Promise<{ success: boolean; dump?: unknown; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.REPORT_COLLECT_MAVLINK_DUMP),
+
+  /** Save encrypted bug report to file */
+  reportSave: (
+    userDescription: string,
+    boardDump: unknown | null,
+    logHours?: number
+  ): Promise<{ success: boolean; filePath?: string; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.REPORT_SAVE, userDescription, boardDump, logHours),
+
+  /** Listen for report progress updates */
+  onReportProgress: (callback: (progress: { stage: string; message: string }) => void) => {
+    const handler = (_: unknown, progress: { stage: string; message: string }) => callback(progress);
+    ipcRenderer.on(IPC_CHANNELS.REPORT_PROGRESS, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.REPORT_PROGRESS, handler);
+  },
+
+  // =============================================================================
+  // Calibration
+  // =============================================================================
+
+  /** Get sensor configuration (which sensors are available) */
+  calibrationGetSensorConfig: (): Promise<{
+    hasAccel: boolean;
+    hasGyro: boolean;
+    hasCompass: boolean;
+    hasBarometer: boolean;
+    hasGps: boolean;
+    hasOpflow: boolean;
+    hasPitot: boolean;
+  } | null> => ipcRenderer.invoke(IPC_CHANNELS.CALIBRATION_GET_SENSOR_CONFIG),
+
+  /** Get current calibration data */
+  calibrationGetData: (): Promise<{
+    accZero?: { x: number; y: number; z: number };
+    accGain?: { x: number; y: number; z: number };
+    magZero?: { x: number; y: number; z: number };
+    magGain?: { x: number; y: number; z: number };
+    opflowScale?: number;
+  } | null> => ipcRenderer.invoke(IPC_CHANNELS.CALIBRATION_GET_DATA),
+
+  /** Set calibration data */
+  calibrationSetData: (data: {
+    accZero?: { x: number; y: number; z: number };
+    accGain?: { x: number; y: number; z: number };
+    magZero?: { x: number; y: number; z: number };
+    magGain?: { x: number; y: number; z: number };
+    opflowScale?: number;
+  }): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.CALIBRATION_SET_DATA, data),
+
+  /** Start calibration */
+  calibrationStart: (options: {
+    type: 'accel-level' | 'accel-6point' | 'compass' | 'gyro' | 'opflow';
+    position?: number;
+    protocol?: 'msp' | 'mavlink';
+  }): Promise<{
+    success: boolean;
+    error?: string;
+    data?: {
+      accZero?: { x: number; y: number; z: number };
+      accGain?: { x: number; y: number; z: number };
+      magZero?: { x: number; y: number; z: number };
+      magGain?: { x: number; y: number; z: number };
+      opflowScale?: number;
+    };
+  }> => ipcRenderer.invoke(IPC_CHANNELS.CALIBRATION_START, options),
+
+  /** Confirm position for 6-point calibration */
+  calibrationConfirmPosition: (position: number): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.CALIBRATION_CONFIRM_POSITION, position),
+
+  /** Cancel active calibration */
+  calibrationCancel: (): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.CALIBRATION_CANCEL),
+
+  /** Save calibration to bootloader persistent storage (INAV only, survives firmware updates) */
+  calibrationSavePersistent: (): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.CALIBRATION_SAVE_PERSISTENT),
+
+  /** Large Vehicle MagCal (ArduPilot) - sends MAV_CMD_FIXED_MAG_CAL_YAW with the
+   * vehicle's current true heading (degrees). Requires GPS 3D lock. */
+  calibrationLargeVehicleMagCal: (headingDeg: number): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.CALIBRATION_LARGE_VEHICLE_MAGCAL, headingDeg),
+
+  /** Start compass/motor calibration (ArduPilot compassmot). The FC streams
+   * COMPASSMOT_STATUS while the user raises throttle; decode it via onPacket. */
+  calibrationCompassMotStart: (): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.CALIBRATION_COMPASSMOT_START),
+
+  /** Finish compassmot - the FC writes COMPASS_MOT_* and exits the loop. */
+  calibrationCompassMotStop: (): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.CALIBRATION_COMPASSMOT_STOP),
+
+  /** Listen for calibration progress updates */
+  onCalibrationProgress: (callback: (progress: CalibrationProgressEvent) => void) => {
+    const handler = (_: unknown, progress: unknown) => callback(progress as CalibrationProgressEvent);
+    ipcRenderer.on(IPC_CHANNELS.CALIBRATION_PROGRESS, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.CALIBRATION_PROGRESS, handler);
+  },
+
+  /** Listen for calibration complete events */
+  onCalibrationComplete: (callback: (result: CalibrationCompleteEvent) => void) => {
+    const handler = (_: unknown, result: unknown) => callback(result as CalibrationCompleteEvent);
+    ipcRenderer.on(IPC_CHANNELS.CALIBRATION_COMPLETE, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.CALIBRATION_COMPLETE, handler);
+  },
+
+  // =============================================================================
+  // App Version & Updates
+  // =============================================================================
+
+  getAppVersion: (): Promise<string> =>
+    ipcRenderer.invoke(IPC_CHANNELS.APP_GET_VERSION),
+
+  checkForUpdate: (): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.APP_CHECK_UPDATE),
+
+  downloadUpdate: (): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.APP_DOWNLOAD_UPDATE),
+
+  installUpdate: (): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.APP_INSTALL_UPDATE),
+
+  openExternal: (url: string): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.APP_OPEN_EXTERNAL, url),
+
+  relaunchApp: (): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.APP_RELAUNCH),
+
+  onUpdateStatus: (callback: (info: AppUpdateInfo) => void) => {
+    const handler = (_: unknown, info: AppUpdateInfo) => callback(info);
+    ipcRenderer.on(IPC_CHANNELS.APP_UPDATE_STATUS, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.APP_UPDATE_STATUS, handler);
+  },
+
+  // =============================================================================
+  // Mission Library (offline storage)
+  // =============================================================================
+
+  missionLibraryList: (filter?: MissionListFilter, sort?: MissionSortOptions): Promise<MissionSummary[]> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MISSION_LIBRARY_LIST, filter, sort),
+
+  missionLibraryGet: (id: string): Promise<StoredMission | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MISSION_LIBRARY_GET, id),
+
+  missionLibrarySave: (payload: SaveMissionPayload): Promise<MissionSummary> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MISSION_LIBRARY_SAVE, payload),
+
+  missionLibraryDelete: (id: string): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MISSION_LIBRARY_DELETE, id),
+
+  missionLibraryDuplicate: (id: string, newName: string): Promise<MissionSummary | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MISSION_LIBRARY_DUPLICATE, id, newName),
+
+  missionLibraryGetTags: (): Promise<string[]> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MISSION_LIBRARY_GET_TAGS),
+
+  missionLibraryFlightLogs: (missionId: string): Promise<FlightLog[]> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MISSION_LIBRARY_FLIGHT_LOGS, missionId),
+
+  missionLibraryAddLog: (log: Omit<FlightLog, 'id' | 'createdAt'>): Promise<FlightLog> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MISSION_LIBRARY_ADD_LOG, log),
+
+  missionLibraryUpdateLog: (log: FlightLog): Promise<FlightLog> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MISSION_LIBRARY_UPDATE_LOG, log),
+
+  missionLibraryDeleteLog: (missionId: string, logId: string): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MISSION_LIBRARY_DELETE_LOG, missionId, logId),
+
+  /** Send log entry from renderer to main process */
+  logEntry: (level: 'info' | 'warn' | 'error' | 'debug', message: string, details?: string): void => {
+    ipcRenderer.invoke('log:entry', level, message, details);
+  },
+
+  // Lua Graph Editor
+  luaGraphSave: (graph: unknown): Promise<{ success: boolean; filePath?: string; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.LUA_GRAPH_SAVE, graph),
+
+  luaGraphOpen: (): Promise<{ success: boolean; data?: unknown; filePath?: string; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.LUA_GRAPH_OPEN),
+
+  luaGraphExportLua: (code: string, name: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.LUA_GRAPH_EXPORT_LUA, code, name),
+
+  // =============================================================================
+  // Tile Cache (Offline Maps)
+  // =============================================================================
+
+  // Fetch raw PNG bytes for a tile-cache:// URL. Used by detached windows'
+  // MapLibre addProtocol handler, which cannot fetch the privileged scheme.
+  tileCacheGetTile: (url: string): Promise<ArrayBuffer | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.TILE_CACHE_GET_TILE, url),
+
+  tileCacheGetStats: (): Promise<TileCacheStats> =>
+    ipcRenderer.invoke(IPC_CHANNELS.TILE_CACHE_GET_STATS),
+
+  tileCacheClear: (layerKey?: string): Promise<{ success: boolean }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.TILE_CACHE_CLEAR, layerKey),
+
+  tileCacheDownloadRegion: (params: {
+    bounds: { north: number; south: number; east: number; west: number };
+    minZoom: number;
+    maxZoom: number;
+    layers: string[];
+    forceRefresh?: boolean;
+  }): Promise<{ downloadId: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.TILE_CACHE_DOWNLOAD_REGION, params),
+
+  tileCacheCancelDownload: (downloadId: string): Promise<{ success: boolean }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.TILE_CACHE_CANCEL_DOWNLOAD, downloadId),
+
+  onTileCacheDownloadProgress: (callback: (progress: TileCacheDownloadProgress) => void) => {
+    const handler = (_: unknown, progress: TileCacheDownloadProgress) => callback(progress);
+    ipcRenderer.on(IPC_CHANNELS.TILE_CACHE_DOWNLOAD_PROGRESS, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.TILE_CACHE_DOWNLOAD_PROGRESS, handler);
+  },
+
+  tileCacheGetSettings: (): Promise<TileCacheSettings> =>
+    ipcRenderer.invoke(IPC_CHANNELS.TILE_CACHE_GET_SETTINGS),
+
+  tileCacheSetSettings: (settings: Partial<TileCacheSettings>): Promise<{ success: boolean }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.TILE_CACHE_SET_SETTINGS, settings),
+
+  tileCacheCalculateTiles: (params: {
+    bounds: { north: number; south: number; east: number; west: number };
+    minZoom: number;
+    maxZoom: number;
+    layerCount: number;
+  }): Promise<{ tileCount: number }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.TILE_CACHE_CALCULATE_TILES, params),
+
+  tileCacheGetRegions: (): Promise<TileCacheDownloadRegion[]> =>
+    ipcRenderer.invoke(IPC_CHANNELS.TILE_CACHE_GET_REGIONS),
+
+  tileCacheDeleteRegion: (id: string): Promise<{ success: boolean }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.TILE_CACHE_DELETE_REGION, id),
+
+  // =============================================================================
+  // Module Manager
+  // =============================================================================
+
+  moduleActivate: (key: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MODULE_ACTIVATE, key),
+
+  moduleList: (): Promise<InstalledModule[]> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MODULE_LIST),
+
+  moduleRemove: (key: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MODULE_REMOVE, key),
+
+  moduleCheckUpdates: (): Promise<{ updates: UpdateAvailable[]; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MODULE_CHECK_UPDATES),
+
+  moduleUpdate: (slug: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MODULE_UPDATE, slug),
+
+  moduleSetEnabled: (slug: string, enabled: boolean): Promise<{ success: boolean; modules?: InstalledModule[]; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MODULE_SET_ENABLED, slug, enabled),
+
+  onModuleProgress: (callback: (progress: ModuleProgress) => void) => {
+    const handler = (_: unknown, progress: ModuleProgress) => callback(progress);
+    ipcRenderer.on(IPC_CHANNELS.MODULE_PROGRESS, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.MODULE_PROGRESS, handler);
+  },
+
+  onModuleDeepLinkInstall: (
+    callback: (payload: { slug: string; name: string; key: string }) => void,
+  ) => {
+    const handler = (_: unknown, payload: { slug: string; name: string; key: string }) =>
+      callback(payload);
+    ipcRenderer.on(IPC_CHANNELS.MODULE_DEEP_LINK_INSTALL, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.MODULE_DEEP_LINK_INSTALL, handler);
+  },
+
+  onNavDeepLinkOpen: (callback: (payload: { view: string }) => void) => {
+    const handler = (_: unknown, payload: { view: string }) => callback(payload);
+    ipcRenderer.on(IPC_CHANNELS.NAV_DEEP_LINK_OPEN, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.NAV_DEEP_LINK_OPEN, handler);
+  },
+
+  // =============================================================================
+  // Module Host (runtime API for loaded modules)
+  // =============================================================================
+
+  moduleHostListLoaded: (): Promise<Array<{ slug: string; manifest: unknown; installPath: string }>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MODULE_HOST_LIST_LOADED),
+
+  moduleHostPtyCreate: (
+    slug: string,
+    opts: {
+      shell: string;
+      args?: string[];
+      cwd?: string;
+      env?: Record<string, string>;
+      cols?: number;
+      rows?: number;
+    },
+  ): Promise<string> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MODULE_HOST_PTY_CREATE, slug, opts),
+
+  moduleHostPtyWrite: (id: string, data: string): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MODULE_HOST_PTY_WRITE, id, data),
+
+  moduleHostPtyResize: (id: string, cols: number, rows: number): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MODULE_HOST_PTY_RESIZE, id, cols, rows),
+
+  moduleHostPtyKill: (id: string): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MODULE_HOST_PTY_KILL, id),
+
+  moduleHostOnPtyData: (id: string, cb: (data: string) => void) => {
+    const listener = (_: unknown, sid: string, data: string) => {
+      if (sid === id) cb(data);
+    };
+    ipcRenderer.on(IPC_CHANNELS.MODULE_HOST_PTY_DATA, listener);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.MODULE_HOST_PTY_DATA, listener);
+  },
+
+  moduleHostOnPtyExit: (id: string, cb: (code: number) => void) => {
+    const listener = (_: unknown, sid: string, code: number) => {
+      if (sid === id) cb(code);
+    };
+    ipcRenderer.on(IPC_CHANNELS.MODULE_HOST_PTY_EXIT, listener);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.MODULE_HOST_PTY_EXIT, listener);
+  },
+
+  moduleHostInvoke: (slug: string, channel: string, data: unknown): Promise<unknown> =>
+    ipcRenderer.invoke(`module:${slug}:${channel}`, data),
+
+  // =============================================================================
+  // Companion Computer (Agent WebSocket)
+  // =============================================================================
+
+  companionConnect: (options: CompanionConnectOptions): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.COMPANION_CONNECT, options),
+
+  companionDisconnect: (): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.COMPANION_DISCONNECT),
+
+  companionDiscover: (host?: string): Promise<CompanionDiscoveryResult | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.COMPANION_DISCOVER, host),
+
+  companionGetInfo: (): Promise<SystemInfo> =>
+    ipcRenderer.invoke(IPC_CHANNELS.COMPANION_INFO),
+
+  companionGetNetwork: (): Promise<NetworkInfo> =>
+    ipcRenderer.invoke(IPC_CHANNELS.COMPANION_NETWORK),
+
+  companionGetServices: (): Promise<ServiceInfo[]> =>
+    ipcRenderer.invoke(IPC_CHANNELS.COMPANION_SERVICES),
+
+  companionServiceAction: (name: string, action: ServiceAction): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.COMPANION_SERVICE_ACTION, name, action),
+
+  companionKillProcess: (pid: number): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.COMPANION_PROCESS_KILL, pid),
+
+  companionListFiles: (path: string): Promise<FileEntry[]> =>
+    ipcRenderer.invoke(IPC_CHANNELS.COMPANION_FILES_LIST, path),
+
+  companionReadFile: (path: string): Promise<unknown> =>
+    ipcRenderer.invoke(IPC_CHANNELS.COMPANION_FILE_READ, path),
+
+  companionWriteFile: (path: string, data: string): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.COMPANION_FILE_WRITE, path, data),
+
+  companionSendTerminalData: (data: string): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.COMPANION_TERMINAL_SEND, data),
+
+  companionResizeTerminal: (cols: number, rows: number): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.COMPANION_TERMINAL_RESIZE, cols, rows),
+
+  companionGetContainers: (): Promise<ContainerInfo[]> =>
+    ipcRenderer.invoke(IPC_CHANNELS.COMPANION_CONTAINERS),
+
+  companionContainerAction: (id: string, action: ContainerAction): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.COMPANION_CONTAINER_ACTION, id, action),
+
+  companionGetContainerLogs: (id: string): Promise<string> =>
+    ipcRenderer.invoke(IPC_CHANNELS.COMPANION_CONTAINER_LOGS, id),
+
+  companionGetExtensions: (): Promise<ExtensionInfo[]> =>
+    ipcRenderer.invoke(IPC_CHANNELS.COMPANION_EXTENSIONS),
+
+  companionInstallExtension: (identifier: string, version: string): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.COMPANION_EXTENSION_INSTALL, identifier, version),
+
+  companionRemoveExtension: (identifier: string): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.COMPANION_EXTENSION_REMOVE, identifier),
+
+  // Companion event listeners
+  onCompanionConnectionState: (callback: (state: CompanionConnectionIpcState) => void) => {
+    const handler = (_: unknown, state: CompanionConnectionIpcState) => callback(state);
+    ipcRenderer.on(IPC_CHANNELS.COMPANION_CONNECTION_STATE, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.COMPANION_CONNECTION_STATE, handler);
+  },
+
+  onCompanionMetrics: (callback: (data: MetricsData) => void) => {
+    const handler = (_: unknown, data: MetricsData) => callback(data);
+    ipcRenderer.on(IPC_CHANNELS.COMPANION_METRICS, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.COMPANION_METRICS, handler);
+  },
+
+  onCompanionProcesses: (callback: (data: ProcessInfo[]) => void) => {
+    const handler = (_: unknown, data: ProcessInfo[]) => callback(data);
+    ipcRenderer.on(IPC_CHANNELS.COMPANION_PROCESSES, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.COMPANION_PROCESSES, handler);
+  },
+
+  onCompanionLogs: (callback: (data: LogEntry) => void) => {
+    const handler = (_: unknown, data: LogEntry) => callback(data);
+    ipcRenderer.on(IPC_CHANNELS.COMPANION_LOGS, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.COMPANION_LOGS, handler);
+  },
+
+  onCompanionTerminalData: (callback: (data: string) => void) => {
+    const handler = (_: unknown, data: string) => callback(data);
+    ipcRenderer.on(IPC_CHANNELS.COMPANION_TERMINAL_DATA, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.COMPANION_TERMINAL_DATA, handler);
+  },
+
+  onCompanionDiscoveryResult: (callback: (result: CompanionDiscoveryResult) => void) => {
+    const handler = (_: unknown, result: CompanionDiscoveryResult) => callback(result);
+    ipcRenderer.on(IPC_CHANNELS.COMPANION_DISCOVER_RESULT, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.COMPANION_DISCOVER_RESULT, handler);
+  },
+
+  onCompanionHeartbeat: (callback: (data: { online: boolean; lastSeen: number; systemType: string }) => void) => {
+    const handler = (_: unknown, data: { online: boolean; lastSeen: number; systemType: string }) => callback(data);
+    ipcRenderer.on(IPC_CHANNELS.COMPANION_HEARTBEAT, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.COMPANION_HEARTBEAT, handler);
+  },
+
+  onCompanionStatusText: (callback: (data: { severity: number; text: string }) => void) => {
+    const handler = (_: unknown, data: { severity: number; text: string }) => callback(data);
+    ipcRenderer.on(IPC_CHANNELS.COMPANION_STATUSTEXT, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.COMPANION_STATUSTEXT, handler);
+  },
+
+  // Detachable Windows (pop-out)
+  openDetachedWindow: (req: OpenDetachedRequest): Promise<string> =>
+    ipcRenderer.invoke(IPC_CHANNELS.WINDOW_OPEN_DETACHED, req),
+  closeDetachedWindow: (id: string): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.WINDOW_CLOSE_DETACHED, id),
+  getDetachedWindows: (): Promise<DetachedWindowInfo[]> =>
+    ipcRenderer.invoke(IPC_CHANNELS.WINDOW_GET_DETACHED),
+  focusMainWindow: (): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.WINDOW_FOCUS_MAIN),
+  onDetachedWindowOpened: (callback: (info: DetachedWindowInfo) => void): (() => void) => {
+    const handler = (_: unknown, info: DetachedWindowInfo) => callback(info);
+    ipcRenderer.on(IPC_CHANNELS.WINDOW_DETACHED_OPENED, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.WINDOW_DETACHED_OPENED, handler);
+  },
+  onDetachedWindowClosed: (callback: (id: string) => void): (() => void) => {
+    const handler = (_: unknown, id: string) => callback(id);
+    ipcRenderer.on(IPC_CHANNELS.WINDOW_DETACHED_CLOSED, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.WINDOW_DETACHED_CLOSED, handler);
+  },
+  /** Toggle "always on top" for the *caller* window. Returns the new state. */
+  setSelfAlwaysOnTop: (on: boolean): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.WINDOW_SET_ALWAYS_ON_TOP_SELF, on),
+  getSelfAlwaysOnTop: (): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.WINDOW_GET_ALWAYS_ON_TOP_SELF),
+
+  /**
+   * Broadcast an inspector state change (pause / clear) so every open window
+   * stays in sync. Main re-emits on the same channel — the originator gets
+   * its own echo, which is idempotent.
+   */
+  broadcastInspector: (event: { type: 'paused' | 'reset'; paused?: boolean }): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.INSPECTOR_BROADCAST, event),
+  onInspectorBroadcast: (
+    callback: (event: { type: 'paused' | 'reset'; paused?: boolean }) => void,
+  ): (() => void) => {
+    const handler = (_: unknown, event: { type: 'paused' | 'reset'; paused?: boolean }) =>
+      callback(event);
+    ipcRenderer.on(IPC_CHANNELS.INSPECTOR_BROADCAST, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.INSPECTOR_BROADCAST, handler);
+  },
+
+  // Map overlays
+  getRadarMeta: (): Promise<RainViewerMeta | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.OVERLAY_GET_RADAR_META),
+  getAirspace: (params: { lat: number; lon: number; zoom: number }): Promise<{ error?: string; data: AirspaceData[] }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.OVERLAY_GET_AIRSPACE, params),
+  getAirports: (params: { lat: number; lon: number; zoom: number }): Promise<{ error?: string; data: AirportData[] }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.OVERLAY_GET_AIRPORTS, params),
+  getWindField: (params: WindFetchParams): Promise<WindField | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.OVERLAY_GET_WIND, params),
+  geocodeSearch: (query: string): Promise<GeocodeResult[]> =>
+    ipcRenderer.invoke(IPC_CHANNELS.OVERLAY_GEOCODE, query),
+  getApiKey: (service: string): Promise<{ hasKey: boolean; key: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.OVERLAY_GET_API_KEY, service),
+  setApiKey: (service: string, key: string): Promise<{ success: boolean }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.OVERLAY_SET_API_KEY, service, key),
+
+  // ─── Traffic overlays (ADS-B + glider/OGN) ───
+  /** Subscribe to live traffic snapshots. Returns an unsubscribe function. */
+  onTrafficUpdate: (callback: (batch: TrafficBatch) => void): (() => void) => {
+    const handler = (_: unknown, batch: TrafficBatch) => callback(batch);
+    ipcRenderer.on(IPC_CHANNELS.TRAFFIC_UPDATE, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.TRAFFIC_UPDATE, handler);
+  },
+  setTrafficViewport: (v: ViewportBbox): void =>
+    ipcRenderer.send(IPC_CHANNELS.TRAFFIC_SET_VIEWPORT, v),
+  setTrafficEnabled: (source: TrafficSource, enabled: boolean): void =>
+    ipcRenderer.send(IPC_CHANNELS.TRAFFIC_SET_ENABLED, { source, enabled }),
+  getTrafficConfig: (): Promise<TrafficConfig> =>
+    ipcRenderer.invoke(IPC_CHANNELS.TRAFFIC_GET_CONFIG),
+  setTrafficConfig: (cfg: TrafficConfig): Promise<{ success: boolean }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.TRAFFIC_SET_CONFIG, cfg),
+
+  // ─── NTRIP client for RTK corrections (issue #60) ───
+  ntripGetConfig: (): Promise<NtripConfig> =>
+    ipcRenderer.invoke(IPC_CHANNELS.NTRIP_GET_CONFIG),
+  ntripSetConfig: (cfg: NtripConfig): Promise<{ success: boolean }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.NTRIP_SET_CONFIG, cfg),
+  ntripConnect: (): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.NTRIP_CONNECT),
+  ntripDisconnect: (): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.NTRIP_DISCONNECT),
+  ntripGetSourcetable: (): Promise<NtripSourcetableResult> =>
+    ipcRenderer.invoke(IPC_CHANNELS.NTRIP_GET_SOURCETABLE),
+  ntripGetStatus: (): Promise<NtripStatus> =>
+    ipcRenderer.invoke(IPC_CHANNELS.NTRIP_GET_STATUS),
+  /** Subscribe to NTRIP status pushes. Returns an unsubscribe function. */
+  onNtripStatus: (callback: (status: NtripStatus) => void): (() => void) => {
+    const handler = (_: unknown, status: NtripStatus) => callback(status);
+    ipcRenderer.on(IPC_CHANNELS.NTRIP_STATUS, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.NTRIP_STATUS, handler);
+  },
+
+  // Area Editor (separate window)
+  openAreaEditor: (): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.AREA_EDITOR_OPEN),
+
+  /** Report the main window's current map viewport so the Area Editor opens on
+   *  the same location. Fire-and-forget. */
+  reportMapViewport: (v: { lat: number; lng: number; zoom: number }): void =>
+    ipcRenderer.send(IPC_CHANNELS.MAP_VIEWPORT_REPORT, v),
+
+  /** Send the finished polygon from the editor window to main, which forwards
+   *  it to the main window via AREA_EDITOR_AREA_RECEIVED. */
+  commitArea: (polygon: Array<{ lat: number; lng: number }>): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.AREA_EDITOR_COMMIT, { polygon }),
+
+  /** Subscribe to incoming area payloads in the main window. Returns an
+   *  unsubscribe function matching the existing on* pattern. */
+  onAreaReceived: (callback: (data: { polygon: Array<{ lat: number; lng: number }> }) => void): (() => void) => {
+    const handler = (_: unknown, data: { polygon: Array<{ lat: number; lng: number }> }) => callback(data);
+    ipcRenderer.on(IPC_CHANNELS.AREA_EDITOR_AREA_RECEIVED, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.AREA_EDITOR_AREA_RECEIVED, handler);
+  },
+
+  /** Send multiple finished shapes (areas or corridors) from the editor window
+   *  to main, which forwards them to the main window via AREA_EDITOR_AREAS_RECEIVED.
+   *  `kind: 'corridor'` + `corridorWidth` mark a linear (centerline) survey. */
+  commitAreas: (areas: Array<CommitArea>): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.AREA_EDITOR_COMMIT_AREAS, { areas }),
+
+  /** Subscribe to incoming multi-area payloads in the main window. Returns an
+   *  unsubscribe function matching the existing on* pattern. */
+  onAreasReceived: (callback: (data: { areas: Array<CommitArea> }) => void): (() => void) => {
+    const handler = (_: unknown, data: { areas: Array<CommitArea> }) => callback(data);
+    ipcRenderer.on(IPC_CHANNELS.AREA_EDITOR_AREAS_RECEIVED, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.AREA_EDITOR_AREAS_RECEIVED, handler);
+  },
+
+  exportAreasKml: (areas: ExportArea[], format: 'kml' | 'kmz'): Promise<{ success: boolean; filePath?: string; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.EXPORT_AREAS_KML, { areas, format }),
+};
+
+// Expose to renderer
+contextBridge.exposeInMainWorld('electronAPI', api);
+
+// Dev-only: test driver IPC bridge
+// Uses contextBridge because contextIsolation: true means direct window
+// assignments are not visible to the renderer. Callbacks receive only
+// serializable data — the renderer sends responses via sendTestResponse().
+if (process.env.NODE_ENV === 'development') {
+  contextBridge.exposeInMainWorld('__testing', {
+    /**
+     * Register a listener for incoming test requests from main process.
+     * The callback receives (requestId, params) — both serializable.
+     * The renderer must call sendTestResponse() with the result.
+     */
+    onTestRequest: (channel: string, callback: (requestId: string, params: any) => void) => {
+      ipcRenderer.on(channel, (_event: any, requestId: string, params: any) => {
+        callback(requestId, params);
+      });
+    },
+
+    /**
+     * Send a test response back to the main process.
+     */
+    sendTestResponse: (channel: string, requestId: string, result: { success: boolean; data?: any; error?: string }) => {
+      ipcRenderer.send(`${channel}:response`, requestId, result);
+    },
+
+    /**
+     * Signal that the test driver has finished registering all handlers.
+     */
+    signalReady: () => {
+      ipcRenderer.send('testing:driver-ready');
+    },
+  });
+}
+
+// Type declaration for renderer
+export type ElectronAPI = typeof api;

@@ -1,0 +1,25 @@
+If you want to flash custom firmware, you have to put it into a specific folder
+in specific format - as described below.
+
+'custom_node.hex' - name required by a flashing software
+
+Remember to use files that contain bootloader. In Arduino IDE you have to:
+'Tools' -> 'Board' -> 'Arduino Nano'
+and
+'Tools' -> 'Processor' -> 'ATmega328P (old bootloader)' -> old bootloader
+or
+'Tools' -> 'Processor' -> 'ATmega328P' -> new bootloader
+
+Next:
+'Sketch' -> 'Export compiled Binary' -> 'Show Sketch Folder' (after successful compiling)
+
+Next - find a file named like 'my_file.ino.with_bootloader.eightanaloginputs.hex'.
+Change its name to 'custom_node.hex'. Next place that file (using scp, winscp etc.)
+in '~/RH_Install-Manager/firmware/<chosen_bootloader_version>/custom_firmware/' in the Raspbian OS on the Pi,
+so the path looks like: '~/RH_Install-Manager/firmware/new_bootloader/custom_firmware/custom_node.hex'
+or '~/RH_Install-Manager/firmware/old_bootloader/custom_firmware/custom_node.hex'
+
+Next - open Install-Manager software, enter Nodes flash and update in Main Menu and navigate
+to 'Flash nodes individually' choose the node and use the option "Flash custom firmware..."
+
+If you use new bootloader it will be flashed in second attempt.

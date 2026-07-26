@@ -1,0 +1,108 @@
+defaults nosave
+
+
+# version
+# Betaflight / STM32F411 (S411) 4.4.2 Jun  1 2023 / 04:11:35 (23d066d08) MSP API: 1.45
+
+# config: YES
+
+# start the command batch
+batch start
+
+# reset configuration to default settings
+defaults nosave
+
+board_name CRAZYBEEF4DX
+manufacturer_id HAMO
+mcu_id 004f00233133511033303339
+signature 
+
+# name: Ecofree
+
+# feature
+feature -TELEMETRY
+
+# serial
+serial 0 131073 115200 57600 0 115200
+
+# map
+map AETR1234
+
+# aux
+aux 0 0 0 1550 2100 0 0
+aux 1 1 1 1300 1700 0 0
+aux 2 13 255 1300 1700 0 0
+aux 3 35 2 1600 2100 0 0
+
+# vtxtable
+vtxtable bands 6
+vtxtable channels 8
+vtxtable band 1 BOSCAM_A A CUSTOM     0    0    0    0    0    0    0    0
+vtxtable band 2 BOSCAM_B B CUSTOM     0    0    0    0    0    0    0    0
+vtxtable band 3 BOSCAM_E E CUSTOM  5705    0    0    0    0    0    0    0
+vtxtable band 4 FATSHARK F CUSTOM  5740 5760    0 5800    0    0    0    0
+vtxtable band 5 RACEBAND R CUSTOM  5658 5695 5732 5769 5806 5843 5880 5917
+vtxtable band 6 LOWBAND  L CUSTOM     0    0    0    0    0    0    0    0
+vtxtable powerlevels 3
+vtxtable powervalues 14 23 0
+vtxtable powerlabels 25 200 0
+
+# master
+set dyn_notch_count = 1
+set dyn_notch_q = 500
+set acc_calibration = -54,76,11,1
+set dshot_bidir = ON
+set motor_pwm_protocol = DSHOT300
+set motor_poles = 12
+set vbat_min_cell_voltage = 310
+set vbat_warning_cell_voltage = 320
+set ibata_scale = 470
+set small_angle = 180
+set osd_tim2 = 2563
+set osd_vbat_pos = 2498
+set osd_link_quality_pos = 2100
+set osd_tim_1_pos = 3339
+set osd_tim_2_pos = 3275
+set osd_flymode_pos = 2580
+set osd_vtx_channel_pos = 2146
+set osd_craft_name_pos = 3585
+set osd_pilot_name_pos = 2562
+set osd_warnings_pos = 14833
+set osd_avg_cell_voltage_pos = 2466
+set osd_stat_bitmask = 14126
+set osd_displayport_device = MSP
+set osd_canvas_width = 50
+set osd_canvas_height = 18
+set debug_mode = GYRO_RAW
+set vtx_band = 5
+set vtx_channel = 1
+set vtx_power = 1
+set vtx_freq = 5658
+set vcd_video_system = HD
+set gyro_1_sensor_align = CW0
+set craft_name = Ecofree
+set pilot_name = papfpv
+
+profile 0
+
+profile 1
+
+profile 2
+
+profile 3
+
+# restore original profile selection
+profile 0
+
+rateprofile 0
+
+rateprofile 1
+
+rateprofile 2
+
+rateprofile 3
+
+# restore original rateprofile selection
+rateprofile 0
+
+# save configuration

@@ -1,0 +1,33 @@
+#ifndef MARUKO_VIDEO_H
+#define MARUKO_VIDEO_H
+
+#include "h26x_param_sets.h"
+#include "hevc_rtp.h"
+#include "maruko_bindings.h"
+#include "maruko_config.h"
+#include "maruko_output.h"
+#include "rtp_session.h"
+
+#include <stddef.h>
+
+/* SVC-T per-frame reference type (MI_VENC_H264eRefType_e, H265 aliases it):
+ * E_MI_VENC_ENHANCE_P_NOTFORREF = 5 — the droppable top enhance-layer frame.
+ * The SigmaStar enum inserts E_MI_VENC_BASE_P_REFTOIDR at index 1, so this is
+ * 5, NOT 4 (value 4 is ENHANCE_P_REFBYENHANCE — referenced, non-droppable).
+ * i6c shares the i6e enum. See star6e.h for the device-verified rationale. */
+#define MARUKO_REFTYPE_ENHANCE_P_NOTFORREF 5
+
+typedef RtpSessionState MarukoRtpState;
+
+/** Initialize RTP session state for Maruko video output. */
+void maruko_video_init_rtp_state(MarukoRtpState *rtp,
+	PAYLOAD_TYPE_E codec, uint32_t sensor_fps);
+
+/** Packetize and send one encoder frame over RTP.
+ *  If stats is non-NULL and the stream is H.265 in RTP mode, per-frame
+ *  packetizer counters are accumulated into *stats. */
+size_t maruko_video_send_frame(const i6c_venc_strm *stream,
+	MarukoOutput *output, MarukoRtpState *rtp,
+	H26xParamSets *params, MarukoBackendConfig *cfg, HevcRtpStats *stats);
+
+#endif /* MARUKO_VIDEO_H */

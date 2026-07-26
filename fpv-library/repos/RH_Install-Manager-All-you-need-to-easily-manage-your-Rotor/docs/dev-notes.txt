@@ -1,0 +1,54 @@
+
+        Developer notes:
+
+This software requires using python 3.6 or later. It automatically installs all required dependencies,
+when being opened with 'sh ./rhim.sh' command.
+
+Some actions on system files are being performed during operations - like UART enabling etc.
+Admin privileges are only used when needed (e.g. installing dependencies) or to ensure smooth operation.
+
+Big part of this software acts like "scripts". Automated actions like 'cp dir1 dir2' are being performed,
+so user don't have to do it manually. 
+
+'> /dev/null 2>&1' code parts are added sometimes to prevent error messages in parts where they can be expected,
+but don't have any impact on user experience due to nature of the rest of a command. 
+
+Software operates in user's home folder most of the time. It contains some code that can change content
+of that folder. Some directories may be deleted to ensure smooth operation in the future - e.g. any "leftovers"
+from previous installation attempts like "RotorHazard-master" or "temp.zip" may be deleted.
+No actual installation or configuration files are intended to be deleted without user intention or knowledge.
+
+Software also contains some compatibility-ensuring code in prev_comp.py file so first users have same, 
+good experiences with this software.
+
+Directory '/.dev' contains pieces of software which are not accessible by usual users, like test files etc.
+
+You can enable debug/simulation mode in a wizard or in updater-config.json file, so it can be evaluated on a PC.
+Linux or WSL will be probably most compatible.
+
+If you can and want somehow help in resolving issues posted on GitHub - feel free to do it or write us.
+
+Update notes and features doc may be read for new features description.
+
+Branch 'stable' is up-to-date and valid to be used.
+
+Branch 'main' is ongoing work in progress - used when "beta_tester" flag in enabled.
+
+Feedback is welcome. Use GitHub or contact me via Facebook.
+
+Old disclaimer - not really a thing since David Just joined me in the project:
+If you are seriously skilled developer and you see that this software contains some bugs or implemented
+"behaviors" that are not in good, coding "taste" - feel free to tell me so. Remember that this software
+was more like a platform to perform desired outcome at the beginning. Then it started to be more serious
+and that I started the development with near zero experience in python coding. Nevertheless, I am opened
+to any learning experience so, again, you can tell me what can be done better.
+
+New disclaimer:
+Since "I" changed to "we" due to nice people contribution - if you have any suggestions - just tell us.
+Code is now much better, mainly due to Dave's contribution :)
+
+Link to my GitHub page: https://github.com/szafranski - there is a contact link as well.
+
+Other contact options are on main page - README.md file.
+
+Paweł Fabiszewski

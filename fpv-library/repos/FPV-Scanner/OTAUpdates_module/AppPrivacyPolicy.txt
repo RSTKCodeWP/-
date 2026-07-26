@@ -1,0 +1,3 @@
+FPV Scanner App Privacy Policy:
+
+No usage, scan data, pilot labels, or personal information is uploaded or shared with anyone. We only use the internet to check for updates on the app stores, or our github repo for the module. We also provide links to purchase the module or email us. The app stores preferences locally on your device. The firmware update mechanism scans your Wifi for an SSID and sends that SSID, along with the password you provided, to the module over bluetooth.  The module then connects to your wifi with this information and only connects to our github repo to download firmware.  The module does not connect to any other server.  The app and module does store your Wifi SSID and password locally, similar to most IOT devices.

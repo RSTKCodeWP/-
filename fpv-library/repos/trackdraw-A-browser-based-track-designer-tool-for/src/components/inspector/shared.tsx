@@ -1,0 +1,274 @@
+"use client";
+
+import { useEffect, useId, useState } from "react";
+import type { ReactNode } from "react";
+import { useHistorySession } from "@/hooks/account/useHistorySession";
+import { cn } from "@/lib/utils";
+import { Input } from "@/components/ui/input";
+import { useSessionActions } from "@/store/actions";
+import {
+  formatMeasurementInputValue,
+  parseMeasurementInput,
+  type MeasurementUnitSystem,
+} from "@/lib/track/units";
+import { ChevronDown } from "lucide-react";
+
+export const fmt = (value: number | null | undefined) =>
+  Number(
+    (typeof value === "number" && Number.isFinite(value) ? value : 0).toFixed(2)
+  );
+
+export function useInspectorInputBatch() {
+  const { beginInteraction, endInteraction, pauseHistory, resumeHistory } =
+    useSessionActions();
+  const { startSession, finishSession, cancelSession } = useHistorySession({
+    beginInteraction,
+    endInteraction,
+    pauseHistory,
+    resumeHistory,
+  });
+
+  const startBatch = () => {
+    startSession();
+  };
+
+  const finishBatch = () => {
+    finishSession();
+  };
+
+  useEffect(
+    () => () => {
+      cancelSession();
+    },
+    [cancelSession]
+  );
+
+  return {
+    startBatch,
+    finishBatch,
+  };
+}
+
+export function PanelHeader({
+  title,
+  actions,
+}: {
+  title: string;
+  actions?: ReactNode;
+}) {
+  return (
+    <div className="border-border/60 bg-card/95 supports-backdrop-filter:bg-card/90 sticky top-0 z-10 flex h-11 shrink-0 items-center justify-between border-b px-4 backdrop-blur lg:h-9 lg:px-3">
+      <span className="text-foreground/80 text-xs font-medium tracking-widest uppercase lg:text-[11px]">
+        {title}
+      </span>
+      {actions && <div className="flex gap-1 lg:gap-0.5">{actions}</div>}
+    </div>
+  );
+}
+
+export function Row({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex min-h-9 items-center gap-3 py-1 lg:min-h-8 lg:py-0.5">
+      <span className="text-muted-foreground/85 w-19.5 shrink-0 text-[11px] tracking-[0.02em] lg:w-22">
+        {label}
+      </span>
+      <div className="min-w-0 flex-1">{children}</div>
+    </div>
+  );
+}
+
+export function Section({
+  title,
+  children,
+  className,
+  collapsible = true,
+  defaultOpen = true,
+}: {
+  title: string;
+  children: ReactNode;
+  className?: string;
+  collapsible?: boolean;
+  defaultOpen?: boolean;
+}) {
+  const contentId = useId();
+  const [openState, setOpenState] = useState(() => ({
+    defaultOpen,
+    open: defaultOpen,
+  }));
+  const open =
+    openState.defaultOpen === defaultOpen ? openState.open : defaultOpen;
+  const isOpen = !collapsible || open;
+
+  return (
+    <div
+      className={cn(
+        "border-border/20 border-t pt-3 first:border-t-0 first:pt-0",
+        isOpen && className
+      )}
+    >
+      {collapsible ? (
+        <button
+          type="button"
+          onClick={() => setOpenState({ defaultOpen, open: !open })}
+          aria-expanded={isOpen}
+          aria-controls={contentId}
+          className="text-muted-foreground/75 hover:text-foreground focus-visible:ring-ring/40 mb-2 flex min-h-9 w-full shrink-0 items-center justify-between gap-3 rounded-sm text-left text-[11px] font-medium tracking-[0.12em] uppercase transition-colors focus-visible:ring-2 focus-visible:outline-hidden lg:min-h-6"
+        >
+          <span>{title}</span>
+          <ChevronDown
+            className={cn(
+              "size-3.5 shrink-0 transition-transform",
+              !isOpen && "-rotate-90"
+            )}
+          />
+        </button>
+      ) : (
+        <p className="text-muted-foreground/75 mb-2 shrink-0 text-[11px] font-medium tracking-[0.12em] uppercase">
+          {title}
+        </p>
+      )}
+      <div
+        id={contentId}
+        hidden={!isOpen}
+        className={cn(
+          "space-y-1 lg:space-y-0.5",
+          isOpen && className && "flex min-h-0 flex-1 flex-col"
+        )}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
+export function Num({
+  value,
+  onChange,
+  step = 0.1,
+  min,
+  max,
+}: {
+  value: number;
+  onChange: (value: number) => void;
+  step?: number;
+  min?: number;
+  max?: number;
+}) {
+  const { startBatch, finishBatch } = useInspectorInputBatch();
+
+  return (
+    <Input
+      type="number"
+      step={step}
+      min={min}
+      max={max}
+      value={value}
+      onFocus={startBatch}
+      onBlur={finishBatch}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") {
+          event.currentTarget.blur();
+        }
+      }}
+      onChange={(event) => onChange(+event.target.value)}
+      className="bg-background border-border/50 focus-visible:border-border/80 h-8 rounded-md px-2.5 font-mono text-[11px] shadow-none focus-visible:ring-0 lg:h-7 lg:px-2"
+    />
+  );
+}
+
+export function MeasurementNum({
+  valueMeters,
+  unitSystem,
+  onChange,
+  minMeters,
+  maxMeters,
+}: {
+  valueMeters: number;
+  unitSystem: MeasurementUnitSystem;
+  onChange: (valueMeters: number) => void;
+  minMeters?: number;
+  maxMeters?: number;
+}) {
+  const { startBatch, finishBatch } = useInspectorInputBatch();
+  const [draft, setDraft] = useState<string | null>(null);
+  const displayValue =
+    draft ?? formatMeasurementInputValue(valueMeters, unitSystem);
+
+  const commit = () => {
+    if (draft === null) return;
+
+    const parsed = parseMeasurementInput(draft, unitSystem);
+    if (parsed === null) {
+      setDraft(null);
+      return;
+    }
+
+    let nextValue = parsed;
+    if (typeof minMeters === "number")
+      nextValue = Math.max(minMeters, nextValue);
+    if (typeof maxMeters === "number")
+      nextValue = Math.min(maxMeters, nextValue);
+    onChange(nextValue);
+    setDraft(null);
+  };
+
+  return (
+    <Input
+      type="text"
+      inputMode="decimal"
+      value={displayValue}
+      onFocus={() => {
+        setDraft(displayValue);
+        startBatch();
+      }}
+      onBlur={() => {
+        commit();
+        finishBatch();
+      }}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") {
+          event.currentTarget.blur();
+        }
+      }}
+      onChange={(event) => setDraft(event.target.value)}
+      className="bg-background border-border/50 focus-visible:border-border/80 h-8 rounded-md px-2.5 font-mono text-[11px] shadow-none focus-visible:ring-0 lg:h-7 lg:px-2"
+    />
+  );
+}
+
+export function IconBtn({
+  onClick,
+  title,
+  children,
+  danger,
+  label,
+}: {
+  onClick: () => void;
+  title: string;
+  children: ReactNode;
+  danger?: boolean;
+  label?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={title}
+      aria-label={title}
+      className={`inline-flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-md border px-2.5 text-[11px] font-medium transition-colors lg:h-7 lg:px-2 ${
+        danger
+          ? "border-red-500/20 bg-red-500/6 text-red-500 hover:bg-red-500/12"
+          : "border-border/50 bg-background text-foreground/82 hover:bg-muted/35"
+      }`}
+    >
+      {children}
+      {label ? <span>{label}</span> : null}
+    </button>
+  );
+}

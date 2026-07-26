@@ -1,0 +1,7 @@
+# Keep the Vercel upload small: Vercel installs deps and builds the landing site remotely
+# (ui/vercel.json: installCommand + buildCommand), so local dependencies and prebuilt output
+# should not be uploaded. These are all regenerated on Vercel.
+node_modules
+dist
+dist-web
+dist-landing

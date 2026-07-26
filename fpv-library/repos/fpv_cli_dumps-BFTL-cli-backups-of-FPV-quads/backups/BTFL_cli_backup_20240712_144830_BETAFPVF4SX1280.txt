@@ -1,0 +1,144 @@
+defaults nosave
+
+
+# version
+# Betaflight / STM32F411 (S411) 4.4.0 Oct  9 2023 / 12:17:54 (4605309d8) MSP API: 1.45
+
+# config: YES
+
+# start the command batch
+batch start
+
+# reset configuration to default settings
+defaults nosave
+
+board_name BETAFPVF4SX1280
+manufacturer_id BEFH
+mcu_id 006e00413233510b34393532
+signature 
+
+# feature
+feature -RX_SERIAL
+feature -SOFTSERIAL
+feature -TELEMETRY
+feature -LED_STRIP
+
+# serial
+serial 0 64 115200 57600 0 115200
+serial 1 1 115200 57600 0 115200
+
+# beacon
+beacon RX_LOST
+beacon RX_SET
+
+# led
+led 0 0,0::A:0
+led 1 1,0::A:0
+
+# aux
+aux 0 0 0 1700 2100 0 0
+aux 1 1 1 1300 1700 0 0
+aux 2 13 2 1700 2100 0 0
+aux 3 35 1 1700 2100 0 0
+
+# vtxtable
+vtxtable bands 6
+vtxtable channels 8
+vtxtable band 1 BOSCAM_A A CUSTOM     0    0    0    0    0    0    0    0
+vtxtable band 2 BOSCAM_B B CUSTOM     0    0    0    0    0    0    0    0
+vtxtable band 3 BOSCAM_E E CUSTOM     0    0    0    0    0    0    0    0
+vtxtable band 4 FATSHARK F CUSTOM     0 5760    0 5800    0    0    0    0
+vtxtable band 5 RACEBAND R CUSTOM  5658 5695 5732 5769 5806 5843 5880 5917
+vtxtable band 6 LOWBAND  L CUSTOM     0    0    0    0    0    0    0    0
+vtxtable powerlevels 3
+vtxtable powervalues 14 23 0
+vtxtable powerlabels 25 200 0
+
+# master
+set gyro_lpf1_static_hz = 0
+set dyn_notch_count = 1
+set dyn_notch_q = 500
+set dyn_notch_min_hz = 120
+set acc_calibration = -12,0,14,1
+set max_check = 2000
+set dshot_idle_value = 600
+set dshot_bidir = ON
+set dshot_bitbang = ON
+set motor_pwm_protocol = DSHOT300
+set motor_poles = 12
+set ibata_scale = 850
+set yaw_motors_reversed = ON
+set small_angle = 180
+set pid_process_denom = 1
+set osd_vbat_pos = 2434
+set osd_rssi_pos = 228
+set osd_link_quality_pos = 2402
+set osd_rssi_dbm_pos = 2370
+set osd_tim_2_pos = 2455
+set osd_flymode_pos = 2392
+set osd_throttle_pos = 2338
+set osd_crosshairs_pos = 2318
+set osd_current_pos = 374
+set osd_craft_name_pos = 2442
+set osd_warnings_pos = 14633
+set osd_core_temp_pos = 182
+set osd_displayport_device = MSP
+set osd_canvas_width = 30
+set osd_canvas_height = 13
+set vtx_band = 5
+set vtx_channel = 8
+set vtx_power = 1
+set expresslrs_uid = 7,48,91,69,202,173
+
+profile 0
+
+# profile 0
+set iterm_relax = RP_INC
+set p_pitch = 51
+set i_pitch = 82
+set d_pitch = 43
+set f_pitch = 151
+set p_roll = 47
+set i_roll = 75
+set d_roll = 38
+set f_roll = 138
+set p_yaw = 47
+set i_yaw = 75
+set f_yaw = 138
+set d_min_roll = 36
+set d_min_pitch = 41
+set feedforward_smooth_factor = 30
+set simplified_master_multiplier = 110
+set simplified_i_gain = 90
+set simplified_d_gain = 110
+set simplified_pi_gain = 95
+set simplified_dmax_gain = 15
+set simplified_feedforward_gain = 105
+set simplified_pitch_pi_gain = 105
+
+profile 1
+
+profile 2
+
+profile 3
+
+# restore original profile selection
+profile 0
+
+rateprofile 0
+
+# rateprofile 0
+set roll_srate = 65
+set pitch_srate = 65
+set yaw_srate = 65
+
+rateprofile 1
+
+rateprofile 2
+
+rateprofile 3
+
+# restore original rateprofile selection
+rateprofile 0
+
+# save configuration

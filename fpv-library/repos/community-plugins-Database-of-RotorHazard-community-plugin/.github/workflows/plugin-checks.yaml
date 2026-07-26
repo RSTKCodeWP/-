@@ -1,0 +1,233 @@
+---
+name: Plugin checks
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  VERSION: "v1"
+
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # 0) Tiny, universal change detector (very fast)
+  changes:
+    name: Detect relevant changes
+    runs-on: ubuntu-latest
+    outputs:
+      relevant: ${{ steps.filter.outputs.relevant }}
+    steps:
+      - name: ⤵️ Check out (merge commit)
+        uses: actions/checkout@v7.0.1
+        with:
+          ref: refs/pull/${{ github.event.pull_request.number }}/merge
+          fetch-depth: 2
+      - name: 🔎 Paths filter
+        id: filter
+        uses: dorny/paths-filter@v4.0.2
+        with:
+          filters: |
+            relevant:
+              - plugins.json
+              - categories.json
+
+  # 1) Preflight: always runs; only does heavy work when relevant
+  preflight:
+    name: Preflight
+    runs-on: ubuntu-latest
+    needs: changes
+    outputs:
+      repository: ${{ steps.out.outputs.repository }}
+      action: ${{ steps.out.outputs.action }}
+      ref: ${{ steps.out.outputs.ref }}
+    steps:
+      # If relevant: do the full preflight
+      - name: ⤵️ Check out code (PR merge commit)
+        if: needs.changes.outputs.relevant == 'true'
+        uses: actions/checkout@v7.0.1
+        with:
+          ref: refs/pull/${{ github.event.pull_request.number }}/merge
+          fetch-depth: 2
+      - name: ⤵️ Fetch base branch plugins.json
+        if: needs.changes.outputs.relevant == 'true'
+        run: |
+          git fetch origin ${{ github.event.pull_request.base.ref }} --depth=1
+          git show origin/${{ github.event.pull_request.base.ref }}:plugins.json > plugins_old.json || echo "{}" > plugins_old.json
+      - name: 🏗 Set up UV
+        if: needs.changes.outputs.relevant == 'true'
+        uses: astral-sh/setup-uv@v9.0.0
+        with:
+          version: "latest"
+          enable-cache: true
+      - name: 🏗 Install project dependencies
+        if: needs.changes.outputs.relevant == 'true'
+        run: uv sync --no-group dev
+      - name: 🚀 Determine Repository Changes
+        if: needs.changes.outputs.relevant == 'true'
+        id: check
+        run: uv run python scripts/check_preflight.py
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Single outputs for downstream jobs
+      - name: Set outputs
+        id: out
+        run: |
+          echo "repository=${{ steps.check.outputs.repository }}" >> "$GITHUB_OUTPUT"
+          echo "action=${{ steps.check.outputs.action }}" >> "$GITHUB_OUTPUT"
+          echo "ref=${{ steps.check.outputs.ref }}" >> "$GITHUB_OUTPUT"
+
+  # 2) Categories: run only when relevant (action or repository set)
+  categories:
+    name: Category validation
+    runs-on: ubuntu-latest
+    needs: [changes, preflight]
+    if: ${{ needs.changes.outputs.relevant == 'true' }}
+    steps:
+      - name: ⤵️ Check out code
+        uses: actions/checkout@v7.0.1
+      - name: 🏗 Set up UV
+        uses: astral-sh/setup-uv@v9.0.0
+        with:
+          version: "latest"
+          enable-cache: true
+      - name: 🏗 Install project dependencies
+        run: uv sync --no-group dev
+      - name: 🚀 Run validation
+        run: |
+          ACTION=${{ needs.preflight.outputs.action }}
+          REPO=${{ needs.preflight.outputs.repository }}
+          if [ -n "$ACTION" ] && [ -n "$REPO" ]; then
+            echo "▶️ Running add/remove check and sync check"
+            uv run python scripts/check_categories.py --action "$ACTION"
+          else
+            echo "▶️ Running only sync check (no add/remove detected)"
+            uv run python scripts/check_categories.py
+          fi
+        env:
+          REPOSITORY: ${{ needs.preflight.outputs.repository }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # 3) Releases: only for 'add'
+  releases:
+    name: Release validation
+    runs-on: ubuntu-latest
+    needs: preflight
+    if: ${{ needs.preflight.outputs.action == 'add' }}
+    steps:
+      - name: ⤵️ Check out code
+        uses: actions/checkout@v7.0.1
+      - name: 🏗 Set up UV
+        uses: astral-sh/setup-uv@v9.0.0
+        with:
+          version: "latest"
+          enable-cache: true
+      - name: 🏗 Install project dependencies
+        run: uv sync --no-group dev
+      - name: 🚀 Run validation
+        run: uv run python scripts/check_releases.py --repository="${{ needs.preflight.outputs.repository }}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # 4) Removed: only for 'add'
+  removed:
+    name: Removed validation
+    runs-on: ubuntu-latest
+    needs: preflight
+    if: ${{ needs.preflight.outputs.action == 'add' }}
+    steps:
+      - name: ⤵️ Check out code
+        uses: actions/checkout@v7.0.1
+      - name: 🏗 Set up UV
+        uses: astral-sh/setup-uv@v9.0.0
+        with:
+          version: "latest"
+          enable-cache: true
+      - name: 🏗 Install project dependencies
+        run: uv sync --no-group dev
+      - name: ⤵️ Download data from Cloudflare R2
+        run: |
+          uv run aws s3 cp s3://rotorhazard-community-plugins/${{ env.VERSION }}/removed/repositories.json ./repositories.json --endpoint-url=${{ secrets.CF_R2_ENDPOINT }} || echo "[]" > repositories.json
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.CF_R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.CF_R2_SECRET_ACCESS_KEY }}
+      - name: 🚀 Run validation
+        run: uv run python scripts/check_removed.py --data-file repositories.json
+        env:
+          REPOSITORY: ${{ needs.preflight.outputs.repository }}
+
+  # 5) RHFest: only for 'add'
+  rhfest:
+    name: RHFest validation
+    runs-on: ubuntu-latest
+    needs: preflight
+    if: ${{ needs.preflight.outputs.action == 'add' }}
+    steps:
+      - name: ⤵️ Check out added plugin release
+        uses: actions/checkout@v7.0.1
+        with:
+          repository: ${{ needs.preflight.outputs.repository }}
+          ref: ${{ needs.preflight.outputs.ref }}
+          fetch-depth: 1
+      - name: 🚀 Run RHFest Validation
+        uses: docker://ghcr.io/rotorhazard/rhfest-action:v3.1.0
+
+  # 6) Aggregator: single required status
+  checks:
+    name: Checks
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [changes, preflight, categories, releases, removed, rhfest]
+    steps:
+      - name: Decide outcome
+        run: |
+          ACTION="${{ needs.preflight.outputs.action }}"
+
+          echo "=== Job results ==="
+          echo "changes:    ${{ needs.changes.result }}"
+          echo "preflight:  ${{ needs.preflight.result }}"
+          echo "categories: ${{ needs.categories.result }}"
+          echo "releases:   ${{ needs.releases.result }}"
+          echo "removed:    ${{ needs.removed.result }}"
+          echo "rhfest:     ${{ needs.rhfest.result }}"
+          echo "action:     ${ACTION}"
+          echo "==================="
+
+          # Preflight must succeed (it either did fast path or full path)
+          if [ "${{ needs.preflight.result }}" != "success" ]; then
+            echo "Preflight failed"; exit 1
+          fi
+
+          # If no relevant changes, allow others to be skipped
+          if [ -z "${ACTION}" ]; then
+            echo "No relevant plugin/category changes -> OK"
+            exit 0
+          fi
+
+          # Categories must succeed when relevant
+          if [ "${{ needs.categories.result }}" != "success" ]; then
+            echo "Categories check failed"; exit 1
+          fi
+
+          # For 'add', these must also succeed (explicit checks; no dynamic indexing)
+          if [ "${ACTION}" = "add" ]; then
+            if [ "${{ needs.releases.result }}" != "success" ]; then
+              echo "Releases check not successful (${{ needs.releases.result }})"; exit 1
+            fi
+            if [ "${{ needs.removed.result }}" != "success" ]; then
+              echo "Removed check not successful (${{ needs.removed.result }})"; exit 1
+            fi
+            if [ "${{ needs.rhfest.result }}" != "success" ]; then
+              echo "RHFest check not successful (${{ needs.rhfest.result }})"; exit 1
+            fi
+          fi
+
+          echo "All required checks passed"
+          exit 0

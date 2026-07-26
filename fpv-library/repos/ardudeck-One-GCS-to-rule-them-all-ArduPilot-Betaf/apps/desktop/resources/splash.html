@@ -1,0 +1,238 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+  :root {
+    --navy: #0d1524;
+    --navy-2: #111c30;
+    --teal: #2dd4bf;
+    --teal-dim: #14b8a6;
+    --ink: #e6f4f1;
+    --muted: #5f7793;
+    --mono: ui-monospace, "Cascadia Code", "Segoe UI Mono", Consolas, monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 100%; height: 100%;
+    background: transparent;
+    overflow: hidden;
+    font-family: -apple-system, "Segoe UI", Roboto, system-ui, sans-serif;
+    -webkit-user-select: none;
+    cursor: default;
+  }
+  body { display: flex; align-items: center; justify-content: center; }
+
+  .card {
+    position: relative;
+    width: 440px; height: 340px;
+    border-radius: 20px;
+    background:
+      radial-gradient(120% 120% at 50% 0%, var(--navy-2) 0%, var(--navy) 62%);
+    border: 1px solid rgba(45, 212, 191, 0.18);
+    box-shadow:
+      0 24px 60px rgba(0, 0, 0, 0.55),
+      inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    overflow: hidden;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 16px;
+    transform: scale(0.965);
+    opacity: 0;
+    animation: cardIn 520ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+  @keyframes cardIn { to { transform: scale(1); opacity: 1; } }
+
+  .logo-wrap { position: relative; width: 140px; height: 140px; }
+  .logo-wrap img {
+    width: 100%; height: 100%;
+    object-fit: contain; display: block;
+    filter: drop-shadow(0 6px 22px rgba(45, 212, 191, 0.26));
+    opacity: 0;
+    animation: logoIn 600ms 60ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+  @keyframes logoIn {
+    from { opacity: 0; transform: translateY(8px) scale(0.94); }
+    to   { opacity: 1; transform: translateY(0)   scale(1); }
+  }
+  .logo-wrap.fallback::after {
+    content: "ArduDeck";
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 26px; font-weight: 700; letter-spacing: 0.5px;
+    color: var(--ink);
+  }
+
+  /* Boot-check log: each line slides in with a spinner (pending), then its
+     spinner fades and OK pops in. Delays are set per-line via --d inline. The
+     labels are chosen randomly per launch (see script). The final line stays
+     pending (spinning) until the app signals ready via window.splash.fadeOut(),
+     so the splash never looks "finished" before the app actually appears. */
+  .log {
+    width: 262px;
+    font-family: var(--mono);
+    font-size: 11.5px; line-height: 1.5;
+    display: flex; flex-direction: column; gap: 7px;
+  }
+  .line {
+    display: flex; align-items: center; justify-content: space-between;
+    opacity: 0;
+    animation: lineIn 350ms ease forwards;
+    animation-delay: var(--d);
+  }
+  @keyframes lineIn {
+    from { opacity: 0; transform: translateX(-5px); }
+    to   { opacity: 1; transform: none; }
+  }
+  .line .lbl { color: #647c98; letter-spacing: 0.3px; transition: color 200ms ease; }
+  .line.done .lbl { color: #8fa6bd; }
+
+  .state { position: relative; width: 22px; height: 14px; }
+  .spin {
+    position: absolute; right: 0; top: 1px;
+    width: 11px; height: 11px; border-radius: 50%;
+    border: 1.5px solid rgba(45, 212, 191, 0.22);
+    border-top-color: var(--teal);
+    animation:
+      spinRot 700ms linear infinite,
+      hideAt 10ms linear forwards;
+    animation-delay: 0s, calc(var(--d) + 750ms);
+  }
+  @keyframes spinRot { to { transform: rotate(360deg); } }
+  @keyframes hideAt { to { opacity: 0; } }
+  .ok {
+    position: absolute; right: 0; top: 0;
+    color: var(--teal); font-weight: 700; font-size: 11px; letter-spacing: 0.5px;
+    opacity: 0; transform: scale(0.7);
+    animation: okIn 300ms calc(var(--d) + 750ms) cubic-bezier(0.22, 1.4, 0.4, 1) forwards;
+  }
+  @keyframes okIn { to { opacity: 1; transform: none; } }
+
+  /* Final "ready" line: spins indefinitely, resolves only when the card gets
+     .out (app ready). Overrides the auto spinner/OK timing. */
+  .line.hold .spin { animation: spinRot 700ms linear infinite; opacity: 1; }
+  .line.hold .ok { animation: none; }
+  .card.out .line.hold .spin { opacity: 0; }
+  .card.out .line.hold .ok { opacity: 1; transform: none; transition: opacity 180ms ease, transform 180ms ease; }
+  .card.out .line.hold .lbl { color: #8fa6bd; }
+
+  .bar {
+    position: relative;
+    width: 262px; height: 3px; border-radius: 3px;
+    background: rgba(45, 212, 191, 0.12); overflow: hidden;
+  }
+  /* Indeterminate loaders (never show "done" until ready) - one per variant. */
+  .bar.sweep::after {
+    content: ""; position: absolute; top: 0; left: -42%;
+    height: 100%; width: 42%; border-radius: 3px;
+    background: linear-gradient(90deg, transparent, var(--teal), transparent);
+    animation: indet 1.5s cubic-bezier(0.65, 0.05, 0.35, 1) infinite;
+  }
+  @keyframes indet { 0% { left: -42%; } 100% { left: 100%; } }
+  .bar.pulse::after {
+    content: ""; position: absolute; inset: 0; border-radius: 3px;
+    background: var(--teal); animation: pulseBar 1.7s ease-in-out infinite;
+  }
+  @keyframes pulseBar { 0%, 100% { opacity: 0.22; } 50% { opacity: 0.85; } }
+  /* On ready, stop and show a full, settled bar. */
+  .card.out .bar::after {
+    animation: none; left: 0; inset: 0; width: 100%; opacity: 1;
+    background: linear-gradient(90deg, var(--teal-dim), var(--teal));
+  }
+
+  .version {
+    position: absolute; bottom: 12px; right: 16px;
+    font-size: 10.5px; letter-spacing: 0.5px;
+    color: rgba(95, 119, 147, 0.7);
+  }
+
+  .card.out { animation: cardOut 300ms 140ms ease forwards; }
+  @keyframes cardOut { to { opacity: 0; transform: scale(0.985); } }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; }
+    .card { opacity: 1; transform: none; }
+    .logo-wrap img, .line { opacity: 1; }
+    .spin { display: none; }
+    .ok { opacity: 1; transform: none; }
+    .bar::after { left: 0; width: 100%; opacity: 1; background: linear-gradient(90deg, var(--teal-dim), var(--teal)); }
+  }
+</style>
+</head>
+<body>
+  <div class="card" id="card">
+    <div class="logo-wrap" id="logoWrap">
+      <img id="logo" src="logo-splash.png" alt="ArduDeck" />
+    </div>
+    <div class="log" id="log"></div>
+    <div class="bar sweep" id="bar"></div>
+    <div class="version" id="version"></div>
+  </div>
+
+  <script>
+    // Called from the main process via webContents.executeJavaScript.
+    // No preload / IPC bridge on purpose - this stays a zero-dependency asset.
+    window.splash = {
+      // The boot-check log tells the loading story on its own, so status
+      // milestones are decorative here - kept as a safe no-op so the main
+      // process's setStatus() calls never throw.
+      setStatus() {},
+      setVersion(v) {
+        const el = document.getElementById('version');
+        if (el) el.textContent = v ? 'v' + v : '';
+      },
+      // App ready: .out resolves the final check to OK, settles the bar to full,
+      // then fades the card. Completion is tied to the real ready signal, not a
+      // timer, so the splash never sits done-but-waiting.
+      fadeOut() {
+        const card = document.getElementById('card');
+        if (card) card.classList.add('out');
+      },
+    };
+
+    // A launch picks one of these at random. Each is the same layout - only the
+    // check labels and loader style differ, so every start feels a little fresh.
+    var VARIANTS = [
+      { loader: 'sweep', checks: ['MAVLink link', 'EKF / AHRS', 'GPS fix'],               final: 'Starting interface' },
+      { loader: 'pulse', checks: ['Flight controller', 'Sensor suite', 'Telemetry link'], final: 'Loading interface' },
+      { loader: 'sweep', checks: ['Serial ports', 'MAVLink v2', 'Parameter cache'],       final: 'Rendering UI' },
+      { loader: 'pulse', checks: ['Map tiles', 'Mission store', 'Vehicle profiles'],      final: 'Starting interface' },
+      { loader: 'sweep', checks: ['Core services', 'Protocol bridge', 'Datalink'],        final: 'Warming up' }
+    ];
+    var BASE = 350, STEP = 650;
+
+    (function buildLog() {
+      var v = VARIANTS[Math.floor(Math.random() * VARIANTS.length)];
+      var html = '';
+      for (var i = 0; i < v.checks.length; i++) {
+        html += '<div class="line" style="--d:' + (BASE + i * STEP) + 'ms">' +
+                '<span class="lbl">' + v.checks[i] + '</span>' +
+                '<span class="state"><i class="spin"></i><b class="ok">OK</b></span></div>';
+      }
+      html += '<div class="line hold" style="--d:' + (BASE + v.checks.length * STEP) + 'ms">' +
+              '<span class="lbl">' + v.final + '</span>' +
+              '<span class="state"><i class="spin"></i><b class="ok">OK</b></span></div>';
+
+      var log = document.getElementById('log');
+      log.innerHTML = html;
+      document.getElementById('bar').className = 'bar ' + v.loader;
+
+      // Brighten each resolved line's label as its OK lands (skip the held final
+      // line - it brightens on ready via the .card.out rule).
+      var lines = log.querySelectorAll('.line:not(.hold)');
+      for (var j = 0; j < lines.length; j++) {
+        (function (el) {
+          var d = parseFloat(getComputedStyle(el).getPropertyValue('--d')) || 0;
+          setTimeout(function () { el.classList.add('done'); }, d + 750);
+        })(lines[j]);
+      }
+    })();
+
+    // Graceful fallback to a text wordmark if the logo image is missing.
+    var logo = document.getElementById('logo');
+    logo.addEventListener('error', function () {
+      logo.style.display = 'none';
+      document.getElementById('logoWrap').classList.add('fallback');
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,205 @@
+defaults nosave
+
+
+# version
+# Betaflight / STM32F411 (S411) 4.4.2 Jun  1 2023 / 02:20:34 (23d066d08) MSP API: 1.45
+
+# config: YES
+
+# start the command batch
+batch start
+
+# reset configuration to default settings
+defaults nosave
+
+board_name CRAZYBEEF4SX1280
+manufacturer_id HAMO
+mcu_id 003a000f3032510d33383735
+signature 
+
+# name: Diamond
+
+# resources
+resource MOTOR 1 B08
+resource MOTOR 2 B07
+resource MOTOR 3 B06
+resource MOTOR 4 B10
+
+# feature
+feature -RX_SERIAL
+feature -TELEMETRY
+feature -AIRMODE
+feature RX_SPI
+
+# serial
+serial 1 2048 115200 57600 0 115200
+
+# beacon
+beacon RX_LOST
+beacon RX_SET
+
+# aux
+aux 0 0 0 900 1400 0 0
+aux 1 1 1 1700 2100 0 0
+aux 2 13 2 1400 2100 0 0
+aux 3 28 1 900 1225 0 0
+aux 4 35 1 1225 1700 0 0
+aux 5 39 3 1300 2100 0 0
+
+# adjrange
+adjrange 0 0 4 900 2100 12 4 0 0
+
+# vtxtable
+vtxtable bands 6
+vtxtable channels 8
+vtxtable band 1 BOSCAM_A A FACTORY 5865 5845 5825 5805 5785 5765 5745 5725
+vtxtable band 2 BOSCAM_B B FACTORY 5733 5752 5771 5790 5809 5828 5847 5866
+vtxtable band 3 BOSCAM_E E FACTORY 5705 5685 5665    0 5885 5905    0    0
+vtxtable band 4 FATSHARK F FACTORY 5740 5760 5780 5800 5820 5840 5860 5880
+vtxtable band 5 RACEBAND R FACTORY 5658 5695 5732 5769 5806 5843 5880 5917
+vtxtable band 6 LOWRACE  L FACTORY 5333 5373 5413 5453 5493 5533 5573 5613
+vtxtable powerlevels 5
+vtxtable powervalues 10 2 14 16 26
+vtxtable powerlabels 0 RCE 25 100 400
+
+# master
+set gyro_lpf1_static_hz = 200
+set gyro_lpf2_static_hz = 250
+set dyn_notch_count = 1
+set dyn_notch_q = 500
+set gyro_lpf1_dyn_min_hz = 200
+set gyro_lpf1_dyn_max_hz = 550
+set acc_calibration = 45,5,-10,1
+set dshot_bidir = ON
+set motor_pwm_protocol = DSHOT300
+set motor_poles = 12
+set align_board_yaw = 90
+set vbat_max_cell_voltage = 440
+set vbat_min_cell_voltage = 290
+set vbat_warning_cell_voltage = 310
+set yaw_motors_reversed = ON
+set small_angle = 180
+set deadband = 1
+set yaw_deadband = 1
+set simplified_gyro_filter = OFF
+set osd_tim2 = 2563
+set osd_vbat_pos = 2369
+set osd_rssi_pos = 314
+set osd_link_quality_pos = 2062
+set osd_rssi_dbm_pos = 2073
+set osd_tim_1_pos = 2200
+set osd_tim_2_pos = 2232
+set osd_flymode_pos = 2457
+set osd_throttle_pos = 377
+set osd_vtx_channel_pos = 2049
+set osd_current_pos = 288
+set osd_mah_drawn_pos = 320
+set osd_craft_name_pos = 2447
+set osd_pilot_name_pos = 2438
+set osd_warnings_pos = 2419
+set osd_avg_cell_voltage_pos = 2401
+set osd_disarmed_pos = 2408
+set osd_esc_rpm_pos = 161
+set osd_core_temp_pos = 33
+set osd_rate_profile_name_pos = 2209
+set osd_stat_bitmask = 14126
+set osd_canvas_width = 30
+set osd_canvas_height = 13
+set debug_mode = RX_EXPRESSLRS_SPI
+set rate_6pos_switch = ON
+set vtx_band = 5
+set vtx_channel = 8
+set vtx_power = 3
+set vtx_low_power_disarm = ON
+set vtx_freq = 5917
+set vcd_video_system = NTSC
+set gyro_1_sensor_align = CW180
+set gyro_1_align_yaw = 1800
+set expresslrs_uid = 7,48,91,69,202,173
+set expresslrs_rate_index = 1
+set craft_name = Diamond
+set pilot_name = papfpv
+
+profile 0
+
+# profile 0
+set dterm_lpf1_dyn_min_hz = 63
+set dterm_lpf1_dyn_max_hz = 153
+set dterm_lpf1_static_hz = 90
+set dterm_lpf2_static_hz = 135
+set vbat_sag_compensation = 100
+set crash_recovery = ON
+set iterm_relax_cutoff = 20
+set yaw_lowpass_hz = 0
+set p_pitch = 80
+set i_pitch = 100
+set d_pitch = 85
+set f_pitch = 140
+set p_roll = 85
+set i_roll = 100
+set d_roll = 85
+set f_roll = 140
+set p_yaw = 120
+set i_yaw = 100
+set f_yaw = 140
+set d_min_roll = 31
+set d_min_pitch = 32
+set d_max_advance = 0
+set feedforward_jitter_factor = 5
+set feedforward_boost = 18
+set feedforward_max_rate_limit = 95
+set simplified_pids_mode = OFF
+set simplified_master_multiplier = 105
+set simplified_i_gain = 95
+set simplified_d_gain = 185
+set simplified_pi_gain = 120
+set simplified_dmax_gain = 0
+set simplified_feedforward_gain = 105
+set simplified_pitch_d_gain = 90
+set simplified_pitch_pi_gain = 90
+set simplified_dterm_filter = OFF
+set simplified_dterm_filter_multiplier = 120
+set tpa_breakpoint = 1250
+
+profile 1
+
+profile 2
+
+profile 3
+
+# restore original profile selection
+profile 0
+
+rateprofile 0
+
+# rateprofile 0
+set rateprofile_name = R_Angle
+
+rateprofile 1
+
+# rateprofile 1
+set rateprofile_name = R_Acro
+set roll_rc_rate = 45
+set pitch_rc_rate = 45
+set yaw_rc_rate = 42
+set roll_srate = 45
+set pitch_srate = 45
+set yaw_srate = 42
+
+rateprofile 2
+
+# rateprofile 2
+set rates_type = BETAFLIGHT
+set roll_rc_rate = 110
+set pitch_rc_rate = 110
+set yaw_rc_rate = 100
+set roll_srate = 75
+set pitch_srate = 75
+set yaw_srate = 70
+
+rateprofile 3
+
+# restore original rateprofile selection
+rateprofile 0
+
+# save configuration

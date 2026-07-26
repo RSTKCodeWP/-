@@ -1,0 +1,70 @@
+@import "./styles/tokens.css";
+
+/* Offline-bundled fonts (DESIGN-SYSTEM §9.2 — @fontsource, never fetched at runtime).
+ * B612 = Airbus/ENAC cockpit UI face; IBM Plex Mono = instrument data face (no ligatures). */
+@import "@fontsource/b612/400.css";
+@import "@fontsource/b612/700.css";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
+@import "@fontsource/ibm-plex-sans/400.css";
+@import "@fontsource/ibm-plex-sans/500.css";
+@import "@fontsource/ibm-plex-sans/600.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #app-root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: rgb(var(--bg-base));
+    color: rgb(var(--text-hi));
+    font-family: var(--font-ui);
+    font-size: var(--text-sm);
+    line-height: 1.4;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* All numeric data: tabular figures + slashed zero (DESIGN-SYSTEM §3.2, anti-slop #2). */
+  .tabular,
+  .font-mono {
+    font-variant-numeric: tabular-nums slashed-zero;
+    font-feature-settings: "tnum" 1, "zero" 1;
+  }
+}
+
+@layer components {
+  /* Thin dark scrollbars (DESIGN-SYSTEM §9.3) — default OS scrollbars read "unfinished". */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgb(var(--surface-3));
+    border-radius: var(--radius-pill);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgb(var(--surface-4));
+  }
+}
+
+/* prefers-reduced-motion: kill non-essential motion (DESIGN-SYSTEM §4.5). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

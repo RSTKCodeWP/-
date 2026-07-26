@@ -1,0 +1,344 @@
+{
+  "tabs": {
+    "ariaLabel": "Inspectorpanelen",
+    "layout": "Indeling",
+    "selection": "Selectie"
+  },
+  "emptyState": {
+    "title": "Geen selectie",
+    "body": "Selecteer een of meer items op het canvas om hun eigenschappen te bewerken."
+  },
+  "actions": {
+    "group": "Groepeer",
+    "continueEditing": "Doorgaan",
+    "connectEnds": "Verbinden",
+    "deleteShort": "Verwijder",
+    "duplicateShort": "Kopieer",
+    "ungroup": "Opheffen",
+    "groupSelection": "Selectie groeperen",
+    "ungroupSelection": "Groep opheffen",
+    "lockShort": "Vastzetten",
+    "unlockShort": "Losmaken",
+    "savePreset": "Opslaan als preset",
+    "joinPaths": "Paden samenvoegen",
+    "remove": "Verwijderen",
+    "removeItem": "Item verwijderen"
+  },
+  "hints": {
+    "locked": "Vergrendeld op het canvas. Ontgrendel voor verplaatsen, aanpassen of het voortzetten van padbewerking."
+  },
+  "group": {
+    "sectionTitle": "Groep",
+    "nameLabel": "Groepsnaam",
+    "namePlaceholder": "Optionele groepsnaam"
+  },
+  "raceTiming": {
+    "sectionTitle": "Race timing",
+    "ariaLabel": "Timingrol",
+    "splitIdLabel": "Split ID",
+    "splitIdPlaceholder": "split-1",
+    "roleStart": "Start",
+    "roleSplit": "Split",
+    "metaTimingStart": "timing: start",
+    "metaTimingSplit": "timing: {id}",
+    "metaGrouped": "gegroepeerd",
+    "metaLocked": "vergrendeld",
+    "metaEditable": "bewerkbaar"
+  },
+  "transform": {
+    "sectionTitle": "Transformatie",
+    "positionLabel": "Positie",
+    "rotationLabel": "Rotatie (graden)",
+    "colorLabel": "Kleur",
+    "pickColorAriaLabel": "Kleur kiezen",
+    "editingSubtitle": "{kind} eigenschappen en plaatsing bewerken."
+  },
+  "ladder": {
+    "sectionTitle": "Ladder"
+  },
+  "tower": {
+    "sectionTitle": "Tower"
+  },
+  "catalog": {
+    "sectionTitle": "Catalogus",
+    "sourceLabel": "Bron",
+    "sizeLabel": "Afmeting",
+    "officialBadge": "Officieel"
+  },
+  "dimensions": {
+    "widthLabel": "Breedte ({unit})",
+    "heightLabel": "Hoogte ({unit})",
+    "gridLabel": "Raster ({unit})",
+    "thicknessLabel": "Dikte ({unit})",
+    "radiusLabel": "Straal ({unit})",
+    "poleHeightLabel": "Masthoogte ({unit})",
+    "tiltLabel": "Kanteling (graden)",
+    "gatesLabel": "Gates",
+    "elevationLabel": "Hoogte boven grond ({unit})",
+    "levelsLabel": "Niveaus",
+    "sizeLabel": "Formaat ({unit})",
+    "openingHeightLabel": "Openingen hoogte ({unit})"
+  },
+  "label": {
+    "sectionTitle": "Opschrift",
+    "textLabel": "Tekst",
+    "fontSizeLabel": "Lettergrootte (px)",
+    "threeDModeLabel": "3D-modus",
+    "floatOption": "Zwevend (billboard)",
+    "groundOption": "Op grond projecteren"
+  },
+  "multiSelection": {
+    "sectionTitle": "Selectie",
+    "mixedTypesPlaceholder": "Gemengde typen",
+    "titleSelected": "{count, plural, one {1 item geselecteerd} other {{count} items geselecteerd}}",
+    "subtitle": "Bulkacties zijn hier beschikbaar. Open een los item vanaf het canvas voor gedetailleerde bewerking.",
+    "groupCountMeta": "{count, plural, one {1 groep} other {{count} groepen}}",
+    "joinAvailableMeta": "samenvoegen mogelijk",
+    "saveSectionLabel": "Sectie opslaan",
+    "lockedItemsNote": "Vergrendelde items blijven ongewijzigd."
+  },
+  "polyline": {
+    "sectionTitle": "Race Line",
+    "flowLabel": "Stroomrichting",
+    "directionLabel": "Richting",
+    "waypointsTitle": "Waypoints",
+    "waypointsSubtitle": "Pas elk waypoint en de hoogte ervan aan.",
+    "elevationColumn": "hoogte",
+    "editColumn": "bewerken",
+    "insertPointAfter": "Waypoint hierna invoegen",
+    "removePoint": "Waypoint verwijderen",
+    "addPoint": "Waypoint toevoegen"
+  },
+  "listPanel": {
+    "panelTitle": "Trackonderdelen",
+    "placedItemsTitle": "Geplaatste items",
+    "placedItemsSubtitle": "Selecteer een item uit de lijst.",
+    "filterPlaceholder": "Items filteren",
+    "filterAll": "Alles",
+    "filterObstacles": "Obstakels",
+    "itemColumn": "Item",
+    "pathColumn": "Path",
+    "noItemsMatchFilter": "Geen items komen overeen met dit filter.",
+    "routeStatus": {
+      "off": "naast route"
+    }
+  },
+  "layout": {
+    "mapReference": {
+      "title": "Kaartverwijzing",
+      "fields": {
+        "opacity": "Transparantie",
+        "rotation": "Rotatie"
+      },
+      "actions": {
+        "removeTitle": "Kaartverwijzing verwijderen",
+        "editTitle": "Kaartverwijzing bewerken",
+        "addTitle": "Kaartverwijzing toevoegen",
+        "edit": "Bewerken",
+        "add": "Kaart toevoegen",
+        "showTitle": "Kaartverwijzing weergeven",
+        "hideTitle": "Kaartverwijzing verbergen",
+        "show": "Weergeven"
+      }
+    },
+    "sections": {
+      "routeNumbering": "Routenummering",
+      "inventory": "Inventaris",
+      "field": "Veld"
+    },
+    "field": {
+      "unitsLabel": "Eenheden",
+      "renderScaleLabel": "Renderschaal",
+      "renderScaleTooltip": "Interne canvasdichtheid in pixels per meter",
+      "pxPerMeterAriaLabel": "pixels per meter, interne canvasschaal"
+    },
+    "project": {
+      "titlePlaceholder": "Naamloze track",
+      "subtitle": "Stel de projecttitel, veldconfiguratie en beschikbare obstakels in."
+    },
+    "overview": {
+      "title": "Huidige indeling",
+      "subtitle": "Bekijk geplaatste items, routenummering en bouweigenschappen van de huidige indeling.",
+      "emptyTitle": "Nog geen items geplaatst",
+      "emptyDescription": "Voeg een paar objecten toe op het canvas om de indeling te bekijken en te vergelijken met je inventaris."
+    },
+    "inventory": {
+      "status": {
+        "buildable": "Bouwbaar",
+        "short": "Tekort"
+      },
+      "labels": {
+        "missing": "Ontbreekt",
+        "types": "Types"
+      },
+      "description": "TrackDraw vergelijkt de huidige indeling met de obstakelvoorraad die in dit project is opgeslagen.",
+      "needCountSuffix": "nodig {count}",
+      "stockOk": "ok"
+    },
+    "meta": {
+      "itemsCount": "{count} items",
+      "grid": "raster {grid}",
+      "buildable": "bouwbaar",
+      "shortItems": "{count, plural, one {tekort 1 item} other {tekort {count} items}}",
+      "stockCovered": "voorraad gedekt",
+      "typesShort": "{count, plural, one {1 type tekort} other {{count} types tekort}}",
+      "numbered": "{count} genummerd",
+      "numberingIdle": "nummering inactief",
+      "numberingNeedsReview": "nummering vereist controle"
+    }
+  },
+  "routeNumbering": {
+    "status": {
+      "ready": "Gereed",
+      "partial": "Controle nodig",
+      "noRouteMatches": "Geen overeenkomsten",
+      "missingRoute": "Route ontbreekt",
+      "noNumberedObstacles": "Geen route-obstakels",
+      "empty": "Leeg"
+    },
+    "messages": {
+      "ready": "{count, plural, one {1 route-obstakel genummerd.} other {{count} route-obstakels genummerd.}}",
+      "partial": "{mapped} van {total} route-obstakels zijn genummerd.",
+      "noRouteMatches": "{count, plural, one {1 route-obstakel gevonden, maar geen ligt dicht genoeg bij de race line.} other {{count} route-obstakels gevonden, maar geen ligt dicht genoeg bij de race line.}}",
+      "missingRoute": "Ondersteunde obstakels zijn klaar voor een race line.",
+      "noNumberedObstacles": "Gates, ladders en dive gates verschijnen in de routenummering.",
+      "empty": "Voeg eerst route-obstakels toe."
+    },
+    "issues": {
+      "offRoutePrefix": "Niet op route: {names}",
+      "moreSuffix": " +{count} meer"
+    },
+    "meta": {
+      "numbered": "Genummerd",
+      "issues": "Problemen",
+      "raceLine": "Race line"
+    },
+    "generate": {
+      "button": "Race line genereren",
+      "regenerateButton": "Race line opnieuw genereren",
+      "success": "Race line gegenereerd.",
+      "errors": {
+        "noObstacles": "Kan geen race line genereren — voeg eerst minimaal twee ondersteunde obstakels toe (gates, ladders of dive gates)."
+      },
+      "warnings": {
+        "unsupportedShapes": "{count, plural, one {1 obstakel wordt nog niet ondersteund en is overgeslagen.} other {{count} obstakels worden nog niet ondersteund en zijn overgeslagen.}}",
+        "tooFewObstacles": "Voeg meer ondersteunde obstakels toe voor een bruikbaardere race line.",
+        "closeObstacles": "{count, plural, one {1 paar obstakels staat erg dicht bij elkaar — controleer het gegenereerde pad.} other {{count} paar obstakels staan erg dicht bij elkaar — controleer het gegenereerde pad.}}"
+      }
+    }
+  },
+  "elevationChart": {
+    "noRouteSelected": "Geen race line geselecteerd",
+    "title": "Hoogteprofiel",
+    "subtitle": "Routehoogte, gekleurde waarschuwingssecties en route-reviewnotities.",
+    "openDetailsAria": "Hoogtedetails openen",
+    "detailsTooltip": "Hoogtedetails",
+    "chartAriaLabel": "Hoogteprofielgrafiek",
+    "routeDistance": "{distance} route",
+    "elevationRange": "{min}-{max} hoogte",
+    "moreCount": "+{count} meer",
+    "maneuversHeading": "Manoeuvres",
+    "maneuverDetected": "{maneuver} gedetecteerd nabij {range}",
+    "apexSuffix": ", apex {index}",
+    "waypointSingle": "waypoint {index}",
+    "waypointRange": "waypoints {start}-{end}",
+    "waypointMarkerAria": "Selecteer waypoint {index} in het hoogteprofiel",
+    "warningMarkerAria": "Spring naar {warning}-segment {segment}",
+    "timingMarkerAria": "Selecteer timingmarker {label} in het hoogteprofiel",
+    "obstacleMarkerAria": "Selecteer obstakel {index} in het hoogteprofiel",
+    "routeReviewHeading": "Route-review",
+    "warningSegmentsHeading": "Waarschuwingssegmenten",
+    "jumpToSegment": "Spring naar segment {segment}",
+    "noWarnings": "Geen routewaarschuwingen voor dit pad.",
+    "normal": "Normaal",
+    "timingMarkersLegend": "Timing",
+    "obstacleMarkersLegend": "Obstakels",
+    "warningMarkersLegend": "Waarschuwingen",
+    "maneuvers": {
+      "powerloop": "Powerloop",
+      "split-s": "Split-S"
+    },
+    "warnings": {
+      "stub": {
+        "summary": "Pad heeft minstens 2 waypoints nodig om een route te vormen",
+        "shortLabel": "Onvolledige route",
+        "title": "Route is onvolledig",
+        "problem": "Het pad heeft minstens twee waypoints nodig voordat TrackDraw het als route kan beoordelen.",
+        "fix": "Voeg een waypoint toe of maak de race line af."
+      },
+      "flat": {
+        "summary": "Geen hoogte ingesteld - 3D-preview blijft vlak",
+        "shortLabel": "Vlakke hoogte",
+        "title": "Geen hoogte ingesteld",
+        "problem": "Alle waypoints staan nog op 0 m, waardoor de 3D-preview en hoogtegrafiek vlak blijven.",
+        "fix": "Stel waypoint-hoogtes in via de inspector of 3D-weergave als de route moet klimmen of dalen."
+      },
+      "steep": {
+        "summary": "{count, plural, one {Steile helling nabij waypoint {first}} other {Steile helling bij {count} segmenten}}",
+        "shortLabel": "Steile helling",
+        "title": "Helling verandert te snel",
+        "problem": "Een sectie klimt of daalt scherp over een korte afstand, wat de 3D-lijn abrupt kan laten aanvoelen.",
+        "fix": "Spreid de hoogteverandering over meer afstand of voeg een tussenliggend waypoint toe."
+      },
+      "hairpin": {
+        "summary": "{count, plural, one {Scherpe bocht bij waypoint {first}} other {{count} scherpe bochten}}",
+        "shortLabel": "Scherpe bocht",
+        "title": "Bocht is erg scherp",
+        "problem": "Een waypoint creëert een scherpe ombuiging die mogelijk moeilijk schoon te vliegen is op snelheid.",
+        "fix": "Verplaats het waypoint naar buiten of voeg meer ruimte toe voor en na de bocht."
+      },
+      "close-points": {
+        "summary": "{count, plural, one {Waypoints te dicht bij elkaar nabij {first}} other {{count} dicht opeenstaande waypoints}}",
+        "shortLabel": "Dichte waypoints",
+        "title": "Waypoints staan te dicht bij elkaar",
+        "problem": "Twee waypoints staan zo dicht bij elkaar dat ze een heel klein routesegment vormen.",
+        "fix": "Verwijder een van de waypoints of verplaats het verder van zijn buur."
+      },
+      "spacing-shift": {
+        "summary": "{count, plural, one {Abrupte afstandswijziging nabij waypoint {first}} other {{count} abrupte afstandswijzigingen}}",
+        "shortLabel": "Afstandswijziging",
+        "title": "Gate-ritme verandert abrupt",
+        "problem": "De afstand voor en na een waypoint verandert plotseling, wat de route ongelijk kan laten aanvoelen.",
+        "fix": "Verplaats nabijgelegen waypoints zodat de afstand geleidelijker verandert."
+      },
+      "rhythm-break": {
+        "summary": "{count, plural, one {Korte correctie nabij waypoint {first}} other {{count} korte correctiesegmenten}}",
+        "shortLabel": "Korte correctie",
+        "title": "Korte correctie verstoort de flow",
+        "problem": "Een kort tussensegment onderbreekt langere omliggende secties en kan een onhandige zwabber veroorzaken.",
+        "fix": "Verzacht de correctie door het waypoint te verplaatsen, te verwijderen, of een geleidelijkere overgang toe te voegen."
+      }
+    }
+  },
+  "mapReference": {
+    "title": "Kaartverwijzing",
+    "subtitle": "Kies het veldcentrum en lijn de veldvoetafdruk uit.",
+    "searchPlaceholder": "Zoek plaats of plak coördinaten",
+    "searching": "Zoeken",
+    "enterHint": "Enter",
+    "zoomLabel": "Zoom {zoom}",
+    "zoomIn": "Inzoomen",
+    "zoomOut": "Uitzoomen",
+    "resetRotation": "Rotatie resetten",
+    "rotateLeft15": "15 graden naar links draaien",
+    "rotateLeft1": "1 graad naar links draaien",
+    "rotateRight1": "1 graad naar rechts draaien",
+    "rotateRight15": "15 graden naar rechts draaien",
+    "latitude": "Breedtegraad",
+    "longitude": "Lengtegraad",
+    "rotation": "Rotatie",
+    "rotationValue": "{deg} graden",
+    "view": "Weergave",
+    "out": "Uit",
+    "in": "In",
+    "previewZoom": "Preview-zoom {zoom}",
+    "center": "Centrum",
+    "useLocation": "Locatie gebruiken",
+    "locating": "Locatie bepalen",
+    "saveMap": "Kaart opslaan",
+    "locationUnavailable": "Locatie is niet beschikbaar in deze browser.",
+    "locationPermissionDenied": "Locatietoestemming is geweigerd.",
+    "locationTimeout": "Locatie-opzoeking is verlopen.",
+    "locationError": "Kon je locatie niet bepalen."
+  }
+}

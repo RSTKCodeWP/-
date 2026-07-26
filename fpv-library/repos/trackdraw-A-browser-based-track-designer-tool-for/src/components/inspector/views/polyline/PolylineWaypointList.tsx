@@ -1,0 +1,155 @@
+"use client";
+
+import { Plus, PlusCircle, X } from "lucide-react";
+import { ListPanel } from "@/components/inspector/views/list-panel";
+import { MeasurementNum } from "@/components/inspector/shared";
+import { useMeasurementUnitSystem } from "@/hooks/useMeasurementUnitSystem";
+import {
+  getInsertedWaypointMidpoint,
+  getNextAppendedWaypoint,
+} from "@/lib/inspector/single/view-model";
+import { formatMeasurement } from "@/lib/track/units";
+import type { PolylinePoint, PolylineShape } from "@/lib/types";
+import { useTranslations } from "next-intl";
+
+interface PolylineWaypointListProps {
+  appendPolylinePoint: (id: string, point: PolylinePoint) => void;
+  finishBatch: () => void;
+  insertPolylinePoint: (
+    id: string,
+    index: number,
+    point: PolylinePoint
+  ) => void;
+  removePolylinePoint: (id: string, index: number) => void;
+  setHoveredWaypoint: (
+    waypoint: { shapeId: string; idx: number } | null
+  ) => void;
+  shape: PolylineShape;
+  startBatch: () => void;
+  updatePolylinePoint: (
+    id: string,
+    index: number,
+    patch: Partial<PolylinePoint>
+  ) => void;
+}
+
+export function PolylineWaypointList({
+  appendPolylinePoint,
+  insertPolylinePoint,
+  removePolylinePoint,
+  setHoveredWaypoint,
+  shape,
+  updatePolylinePoint,
+}: PolylineWaypointListProps) {
+  const t = useTranslations("inspector.polyline");
+  const { unitSystem } = useMeasurementUnitSystem();
+
+  return (
+    <div className="mt-3">
+      <ListPanel
+        title={t("waypointsTitle")}
+        subtitle={t("waypointsSubtitle")}
+        meta={
+          <span className="text-muted-foreground/65 text-[11px]">
+            {shape.points.length}
+          </span>
+        }
+      >
+        <div className="border-border/15 grid grid-cols-[28px_minmax(0,1fr)_56px_44px] items-center gap-2 border-b px-3 py-1.5">
+          <span className="text-muted-foreground/65 text-[11px] font-medium tracking-[0.08em] uppercase">
+            #
+          </span>
+          <span className="text-muted-foreground/40 text-[9px] font-semibold tracking-wider uppercase">
+            x, y
+          </span>
+          <span className="text-muted-foreground/40 text-right text-[9px] font-semibold tracking-wider uppercase">
+            {t("elevationColumn")}
+          </span>
+          <span className="text-muted-foreground/40 text-right text-[9px] font-semibold tracking-wider uppercase">
+            {t("editColumn")}
+          </span>
+        </div>
+        <div className="max-h-72 overflow-y-auto">
+          {shape.points.map((point, index) => (
+            <div
+              key={index}
+              className="group/row border-border/10 hover:bg-muted/45 relative grid grid-cols-[28px_minmax(0,1fr)_56px_44px] items-center gap-2 border-b py-2 pr-3 pl-3 transition-colors last:border-b-0 lg:py-1.5 lg:pr-2"
+              onMouseEnter={() =>
+                setHoveredWaypoint({ shapeId: shape.id, idx: index })
+              }
+              onMouseLeave={() => setHoveredWaypoint(null)}
+            >
+              <span className="bg-border absolute top-0 bottom-0 left-0 w-px opacity-0 transition-opacity group-hover/row:opacity-100" />
+              <span className="border-border/30 bg-muted/45 text-foreground/75 flex h-5 w-5 items-center justify-center rounded-xs border font-mono text-[10px] tabular-nums">
+                {index}
+              </span>
+              <div className="min-w-0">
+                <span className="text-foreground/85 block font-mono text-[11px] leading-none tabular-nums">
+                  {formatMeasurement(point.x, unitSystem, { precision: 1 })},{" "}
+                  {formatMeasurement(point.y, unitSystem, { precision: 1 })}
+                </span>
+              </div>
+              <div
+                className={shape.locked ? "pointer-events-none opacity-50" : ""}
+              >
+                <MeasurementNum
+                  valueMeters={point.z ?? 0}
+                  unitSystem={unitSystem}
+                  onChange={(value) => {
+                    updatePolylinePoint(shape.id, index, {
+                      z: value,
+                    });
+                  }}
+                />
+              </div>
+              <div className="flex items-center justify-end gap-0.5 opacity-100 transition-opacity lg:opacity-0 lg:group-hover/row:opacity-100">
+                {index < shape.points.length - 1 && (
+                  <button
+                    title={t("insertPointAfter")}
+                    disabled={shape.locked}
+                    className="text-muted-foreground/55 hover:bg-muted hover:text-foreground flex size-5 items-center justify-center rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-35"
+                    onClick={() => {
+                      insertPolylinePoint(
+                        shape.id,
+                        index + 1,
+                        getInsertedWaypointMidpoint(
+                          shape.points[index],
+                          shape.points[index + 1]
+                        )
+                      );
+                    }}
+                  >
+                    <PlusCircle className="size-3" />
+                  </button>
+                )}
+                <button
+                  title={t("removePoint")}
+                  disabled={shape.locked}
+                  className="text-muted-foreground/55 hover:bg-muted hover:text-foreground flex size-5 items-center justify-center rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-35"
+                  onClick={() => {
+                    removePolylinePoint(shape.id, index);
+                  }}
+                >
+                  <X className="size-3" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <button
+          className="border-border/15 text-muted-foreground/55 hover:text-foreground hover:bg-muted/6 flex h-10 w-full items-center justify-center gap-1.5 border-t py-2 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 lg:h-auto lg:text-[11px]"
+          disabled={shape.locked}
+          onClick={() => {
+            appendPolylinePoint(
+              shape.id,
+              getNextAppendedWaypoint(shape.points[shape.points.length - 1])
+            );
+          }}
+        >
+          <Plus className="size-3" /> {t("addPoint")}
+        </button>
+      </ListPanel>
+    </div>
+  );
+}

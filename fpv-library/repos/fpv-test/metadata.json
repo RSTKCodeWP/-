@@ -1,0 +1,6 @@
+{
+  "name": "APEX FPV",
+  "description": "FPV drone lovers and beginners academy, custom drone building configurator, interactive PID flight tuning lessons, acrobatic maneuvers animator, and telemetry dashboards.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

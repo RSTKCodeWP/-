@@ -1,0 +1,99 @@
+{% extends "layout-basic.html" %} {% block title %}{{ __('Stream') }}: {{ __('Class') }}: {{ class_id or __('Current') }}{% endblock %}{% block head %}
+<link rel="stylesheet" href="/static/stream.css?{{ serverInfo['release_version'] | urlencode }}"></link>
+
+<script type="text/javascript" charset="utf-8">
+	var data_dependencies = [
+		'all_languages',
+		'language',
+		'result_data',
+	];
+
+
+	rotorhazard.show_messages = false;
+	var result_data;
+	var streamclass = {{ class_id }}
+
+	$(document).ready(function () {
+		if (!{{ class_id }}) {
+			socket.emit('load_data', {'load_types': [
+				'current_heat',
+			]});
+		}
+
+		socket.on('language', function (msg) {
+			if (msg.language) {
+				rotorhazard.interface_language = msg.language;
+			}
+		});
+
+		socket.on('current_heat', function (msg) {
+			if (!{{ class_id }}) {
+				if (msg.heat_class) {
+					streamclass = msg.heat_class;
+					if (result_data != undefined) {
+						display_result_data(result_data);
+					}
+				} else {
+					display_nothing()
+				}
+			}
+		});
+
+		function display_nothing() {
+			$('#header h1').html(__('No Data'))
+			$('#leaderboard').html('<p>' + __('There is no saved race data available to view.') + '</p>');
+		}
+
+		function display_result_data(msg) {
+			if (!$.isEmptyObject(msg.heats)) {
+				for (var class_id in msg.heats_by_class) {
+					if (class_id == streamclass) {
+						var current_class = msg.classes[class_id];
+						if (current_class) {
+							if (current_class.name) {
+								class_name = current_class.name;
+							} else {
+								class_name = __('Class') + ' ' + current_class.id;
+							}
+							$('#header h1').html(class_name)
+
+							if (current_class.ranking) {
+								leaderboard = build_leaderboard(current_class.ranking, 'by_race_time', undefined);
+
+								leaderboard.find('tbody tr').filter(':nth-child(n+11)').remove();
+
+								$('#leaderboard').html(leaderboard);
+							} else if (current_class.leaderboard[current_class.leaderboard.meta.primary_leaderboard].length) {
+								leaderboard = build_leaderboard(current_class.leaderboard[current_class.leaderboard.meta.primary_leaderboard], current_class.leaderboard.meta.primary_leaderboard, msg.meta);
+
+								leaderboard.find('tbody tr').filter(':nth-child(n+11)').remove();
+
+								$('#leaderboard').html(leaderboard);
+							} else {
+								display_nothing()
+							}
+						}
+					}
+				}
+			} else {
+				display_nothing()
+			}
+		}
+
+		socket.on('result_data', function (msg) {
+			result_data = msg;
+			display_result_data(result_data);
+		});
+	});
+
+</script>
+{% endblock %} {% block content %}
+<main class="page-streamclass">
+	<div id="header">
+		<h1>{{ __('Loading...') }}</h1>
+	</div>
+
+	<!--Display the race leaderboard-->
+	<div id="leaderboard"></div>
+</main>
+{% endblock %}

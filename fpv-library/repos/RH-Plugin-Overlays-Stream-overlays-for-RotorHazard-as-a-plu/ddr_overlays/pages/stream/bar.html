@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="RotorHazard">
+    <meta name="google" content="notranslate">
+    <title>Stream Top Bar - {{ getOption("timerName") }}</title>
+
+    <!-- Icons -->
+    <link rel="apple-touch-icon" sizes="180x180" href="/static/image/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/image/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/static/image/favicon-16x16.png">
+    <link rel="manifest" href="/static/image/site.webmanifest">
+    <link rel="mask-icon" href="/static/image/safari-pinned-tab.svg" color="#ee7a28">
+    <link rel="shortcut icon" href="/static/image/favicon.ico">
+    <meta name="msapplication-TileColor" content="#ee7a28">
+    <meta name="msapplication-config" content="/static/image/browserconfig.xml">
+    <meta name="theme-color" content="#224873">
+
+    <!-- Scripts -->
+    <script type="text/javascript" src="/static/jquery-3.6.4/jquery-3.6.4.min.js"></script>
+    <script type="text/javascript" src="/static/articulate/articulate.min.js"></script>
+    <script type="text/javascript" src="/static/socket.io-4.6.1/socket.io.min.js"></script>
+    <script type="text/javascript" src="/static/smoothie/smoothie.js"></script>
+    <script type="text/javascript" src="/static/magnific-1.1.0/magnific-inline-min.js"></script>
+    <script type="text/javascript" src="/static/svgasset.js"></script>
+    <script type="text/javascript" src="/static/rotorhazard.js"></script>
+
+    <!-- CSS -->
+    <link rel="stylesheet" href="/static/magnific-1.1.0/magnific-popup.css"></link>
+    <link rel="stylesheet" href="/static/stream.css"></link>
+    <link rel="stylesheet" href="/ddr_overlays/static/fonts/teko/stylesheet.css"></link>
+    <link rel="stylesheet" href="/ddr_overlays/static/css/ddr_overlays.css"></link>
+
+    <!-- Child template head content -->
+
+</head>
+
+<body>
+
+<script type="text/javascript" charset="utf-8" src="/ddr_overlays/static/js/ddr_overlays.js"></script>
+
+<script type="text/javascript" charset="utf-8">
+
+    var data_dependencies = [
+        'all_languages',
+        'language',
+        'leaderboard',
+        'race_status',
+    ];
+
+    rotorhazard.show_messages = false;
+
+    // the class of the current heat
+    var streamclass;
+
+    function race_kickoff(msg) {
+        rotorhazard.timer.stopAll();
+
+        var staging_start_pi = (msg.pi_staging_at_s * 1000); // convert seconds (pi) to millis (JS)
+        var race_start_pi = (msg.pi_starts_at_s * 1000); // convert seconds (pi) to millis (JS)
+
+        rotorhazard.timer.race.hidden_staging = Boolean(msg.hide_stage_timer);
+        rotorhazard.timer.race.count_up = Boolean(msg.race_mode);
+        rotorhazard.timer.race.duration_tenths = msg.race_time_sec * 10;
+
+        rotorhazard.timer.race.start(race_start_pi, staging_start_pi);
+    }
+
+    $(document).ready(function () {
+        // get pi time
+        rotorhazard.pi_time_request = window.performance.now();
+        socket.emit('get_pi_time');
+
+        socket.emit('load_data', {'load_types': [
+            'current_heat',
+        ]});
+
+        socket.on('current_heat', function (msg) {
+            console.log('Class of the current heat is:', msg.heat_class);
+            if (msg.heat_class) {
+                streamclass = msg.heat_class;
+            }
+        });
+
+        socket.on('pi_time', default_handler['pi_time']);
+
+        socket.on('language', default_handler['language']);
+
+        socket.on('race_scheduled', default_handler['race_scheduled']);
+
+        socket.on('race_status', default_handler['race_status']);
+
+        socket.on('heartbeat', default_handler['heartbeat']);
+
+        socket.on('leaderboard', function (msg) {
+            if (msg && 'last_race' in msg) {
+                var race = msg.last_race;
+            } else {
+                var race = msg.current;
+            }
+
+            var heatname = __('Heat') + ' ' + race.heat;
+            if (race.displayname) {
+                heatname = race.displayname;
+            }
+
+            $('.curr_heat_Title').html(heatname);
+
+            leaderboard_type = race.leaderboard.meta.primary_leaderboard;
+            $('#leaderboard').empty();
+            $('#leaderboard').append(build_leaderboard(race.leaderboard[leaderboard_type], 'current', race.leaderboard.meta));
+
+            $('#team_leaderboard').empty();
+            if (race.team_leaderboard && 'meta' in race.team_leaderboard) {
+                leaderboard_type = race.team_leaderboard.meta.primary_leaderboard;
+                $('#team_leaderboard').append(build_team_leaderboard(race.team_leaderboard[leaderboard_type], leaderboard_type, race.team_leaderboard.meta));
+                $('#team_leaderboard').show();
+            } else {
+                $('#team_leaderboard').hide();
+            }
+
+            if (race.status_msg) {
+                $('.race_status_message').html(race.status_msg);
+                $('.race_status_message').slideDown();
+            } else {
+                $('.race_status_message').slideUp();
+            }
+        });
+
+        socket.on('prestage_ready', default_handler['prestage_ready']);
+
+        socket.on('stage_ready', default_handler['stage_ready']);
+
+        socket.on('stop_timer', default_handler['stop_timer']);
+
+    });
+
+</script>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        function getUrlParameter(name) {
+            name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
+            var regex = new RegExp('[\\?&]' + name + '=([^&#]*)');
+            var results = regex.exec(location.search);
+            return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
+        }
+
+        if (getUrlParameter('nologo') === '1') {
+            var logoElement = document.getElementById('logo');
+            if (logoElement) {
+                logoElement.style.display = 'none';
+            }
+        }
+    });
+</script>
+
+<main id="ddr_frame_topbar_main">
+
+    <div id="ddr_frame_topbar">
+
+        <div id="block_left">
+            <div id="timer">
+                <div class="timing-clock"><div class="time-display">--:--</div></div>
+            </div>
+        </div>
+
+        <div id="block_center">
+            <div id="heatTitle" class="current_heat"><span class="curr_heat_Title">{{ __('Loading...') }} </span><span id="class_name"></span> | <span id="event_Title"> {{ getOption('eventName') }}</span></div>
+        </div>
+
+        <div id="block_right">
+
+            <img id="logo" src="/ddr_overlays/static/imgs/ddr_logo_white.png" height="54px" style="float: right; margin-right: 10px; margin-top: 2px;">
+            <!--
+            <div id="firstplace">
+                <img src="/fpvscores/static/assets/imgs/icons/trophy.svg"> <span id="n1PilotTag"></span>
+            </div>
+            -->
+        </div>
+    </div>
+
+    <!--<div class="race_status_message"></div>-->
+
+</main>
+
+</body>
+
+</html>

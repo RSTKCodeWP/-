@@ -1,0 +1,44 @@
+[
+    {
+        "label": "Config: arm-glibc",
+        "command": "cp .zed/profiles/arm-glibc.txt compile_flags.txt",
+        "hide": "always",
+        "use_new_terminal": false
+    },
+    {
+        "label": "Config: arm-musl3",
+        "command": "cp .zed/profiles/arm-musl3.txt compile_flags.txt",
+        "hide": "always",
+        "use_new_terminal": false
+    },
+    {
+        "label": "Config: arm-musl4",
+        "command": "cp .zed/profiles/arm-musl4.txt compile_flags.txt",
+        "hide": "always",
+        "use_new_terminal": false
+    },
+    {
+        "label": "Config: arm9-musl3",
+        "command": "cp .zed/profiles/arm9-musl3.txt compile_flags.txt",
+        "hide": "always",
+        "use_new_terminal": false
+    },
+    {
+        "label": "Config: arm9-musl4",
+        "command": "cp .zed/profiles/arm9-musl4.txt compile_flags.txt",
+        "hide": "always",
+        "use_new_terminal": false
+    },
+    {
+        "label": "Config: armhf-glibc",
+        "command": "cp .zed/profiles/armhf-glibc.txt compile_flags.txt",
+        "hide": "always",
+        "use_new_terminal": false
+    },
+    {
+        "label": "Config: armhf-musl",
+        "command": "cp .zed/profiles/armhf-musl.txt compile_flags.txt",
+        "hide": "always",
+        "use_new_terminal": false
+    }
+]

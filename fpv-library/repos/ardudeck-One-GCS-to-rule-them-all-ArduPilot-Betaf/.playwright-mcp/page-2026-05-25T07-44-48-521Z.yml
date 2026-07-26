@@ -1,0 +1,136 @@
+- generic [active] [ref=e1]:
+  - link "Skip to main content" [ref=e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - banner [ref=e3]:
+    - generic [ref=e5]:
+      - link "ArduDeck ArduDeck" [ref=e6] [cursor=pointer]:
+        - /url: /
+        - img "ArduDeck" [ref=e7]
+        - generic [ref=e8]: ArduDeck
+      - navigation "Main navigation" [ref=e9]:
+        - link "Features" [ref=e10] [cursor=pointer]:
+          - /url: /#features
+        - link "Showcase" [ref=e11] [cursor=pointer]:
+          - /url: /#showcase
+        - link "UAV Solutions" [ref=e12] [cursor=pointer]:
+          - /url: /solutions/
+        - link "Docs" [ref=e13] [cursor=pointer]:
+          - /url: /docs/
+        - link "Blog" [ref=e14] [cursor=pointer]:
+          - /url: /blog/
+        - link "Changelog" [ref=e15] [cursor=pointer]:
+          - /url: /changelog/
+        - link "Discord" [ref=e16] [cursor=pointer]:
+          - /url: https://discord.gg/JX2JdVXPPC
+          - text: Discord
+          - img [ref=e17]
+        - link "GitHub" [ref=e19] [cursor=pointer]:
+          - /url: https://github.com/rubenCodeforges/ardudeck
+          - text: GitHub
+          - img [ref=e20]
+        - link "Download" [ref=e22] [cursor=pointer]:
+          - /url: /#download
+  - main [ref=e23]:
+    - img
+    - article [ref=e25]:
+      - link "Back to Blog" [ref=e26] [cursor=pointer]:
+        - /url: /blog/
+        - img [ref=e27]
+        - text: Back to Blog
+      - generic [ref=e29]:
+        - generic [ref=e30]:
+          - time [ref=e31]: May 25, 2026
+          - generic [ref=e32]: ·
+          - generic [ref=e33]: Ruben Mosesian
+        - heading "Thank you to Adlerblix" [level=1] [ref=e34]
+        - paragraph [ref=e35]: A note of thanks to Adlerblix, a German aerial surveying company who donated hardware that directly supports ArduDeck development - RTK GPS, depth cameras, and compute.
+        - generic [ref=e36]:
+          - generic [ref=e37]: sponsors
+          - generic [ref=e38]: community
+          - generic [ref=e39]: hardware
+          - generic [ref=e40]: thanks
+      - generic [ref=e41]:
+        - paragraph [ref=e42]: A quick post outside the usual release notes. ArduDeck has a new sponsor, and it deserves more than a single line at the bottom of the README.
+        - paragraph [ref=e43]:
+          - link "Adlerblix" [ref=e44] [cursor=pointer]:
+            - /url: https://adlerblix.de
+          - text: is a German aerial surveying company. Their day job is optical aerial surveying - photogrammetry, RTK-precision drone and fixed-wing mapping, large-area capture. The kind of work where centimeter-level positioning and well-behaved flight automation are not nice-to-haves, they are the product.
+        - paragraph [ref=e45]: They recently donated a significant batch of hardware to ArduDeck. RTK GPS modules, depth cameras, and compute. The same class of gear that drives a lot of their own field work. For an open-source project, that is the difference between testing features against a SITL and testing them against the real world, on real frames, with real RTK fixes and real sensor noise. It changes what the project can ship and how confidently it can ship it.
+        - paragraph [ref=e46]: There is no commercial arrangement here. Nothing was traded, no roadmap was promised. Adlerblix saw the project, used it, and decided to put hardware behind it. That is rare, and it should be said out loud.
+        - paragraph [ref=e47]:
+          - text: If you do aerial surveying work in Europe and want a serious team for that kind of capture, take a look at what they do at
+          - link "adlerblix.de" [ref=e48] [cursor=pointer]:
+            - /url: https://adlerblix.de
+          - text: .
+        - paragraph [ref=e49]: Thank you.
+  - contentinfo [ref=e50]:
+    - generic [ref=e51]:
+      - generic [ref=e52]:
+        - generic [ref=e53]:
+          - generic [ref=e54]:
+            - img "ArduDeck" [ref=e55]
+            - generic [ref=e56]: ArduDeck
+          - paragraph [ref=e57]: Modern, cross-platform ground control station for ArduPilot. Also supports iNav and Betaflight. Open source and free forever.
+        - generic [ref=e58]:
+          - heading "Product" [level=4] [ref=e59]
+          - list [ref=e60]:
+            - listitem [ref=e61]:
+              - link "Features" [ref=e62] [cursor=pointer]:
+                - /url: /#features
+            - listitem [ref=e63]:
+              - link "Solutions" [ref=e64] [cursor=pointer]:
+                - /url: /solutions/
+            - listitem [ref=e65]:
+              - link "Download" [ref=e66] [cursor=pointer]:
+                - /url: /#download
+            - listitem [ref=e67]:
+              - link "Documentation" [ref=e68] [cursor=pointer]:
+                - /url: /docs/
+            - listitem [ref=e69]:
+              - link "Blog" [ref=e70] [cursor=pointer]:
+                - /url: /blog/
+            - listitem [ref=e71]:
+              - link "Changelog" [ref=e72] [cursor=pointer]:
+                - /url: /changelog/
+        - generic [ref=e73]:
+          - heading "Community" [level=4] [ref=e74]
+          - list [ref=e75]:
+            - listitem [ref=e76]:
+              - link "Discord" [ref=e77] [cursor=pointer]:
+                - /url: https://discord.gg/JX2JdVXPPC
+            - listitem [ref=e78]:
+              - link "GitHub" [ref=e79] [cursor=pointer]:
+                - /url: https://github.com/rubenCodeforges/ardudeck
+            - listitem [ref=e80]:
+              - link "Report a Bug" [ref=e81] [cursor=pointer]:
+                - /url: https://github.com/rubenCodeforges/ardudeck/issues
+            - listitem [ref=e82]:
+              - link "Codeforges" [ref=e83] [cursor=pointer]:
+                - /url: https://www.codeforges.com
+      - generic [ref=e84]:
+        - paragraph [ref=e85]:
+          - text: © 2026 ArduDeck. Released under the GPL-3.0 License. Built by
+          - link "Codeforges" [ref=e86] [cursor=pointer]:
+            - /url: https://www.codeforges.com
+          - text: . Hardware support by
+          - link "Adlerblix" [ref=e87] [cursor=pointer]:
+            - /url: https://adlerblix.de
+          - text: .
+        - link [ref=e89] [cursor=pointer]:
+          - /url: https://github.com/rubenCodeforges/ardudeck
+          - img [ref=e90]
+  - generic [ref=e94]:
+    - button "Menu" [ref=e95]:
+      - img [ref=e97]
+      - generic: Menu
+    - button "Inspect" [ref=e101]:
+      - img [ref=e103]
+      - generic: Inspect
+    - button "Audit" [ref=e105]:
+      - generic [ref=e106]:
+        - img [ref=e107]
+        - img [ref=e110]
+      - generic: Audit
+    - button "Settings" [ref=e113]:
+      - img [ref=e115]
+      - generic: Settings

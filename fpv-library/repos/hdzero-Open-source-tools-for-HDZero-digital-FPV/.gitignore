@@ -1,0 +1,10 @@
+# macOS
+.DS_Store
+
+# Swift / SwiftPM build output
+.build/
+.swiftpm/
+
+# Build artifacts (the app bundle + dmg are produced by build_app.sh; ship via Releases, not git)
+*.app/
+*.dmg

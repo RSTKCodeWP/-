@@ -1,0 +1,90 @@
+{
+  "actions": {
+    "cancel": "Annuleren",
+    "close": "Sluiten",
+    "copy": "Kopiëren",
+    "delete": "Verwijderen",
+    "duplicate": "Dupliceren",
+    "hide": "Verbergen",
+    "lock": "Vergrendelen",
+    "remove": "Verwijderen",
+    "rename": "Hernoemen",
+    "reset": "Herstellen",
+    "save": "Opslaan",
+    "saveChanges": "Wijzigingen opslaan",
+    "select": "Selecteren",
+    "undo": "Ongedaan maken",
+    "unlock": "Ontgrendelen"
+  },
+  "labels": {
+    "account": "Account",
+    "actions": "Acties",
+    "dashboard": "Dashboard",
+    "description": "Beschrijving",
+    "expires": "Verloopt",
+    "language": "Taal",
+    "name": "Naam",
+    "owner": "Eigenaar",
+    "profile": "Profiel",
+    "project": "Project",
+    "role": "Rol",
+    "status": "Status",
+    "theme": "Thema",
+    "title": "Titel",
+    "type": "Type",
+    "view": "Weergave"
+  },
+  "dataTable": {
+    "filterPlaceholder": "Filter {title}...",
+    "noResults": "Geen resultaten gevonden.",
+    "selectedCount": "{count} geselecteerd",
+    "clearFilters": "Filters wissen",
+    "rowsPerPage": "Rijen per pagina",
+    "page": "Pagina {current} van {total}",
+    "previousPage": "Vorige pagina",
+    "nextPage": "Volgende pagina"
+  },
+  "measurementUnit": {
+    "metric": "Metrisch",
+    "imperial": "Imperial",
+    "presetAriaLabel": "Meetpreset: {current}. Wissel naar {next}.",
+    "presetLabel": "Meetpreset: {current}",
+    "description": "Wissel weergegeven afstanden en compatibele invoer."
+  },
+  "themeToggle": {
+    "labels": {
+      "light": "Licht",
+      "dark": "Donker",
+      "system": "Systeem"
+    },
+    "ariaLabel": "Thema: {theme}",
+    "tooltip": "Huidig: {current}. Klik voor {next}."
+  },
+  "versionTag": {
+    "tooltip": {
+      "openReleaseNotes": "Release notes openen op GitHub",
+      "openReleaseNotesForCommit": "commit {sha} · Release notes openen op GitHub"
+    }
+  },
+  "runtimeError": {
+    "badge": "Runtimefout",
+    "title": "TrackDraw liep vast op deze weergave.",
+    "description": "Het huidige scherm kon niet verder renderen. Je lokale projectdata staat meestal nog in deze browser, maar sluit het tabblad niet voordat je herstel hebt geprobeerd.",
+    "tryAgain": "Opnieuw proberen",
+    "openStudio": "Studio openen",
+    "nextStep": "Als dit blijft gebeuren, open Studio opnieuw en exporteer een JSON-back-up voordat je grote wijzigingen maakt."
+  },
+  "status": {
+    "active": "Actief",
+    "expired": "Verlopen",
+    "featured": "Uitgelicht",
+    "hidden": "Verborgen",
+    "listed": "Vermeld",
+    "loading": "Laden",
+    "off": "Uit",
+    "on": "Aan",
+    "pending": "In wachtrij",
+    "published": "Gepubliceerd",
+    "revoked": "Ingetrokken"
+  }
+}

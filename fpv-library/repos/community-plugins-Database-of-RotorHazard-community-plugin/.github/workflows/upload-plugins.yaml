@@ -1,0 +1,215 @@
+---
+name: Upload plugins to R2
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 */2 * * *" # Every 2 hours
+
+env:
+  VERSION: "v1"
+
+concurrency:
+  group: generate-metadata
+  cancel-in-progress: true
+
+jobs:
+  preflight-metadata:
+    name: Preflight
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      REQUIRED_COMPONENTS: '["API Requests","Actions","Git Operations"]'
+      IGNORE_MAINTENANCE: true
+      SHOW_COMPONENTS: true
+    steps:
+      - name: Check GitHub Status
+        run: |
+          set -euo pipefail
+          summary="$(curl -fsSL https://www.githubstatus.com/api/v2/summary.json)"
+
+          if [ "${SHOW_COMPONENTS}" = "true" ]; then
+            echo "📋 Components:"
+            jq -r '.components[] | "\(.name) → \(.status)"' <<<"$summary"
+          fi
+
+          non_ok="$(
+            jq -r \
+              --argjson need "${REQUIRED_COMPONENTS}" \
+              --argjson ignore_maint "${IGNORE_MAINTENANCE}" \
+              '
+              .components
+              | map(select(.name as $n | ($need | index($n))))
+              | map(select(
+                  if $ignore_maint
+                    then (.status != "operational" and .status != "under_maintenance")
+                    else (.status != "operational")
+                  end
+                ))
+              | map("\(.name) (\(.status))")
+              | join(", ")
+              ' <<<"$summary"
+          )"
+
+          if [ -n "$non_ok" ]; then
+            echo "::error::Not operational: $non_ok"
+            echo "::error::See https://www.githubstatus.com"
+            exit 1
+          fi
+
+          indicator="$(jq -r '.status.indicator' <<<"$summary")"
+          if [ "$indicator" != "none" ]; then
+            desc="$(jq -r '.status.description' <<<"$summary")"
+            echo "::warning::Indicator=$indicator — $desc"
+          fi
+
+          echo "✅ Required GitHub components are operational"
+
+  generate-metadata:
+    name: Generate plugin metadata
+    needs: preflight-metadata
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: ⤵️ Check out code
+        uses: actions/checkout@v7.0.1
+
+      - name: 🏗 Set up UV
+        uses: astral-sh/setup-uv@v9.0.0
+        with:
+          version: "latest"
+          enable-cache: true
+
+      - name: 🏗 Install project dependencies
+        run: uv sync --no-group dev
+
+      - name: ⤵️ Download data from Cloudflare R2
+        run: |
+          mkdir -p ./output/plugin/diff
+          uv run aws s3 cp s3://rotorhazard-community-plugins/${{ env.VERSION }}/plugin/diff/after.json ./output/plugin/diff/before.json --endpoint-url=${{ secrets.CF_R2_ENDPOINT }} || echo "{}" > ./output/plugin/diff/before.json
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.CF_R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.CF_R2_SECRET_ACCESS_KEY }}
+
+      - name: 🏗 Generate metadata
+        run: |
+          uv run python metadata/main.py
+          mv ./output/plugin/diff/ ./output/diff/
+          mv ./output/plugin/summary.json ./output/summary.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Validate output with JQ
+        run: |
+          uv run jq -c . output/plugin/data.json
+          uv run jq -c . output/plugin/repositories.json
+
+      - name: Generate diff
+        run: |
+          diff -U 8 output/diff/before.json output/diff/after.json > output/diff/plugin.diff || true
+          cat output/diff/plugin.diff
+
+      - name: Upload diff
+        uses: actions/github-script@v9.0.0
+        with:
+          script: |
+            const fs = require('fs');
+            const diffContents = fs.readFileSync('output/diff/plugin.diff');
+
+            core.summary.addDetails('plugin.diff contents', `\n\n\`\`\`diff\n${diffContents}\`\`\`\n\n`);
+            core.summary.write();
+
+      - name: Upload metadata Artifacts
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: plugin
+          path: |
+            output/plugin
+            output/diff
+            output/summary.json
+          if-no-files-found: error
+          retention-days: 7
+
+  summarize:
+    name: Summarize changes
+    needs: generate-metadata
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: ⤵️ Download artifacts
+        uses: actions/download-artifact@v8.0.1
+        with:
+          name: plugin
+          path: output
+
+      - name: Display total summary
+        uses: actions/github-script@v9.0.0
+        with:
+          script: |
+            const fs = require('fs');
+            const summaryData = JSON.parse(fs.readFileSync('output/summary.json', 'utf-8'));
+
+            core.summary.addTable([
+              [{data: 'Metric', header: true}, {data: 'Value', header: true}],
+              ['Total Plugins', `${summaryData.total_plugins}`],
+              ['Valid Plugins', `${summaryData.valid_plugins}`],
+              ['Archived Plugins', `${summaryData.archived_plugins}`],
+              ['Renamed Plugins', `${summaryData.renamed_plugins}`],
+              ['Skipped Plugins', `${summaryData.skipped_plugins}`],
+              ['Execution Time (s)', `${summaryData.execution_time_seconds}`],
+            ])
+            .write();
+
+  publish:
+    name: Publish RHCS data
+    needs: generate-metadata
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: ⤵️ Check out code
+        uses: actions/checkout@v7.0.1
+
+      - name: 🏗 Set up UV
+        uses: astral-sh/setup-uv@v9.0.0
+        with:
+          version: "latest"
+          enable-cache: true
+
+      - name: 🏗 Install project dependencies
+        run: uv sync --no-group dev
+
+      - name: ⤵️ Download artifacts
+        uses: actions/download-artifact@v8.0.1
+        with:
+          name: plugin
+          path: output
+
+      - name: ⤴️ Upload data to Cloudflare R2
+        run: |
+          uv run aws s3 sync \
+            output/plugin \
+            s3://rotorhazard-community-plugins/${{ env.VERSION }}/plugin \
+            --endpoint-url=${{ secrets.CF_R2_ENDPOINT }}
+
+          uv run aws s3 cp \
+            output/diff/after.json \
+            s3://rotorhazard-community-plugins/${{ env.VERSION }}/plugin/diff/after.json \
+            --endpoint-url=${{ secrets.CF_R2_ENDPOINT }}
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.CF_R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.CF_R2_SECRET_ACCESS_KEY }}
+
+      - name: Bust Cloudflare cache
+        run: |
+          curl --silent --show-error --fail -X POST \
+            "https://api.cloudflare.com/client/v4/zones/${{ secrets.CF_ZONE_ID }}/purge_cache" \
+            -H "Authorization: Bearer ${{ secrets.CF_BUST_CACHE_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            --data '{"purge_everything":true}'

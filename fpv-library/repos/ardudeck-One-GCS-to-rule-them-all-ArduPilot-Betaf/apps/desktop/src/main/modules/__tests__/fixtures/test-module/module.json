@@ -1,0 +1,7 @@
+{
+  "manifestVersion": 1,
+  "slug": "test.fixture.minimal",
+  "name": "Test Fixture",
+  "version": "0.0.1",
+  "entry": { "main": "main.js" }
+}

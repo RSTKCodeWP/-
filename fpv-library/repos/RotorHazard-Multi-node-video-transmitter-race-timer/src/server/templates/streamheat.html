@@ -1,0 +1,193 @@
+{% extends "layout-basic.html" %} {% block title %}{{ __('Stream') }}: {{ __('Heat') }}: {{ heat_id or __('Current') }}{% endblock %}{% block head %}
+<link rel="stylesheet" href="/static/stream.css?{{ serverInfo['release_version'] | urlencode }}"></link>
+
+<script type="text/javascript" charset="utf-8">
+	var data_dependencies = [
+		'all_languages',
+		'language',
+		'frequency_data',
+		'heat_data',
+		'pilot_data',
+		'class_data'
+	];
+
+	rotorhazard.show_messages = false;
+	var heat_data;
+	var streamheat = {{ heat_id }}
+
+	$(document).ready(function () {
+		// set up node local store
+		for (i = 0; i < {{ num_nodes }}; i++) {
+			rotorhazard.nodes[i] = new nodeModel();
+		}
+
+		if (!{{ heat_id }}) {
+			socket.emit('load_data', {'load_types': [
+				'current_heat',
+			]});
+		}
+
+		socket.on('language', function (msg) {
+			if (msg.language) {
+				rotorhazard.interface_language = msg.language;
+			}
+		});
+
+		socket.on('frequency_data', function (msg) {
+			if (msg.fdata.length) {
+				for (var i in msg.fdata) {
+					var fObj = freq.getFObjbyFData(msg.fdata[i]);
+					rotorhazard.nodes[i].fObj = fObj;
+					$('#s_channel_' + i).val(fObj.frequency);
+					$('#f_table_' + i).val(fObj.fString);
+					freq.updateBlock(fObj, i);
+				}
+			}
+		});
+
+		socket.on('heat_data', function (msg) {
+			rotorhazard.event.heats = msg.heats;
+			display_heats();
+		});
+
+		socket.on('pilot_data', function (msg) {
+			rotorhazard.event.pilots = msg.pilots;
+			rotorhazard.options.pilotSort = msg.pilotSort;
+			display_heats();
+		});
+
+		socket.on('class_data', function (msg) {
+			rotorhazard.event.classes = msg.classes;
+			display_heats();
+		});
+
+		function display_heats() {
+			if (rotorhazard.event.heats &&
+				rotorhazard.event.pilots &&
+				rotorhazard.event.classes &&
+				streamheat) {
+				heat = rotorhazard.event.heats.find(obj => {return obj.id == streamheat});
+
+				$('#header h1').html(heat.displayname);
+
+				$('#leaderboard').empty();
+
+				var table = $('<table class="leaderboard">');
+				var thead = $('<thead>');
+				var head_row = $('<tr>');
+				head_row.append('<th class="channel"><span class="screen-reader-text">' + __('Frequency') + '</span></th>');
+				head_row.append('<th class="pilot">' + __('Callsign') + '</th>');
+				head_row.append('<th class="pilot">' + __('Name') + '</th>');
+				thead.append(head_row);
+				table.append(thead);
+
+				var tbody = $('<tbody>');
+				var callsign;
+
+				if (heat.locked || heat.status == 2 || heat.auto_frequency === false) { // HeatStatus.CONFIRMED
+					for (idx in heat.slots) {
+						var slot = heat.slots[idx];
+
+						if (slot.pilot_id) {
+							var pilot = rotorhazard.event.pilots.find(obj => {return obj.pilot_id == slot.pilot_id});
+
+							if (pilot) {
+								var callsign = pilot.callsign;
+								var name = pilot.name;
+							} else {
+								var callsign = "(" + __("Pilot") + " " + slot.pilot_id + ")"
+								var name = '-';
+							}
+
+							var slot_el = $('<tr>');
+							slot_el.append('<td class="channel"><div class="channel-block" data-node="' + slot.node_index + '"><span class="ch"></span> <span class="fr"></span></div></td>');
+
+							slot_el.append('<td class="pilot">' + callsign + '</td>');
+							slot_el.append('<td class="pilot">' + name + '</td>');
+
+							tbody.append(slot_el);
+						}
+					}
+				} else {
+					for (idx in heat.slots) {
+						var slot = heat.slots[idx];
+						var slot_el = $('<tr>');
+
+						if (slot.method > -1 && !(slot.method == 0 && !slot.pilot_id)) {
+							var method_text = get_method_descriptor(slot.method, slot.seed_id, slot.seed_rank, slot.pilot_id)
+							slot_el.append('<td class="channel"></td>');
+							slot_el.append('<td colspan="2" class="pilot">' + method_text + '</td>');
+
+							tbody.append(slot_el);
+						}
+					}
+				}
+
+				function get_method_descriptor (method, seed, rank, pilot_id) {
+					if (method == 0) { // pilot
+						var pilot = rotorhazard.event.pilots.find(obj => {return obj.pilot_id == pilot_id});
+
+						if (pilot) {
+							return pilot.callsign;
+						} else {
+							return false;
+						}
+					} else if (method == 1) { // heat
+						var heat = rotorhazard.event.heats.find(obj => {return obj.id == seed});
+
+						if (heat) {
+							return heat.displayname + " " + __('Rank') + " " + rank;
+						} else {
+							return false;
+						}
+					} else if (method == 2) { // class
+						var race_class = rotorhazard.event.classes.find(obj => {return obj.id == seed});
+
+						if (race_class) {
+							return race_class.displayname + " " + __('Rank') + " " + rank;
+						} else {
+							return false;
+						}
+					}
+					return false;
+				}
+
+				// class indicator
+				if (rotorhazard.event.classes.length) {
+					if (heat.class_id) {
+						race_class = rotorhazard.event.classes.find(obj => {return obj.id == heat.class_id});
+
+						if (race_class) {
+							tbody.append('<tr><td></td><td colspan="2" class="race_class">' + race_class.displayname + '</td><tr>');
+						}
+					} else {
+						tbody.append('<tr><td></td><td colspan="2" class="race_class">' + __('Unclassified') + '</td><tr>');
+					}
+				}
+
+				table.append(tbody);
+				$('#leaderboard').append(table);
+
+				freq.updateBlocks();
+			}
+		}
+
+		socket.on('current_heat', function (msg) {
+			if (!{{ heat_id }}) {
+				streamheat = msg.current_heat;
+				display_heats();
+			}
+		});
+	});
+
+</script>
+{% endblock %} {% block content %}
+<main class="page-streamheat">
+	<div id="header">
+		<h1>{{ __('Loading...') }}</h1>
+	</div>
+
+	<!--Display the race leaderboard-->
+	<div id="leaderboard"></div>
+</main>
+{% endblock %}

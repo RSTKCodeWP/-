@@ -1,0 +1,972 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   Theme tokens
+   :root = dark (default), .light = light override
+   New components MUST use these tokens, never hardcoded grays.
+   ============================================================ */
+:root {
+  /* Backgrounds */
+  --bg-base: #0a0a0f;
+  --bg-surface: rgb(31 41 55 / 0.5);
+  --bg-surface-raised: rgb(55 65 81 / 0.5);
+  --bg-inset: #374151;
+  --bg-input: rgb(17 24 39 / 0.5);
+  --bg-nav: rgb(17 24 39 / 0.5);
+  --bg-tooltip: #1f2937;
+
+  /* Borders */
+  --border-default: rgb(55 65 81 / 0.5);
+  --border-subtle: rgb(55 65 81 / 0.3);
+  --border-strong: rgb(55 65 81 / 0.8);
+
+  /* Text */
+  --text-primary: #ffffff;
+  --text-secondary: #9ca3af;
+  --text-tertiary: #6b7280;
+  --text-disabled: #4b5563;
+
+  /* Overlays (map/glass panels — baked-in opacity for Tailwind compat) */
+  --bg-overlay: rgba(10, 10, 15, 0.88);
+  --bg-overlay-light: rgba(10, 10, 15, 0.75);
+  --bg-overlay-subtle: rgba(31, 41, 55, 0.2);
+  --bg-solid: #1f2937;
+
+  /* Misc */
+  --shadow-color: rgb(0 0 0 / 0.3);
+  --scrollbar-thumb: #374151;
+  --scrollbar-thumb-hover: #4b5563;
+  --ring-offset: #0a0a0f;
+
+  /* Dockview */
+  --dv-base: #0a0a0f;
+  --dv-panel-bg: #0d0d14;
+  --dv-tab-bar: #111827;
+  --dv-tab-active: #1f2937;
+  --dv-tab-inactive: #111827;
+  --dv-tab-text-active: #f3f4f6;
+  --dv-tab-text-dim: #9ca3af;
+  --dv-divider: #374151;
+
+  /* Leaflet */
+  --map-bg: #0d0d14;
+  --map-control-bg: rgba(31, 41, 55, 0.9);
+  --map-control-bg-hover: rgba(55, 65, 81, 0.9);
+  --map-control-text: #d1d5db;
+  --map-control-text-hover: #f3f4f6;
+  --map-control-border: rgba(75, 85, 99, 0.5);
+  --map-tile-filter: brightness(0.85) contrast(1.1) saturate(0.9);
+
+  /* Select dropdown */
+  --select-option-bg: #1f2937;
+  --select-option-text: #e5e7eb;
+  --select-option-hover: #374151;
+  --select-color-scheme: dark;
+
+  /* Flight-mode category text, used ON SURFACES (fleet cards/lists). Bright for
+     dark mode; the tactical map icon keeps its own bright hex (dark disc). */
+  --mode-manual: #e5e7eb;
+  --mode-assisted: #facc15;
+  --mode-auto: #4ade80;
+  --mode-emergency: #f87171;
+
+  /* Semantic status colours (theme toggles via .light, NOT prefers-color-scheme,
+     so Tailwind's fixed emerald-300/red-300 etc. never adapt - use these on any
+     tinted state chip / dot / button so it reads in both themes). `-solid` = the
+     dot/accent, `-fg` = text on a tint, `-bg` = the tint fill. */
+  --status-success: #34d399;  --status-success-fg: #6ee7b7;  --status-success-bg: rgba(16, 185, 129, 0.15);
+  --status-warn:    #fbbf24;  --status-warn-fg:    #fcd34d;  --status-warn-bg:    rgba(245, 158, 11, 0.15);
+  --status-danger:  #f87171;  --status-danger-fg:  #fca5a5;  --status-danger-bg:  rgba(239, 68, 68, 0.15);
+  --status-info:    #60a5fa;  --status-info-fg:    #93c5fd;  --status-info-bg:    rgba(59, 130, 246, 0.15);
+}
+
+.light {
+  /* Backgrounds */
+  --bg-base: #f5f6f8;
+  --bg-surface: #ffffff;
+  --bg-surface-raised: #e5e7ec;
+  --bg-inset: #e0e2e7;
+  --bg-input: #ffffff;
+  --bg-nav: rgba(255, 255, 255, 0.95);
+  --bg-tooltip: #ffffff;
+
+  /* Overlays */
+  --bg-overlay: rgba(255, 255, 255, 0.92);
+  --bg-overlay-light: rgba(255, 255, 255, 0.82);
+  --bg-overlay-subtle: rgba(0, 10, 30, 0.08);
+  --bg-solid: #ffffff;
+
+  /* Borders */
+  --border-default: #d1d5db;
+  --border-subtle: #e5e7eb;
+  --border-strong: #9ca3af;
+
+  /* Text */
+  --text-primary: #111827;
+  --text-secondary: #4b5563;
+  --text-tertiary: #9ca3af;
+  --text-disabled: #d1d5db;
+
+  /* Misc */
+  --shadow-color: rgb(0 0 0 / 0.1);
+  --scrollbar-thumb: #c4c8cf;
+  --scrollbar-thumb-hover: #9ca3af;
+  --ring-offset: #eef0f4;
+
+  /* Dockview */
+  --dv-base: #eef0f4;
+  --dv-panel-bg: #ffffff;
+  --dv-tab-bar: #f3f4f6;
+  --dv-tab-active: #ffffff;
+  --dv-tab-inactive: #e5e7eb;
+  --dv-tab-text-active: #111827;
+  --dv-tab-text-dim: #6b7280;
+  --dv-divider: #d1d5db;
+
+  /* Leaflet */
+  --map-bg: #eef0f4;
+  --map-control-bg: rgba(255, 255, 255, 0.95);
+  --map-control-bg-hover: rgba(243, 244, 246, 0.95);
+  --map-control-text: #374151;
+  --map-control-text-hover: #111827;
+  --map-control-border: #d1d5db;
+  --map-tile-filter: none;
+
+  /* Select dropdown */
+  --select-option-bg: #ffffff;
+  --select-option-text: #111827;
+  --select-option-hover: #f3f4f6;
+  --select-color-scheme: light;
+
+  /* Darker, saturated mode-category text so it reads on light surfaces. */
+  --mode-manual: #4b5563;
+  --mode-assisted: #ca8a04;
+  --mode-auto: #16a34a;
+  --mode-emergency: #dc2626;
+
+  /* Darker, saturated status colours for light surfaces. */
+  --status-success: #16a34a;  --status-success-fg: #15803d;  --status-success-bg: rgba(22, 163, 74, 0.12);
+  --status-warn:    #d97706;  --status-warn-fg:    #b45309;  --status-warn-bg:    rgba(217, 119, 6, 0.12);
+  --status-danger:  #dc2626;  --status-danger-fg:  #b91c1c;  --status-danger-bg:  rgba(220, 38, 38, 0.10);
+  --status-info:    #2563eb;  --status-info-fg:    #1d4ed8;  --status-info-bg:    rgba(37, 99, 235, 0.10);
+}
+
+@layer base {
+  * {
+    border-color: var(--border-default);
+  }
+
+  body {
+    background-color: var(--bg-base);
+    color: var(--text-primary);
+    @apply antialiased;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+
+  /* Theme-aware native select dropdowns */
+  select {
+    color-scheme: var(--select-color-scheme);
+  }
+
+  select option {
+    background-color: var(--select-option-bg);
+    color: var(--select-option-text);
+    padding: 4px 8px;
+  }
+
+  select option:checked,
+  select option:hover {
+    background-color: var(--select-option-hover);
+  }
+}
+
+@layer components {
+  .card {
+    background-color: var(--bg-surface);
+    border-color: var(--border-default);
+    @apply backdrop-blur-sm border rounded-xl;
+    box-shadow: 0 1px 3px var(--shadow-color);
+  }
+
+  .card-header {
+    border-bottom-color: var(--border-default);
+    @apply px-4 py-3 border-b;
+  }
+
+  .card-body {
+    @apply p-4;
+  }
+
+  .btn {
+    @apply px-4 py-2.5 rounded-lg font-medium transition-all duration-200
+           disabled:opacity-50 disabled:cursor-not-allowed
+           focus:outline-none focus:ring-2 focus:ring-offset-2;
+    --tw-ring-offset-color: var(--ring-offset);
+  }
+
+  .btn-primary {
+    @apply bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400
+           text-white shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40
+           focus:ring-blue-500;
+  }
+
+  .btn-secondary {
+    background-color: var(--bg-surface-raised);
+    border-color: var(--border-default);
+    color: var(--text-primary);
+    @apply border
+           focus:ring-gray-500;
+  }
+
+  .btn-secondary:hover {
+    background-color: var(--bg-surface);
+    border-color: var(--border-strong);
+  }
+
+  .btn-danger {
+    @apply bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400
+           text-white shadow-lg shadow-red-500/25 hover:shadow-red-500/40
+           focus:ring-red-500;
+  }
+
+  .input {
+    background-color: var(--bg-input);
+    border-color: var(--border-default);
+    color: var(--text-primary);
+    @apply w-full border rounded-lg px-3 py-2.5
+           placeholder-gray-500
+           focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50
+           transition-all duration-200;
+  }
+
+  .select {
+    background-color: var(--bg-input);
+    border-color: var(--border-default);
+    color: var(--text-primary);
+    @apply w-full border rounded-lg pl-3 pr-10 py-2.5
+           cursor-pointer
+           focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50
+           transition-all duration-200;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%236b7280'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+    background-size: 1rem;
+  }
+
+  .label {
+    color: var(--text-secondary);
+    @apply block text-sm font-medium mb-1.5;
+  }
+
+  .tab-group {
+    background-color: var(--bg-input);
+    @apply flex gap-1 p-1 rounded-lg;
+  }
+
+  .tab {
+    color: var(--text-secondary);
+    @apply flex-1 px-4 py-2 rounded-md text-sm font-medium transition-all duration-200;
+  }
+
+  .tab:hover {
+    color: var(--text-primary);
+  }
+
+  .tab-active {
+    background-color: var(--bg-surface-raised);
+    color: var(--text-primary);
+    @apply shadow-sm;
+  }
+
+  .status-dot {
+    @apply w-2.5 h-2.5 rounded-full;
+  }
+
+  .status-dot-connected {
+    @apply bg-emerald-500 shadow-lg shadow-emerald-500/50;
+  }
+
+  .status-dot-disconnected {
+    @apply bg-gray-500;
+  }
+}
+
+/* Tooltips for [data-tip] elements are rendered by the GlobalTooltip React
+   component in a body-level portal (see components/GlobalTooltip.tsx). A pure
+   CSS ::after tooltip was clipped by overflow ancestors (toolbars, scroll
+   panes) and covered by sibling stacking contexts, which read as "broken /
+   only shows in roomy blocks". The portal approach can't be clipped. */
+
+/* Prevent text selection on UI elements */
+button,
+select,
+.no-select {
+  user-select: none;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+
+/* Smooth transitions */
+* {
+  scroll-behavior: smooth;
+}
+
+/* Telemetry value transitions */
+.telemetry-value {
+  transition: color 0.15s ease-out;
+}
+
+/* Tabular numbers for consistent width during updates */
+.font-mono {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Subtle pulse animation for live data */
+@keyframes data-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.data-updating {
+  animation: data-pulse 0.3s ease-in-out;
+}
+
+/* Dockview theme customization - reads from theme tokens */
+.dockview-theme-dark,
+.dockview-theme-light {
+  --dv-tabs-and-actions-container-height: 28px;
+  --dv-tab-font-size: 12px;
+  --dv-background-color: var(--dv-base);
+  --dv-paneview-header-border-color: var(--dv-divider);
+  --dv-tabs-and-actions-container-background-color: var(--dv-tab-bar);
+  --dv-activegroup-visiblepanel-tab-background-color: var(--dv-tab-active);
+  --dv-activegroup-hiddenpanel-tab-background-color: var(--dv-tab-inactive);
+  --dv-inactivegroup-visiblepanel-tab-background-color: var(--dv-tab-active);
+  --dv-inactivegroup-hiddenpanel-tab-background-color: var(--dv-tab-inactive);
+  --dv-tab-divider-color: var(--dv-divider);
+  --dv-activegroup-visiblepanel-tab-color: var(--dv-tab-text-active);
+  --dv-activegroup-hiddenpanel-tab-color: var(--dv-tab-text-dim);
+  --dv-inactivegroup-visiblepanel-tab-color: var(--dv-tab-text-active);
+  --dv-inactivegroup-hiddenpanel-tab-color: var(--dv-tab-text-dim);
+  --dv-separator-border: var(--dv-divider);
+  --dv-group-view-background-color: var(--dv-panel-bg);
+  --dv-tabs-container-scrollbar-color: var(--scrollbar-thumb);
+  --dv-icon-hover-background-color: var(--bg-surface-raised);
+  --dv-floating-box-shadow: 0 25px 50px -12px var(--shadow-color);
+  --dv-drag-over-background-color: rgba(59, 130, 246, 0.2);
+  --dv-drag-over-border-color: rgba(59, 130, 246, 0.5);
+}
+
+.dockview-theme-dark .tab,
+.dockview-theme-light .tab {
+  border-radius: 4px 4px 0 0;
+}
+
+.dockview-theme-dark .groupview > .content-container,
+.dockview-theme-light .groupview > .content-container {
+  background: var(--dv-panel-bg);
+}
+
+/* Compact dockview for log explorer */
+.log-explorer-dock .tabs-and-actions-container {
+  height: 26px !important;
+  min-height: 26px !important;
+}
+
+.log-explorer-dock .tab {
+  height: 24px !important;
+  font-size: 11px !important;
+  padding: 0 8px !important;
+}
+
+/* Leaflet map customization */
+.leaflet-container {
+  background: var(--map-bg);
+  font-family: inherit;
+}
+
+.leaflet-control-zoom {
+  border: none !important;
+}
+
+.leaflet-control-zoom a {
+  background: var(--map-control-bg) !important;
+  color: var(--map-control-text) !important;
+  border: 1px solid var(--map-control-border) !important;
+}
+
+.leaflet-control-zoom a:hover {
+  background: var(--map-control-bg-hover) !important;
+  color: var(--map-control-text-hover) !important;
+}
+
+.leaflet-control-zoom-in {
+  border-radius: 4px 4px 0 0 !important;
+}
+
+.leaflet-control-zoom-out {
+  border-radius: 0 0 4px 4px !important;
+}
+
+/* Vehicle and home markers */
+.vehicle-marker,
+.home-marker {
+  background: transparent !important;
+  border: none !important;
+}
+
+/* Ensure markers are visible above tiles */
+.leaflet-marker-pane {
+  z-index: 600 !important;
+}
+
+.leaflet-marker-icon {
+  z-index: 601 !important;
+}
+
+/* Vehicle marker specific styling */
+.vehicle-marker {
+  z-index: 1000 !important;
+  pointer-events: none;
+}
+
+.vehicle-marker svg {
+  overflow: visible;
+}
+
+/* ── Tactical vehicle icon ─────────────────────────────────────── */
+
+@keyframes tactical-ring-spin {
+  from { stroke-dashoffset: 0; }
+  to { stroke-dashoffset: 14; }
+}
+
+
+/* The Leaflet marker wrapper - must beat .leaflet-marker-icon's z-index: 601 !important */
+.tactical-vehicle-marker {
+  z-index: 10000 !important;
+  background: transparent !important;
+  border: none !important;
+  overflow: visible !important;
+}
+
+.tactical-vehicle-icon {
+  cursor: pointer;
+  transition: filter 0.15s, transform 0.18s ease;
+}
+
+.tactical-vehicle-icon:hover {
+  filter: brightness(1.25) !important;
+}
+
+/* Active/primary marker always sits above the fleet; a hovered fleet marker rises above
+   its peers so its expanded label is never covered. (.tactical-vehicle-marker forces
+   z-index 10000 !important, so these modifiers are how stacking order is controlled.) */
+.tactical-vehicle-marker.tvi-topmost { z-index: 10002 !important; }
+.tactical-vehicle-marker:hover { z-index: 10001 !important; }
+
+/* Compact fleet label: collapse to just the SYS id chip until hovered, so a tight cluster
+   stops being a pile of overlapping mode/alt/speed boxes. Hover reveals the full readout. */
+.tvi-compact .tvi-detail-inline,
+.tvi-compact .tvi-detail-block { display: none; }
+.tactical-vehicle-marker:hover .tvi-detail-inline { display: inline; }
+.tactical-vehicle-marker:hover .tvi-detail-block { display: block; }
+.tvi-compact .tactical-info-label { opacity: 0.9; }
+
+/* Leader line tying a fanned-out marker back to its true map position. */
+.tvi-leader { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+
+/* A grouped follower (tucked in tight around the main) hides its label entirely until
+   hovered, so the cluster stays clean - hover brings the full readout back. */
+.tvi-grouped .tactical-info-label { display: none; }
+.tvi-grouped:hover .tactical-info-label { display: block; }
+
+.tactical-selection-ring {
+  animation: tactical-ring-spin 2s linear infinite;
+}
+
+/* Armed/critical pulse - only pulses the disc border via box-shadow, not opacity */
+.tactical-pulse-orange .tvi-svg circle:first-child {
+  filter: drop-shadow(0 0 4px #f97316);
+  animation: tactical-disc-pulse 1.5s ease-in-out infinite;
+}
+
+.tactical-pulse-red .tvi-svg circle:first-child {
+  filter: drop-shadow(0 0 4px #ef4444);
+  animation: tactical-disc-pulse 0.8s ease-in-out infinite;
+}
+
+@keyframes tactical-disc-pulse {
+  0%, 100% { filter: drop-shadow(0 0 6px currentColor); }
+  50% { filter: drop-shadow(0 0 2px currentColor); }
+}
+
+/* Override Leaflet popup for tactical command popup */
+.tactical-command-popup .leaflet-popup-content-wrapper {
+  background: rgba(17, 24, 39, 0.95);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(34, 211, 238, 0.3);
+  border-radius: 6px;
+  color: inherit;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+.tactical-command-popup .leaflet-popup-tip {
+  background: rgba(17, 24, 39, 0.95);
+  border-right: 1px solid rgba(34, 211, 238, 0.3);
+  border-bottom: 1px solid rgba(34, 211, 238, 0.3);
+}
+
+.tactical-command-popup .leaflet-popup-content {
+  margin: 10px;
+}
+
+/* Traffic contact popup — themed, readable in light + dark */
+.traffic-popup .leaflet-popup-content-wrapper {
+  background: var(--bg-overlay);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
+  color: var(--text-primary);
+  box-shadow: 0 8px 28px var(--shadow-color);
+}
+
+.traffic-popup .leaflet-popup-tip {
+  background: var(--bg-overlay);
+  border-right: 1px solid var(--border-default);
+  border-bottom: 1px solid var(--border-default);
+}
+
+.traffic-popup .leaflet-popup-content {
+  margin: 11px 13px;
+}
+
+.traffic-popup a.leaflet-popup-close-button {
+  color: var(--text-tertiary);
+  padding: 6px 7px 0 0;
+}
+
+.traffic-popup a.leaflet-popup-close-button:hover {
+  color: var(--text-primary);
+}
+
+/* Traffic popup on MapLibre (Area Editor) */
+.traffic-popup.maplibregl-popup .maplibregl-popup-content {
+  background: var(--bg-overlay);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
+  color: var(--text-primary);
+  box-shadow: 0 8px 28px var(--shadow-color);
+  padding: 11px 13px;
+}
+
+.traffic-popup.maplibregl-popup-anchor-top .maplibregl-popup-tip,
+.traffic-popup.maplibregl-popup-anchor-bottom .maplibregl-popup-tip,
+.traffic-popup.maplibregl-popup-anchor-left .maplibregl-popup-tip,
+.traffic-popup.maplibregl-popup-anchor-right .maplibregl-popup-tip {
+  border-top-color: var(--bg-overlay);
+  border-bottom-color: var(--bg-overlay);
+}
+
+.traffic-popup .maplibregl-popup-close-button {
+  color: var(--text-tertiary);
+}
+
+/* Waypoint markers - ensure proper drag behavior */
+.waypoint-marker {
+  cursor: grab !important;
+}
+
+.waypoint-marker:active {
+  cursor: grabbing !important;
+}
+
+.leaflet-marker-draggable .waypoint-marker {
+  cursor: grab !important;
+}
+
+.leaflet-dragging .waypoint-marker {
+  cursor: grabbing !important;
+}
+
+/* Map tile styling - adapts to theme */
+.leaflet-tile-pane {
+  filter: var(--map-tile-filter);
+}
+
+/* ============================================================
+   Light-mode accent color corrections
+   Tailwind -300/-400 accent text has poor contrast on white.
+   These overrides bump to -500/-600 equivalents so that
+   readability and aesthetics are preserved automatically
+   across all 1,600+ usages without touching component files.
+   ============================================================ */
+
+/* Blue */
+.light .text-blue-50,
+.light .hover\:text-blue-50:hover { color: #1e3a8a; }
+.light .text-blue-100,
+.light .hover\:text-blue-100:hover { color: #1e40af; }
+.light .text-blue-200,
+.light .hover\:text-blue-200:hover { color: #2563eb; }
+.light .text-blue-300,
+.light .group:hover .group-hover\:text-blue-300,
+.light .hover\:text-blue-300:hover { color: #3b82f6; }
+.light .text-blue-400,
+.light .group:hover .group-hover\:text-blue-400,
+.light .hover\:text-blue-400:hover { color: #2563eb; }
+
+/* Green */
+.light .text-green-50,
+.light .hover\:text-green-50:hover { color: #14532d; }
+.light .text-green-100,
+.light .hover\:text-green-100:hover { color: #166534; }
+.light .text-green-200,
+.light .hover\:text-green-200:hover { color: #16a34a; }
+.light .text-green-300,
+.light .hover\:text-green-300:hover { color: #22c55e; }
+.light .text-green-400,
+.light .hover\:text-green-400:hover { color: #16a34a; }
+
+/* Emerald */
+.light .text-emerald-50,
+.light .hover\:text-emerald-50:hover { color: #064e3b; }
+.light .text-emerald-100,
+.light .hover\:text-emerald-100:hover { color: #047857; }
+.light .text-emerald-200,
+.light .hover\:text-emerald-200:hover { color: #059669; }
+.light .text-emerald-300,
+.light .hover\:text-emerald-300:hover { color: #10b981; }
+.light .text-emerald-400,
+.light .hover\:text-emerald-400:hover { color: #059669; }
+
+/* Red */
+.light .text-red-50,
+.light .hover\:text-red-50:hover { color: #7f1d1d; }
+.light .text-red-100,
+.light .hover\:text-red-100:hover { color: #991b1b; }
+.light .text-red-200,
+.light .hover\:text-red-200:hover { color: #dc2626; }
+.light .text-red-300,
+.light .group:hover .group-hover\:text-red-300,
+.light .hover\:text-red-300:hover { color: #ef4444; }
+.light .text-red-400,
+.light .group:hover .group-hover\:text-red-400,
+.light .hover\:text-red-400:hover { color: #dc2626; }
+
+/* Amber */
+.light .text-amber-50,
+.light .hover\:text-amber-50:hover { color: #78350f; }
+.light .text-amber-100,
+.light .hover\:text-amber-100:hover { color: #92400e; }
+.light .text-amber-200,
+.light .hover\:text-amber-200:hover { color: #d97706; }
+.light .text-amber-300,
+.light .hover\:text-amber-300:hover { color: #f59e0b; }
+.light .text-amber-400,
+.light .hover\:text-amber-400:hover { color: #d97706; }
+
+/* Cyan */
+.light .text-cyan-50,
+.light .hover\:text-cyan-50:hover { color: #164e63; }
+.light .text-cyan-200,
+.light .hover\:text-cyan-200:hover { color: #0891b2; }
+
+/* Indigo */
+.light .text-indigo-200,
+.light .hover\:text-indigo-200:hover { color: #4f46e5; }
+
+/* Orange */
+.light .text-orange-50,
+.light .hover\:text-orange-50:hover { color: #7c2d12; }
+.light .text-orange-100,
+.light .hover\:text-orange-100:hover { color: #9a3412; }
+.light .text-orange-200,
+.light .hover\:text-orange-200:hover { color: #ea580c; }
+
+/* Pink */
+.light .text-pink-200,
+.light .hover\:text-pink-200:hover { color: #db2777; }
+
+/* Purple */
+.light .text-purple-50,
+.light .hover\:text-purple-50:hover { color: #581c87; }
+.light .text-purple-200,
+.light .hover\:text-purple-200:hover { color: #9333ea; }
+
+/* Rose */
+.light .text-rose-200,
+.light .hover\:text-rose-200:hover { color: #e11d48; }
+
+/* Teal */
+.light .text-teal-200,
+.light .hover\:text-teal-200:hover { color: #0d9488; }
+
+/* Violet */
+.light .text-violet-50,
+.light .hover\:text-violet-50:hover { color: #4c1d95; }
+.light .text-violet-200,
+.light .hover\:text-violet-200:hover { color: #7c3aed; }
+
+/* Yellow */
+.light .text-yellow-50,
+.light .hover\:text-yellow-50:hover { color: #713f12; }
+.light .text-yellow-200,
+.light .hover\:text-yellow-200:hover { color: #ca8a04; }
+
+/* Yellow */
+.light .text-yellow-300,
+.light .hover\:text-yellow-300:hover { color: #eab308; }
+.light .text-yellow-400,
+.light .hover\:text-yellow-400:hover { color: #ca8a04; }
+
+/* Purple */
+.light .text-purple-300,
+.light .hover\:text-purple-300:hover { color: #a855f7; }
+.light .text-purple-400,
+.light .hover\:text-purple-400:hover { color: #9333ea; }
+
+/* Cyan */
+.light .text-cyan-300,
+.light .hover\:text-cyan-300:hover { color: #06b6d4; }
+.light .text-cyan-400,
+.light .hover\:text-cyan-400:hover { color: #0891b2; }
+
+/* Orange */
+.light .text-orange-300,
+.light .hover\:text-orange-300:hover { color: #f97316; }
+.light .text-orange-400,
+.light .hover\:text-orange-400:hover { color: #ea580c; }
+
+/* Indigo */
+.light .text-indigo-300,
+.light .hover\:text-indigo-300:hover { color: #6366f1; }
+.light .text-indigo-400,
+.light .hover\:text-indigo-400:hover { color: #4f46e5; }
+
+/* Teal */
+.light .text-teal-300,
+.light .hover\:text-teal-300:hover { color: #14b8a6; }
+.light .text-teal-400,
+.light .hover\:text-teal-400:hover { color: #0d9488; }
+
+/* Violet */
+.light .text-violet-300,
+.light .hover\:text-violet-300:hover { color: #8b5cf6; }
+.light .text-violet-400,
+.light .hover\:text-violet-400:hover { color: #7c3aed; }
+
+/* Pink */
+.light .text-pink-300,
+.light .hover\:text-pink-300:hover { color: #ec4899; }
+.light .text-pink-400,
+.light .hover\:text-pink-400:hover { color: #db2777; }
+
+/* Rose */
+.light .text-rose-300,
+.light .hover\:text-rose-300:hover { color: #fb7185; }
+.light .text-rose-400,
+.light .hover\:text-rose-400:hover { color: #f43f5e; }
+
+/* Lime */
+.light .text-lime-300,
+.light .hover\:text-lime-300:hover { color: #84cc16; }
+.light .text-lime-400,
+.light .hover\:text-lime-400:hover { color: #65a30d; }
+
+/* ============================================================
+   Light-mode border accent corrections
+   Accent borders with low opacity are too subtle on white.
+   ============================================================ */
+/* Light-mode accent background tints - solid pastel colors, no transparency */
+.light .bg-blue-500\/5 { background-color: #eff6ff; }     /* blue-50 */
+.light .bg-blue-500\/10 { background-color: #dbeafe; }    /* blue-100 */
+.light .bg-blue-500\/15 { background-color: #cee0fc; }
+.light .bg-blue-500\/20 { background-color: #bfdbfe; }    /* blue-200 */
+.light .bg-blue-600\/5 { background-color: #eff6ff; }
+.light .bg-yellow-500\/10 { background-color: #fef9c3; }  /* yellow-100 */
+.light .bg-yellow-500\/20 { background-color: #fef08a; }  /* yellow-200 */
+.light .bg-amber-500\/10 { background-color: #fef3c7; }   /* amber-100 */
+.light .bg-amber-500\/20 { background-color: #fde68a; }   /* amber-200 */
+.light .bg-green-500\/10 { background-color: #dcfce7; }   /* green-100 */
+.light .bg-green-500\/20 { background-color: #bbf7d0; }   /* green-200 */
+.light .bg-red-500\/10 { background-color: #fee2e2; }     /* red-100 */
+.light .bg-red-500\/20 { background-color: #fecaca; }     /* red-200 */
+.light .bg-purple-500\/10 { background-color: #f3e8ff; }  /* purple-100 */
+.light .bg-purple-500\/20 { background-color: #e9d5ff; }  /* purple-200 */
+.light .bg-emerald-500\/5 { background-color: #ecfdf5; }  /* emerald-50 */
+.light .bg-emerald-500\/10 { background-color: #d1fae5; } /* emerald-100 */
+.light .bg-emerald-500\/20 { background-color: #a7f3d0; } /* emerald-200 */
+.light .bg-emerald-600\/5 { background-color: #ecfdf5; }
+.light .bg-orange-500\/5 { background-color: #fff7ed; }   /* orange-50 */
+.light .bg-orange-500\/10 { background-color: #ffedd5; }  /* orange-100 */
+.light .bg-orange-500\/20 { background-color: #fed7aa; }  /* orange-200 */
+.light .bg-orange-600\/5 { background-color: #fff7ed; }
+.light .bg-cyan-500\/10 { background-color: #cffafe; }    /* cyan-100 */
+.light .bg-teal-500\/10 { background-color: #ccfbf1; }    /* teal-100 */
+
+.light .border-blue-500\/30 { border-color: rgb(59 130 246 / 0.25); }
+.light .border-green-500\/30 { border-color: rgb(34 197 94 / 0.25); }
+.light .border-emerald-500\/30 { border-color: rgb(16 185 129 / 0.25); }
+.light .border-amber-500\/30 { border-color: rgb(245 158 11 / 0.25); }
+.light .border-red-500\/30 { border-color: rgb(239 68 68 / 0.25); }
+.light .border-purple-500\/30 { border-color: rgb(168 85 247 / 0.25); }
+
+/* ============================================================
+   Light-mode card & surface refinements
+   Cards need stronger shadows on light backgrounds for depth.
+   ============================================================ */
+.light .card {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+/* Colored shadows look garish on light backgrounds - neutralize */
+.light [class*="shadow-blue-"],
+.light [class*="shadow-green-"],
+.light [class*="shadow-emerald-"],
+.light [class*="shadow-red-"],
+.light [class*="shadow-amber-"],
+.light [class*="shadow-purple-"] {
+  --tw-shadow-color: rgba(0, 0, 0, 0.06);
+}
+
+/* ============================================================
+   Light-mode gradient corrections
+   Dark-specific gradients (from-*-900/*) need light variants.
+   ============================================================ */
+/* Accent gradient from-stops: solid pastels with good contrast on light bg */
+.light .from-blue-500\/10 { --tw-gradient-from: #bfdbfe; }      /* blue-200 */
+.light .to-blue-600\/5 { --tw-gradient-to: #dbeafe; }           /* blue-100 */
+.light .from-emerald-500\/10 { --tw-gradient-from: #a7f3d0; }   /* emerald-200 */
+.light .to-emerald-600\/5 { --tw-gradient-to: #d1fae5; }        /* emerald-100 */
+.light .from-orange-500\/10 { --tw-gradient-from: #fed7aa; }    /* orange-200 */
+.light .to-orange-600\/5 { --tw-gradient-to: #ffedd5; }         /* orange-100 */
+.light .from-purple-500\/10 { --tw-gradient-from: #e9d5ff; }    /* purple-200 */
+.light .to-purple-600\/5 { --tw-gradient-to: #f3e8ff; }         /* purple-100 */
+
+/* Light mode: subtle colored tints for accent cards */
+.light .from-emerald-500\/5 { --tw-gradient-from: #ecfdf5; }    /* emerald-50 */
+.light .to-teal-500\/5 { --tw-gradient-to: #f0fdfa; }           /* teal-50 */
+.light .from-blue-500\/5 { --tw-gradient-from: #eff6ff; }       /* blue-50 */
+.light .to-indigo-500\/5 { --tw-gradient-to: #eef2ff; }         /* indigo-50 */
+.light .from-amber-500\/5 { --tw-gradient-from: #fffbeb; }      /* amber-50 */
+.light .to-orange-500\/5 { --tw-gradient-to: #fff7ed; }         /* orange-50 */
+.light .from-violet-500\/5 { --tw-gradient-from: #f5f3ff; }     /* violet-50 */
+.light .to-purple-500\/5 { --tw-gradient-to: #faf5ff; }         /* purple-50 */
+.light .from-cyan-500\/5 { --tw-gradient-from: #ecfeff; }       /* cyan-50 */
+.light .to-sky-500\/5 { --tw-gradient-to: #f0f9ff; }            /* sky-50 */
+
+/* Strengthen accent borders in light mode (20% invisible on white, bump to 35%) */
+.light .border-emerald-500\/20 { border-color: rgba(16, 185, 129, 0.35); }
+.light .border-blue-500\/20 { border-color: rgba(59, 130, 246, 0.35); }
+.light .border-amber-500\/20 { border-color: rgba(245, 158, 11, 0.35); }
+.light .border-violet-500\/20 { border-color: rgba(139, 92, 246, 0.35); }
+.light .border-cyan-500\/20 { border-color: rgba(6, 182, 212, 0.35); }
+.light .border-red-500\/20 { border-color: rgba(239, 68, 68, 0.35); }
+.light .border-purple-500\/20 { border-color: rgba(168, 85, 247, 0.35); }
+.light .border-orange-500\/20 { border-color: rgba(249, 115, 22, 0.35); }
+.light .border-green-500\/20 { border-color: rgba(34, 197, 94, 0.35); }
+
+.light [class*="from-amber-900"],
+.light [class*="from-orange-900"] {
+  --tw-gradient-from: rgb(254 243 199 / 0.8); /* amber-100/80 */
+}
+.light [class*="to-amber-900"],
+.light [class*="to-orange-900"] {
+  --tw-gradient-to: rgb(255 237 213 / 0.6); /* orange-100/60 */
+}
+
+/* Via gradient stops for dark-specific weather/status gradients */
+.light [class*="via-amber-800"],
+.light [class*="via-red-800"] {
+  --tw-gradient-via: rgb(254 243 199 / 0.3);
+}
+.light [class*="via-blue-900"],
+.light [class*="via-slate-800"] {
+  --tw-gradient-via: rgb(219 234 254 / 0.3);
+}
+.light [class*="from-red-900"] {
+  --tw-gradient-from: rgb(254 226 226 / 0.8);
+}
+.light [class*="from-slate-800"] {
+  --tw-gradient-from: rgb(226 232 240 / 0.5);
+}
+
+/* Accent bg-*-500/10 opacity is fine on white (subtle tint),
+   but bg-*-900/* dark backgrounds need inversion */
+.light .bg-blue-900\/50,
+.light .bg-blue-900\/40,
+.light .bg-blue-900\/30,
+.light .bg-blue-900\/20 { background-color: rgb(219 234 254 / 0.7); }  /* blue-100 */
+.light .bg-green-900\/50,
+.light .bg-green-900\/40,
+.light .bg-green-900\/30,
+.light .bg-green-900\/20 { background-color: rgb(220 252 231 / 0.7); } /* green-100 */
+.light .bg-red-900\/50,
+.light .bg-red-900\/40,
+.light .bg-red-900\/30,
+.light .bg-red-900\/20 { background-color: rgb(254 226 226 / 0.7); }   /* red-100 */
+.light .bg-amber-900\/50,
+.light .bg-amber-900\/40,
+.light .bg-amber-900\/30,
+.light .bg-amber-900\/20 { background-color: rgb(254 243 199 / 0.7); } /* amber-100 */
+.light .bg-purple-900\/50,
+.light .bg-purple-900\/40,
+.light .bg-purple-900\/30,
+.light .bg-purple-900\/20 { background-color: rgb(243 232 255 / 0.7); } /* purple-100 */
+
+/* Yellow/amber 500/10 and 500/20 buttons/badges — too pale in light mode.
+   Bump to proper light-mode tints that provide visible contrast. */
+.light .bg-yellow-500\/10 { background-color: rgb(254 249 195 / 0.6); } /* yellow-100 */
+.light .bg-yellow-500\/20,
+.light .hover\:bg-yellow-500\/30:hover { background-color: rgb(254 240 138 / 0.5); } /* yellow-200 */
+.light .bg-amber-500\/10 { background-color: rgb(254 243 199 / 0.6); }  /* amber-100 */
+.light .bg-amber-500\/20,
+.light .hover\:bg-amber-500\/30:hover { background-color: rgb(253 230 138 / 0.5); }  /* amber-200 */
+
+
+/* React Flow Controls + MiniMap dark theme for ScriptGraphReadonlyView.
+   Scoped under .script-graph-readonly so it only affects the script-installer
+   preview - the main Lua Graph editor keeps its own styling. */
+.script-graph-readonly .react-flow__controls-button {
+  background: rgba(30, 41, 59, 0.95);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  color: #e5e7eb;
+  fill: #e5e7eb;
+}
+.script-graph-readonly .react-flow__controls-button:hover {
+  background: rgba(55, 65, 81, 0.95);
+}
+.script-graph-readonly .react-flow__controls-button svg {
+  fill: currentColor;
+  max-width: 14px;
+  max-height: 14px;
+}
+.script-graph-readonly .react-flow__minimap-mask {
+  fill: rgba(13, 17, 23, 0.7);
+}
+.script-graph-readonly .react-flow__edge-path {
+  stroke-linecap: round;
+}
+

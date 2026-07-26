@@ -1,0 +1,115 @@
+[project]
+name = "hades-service"
+version = "0.0.0"
+description = "HADES detection service — capture, detect, georeference for post-hurricane SAR"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    "numpy>=1.26",
+    "av>=12",
+    "pillow>=10",
+    # Runtime dep: the WS message contracts (hades.ws.schema) the service emits and the
+    # UI consumes are pydantic models → JSON Schema. Needed wherever the service runs,
+    # so it lives in core deps, not dev.
+    "pydantic>=2.7",
+    # Phase 3 pipeline runtime deps — both are torch-free, so they stay lean (the
+    # whole project keeps PyTorch out of runtime/CI; torch lives only in the optional
+    # `bench`/`train` groups). scipy: `linear_sum_assignment` for the two-stage
+    # ByteTrack association (track/) AND `spatial.transform.Rotation` for the
+    # ray→ground geometry (locate/, DESIGN.md §3.3). opencv: sparse-optical-flow GMC
+    # for image ego-motion compensation (track/gmc, DESIGN.md Task 3.2) + frame
+    # annotation in the observable replay CLI. We deliberately do NOT depend on
+    # ultralytics/supervision/lap for tracking: ultralytics' BYTETracker imports torch
+    # and auto-`pip install`s `lap` at runtime (breaks both lean-CI and the
+    # on-device-only/no-runtime-fetch constraint); `supervision` drags a CV toolkit in
+    # for one ~250-line tracker and still leaves the GMC seam fighting library
+    # internals. The numpy ByteTrack we own makes the GMC warp a one-line refinement.
+    "scipy>=1.11",
+    "opencv-python>=4.9",
+    # The two localhost WS channels (binary JPEG frames + JSON detections/contacts) the
+    # service emits and the Electron UI consumes. Pure-Python asyncio server, no native deps.
+    "websockets>=12",
+]
+
+[project.scripts]
+hades = "hades.cli.main:main"
+hades-service = "hades.cli.service:main"
+hades-eval = "hades.cli.eval:main"
+hades-locsim = "hades.cli.locsim:main"
+hades-record-mission = "hades.cli.record_mission:main"
+# Phase 7 documentation (doc-data export behind every figure):
+hades-export-doc-data = "hades.cli.export_doc_data:main"
+hades-make-figures = "hades.cli.make_figures:main"
+hades-make-showcase = "hades.cli.make_showcase:main"
+# Phase 1.5 latency spike (need the `bench` dependency-group installed):
+hades-export-coreml = "hades.bench.export_coreml:main"
+hades-bench-latency = "hades.bench.bench_latency:main"
+hades-export-onnx = "hades.bench.export_onnx:main"
+# Phase 2.5 fine-tune (cluster; need the `train` dependency-group installed):
+hades-train = "hades.train.train:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6",
+    # ONNX Runtime CPU is the deterministic, ANE-free detector backend exercised on
+    # CI (Task 2.4). Inference needs only onnxruntime (~68 MB installed) — NOT torch
+    # — so it stays in `dev` (CI-installed) rather than the heavy `bench` group: the
+    # lean-CI goal is about not pulling PyTorch, which this honors. `onnx` is the
+    # graph builder used to construct the tiny synthetic model the CI seam-test loads
+    # (a few KB, no real weights, no torch).
+    "onnxruntime>=1.18",
+    "onnx>=1.16",
+]
+# Heavy ML deps for the Phase 1.5 latency spike (CoreML export + ANE benchmark)
+# only. Kept out of the runtime `dependencies` and out of `dev` so the core
+# service and CI stay lean (no PyTorch pull). Install with `uv sync --group bench`.
+bench = [
+    "ultralytics>=8.3",
+    "coremltools>=8.0",
+    # coremltools 9.0's torch frontend casts via `int(ndarray)`, which numpy 2.x
+    # rejects ("only 0-dimensional arrays can be converted to Python scalars") and
+    # crashes the CoreML export. Pin numpy <2 for the spike until coremltools ships
+    # a numpy-2 fix. Compatible with the core service pin (numpy>=1.26).
+    "numpy<2",
+    # Ultralytics' ONNX export (Task 2.4 `hades-export-onnx`) shells out to these at
+    # export time; they are NOT needed to *run* an exported model (that's onnxruntime
+    # in `dev`). Kept here with the rest of the export-time torch stack.
+    "onnxslim>=0.1.40",
+]
+# Phase 2.5 fine-tune deps. The training SCRIPT (hades.train.*) is the committed deliverable;
+# its pure logic (class merge, resume branch, config validation) unit-tests in `dev` with NO
+# torch — ultralytics/torch are lazy-imported and only needed for the real cluster run, which
+# happens in the cluster's own conda env (cu128 torch), NOT via this group. This group exists
+# so a local `uv sync --group train` can exercise the trainer end-to-end on the Mac if ever
+# needed; CI never installs it (lean-CI, no PyTorch pull — same rationale as `bench`).
+train = [
+    "ultralytics>=8.3",
+    "pyyaml>=6.0",
+]
+# Phase 7 documentation figures. matplotlib renders the routine charts from the exported
+# data files (Pillow is already a runtime dep, so the showcase frames need nothing extra).
+# Kept out of runtime/CI so the lean service is untouched; install with `uv sync --group docs`.
+docs = [
+    "matplotlib>=3.8",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/hades"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "ane: tests requiring Apple Neural Engine / Core ML (excluded on CI)",
+    "onnx_real: tests needing a real exported .onnx model (gitignored artifact; excluded on CI)",
+]
+
+[tool.ruff]
+src = ["src", "tests"]
+line-length = 100
+
+[tool.ruff.lint]
+extend-select = ["I"]  # import sorting

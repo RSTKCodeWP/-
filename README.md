@@ -1,8 +1,26 @@
 # RSTKCodeWP
 
-Repository for embedded and mobile control projects.
+Repository for embedded, FPV, and drone open-source projects.
 
-## Projects
+## FPV Library (auto-synced)
+
+**[`fpv-library/`](fpv-library/)** — automated mirror catalog from GitHub search.
+
+- **55 repos** synced from [FPV search page 4](https://github.com/search?q=Fpv&type=repositories&s=updated&o=desc&p=4) + owner expansion
+- Daily discover + sync via [GitHub Actions](.github/workflows/fpv-library-sync.yml)
+- Manifest: [`fpv-library/catalog.json`](fpv-library/catalog.json)
+
+```bash
+# Discover more pages
+python3 fpv-library/scripts/discover.py --search Fpv --page 4 --expand-owners
+
+# Pull upstream updates
+python3 fpv-library/scripts/sync.py --all
+```
+
+See [`fpv-library/README.md`](fpv-library/README.md) for full documentation.
+
+## Legacy examples (hand-copied)
 
 | Folder | Description |
 |--------|-------------|

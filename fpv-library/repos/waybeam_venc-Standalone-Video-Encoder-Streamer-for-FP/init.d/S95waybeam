@@ -1,0 +1,118 @@
+#!/bin/sh
+
+DAEMON="waybeam"
+RESPAWN="waybeam-resp"
+WATCHDOG="waybeam-wd"
+DAEMON_PATH="/usr/bin/waybeam"
+LOG_PATH="/tmp/waybeam.log"
+
+# waybeam forks a respawn child on SIGHUP / API restart that changes
+# its comm to "waybeam-resp" so the new process can survive the
+# parent's teardown, plus a watchdog "waybeam-wd" that SIGKILLs a
+# hung parent.  pidof and killall match by comm, so any restart logic
+# must cover all three names — otherwise stop() returns while an
+# orphan helper is still alive and the next start() trips waybeam's
+# /proc-walk duplicate-instance check.
+still_running() {
+    pidof "$DAEMON" "$RESPAWN" "$WATCHDOG" >/dev/null 2>&1
+}
+
+# In apfpv mode (wfbmode != 1) venc must output udp:// so a discovered
+# ground/phone can live-retarget the stream via a subscribe. venc refuses
+# a live switch *away from* shm:// (it requires a restart), so an apfpv box
+# that boots with shm:// can never be subscribed to without a restart.  The
+# shared /etc/waybeam.json ships shm://local_shm for the wfb build (it feeds
+# wfb-air); when we boot apfpv, rewrite that to a harmless udp default
+# (loopback — no stray RTP on the air until a subscribe sets the real dst).
+ensure_apfpv_udp_output() {
+    [ "$(fw_printenv -n wfbmode 2>/dev/null || echo 0)" = "1" ] && return 0
+    command -v json_cli >/dev/null 2>&1 || return 0
+    [ -f /etc/waybeam.json ] || return 0
+    cur=$(json_cli -g .outgoing.server -i /etc/waybeam.json 2>/dev/null)
+    case "$cur" in
+        shm://*)
+            if json_cli -s .outgoing.server '"udp://127.0.0.1:5600"' \
+                    -i /etc/waybeam.json; then
+                echo "apfpv: venc output $cur -> udp://127.0.0.1:5600 (awaiting subscribe)"
+            fi
+            ;;
+    esac
+    # Unconnected UDP for the subscribe topology. A connect()ed socket gets
+    # ICMP-poisoned and wedges to 0 bytes (config still looks healthy) when the
+    # subscribe target goes unreachable — e.g. the ground/phone's DHCP lease
+    # churns to a new IP. An unconnected sendto() keeps emitting, so a
+    # re-subscribe recovers the stream without a venc restart.
+    if [ "$(json_cli -g .outgoing.connectedUdp -i /etc/waybeam.json 2>/dev/null)" != "false" ]; then
+        if json_cli -s .outgoing.connectedUdp false -i /etc/waybeam.json; then
+            echo "apfpv: venc outgoing.connectedUdp -> false (unconnected UDP)"
+        fi
+    fi
+    # Clamp RTP payload to the wifi-safe 1400. wfb-ng is a special case: its
+    # link_controller sizes venc outgoing.maxPayloadSize up the bitrate tiers
+    # (to ~3200, carried by the 4052 monitor-mode MTU) and persists it into
+    # /etc/waybeam.json. On a plain apfpv wifi link those oversized payloads
+    # fragment / overflow and wedge weaker adapters, so reset to 1400 here.
+    # wfb mode (wfbmode=1) returns early above, leaving link_controller free to
+    # re-size it live.
+    if [ "$(json_cli -g .outgoing.maxPayloadSize -i /etc/waybeam.json 2>/dev/null)" != "1400" ]; then
+        if json_cli -s .outgoing.maxPayloadSize 1400 -i /etc/waybeam.json; then
+            echo "apfpv: venc outgoing.maxPayloadSize -> 1400 (wifi-safe)"
+        fi
+    fi
+}
+
+wait_exit() {
+    # Wait up to 15 seconds for the daemon (and any orphan helper) to
+    # fully exit.
+    i=0
+    while [ $i -lt 30 ]; do
+        still_running || return 0
+        sleep 0.5
+        i=$((i + 1))
+    done
+    echo "Warning: $DAEMON did not exit in time, killing"
+    killall -9 "$DAEMON" "$RESPAWN" "$WATCHDOG" 2>/dev/null
+    sleep 1
+}
+
+start() {
+    if still_running; then
+        echo "$DAEMON already running"
+        return 0
+    fi
+    echo -n "Starting $DAEMON: "
+    # apfpv boxes must come up in udp output mode (see helper above).
+    ensure_apfpv_udp_output
+    # waybeam reads /etc/waybeam.json from a fixed path; it has no -c flag.
+    "$DAEMON_PATH" > "$LOG_PATH" 2>&1 &
+    # Confirm the daemon survived the /proc-walk duplicate-instance
+    # gate.  If an orphan respawn child is still alive it will reject
+    # us with "waybeam already running... exiting" and the bg launch
+    # discards that exit status — poll briefly so a lost race surfaces
+    # as FAILED instead of silently leaving the old binary running.
+    i=0
+    while [ $i -lt 10 ]; do
+        sleep 0.3
+        still_running && { echo "OK"; return 0; }
+        i=$((i + 1))
+    done
+    echo "FAILED (lost duplicate-instance check or crashed at init — see $LOG_PATH)"
+    return 1
+}
+
+stop() {
+    echo -n "Stopping $DAEMON: "
+    killall "$DAEMON" "$RESPAWN" "$WATCHDOG" 2>/dev/null
+    wait_exit
+    echo "OK"
+}
+
+case "$1" in
+    start)   start ;;
+    stop)    stop ;;
+    restart) stop; start ;;
+    *)
+        echo "Usage: $0 {start|stop|restart}"
+        exit 1
+        ;;
+esac

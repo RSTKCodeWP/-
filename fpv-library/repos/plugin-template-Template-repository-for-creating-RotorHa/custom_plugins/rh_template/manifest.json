@@ -1,0 +1,10 @@
+{
+  "domain": "rh_template",
+  "name": "Plugin Template",
+  "author": "RotorHazard",
+  "license": "MIT",
+  "description": "A template plugin for creating custom plugins for the RotorHazard project.",
+  "documentation_uri": "https://github.com/RotorHazard/plugin-template/",
+  "required_rhapi_version": "1.0",
+  "version": "1.0.0"
+}

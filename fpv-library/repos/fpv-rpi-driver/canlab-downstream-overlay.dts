@@ -1,0 +1,108 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// Device tree overlay for the CANLAB dual-virtual-channel MIPI CSI-2 test
+// source on Raspberry Pi 5 (BCM2712 + RP1 CFE) -- DOWNSTREAM driver.
+//
+//   VC0 : 1920x1080 UYVY  (canlab pad0 -> csi2 sink0 -> csi2_ch0)
+//   VC1 :  640x480  UYVY  (canlab pad2 -> csi2 sink2 -> csi2_ch2)
+//   D-PHY: 4 data lanes, CONTINUOUS clock, 500 MHz link (1000 Mbps/lane)
+//
+// Uses the STOCK downstream RP1 CFE ("raspberrypi,rp1-cfe") -- NO compatible
+// override, so it works on the stock RPi OS kernel (no Streams API needed).
+//
+// Default connector: CAM/DISP 1 (csi1). Use the "cam0" parameter for CAM0.
+//
+// config.txt:
+//   camera_auto_detect=0
+//   dtoverlay=canlab-downstream            (cam1, VGA:  VC1 640x480)
+//   dtoverlay=canlab-downstream,cam0       (cam0, VGA)
+//   dtoverlay=canlab-downstream,qvga       (cam1, QVGA: VC1 320x240)
+//   dtoverlay=canlab-downstream,cam0,qvga  (cam0, QVGA)
+/dts-v1/;
+/plugin/;
+
+/{
+	compatible = "brcm,bcm2712";
+
+	fragment@0 {
+		target = <&i2c0if>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	clk_frag: fragment@1 {
+		target = <&cam1_clk>;
+		__overlay__ {
+			status = "okay";
+			clock-frequency = <24000000>;
+		};
+	};
+
+	fragment@2 {
+		target = <&i2c0mux>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	i2c_frag: fragment@100 {
+		target = <&i2c_csi_dsi>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			canlab_node: canlab@1a {
+				compatible = "canlab,csi2-2vc";
+				reg = <0x1a>;
+				clocks = <&cam1_clk>;
+				clock-names = "xclk";
+				/*
+				 * FPGA (Efinix Ti60) CRESET_N driven by CAM1 IO0 =
+				 * pin 17 = RP1 GPIO 46 = base-DT cam1_reg (enable-
+				 * active-high: enable -> run, disable -> reset). The
+				 * cam0 override switches this to cam0_reg (GPIO 34).
+				 */
+				vdd-supply = <&cam1_reg>;
+				status = "okay";
+
+				port {
+					canlab_ep: endpoint {
+						remote-endpoint = <&csi_ep>;
+						clock-lanes = <0>;
+						data-lanes = <1 2 3 4>;
+						link-frequencies =
+							/bits/ 64 <500000000>;
+						/* CONTINUOUS clock: no clock-noncontinuous */
+					};
+				};
+			};
+		};
+	};
+
+	csi_frag: fragment@101 {
+		target = <&csi1>;
+		csi: __overlay__ {
+			status = "okay";
+			/* compatible left as stock "raspberrypi,rp1-cfe" (downstream) */
+
+			port {
+				csi_ep: endpoint {
+					remote-endpoint = <&canlab_ep>;
+					clock-lanes = <0>;
+					data-lanes = <1 2 3 4>;
+				};
+			};
+		};
+	};
+
+	__overrides__ {
+		cam0 = <&i2c_frag>, "target:0=",<&i2c_csi_dsi0>,
+		       <&csi_frag>, "target:0=",<&csi0>,
+		       <&clk_frag>, "target:0=",<&cam0_clk>,
+		       <&canlab_node>, "clocks:0=",<&cam0_clk>,
+		       <&canlab_node>, "vdd-supply:0=",<&cam0_reg>;
+		link-frequency = <&canlab_ep>,"link-frequencies#0";
+		qvga = <&canlab_node>, "canlab,vc1-qvga?";
+	};
+};

@@ -1,0 +1,10 @@
+{
+  "domain": "youtube_chapters",
+  "name": "YouTube Chapters",
+  "author": "Dutch Drone Squad",
+  "author_uri": "https://github.com/dutchdronesquad",
+  "description": "A plugin that generates a chapter log for YouTube videos.",
+  "documentation_uri": "https://github.com/dutchdronesquad/rh-youtube-chapters/",
+  "required_rhapi_version": "1.3",
+  "version": "1.0.0"
+}

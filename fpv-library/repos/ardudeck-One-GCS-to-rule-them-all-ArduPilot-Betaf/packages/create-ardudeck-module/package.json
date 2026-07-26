@@ -1,0 +1,9 @@
+{
+  "name": "create-ardudeck-module",
+  "version": "0.1.0",
+  "description": "Scaffold a new ArduDeck module project",
+  "type": "module",
+  "bin": { "create-ardudeck-module": "bin/create.mjs" },
+  "files": ["bin", "template"],
+  "license": "MIT"
+}

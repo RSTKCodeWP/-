@@ -1,0 +1,114 @@
+---
+name: Linting
+
+# yamllint disable-line rule:truthy
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  ruff:
+    name: Ruff
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: ⤵️ Check out code from GitHub
+        uses: actions/checkout@v7.0.1
+      - name: 🏗 Set up UV
+        uses: astral-sh/setup-uv@v9.0.0
+        with:
+          version: "latest"
+          enable-cache: true
+      - name: 🏗 Install project dependencies
+        run: uv sync --all-extras --dev
+      - name: 🚀 Run ruff linter
+        run: uv run ruff check --output-format=github .
+      - name: 🚀 Run ruff formatter
+        run: uv run ruff format --check .
+
+  prek-hooks:
+    name: Prek hooks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: ⤵️ Check out code from GitHub
+        uses: actions/checkout@v7.0.1
+      - name: 🏗 Set up UV
+        uses: astral-sh/setup-uv@v9.0.0
+        with:
+          version: "latest"
+          enable-cache: true
+      - name: 🏗 Install project dependencies
+        run: uv sync --all-extras --dev
+      - name: 🚀 Check Python AST
+        run: uv run prek run check-ast --all-files
+      - name: 🚀 Check for case conflicts
+        run: uv run prek run check-case-conflict --all-files
+      - name: 🚀 Check docstring is first
+        run: uv run prek run check-docstring-first --all-files
+      - name: 🚀 Detect Private Keys
+        run: uv run prek run detect-private-key --all-files
+      - name: 🚀 Check End of Files
+        run: uv run prek run end-of-file-fixer --all-files
+      - name: 🚀 Trim Trailing Whitespace
+        run: uv run prek run trailing-whitespace --all-files
+
+  jq:
+    name: JQ
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: ⤵️ Check out code from GitHub
+        uses: actions/checkout@v7.0.1
+      - name: 🚀 Validate JSON files
+        run: jq --raw-output . *.json
+
+  jsonschema:
+    name: JSON Schema
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: ⤵️ Check out code from GitHub
+        uses: actions/checkout@v7.0.1
+      - name: 🚀 Repositories
+        uses: cardinalby/schema-validator-action@3.1.1
+        with:
+          file: plugins.json
+          schema: tools/jsonschema/repositories.schema.json
+      - name: 🚀 Removed
+        uses: cardinalby/schema-validator-action@3.1.1
+        with:
+          file: removed.json
+          schema: tools/jsonschema/removed.schema.json
+      - name: 🚀 Categories
+        uses: cardinalby/schema-validator-action@3.1.1
+        with:
+          file: categories.json
+          schema: tools/jsonschema/categories.schema.json
+
+  sorted:
+    name: Sorted
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: ⤵️ Check out code from GitHub
+        uses: actions/checkout@v7.0.1
+      - name: 🏗 Set up UV
+        uses: astral-sh/setup-uv@v9.0.0
+        with:
+          version: "latest"
+          enable-cache: true
+      - name: 🏗 Install project dependencies
+        run: uv sync --all-extras --dev
+      - name: 🚀 Validate JSON files
+        run: uv run python scripts/sort_json.py removed.json plugins.json --check --diff

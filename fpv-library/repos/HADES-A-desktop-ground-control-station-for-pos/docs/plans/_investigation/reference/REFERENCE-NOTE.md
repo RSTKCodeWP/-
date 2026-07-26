@@ -1,0 +1,1 @@
+Reference saved note: user provided a UniFi-Protect/camera.ui style dashboard as the quality bar (2026-06-26). Key qualities: generous breathing room, rounded cards with soft elevation, confident type hierarchy (large bold numerals + clear h1), calm composed grid, premium/smooth feel. Current HADES UI is correct+anti-slop but reads flat/cramped/AI. Need the CRAFT layer.

@@ -1,0 +1,1060 @@
+{% extends "layout.html" %} {% block title %}{{ __('Current') }}{% endblock %}{% block head %}
+<script type="text/javascript" charset="utf-8">
+	var data_dependencies = [
+		'all_languages',
+		'language',
+		'frequency_data',
+		'pilot_data',
+		'leaderboard',
+		'current_laps',
+		'current_heat',
+		'race_status',
+	];
+
+	var volume_logsl = new LogSlider({maxpos: 100, minval: MIN_LOG_VOLUME, maxval: MAX_LOG_VOLUME});
+
+	var request_time;
+	var request_pi_time;
+	var resume_check = true;
+	var leaderboard_current_flag = true;
+
+	function race_kickoff(msg) {
+		rotorhazard.timer.stopAll();
+
+		var staging_start_pi = (msg.pi_staging_at_s * 1000); // convert seconds (pi) to millis (JS)
+		var race_start_pi = (msg.pi_starts_at_s * 1000); // convert seconds (pi) to millis (JS)
+
+		rotorhazard.timer.race.hidden_staging = Boolean(msg.hide_stage_timer);
+		rotorhazard.timer.race.count_up = Boolean(msg.unlimited_time);
+		rotorhazard.timer.race.duration_tenths = msg.race_time_sec * 10;
+
+		rotorhazard.timer.race.staging_tones = msg.staging_tones;
+
+		rotorhazard.timer.race.start(race_start_pi, staging_start_pi);
+
+		rotorhazard.winner_declared_flag = false;
+	}
+
+	$(document).ready(function () {
+		// get pi time
+		rotorhazard.pi_time_request = window.performance.now();
+		socket.emit('get_pi_time');
+
+		$('#about>.popup-content').append('<p id="server-lag">Sync quality: [calculating]</p>');
+
+		socket.on('pi_time', function (msg) {
+			var max_samples = 10;
+			var response_time = window.performance.now();
+			var server_delay = response_time - rotorhazard.pi_time_request;
+			var server_oneway = server_delay ? server_delay / 2 : server_delay;
+
+			var server_time_differential = {
+				'differential': (msg.pi_time_s * 1000) - response_time - server_oneway, // convert seconds (pi) to millis (JS)
+				'response': parseFloat(server_delay)
+			}
+
+			// store sync sample
+			rotorhazard.server_time_differential_samples.push(server_time_differential);
+
+			// sort stored samples
+			rotorhazard.server_time_differential_samples.sort(function(a, b){
+				return a.response - b.response;
+			})
+
+			// remove unusable samples
+			var diff_min = rotorhazard.server_time_differential_samples[0].differential - rotorhazard.server_time_differential_samples[0].response
+			var diff_max = rotorhazard.server_time_differential_samples[0].differential + rotorhazard.server_time_differential_samples[0].response
+
+			rotorhazard.server_time_differential_samples = rotorhazard.server_time_differential_samples.filter(function(value, index, array) {
+				return value.differential >= diff_min && value.differential <= diff_max;
+			});
+
+			// get filtered value
+			var a = [];
+			for (var i in rotorhazard.server_time_differential_samples) {
+				a.push(rotorhazard.server_time_differential_samples[i].differential);
+			}
+			rotorhazard.server_time_differential = median(a);
+
+			// pass current sync to timers
+			rotorhazard.timer.race.sync();
+			rotorhazard.timer.deferred.sync();
+
+			// continue sampling for sync to improve accuracy
+			if (rotorhazard.server_time_differential_samples.length < 10) {
+				setTimeout(function(){
+					rotorhazard.pi_time_request = window.performance.now();
+					socket.emit('get_pi_time');
+				}, (Math.random() * 500) + 250); // 0.25 to 0.75s delay
+			}
+
+			// update server info
+			var a = Infinity;
+			for (var i in rotorhazard.server_time_differential_samples) {
+				a = Math.min(a, rotorhazard.server_time_differential_samples[i].response);
+			}
+			rotorhazard.sync_within = Math.ceil(a);
+
+			$('#server-lag').html('<p>Sync quality: within ' + rotorhazard.sync_within + 'ms (' + rotorhazard.server_time_differential_samples.length + '/' + max_samples + ' samples)</p>');
+
+			if (
+				(max_samples >= 10 && SYNC_WARNING_THRESHOLD_10 > rotorhazard.sync_within) ||
+				(max_samples >= 3 && SYNC_WARNING_THRESHOLD_3 > rotorhazard.sync_within) ||
+				SYNC_WARNING_THRESHOLD_1 > rotorhazard.sync_within) {
+				rotorhazard.has_server_sync = true;
+				if (!rotorhazard.timer.running()) {
+					$('.timing-clock .warning').hide();
+				}
+			} else {
+				$('.timing-clock .warning .value').text(rotorhazard.sync_within + 'ms');
+			}
+		});
+
+		socket.on('language', function (msg) {
+			rotorhazard.interface_language = msg.language;
+
+			$('#set_voice_string_language').empty();
+			$('#set_voice_string_language').append('<option value="match-timer">' + __('(Match Timer Language)') + '</option>')
+			$('#set_voice_string_language').append('<option value="">English</option>')
+			for (i = 0; i < msg.languages.length; i++) {
+				$('#set_voice_string_language').append('<option value="' + msg.languages[i].id +'">' + msg.languages[i].name + '</option>')
+			}
+			$('#set_voice_string_language').val(rotorhazard.voice_string_language);
+		});
+
+		// set up node local store
+		for (i = 0; i < {{ num_nodes }}; i++) {
+			rotorhazard.nodes[i] = new nodeModel();
+		}
+
+		var current_laps = {};
+		var current_laps_reversed = false;
+
+		// populate voice controls
+		$('#voice-calls').val(parseInt(rotorhazard.primaryPilot));
+
+		$('#voice_callsign').val(rotorhazard.voice_callsign);
+		$('#voice_lap_count').val(rotorhazard.voice_lap_count);
+		$('#voice_team_lap_count').val(rotorhazard.voice_team_lap_count);
+		$('#voice_lap_time').val(rotorhazard.voice_lap_time);
+		$('#voice_race_timer').val(rotorhazard.voice_race_timer);
+		$('#voice_race_winner').val(rotorhazard.voice_race_winner);
+		$('#voice_if_node_finished').val(rotorhazard.voice_if_node_finished);
+		$('#voice_split_timer').val(rotorhazard.voice_split_timer);
+		$('#voice_race_leader').val(rotorhazard.voice_race_leader);
+		$().articulate('volume', rotorhazard.voice_volume);
+		$('#set_voice_volume').val(volume_logsl.position(rotorhazard.voice_volume));
+		rhui.updateRangeValue($('#set_voice_volume'));
+		$().articulate('rate', rotorhazard.voice_rate);
+		$('#set_voice_rate').val(rotorhazard.voice_rate);
+		rhui.updateRangeValue($('#set_voice_rate'));
+		$().articulate('pitch', rotorhazard.voice_pitch);
+		$('#set_voice_pitch').val(rotorhazard.voice_pitch);
+		rhui.updateRangeValue($('#set_voice_pitch'));
+		$('#display_lap_id').prop("checked", rotorhazard.display_lap_id);
+		$('#display_time_start').prop("checked", rotorhazard.display_time_start);
+		$('#display_time_first_pass').prop("checked", rotorhazard.display_time_first_pass);
+		$('#display_laps_reversed').prop("checked", rotorhazard.display_laps_reversed);
+		$('#display_chan_freq').prop("checked", rotorhazard.display_chan_freq);
+		$('#display_late_laps_cur').prop("checked", rotorhazard.display_late_laps_cur);
+		$('#beep_race_leader_lap').prop("checked", rotorhazard.beep_race_leader_lap);
+		$('#beep_race_winner_declared').prop("checked", rotorhazard.beep_race_winner_declared);
+		$('#use_mp3_tones').prop("checked", rotorhazard.use_mp3_tones);
+		if (!rotorhazard.voice_language) {  // if no current default then select first English voice
+			var voices = $().articulate('getVoices');
+			for (var i in voices) {
+				if (voices[i].name && voices[i].name.includes && voices[i].name.includes('English')) {
+					rotorhazard.voice_language = voices[i].name;
+					rotorhazard.saveData();
+					break;
+				}
+			}
+		}
+
+		function any_laps_recorded() {
+			if (current_laps && 'node_index' in current_laps) {
+				for (var node_i in current_laps.node_index) {
+					if ('laps' in current_laps.node_index[node_i] &&
+							current_laps.node_index[node_i].laps.length > 0) {
+						return true;
+					}
+				}
+			}
+			return false;
+		}
+
+		socket.on('race_scheduled', function (msg) {
+			if (msg.scheduled) {
+				var deferred_start = msg.scheduled_at * 1000;  // convert seconds (pi) to millis (JS)
+				rotorhazard.timer.deferred.start(deferred_start, null);
+			} else {
+				rotorhazard.timer.deferred.stop();
+			}
+		});
+
+		socket.on('race_status', function (msg) {
+			rotorhazard.event.race_status = msg;
+			rotorhazard.timer.race.duration_tenths = msg.race_time_sec * 10;
+
+			switch (msg.race_status) {
+				case 1: // Race running
+					rotorhazard.race_status_go_time = window.performance.now();
+					$('body').addClass('race-running');
+					$('body').removeClass('race-stopped');
+					$('body').removeClass('race-new');
+					$('.timing-clock').removeClass('staging');
+					if (msg.show_init_time_flag) {
+						rotorhazard.timer.deferred.initial_disp_tenths = null;
+						rotorhazard.timer.race.initial_disp_tenths = null;
+					}
+					if (resume_check) {
+						race_kickoff(msg);
+					}
+					break;
+				case 2: // Race stopped, clear or save laps
+					$('body').removeClass('race-running');
+					$('body').addClass('race-stopped');
+					$('body').removeClass('race-new');
+					$('.timing-clock').removeClass('staging');
+					break;
+				case 3: // staging
+					$('body').removeClass('race-stopped');
+					$('body').addClass('race-running');
+					$('body').removeClass('race-new');
+					$('.timing-clock').addClass('staging');
+					if (resume_check) {
+						race_kickoff(msg);
+					}
+					break;
+				default: // Waiting to start new race
+					$('body').removeClass('race-running');
+					$('body').removeClass('race-stopped');
+					$('body').addClass('race-new');
+					$('.timing-clock').removeClass('staging');
+					if (msg.show_init_time_flag) {
+						if ((!leaderboard_current_flag) || (!any_laps_recorded())) {
+							rotorhazard.timer.deferred.initial_disp_tenths = rotorhazard.timer.race.duration_tenths;
+							rotorhazard.timer.race.initial_disp_tenths = rotorhazard.timer.race.duration_tenths;
+						}
+					} else {
+						rotorhazard.timer.deferred.initial_disp_tenths = null;
+						rotorhazard.timer.race.initial_disp_tenths = null;
+					}
+					rotorhazard.timer.deferred.renderHTMLandUpdate();
+					if (resume_check) {
+						socket.emit('get_race_scheduled');
+					}
+					break;
+			}
+
+			resume_check = false;
+			show_current_laps();
+		});
+
+		socket.on('heartbeat', function (msg) {
+			if (speakObjsQueue.length > 0) {
+				var isSpeakingFlag = $().articulate('isSpeaking');
+				if (checkSpeakQueueFlag) {
+					if (!isSpeakingFlag) {
+						var obj = speakObjsQueue.shift();
+						if (speakObjsQueue.length > 0)    //if more items in queue then
+							checkSpeakQueueFlag = false;  //don't check again until speaking begins
+							checkSpeakQueueCntr = 10;     //set timeout counter to make sure the wait is not indefinite
+						if (!doSpeak(obj)) {                  //if speaking not triggered then
+							checkSpeakQueueFlag = true;       //don't wait for it
+						}
+					}
+				}  //make sure previous speak has started before checking queue again (up to timeout)
+				else if (isSpeakingFlag || --checkSpeakQueueCntr <= 0) {
+					checkSpeakQueueFlag = true;
+					checkSpeakQueueCntr = 0;
+				}
+			}
+		});
+
+		socket.on('frequency_data', function (msg) {
+			if (msg.fdata.length) {
+				for (var i in msg.fdata) {
+					var fObj = freq.getFObjbyFData(msg.fdata[i]);
+					rotorhazard.nodes[i].fObj = fObj;
+					$('#s_channel_' + i).val(fObj.frequency);
+					$('#f_table_' + i).val(fObj.fString);
+					freq.updateBlock(fObj, i);
+					$('.channel-block[data-node="' + i + '"]').toggle(rotorhazard.display_chan_freq);
+				}
+			}
+		});
+
+		socket.on('current_laps', function (msg) {
+			if (msg && 'last_race' in msg) {
+				var race = msg.last_race;
+			} else {
+				var race = msg.current;
+			}
+
+			current_laps = race;
+			current_laps_reversed = false;
+			show_current_laps();
+		});
+
+		function show_current_laps() {
+			if(current_laps && rotorhazard.event.race_status) {
+				$.each(current_laps.node_index, function (i, curnode_data) { // i is loop num, curnode_data is json object
+					if(curnode_data.pilot && 'callsign' in curnode_data.pilot) {
+						$('#recent .callsign_' + i).html(curnode_data.pilot.callsign);
+						$('#recent .callsign_' + i).parent().show();
+						$('#current_laps_' + i + ' tbody > tr').remove();
+
+						if(rotorhazard.display_laps_reversed) {
+							if(!current_laps_reversed) {
+								curnode_data.laps.reverse();
+							}
+						}
+						else if(current_laps_reversed) {
+							curnode_data.laps.reverse();
+						}
+
+						$.each(curnode_data.laps, function (j, lap) { // j is loop num, lap is json object
+							if(rotorhazard.display_late_laps_cur || !lap.late_lap) {
+								if(lap.splits) {
+									if(rotorhazard.display_laps_reversed) {
+										if(!current_laps_reversed && lap.splits.length > 1) {
+											lap.splits.reverse();
+										}
+										$.each(lap.splits, function(k, split) {
+											if (j > 0 || (split.split_time && split.split_time != '-') ||
+															split.split_speed) {  // don't show last split if empty
+												var split_display = split.split_time + ' ';
+												if (split.split_speed) {
+													split_display += '(' + split.split_speed + ')';
+												}
+												var split_tr = $('<tr>');
+												split_tr.addClass('lap_split');
+												var split_id = 'split ';
+												if (lap.splits.length > 1) {
+													split_id += (split.split_id+1);
+												}
+												split_tr.append($('<td>').text(split_id));
+												var split_time_td = $('<td colspan=1">').text(split_display);
+												split_tr.append(split_time_td);
+												split_tr.appendTo('#current_laps_' + i);
+											}
+										});
+									}
+									else if(current_laps_reversed && lap.splits.length > 1) {
+										lap.splits.reverse();
+									}
+								}
+
+								var tr = $('<tr>');
+								var lap_num = lap.lap_number;
+								if (lap_num == 0) {
+									tr.addClass('lap_0');
+								}
+
+								var local_colspan = 2;
+								if(rotorhazard.display_lap_id) {
+									local_colspan = 1;
+									if(lap_num < 0) {
+										lap_num = ' ';
+									}
+									tr.append(
+										$('<td class="display_lap_number">').text(lap_num)
+									);
+								}
+								time_td = $('<td colspan="'+local_colspan+'">').text(lap.lap_time_formatted + ' ');
+								local_prepend = $('<span class="from_start">');
+
+								if(rotorhazard.display_time_first_pass) {
+									if(rotorhazard.display_laps_reversed) {
+										if(curnode_data.laps.length > 0) {
+											ts_val = lap.lap_time_stamp - curnode_data.laps[curnode_data.laps.length-1].lap_time_stamp;
+										}
+										else {
+											ts_val = 0;
+										}
+									}
+									else {
+										ts_val = lap.lap_time_stamp - curnode_data.laps[0].lap_time_stamp;
+									}
+									local_prepend.text(formatTimeMillis(ts_val, {{ getConfig('UI', 'timeFormat')|tojson }}));
+									if(rotorhazard.display_time_start){
+										local_prepend.append(" / ");
+									}
+								}
+
+								if(rotorhazard.display_time_start){
+									local_prepend.append(formatTimeMillis(lap.lap_time_stamp, {{ getConfig('UI', 'timeFormat')|tojson }}));
+								}
+								time_td.prepend(local_prepend);
+								tr.append(time_td);
+
+								if (lap.lap_number && lap.lap_time < (rotorhazard.min_lap * 1000)) {
+									tr.addClass('min-lap-warning');
+								}
+								if (!rotorhazard.event.race_status.unlimited_time && lap.lap_time_stamp > (rotorhazard.event.race_status.race_time_sec * 1000)) {
+									tr.addClass('after-time-expired');
+								}
+								tr.appendTo('#current_laps_' + i);
+
+								if(!rotorhazard.display_laps_reversed) {
+									$.each(lap.splits, function(k, split) {
+										if (j < curnode_data.laps.length-1 || (split.split_time && split.split_time != '-') ||
+																			split.split_speed) {  // don't show last split if empty
+											var split_display = split.split_time + ' ';
+											if (split.split_speed) {
+												split_display += '(' + split.split_speed + ')';
+											}
+											var split_tr = $('<tr>');
+											split_tr.addClass('lap_split');
+											var split_id = 'split ';
+											if (lap.splits.length > 1) {
+												split_id += (split.split_id+1);
+											}
+											split_tr.append($('<td>').text(split_id));
+											var split_time_td = $('<td colspan=1">').text(split_display);
+											split_tr.append(split_time_td);
+											split_tr.appendTo('#current_laps_' + i);
+										}
+									});
+								}
+							}
+						});
+					} else {
+						$('#recent .callsign_' + i).parent().hide();
+					}
+				});
+				current_laps_reversed = rotorhazard.display_laps_reversed;
+			}
+		}
+
+		socket.on('leaderboard', function (msg) {
+			if (msg && 'last_race' in msg) {
+				var race = msg.last_race;
+				if (msg.current.round) {
+					$('.current-heat').html(msg.current.displayname + ' : ' + __("Round") + " " + msg.current.round);
+				} else {
+					$('.current-heat').html(msg.current.displayname);
+				}
+				$('#next-race').slideDown();
+				leaderboard_current_flag = false;
+			} else {
+				var race = msg.current;
+				$('#next-race').slideUp();
+				leaderboard_current_flag = true;
+			}
+
+			if (race.round) {
+				$('.recent_heat').html(race.displayname + ' : ' + __("Round") + " " + race.round);
+			} else {
+				$('.recent_heat').html(race.displayname);
+			}
+
+			leaderboard_type = race.leaderboard.meta.primary_leaderboard;
+			$('#leaderboard').empty();
+			$('#leaderboard').append(build_leaderboard(race.leaderboard[leaderboard_type], 'current', race.leaderboard.meta));
+
+			$('#team_leaderboard').empty();
+			if (race.team_leaderboard && 'meta' in race.team_leaderboard) {
+				leaderboard_type = race.team_leaderboard.meta.primary_leaderboard;
+				$('#team_leaderboard').append(build_team_leaderboard(race.team_leaderboard[leaderboard_type], leaderboard_type, race.team_leaderboard.meta));
+			}
+
+			$('.race_status_message').html(race.status_msg);
+		});
+
+		function callout_current_leader(pilot_phonetic, play_tone_flag) {
+			if (!rotorhazard.winner_declared_flag) {
+				if (play_tone_flag && rotorhazard.beep_race_leader_lap) {
+					speak(LEADER_FLAG_CHAR);
+				}
+				speak('<div class="speech">' + pilot_phonetic + " " + __l('is leading') + '</div>');
+			}
+		}
+
+		socket.on('phonetic_data', function (msg) {
+			if (!msg.node_finished || rotorhazard.voice_if_node_finished) {
+				if ((rotorhazard.primaryPilot == 0 || rotorhazard.primaryPilot == msg.pilot_id)
+					&& rotorhazard.min_lap * 1000 < msg.raw_time) {
+	
+					var ttstext = '';
+	
+					if (rotorhazard.voice_callsign == 1 ||
+								(rotorhazard.voice_callsign == 2 && (!msg.team_phonetic))) {
+						ttstext = msg.callsign;
+						if (msg.pilot)
+							ttstext = msg.pilot;
+					}
+	
+					if (msg.lap && (rotorhazard.voice_lap_count == 1 ||
+								(rotorhazard.voice_lap_count == 2 && (!msg.team_phonetic)))) {
+						if (ttstext.length > 0)
+							ttstext += ", ";
+						ttstext += __l('Lap') + " " + msg.lap;
+					}
+	
+					if (rotorhazard.voice_lap_time == 1 ||
+								(rotorhazard.voice_lap_time == 2 && (!msg.team_phonetic))) {
+						if (ttstext.length > 0)
+							ttstext += ", ";
+						ttstext += msg.phonetic;
+					}
+	
+					if (msg.team_phonetic && rotorhazard.voice_team_lap_count != 0) {
+						if (rotorhazard.voice_team_lap_count == 2 && msg.team_short_phonetic) {
+							ttstext += msg.team_short_phonetic;
+						} else {
+							ttstext += ", " + msg.team_phonetic;
+						}
+					}
+	
+					if (ttstext.length > 0) {
+						if (msg.leader_flag) {
+							if (rotorhazard.beep_race_leader_lap) {
+								speak(LEADER_FLAG_CHAR);
+							}
+							if (rotorhazard.voice_race_leader && (!msg.team_phonetic)) {
+								setTimeout(callout_current_leader, (rotorhazard.voice_race_leader * 1000), (msg.pilot ? msg.pilot : msg.callsign));
+							}
+						}
+						speak('<div class="speech">' + ttstext + '</div>');
+					}
+				}
+			}
+		})
+
+		socket.on('phonetic_leader', function (msg) {
+			if (rotorhazard.voice_race_leader) {
+				setTimeout(callout_current_leader, (rotorhazard.voice_race_leader * 1000), (msg.pilot ? msg.pilot : msg.callsign), true);
+			}
+		})
+
+		socket.on('phonetic_split_call', function (msg) {
+			var ttstext = '';
+			if (rotorhazard.voice_split_timer) {
+				if ((rotorhazard.voice_split_timer & SPLMSK_PILOT_NAME) && msg.pilot_name) {
+					ttstext = msg.pilot_name;
+				}
+				var sepstr = ' ';
+				if (((rotorhazard.voice_split_timer & SPLMSK_SPLIT_ID) && msg.split_id) ||
+							((rotorhazard.voice_split_timer & SPLMSK_SPLIT_TIME) && msg.split_time)) {
+					ttstext += ' ' + __l('split');
+					if ((rotorhazard.voice_split_timer & SPLMSK_SPLIT_ID) && msg.split_id) {
+						ttstext += ' ' + msg.split_id;
+					}
+					if ((rotorhazard.voice_split_timer & SPLMSK_SPLIT_TIME) && msg.split_time) {
+						ttstext += ' ' + __l('time') + ' ' + msg.split_time;
+						sepstr = ', ';
+					}
+				}
+				if ((rotorhazard.voice_split_timer & SPLMSK_SPLIT_TIME) && msg.split_speed) {
+					ttstext += sepstr + __l('speed') + ' ' + msg.split_speed;
+				}
+				if (ttstext.length > 0) {
+					speak('<div class="speech">' + ttstext + '</div>');
+				}
+			}
+		})
+
+		socket.on('phonetic_text', function (msg) {
+			if (msg.winner_flag) {
+				if (rotorhazard.beep_race_winner_declared) {
+					speak(WINNER_FLAG_CHAR);
+				}
+				rotorhazard.winner_declared_flag = true;
+			}
+			if (msg.text) {
+				if (!msg.domain || rotorhazard['voice_' + msg.domain]) {
+					speak('<div class="speech">' + __l(msg.text) + '</div>');
+				}
+			}
+		})
+
+		socket.on('play_beep_tone', function (msg) {
+			var volume = msg.volume;
+			if (volume) {
+				volume = volume / 100.0
+			} else {
+				volume = rotorhazard.voice_volume;
+			}
+			var toneType = msg.toneType;
+			if (!toneType) {
+				toneType = 'sine';
+			}
+			play_beep(msg.duration, msg.frequency, volume, toneType);
+		});
+
+		socket.on('current_heat', function (msg) {
+			for (var idx in msg.heatNodes) {
+				hn = msg.heatNodes[idx];
+				cs = $('#next-race .callsign_' + idx)
+				if (hn.callsign) {
+					cs.html(hn.callsign);
+					cs.parent().show();
+					$('.channel-block[data-node="' + idx + '"]').toggle(rotorhazard.display_chan_freq);
+				} else {
+					cs.parent().hide();
+				}
+			}
+		});
+
+		socket.on('prestage_ready', function (msg) {
+			request_time = new Date();
+		});
+
+		socket.on('stage_ready', function (msg) {
+			race_kickoff(msg);
+		});
+
+		socket.on('stop_timer', function (msg) {
+			rotorhazard.timer.race.stop();
+		});
+
+		socket.on('pilot_data', function (msg) {
+			var voices = $("#voice-calls");
+			voices.empty();
+			voices.append('<option value="-1">' + __('None') + '</option>');
+			voices.append('<option value="0">' + __('All') + '</option>');
+			for (var i in msg.pilots) {
+				voices.append('<option value="' + msg.pilots[i].pilot_id + '">' + msg.pilots[i].callsign + ' (' + msg.pilots[i].name + ')</option>')
+			}
+			voices.val(rotorhazard.primaryPilot);
+		});
+
+		/* Voice */
+		$(document).on('change', '#set_voice_language', function (event) {
+			rotorhazard.voice_language = $(this).val();
+			rotorhazard.saveData();
+		});
+
+		// construct language selection
+		$('#voice_select').after('<select id="set_voice_language">');
+		var voices = $().articulate('getVoices');
+
+		for (var i in voices) {
+			$('#set_voice_language').append('<option>'+ voices[i].name + '</option>');
+		}
+		if (rotorhazard.voice_language) {
+			$('#set_voice_language').val(rotorhazard.voice_language);
+		}
+
+		$('#set_voice_string_language').change(function (event) {
+			rotorhazard.voice_string_language = $(this).val();
+			rotorhazard.saveData();
+		});
+
+		$('#voice_callsign').change(function (event) {
+			rotorhazard.voice_callsign = parseInt($(this).val());
+			rotorhazard.saveData();
+		});
+
+		$('#voice_lap_count').change(function (event) {
+			rotorhazard.voice_lap_count = parseInt($(this).val());
+			rotorhazard.saveData();
+		});
+
+		$('#voice_team_lap_count').change(function (event) {
+			rotorhazard.voice_team_lap_count = parseInt($(this).val());
+			rotorhazard.saveData();
+		});
+
+		$('#voice_lap_time').change(function (event) {
+			rotorhazard.voice_lap_time = parseInt($(this).val());
+			rotorhazard.saveData();
+		});
+
+		$('#voice_race_timer').change(function (event) {
+			rotorhazard.voice_race_timer = parseInt($(this).val());
+			rotorhazard.saveData();
+		});
+
+		$('#voice_race_winner').change(function (event) {
+			rotorhazard.voice_race_winner = parseInt($(this).val());
+			rotorhazard.saveData();
+		});
+
+		$('#voice_if_node_finished').change(function (event) {
+			rotorhazard.voice_if_node_finished = parseInt($(this).val());
+			rotorhazard.saveData();
+		});
+
+		$('#voice_split_timer').change(function (event) {
+			rotorhazard.voice_split_timer = parseInt($(this).val());
+			rotorhazard.saveData();
+		});
+
+		$('#voice_race_leader').change(function (event) {
+			rotorhazard.voice_race_leader = parseInt($(this).val());
+			rotorhazard.saveData();
+		});
+
+		$('#voice-calls').change(function(){
+			rotorhazard.primaryPilot = parseInt($(this).val());
+			rotorhazard.saveData();
+		});
+
+		$('#set_voice_volume').on('input', function (event) {
+			var val = volume_logsl.value($(this).val());
+			$().articulate('volume', val);
+		});
+
+		$('#set_voice_volume').change(function (event) {
+			var val = volume_logsl.value($(this).val());
+			rotorhazard.voice_volume = val;
+			rotorhazard.saveData();
+		});
+
+		$('#set_voice_rate').on('input', function (event) {
+			val = parseFloat($(this).val())
+			$().articulate('rate', val);
+		});
+
+		$('#set_voice_rate').on('change', function (event) {
+			rotorhazard.voice_rate = parseFloat($(this).val());
+			rotorhazard.saveData();
+		});
+
+		$('#set_voice_pitch').on('input', function (event) {
+			val = parseFloat($(this).val())
+			$().articulate('pitch', val);
+		});
+
+		$('#set_voice_pitch').on('change', function (event) {
+			rotorhazard.voice_pitch = parseFloat($(this).val());
+			rotorhazard.saveData();
+		});
+
+		$('#display_lap_id').change(function (event) {
+			rotorhazard.display_lap_id = $(this).prop('checked');
+			rotorhazard.saveData();
+			show_current_laps();
+		});
+
+		$('#display_time_start').change(function (event) {
+			rotorhazard.display_time_start = $(this).prop('checked');
+			rotorhazard.saveData();
+			show_current_laps();
+		});
+
+		$('#display_time_first_pass').change(function (event) {
+			rotorhazard.display_time_first_pass = $(this).prop('checked');
+			rotorhazard.saveData();
+			show_current_laps();
+		});
+
+		$('#display_laps_reversed').change(function (event) {
+			rotorhazard.display_laps_reversed = $(this).prop('checked');
+			rotorhazard.saveData();
+			show_current_laps();
+		});
+
+		$('#display_chan_freq').change(function (event) {
+			rotorhazard.display_chan_freq = $(this).prop('checked');
+			rotorhazard.saveData();
+			for (i = 0; i < rotorhazard.nodes.length; i++) {
+				$('.channel-block[data-node="' + i + '"]').toggle(rotorhazard.display_chan_freq);
+			}
+		});
+
+		$('#display_late_laps_cur').change(function (event) {
+			rotorhazard.display_late_laps_cur = $(this).prop('checked');
+			rotorhazard.saveData();
+			show_current_laps();
+		});
+
+		$('#beep_race_leader_lap').change(function (event) {
+			rotorhazard.beep_race_leader_lap = $(this).prop('checked');
+			rotorhazard.saveData();
+		});
+
+		$('#beep_race_winner_declared').change(function (event) {
+			rotorhazard.beep_race_winner_declared = $(this).prop('checked');
+			rotorhazard.saveData();
+		});
+
+		$('#use_mp3_tones').change(function (event) {
+			rotorhazard.use_mp3_tones = $(this).prop('checked');
+		});
+	});
+
+</script>
+{% endblock %} {% block content %}
+<main class="page-racepublic">
+
+<div class="panel" id="next-race" style="display: none">
+	<div class="panel-header">
+		<h2>{{ __('Next Race') }}</h2>
+	</div>
+	<div class="panel-content">
+		<h3 class="current-heat">{{ __('Loading...') }}</h3>
+		<div class="race-results">
+			{% for node in nodes %}
+			<div class="node" data-id="{{ node.index }}">
+				<h4 class="callsign_{{ node.index }}">{{ __('Loading...') }}</h4>
+				<div class="channel-block" data-node="{{ node.index }}"><span class="ch"></span> <span class="fr"></span></div>
+			</div>
+			{% endfor %}
+		</div>
+	</div>
+</div>
+
+<div class="panel" id="recent">
+	<div class="panel-content">
+		<div class="timer">
+			<div class="timing-clock">
+				<div class="warning">
+					<div class="symbol">&#9888;&#xFE0E; {{ __('Sync') }}</div>
+					<div class="value">{{ __('Acquiring') }}</div>
+				</div>
+				<div class="time-display">--:--</div>
+			</div>
+		</div>
+
+		<h2 class="recent_heat">{{ __('Loading...') }}</h2>
+
+		<!--Display the race leaderboard-->
+		<div id="leaderboard"></div>
+
+		<div id="team_leaderboard"></div>
+
+		<div class="race_status_message"></div>
+
+		<!--Display the current laps-->
+		<div class="race-results">
+			{% for node in nodes %}
+			<div class="node" data-id="{{ node.index }}">
+				<h4 class="callsign_{{ node.index }}">{{ __('Loading...') }}</h4>
+				<div class="channel-block" data-node="{{ node.index }}"><span class="ch"></span> <span class="fr"></span></div>
+				<table class="laps" id="current_laps_{{ node.index }}">
+					<tbody>
+					</tbody>
+				</table>
+			</div>
+			{% endfor %}
+		</div>
+	</div>
+</div>
+
+
+<!--Voice Settings-->
+<div class="panel collapsing">
+	<div class="panel-header">
+		<h2>{{ __('Audio Control') }}</h2>
+	</div>
+	<div class="panel-content">
+
+		<ol class="form">
+			<li>
+				<div class="label-block" id="voice_select">
+					<label for="set_voice_language">{{ __('Voice Select') }}</label>
+				</div>
+			</li>
+			<li>
+				<div class="label-block">
+					<label for="set_voice_string_language">{{ __('Voice Language') }}</label>
+				</div>
+				<select id="set_voice_string_language">
+					<option>{{ __('Loading...') }}</option>
+				</select>
+			</li>
+			<li>
+				<div class="label-block">
+					<label for="voice-calls">{{ __('Voice Calls') }}</label>
+				</div>
+				<select id="voice-calls">
+					<option value="-1">{{ __('Loading...') }}</option>
+				</select>
+			</li>
+			<li>
+				<div class="label-block">
+					{{ __('Announcements') }}
+				</div>
+				<li>
+					<div class="label-block">
+						<label for="voice_callsign">{{ __('Pilot Callsign') }}</label>
+					</div>
+					<select id="voice_callsign">
+						<option value="0">{{ __('Never') }}</option>
+						<option value="2">{{ __('Only on Non-Team/Non-Co-op Races') }}</option>
+						<option value="1">{{ __('Always') }}</option>
+					</select>
+				</li>
+				<li>
+					<div class="label-block">
+						<label for="voice_lap_count">{{ __('Pilot Lap Number') }}</label>
+					</div>
+					<select id="voice_lap_count">
+						<option value="0">{{ __('Never') }}</option>
+						<option value="2">{{ __('Only on Non-Team/Non-Co-op Races') }}</option>
+						<option value="1">{{ __('Always') }}</option>
+					</select>
+				</li>
+				<li>
+					<div class="label-block">
+						<label for="voice_lap_time">{{ __('Pilot Lap Time') }}</label>
+					</div>
+					<select id="voice_lap_time">
+						<option value="0">{{ __('Never') }}</option>
+						<option value="2">{{ __('Only on Non-Team/Non-Co-op Races') }}</option>
+						<option value="1">{{ __('Always') }}</option>
+					</select>
+				</li>
+				<li>
+					<div class="label-block">
+						<label for="voice_race_timer">{{ __('Race Clock') }}</label>
+					</div>
+					<select id="voice_race_timer">
+						<option value="0">{{ __('Never') }}</option>
+						<option value="2">{{ __('Only on Fixed-time Races') }}</option>
+						<option value="1">{{ __('Always') }}</option>
+					</select>
+				</li>
+				<li>
+					<div class="label-block">
+						<label for="voice_team_lap_count">{{ __('Team/Co-op Lap Total') }}</label>
+					</div>
+					<select id="voice_team_lap_count">
+						<option value="0">{{ __('Never') }}</option>
+						<option value="1">{{ __('On Team/Co-op Races') }}</option>
+						<option value="2">{{ __('On Team/Co-op Races (short call)') }}</option>
+					</select>
+				</li>
+				<li>
+					<div class="label-block">
+						<label for="voice_race_winner">{{ __('Race Winner') }}</label>
+					</div>
+					<select id="voice_race_winner">
+						<option value="0">{{ __('Never') }}</option>
+						<option value="1">{{ __('Always') }}</option>
+					</select>
+				</li>
+				<li>
+					<div class="label-block">
+						<label for="voice_if_node_finished">{{ __('Laps After Pilot Done') }}</label>
+					</div>
+					<select id="voice_if_node_finished">
+						<option value="0">{{ __('Never') }}</option>
+						<option value="1">{{ __('Always') }}</option>
+					</select>
+				</li>
+				{% if cluster_has_secondaries %}
+				<li>
+					<div class="label-block">
+						<label for="voice_split_timer">{{ __('Split Timer') }}</label>
+					</div>
+					<select id="voice_split_timer">
+						<option value="0">{{ __('None') }}</option>
+						<option value="1">{{ __('Pilot Name') }}</option>
+						<option value="5">{{ __('Pilot Name, Split Time') }}</option>
+						<option value="3">{{ __('Pilot Name, Split ID') }}</option>
+						<option value="7">{{ __('Pilot Name, Split ID, Split Time') }}</option>
+						<option value="2">{{ __('Split ID') }}</option>
+						<option value="4">{{ __('Split Time') }}</option>
+						<option value="6">{{ __('Split ID, Split Time') }}</option>
+					</select>
+				</li>
+				{% endif %}
+				<li>
+					<div class="label-block">
+						<label for="voice_race_leader">{{ __('Race Leader Pilot') }}</label>
+					</div>
+					<select id="voice_race_leader">
+						<option value="0">{{ __('None') }}</option>
+						<option value="1">{{ __('After 1 Second') }}</option>
+						<option value="2">{{ __('After 2 Seconds') }}</option>
+						<option value="3">{{ __('After 3 Seconds') }}</option>
+						<option value="4">{{ __('After 4 Seconds') }}</option>
+						<option value="5">{{ __('After 5 Seconds') }}</option>
+						<option value="6">{{ __('After 6 Seconds') }}</option>
+						<option value="7">{{ __('After 7 Seconds') }}</option>
+						<option value="8">{{ __('After 8 Seconds') }}</option>
+						<option value="9">{{ __('After 9 Seconds') }}</option>
+						<option value="10">{{ __('After 10 Seconds') }}</option>
+						<option value="11">{{ __('After 11 Seconds') }}</option>
+						<option value="12">{{ __('After 12 Seconds') }}</option>
+						<option value="13">{{ __('After 13 Seconds') }}</option>
+						<option value="14">{{ __('After 14 Seconds') }}</option>
+						<option value="15">{{ __('After 15 Seconds') }}</option>
+						<option value="16">{{ __('After 16 Seconds') }}</option>
+						<option value="17">{{ __('After 17 Seconds') }}</option>
+						<option value="18">{{ __('After 18 Seconds') }}</option>
+						<option value="19">{{ __('After 19 Seconds') }}</option>
+					</select>
+				</li>
+			</li>
+			<li>
+				<div class="label-block">
+					<label for="set_voice_volume">{{ __('Voice Volume') }}</label>
+				</div>
+				<div class="uifield-range">
+					<input type="range" id="set_voice_volume" min="0" max="100" data-value-suffix="%">
+					<output class="uifield-range-value" id="voice_volume_value" for="set_voice_volume"></output>
+				</div>
+			</li>
+			<li>
+				<div class="label-block">
+					<label for="set_voice_rate">{{ __('Voice Rate') }}</label>
+				</div>
+				<div class="uifield-range">
+					<input type="range" id="set_voice_rate" min="0" max="2.0" step="0.01" data-value-suffix="×" data-value-decimals="2">
+					<output class="uifield-range-value" id="voice_rate_value" for="set_voice_rate"></output>
+				</div>
+			</li>
+			<li>
+				<div class="label-block">
+					<label for="set_voice_pitch">{{ __('Voice Pitch') }}</label>
+				</div>
+				<div class="uifield-range">
+					<input type="range" id="set_voice_pitch" min="0" max="2.0" step="0.01" data-value-suffix="×" data-value-decimals="2">
+					<output class="uifield-range-value" id="voice_pitch_value" for="set_voice_pitch"></output>
+				</div>
+			</li>
+			<li>
+				<div class="label-block">
+					{{ __('Indicator Beeps') }}
+				</div>
+				<ul>
+					<li><label><input type="checkbox" id="beep_race_leader_lap"> {{ __('Race Leader Lap') }}</label></li>
+					<li><label><input type="checkbox" id="beep_race_winner_declared"> {{ __('Race Winner Declared') }}</label></li>
+					<li><label><input type="checkbox" id="use_mp3_tones"> {{ __('Use MP3 Tones instead of synthetic tones') }}</label></li>
+				</ul>
+			</li>
+		</ol>
+	</div>
+</div>
+
+<!--Display Settings-->
+<div class="panel collapsing">
+	<div class="panel-header">
+		<h2>{{ __('Display Settings') }}</h2>
+	</div>
+	<div class="panel-content">
+		<ol class="form">
+			<li>
+				<div class="label-block">
+					{{ __('Lap Information') }}
+				</div>
+				<ul>
+					<li><label><input type="checkbox" id="display_lap_id"> {{ __('Lap number') }}</label></li>
+					<li><label><input type="checkbox" id="display_time_start"> {{ __('Time since start') }}</label></li>
+					<li><label><input type="checkbox" id="display_time_first_pass"> {{ __('Time since first pass') }}</label></li>
+					<li><label><input type="checkbox" id="display_laps_reversed"> {{ __('Lap order reversed') }}</label></li>
+					<li><label><input type="checkbox" id="display_late_laps_cur"> {{ __('Show late laps') }}</label></li>
+				</ul>
+			</li>
+			<li>
+				<div class="label-block">
+					{{ __('Node Information') }}
+				</div>
+				<ul>
+					<li><label><input type="checkbox" id="display_chan_freq"> {{ __('Channel and frequency') }}</label></li>
+				</ul>
+			</li>
+		</ol>
+	</div>
+</div>
+
+<button id="audio-unlock">{{ __('Enable Audio') }}</button>
+
+</main>
+{% endblock %}

@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "g2u.coverage.v1",
+  "title": "G2U Coverage Map Snapshot v1",
+  "description": "Per-sector coverage map so the UAV knows where ground sensors already see well and where gaps exist.",
+  "type": "object",
+  "required": ["schema", "event_id", "ts_utc", "ts_source", "node_id", "anchor_wgs84", "sectors"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": { "const": "g2u.coverage.v1" },
+    "event_id": { "type": "string" },
+    "ts_utc": { "type": "number" },
+    "ts_source": { "enum": ["ptp", "gps_pps", "ntp", "monotonic"] },
+    "node_id": { "type": "string" },
+    "anchor_wgs84": {
+      "type": "object",
+      "properties": {
+        "lat": { "type": "number" },
+        "lon": { "type": "number" },
+        "alt_m": { "type": "number" }
+      }
+    },
+    "sectors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["sector_id", "azimuth_deg", "elevation_deg", "confidence"],
+        "properties": {
+          "sector_id":     { "type": "integer" },
+          "azimuth_deg":   { "type": "number" },
+          "elevation_deg": { "type": "number" },
+          "confidence":    { "type": "number", "minimum": 0, "maximum": 1 },
+          "reasons":       { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    }
+  }
+}

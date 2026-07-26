@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "g2u.negative.v1",
+  "title": "G2U Negative Observation v1",
+  "description": "Confirmed empty observation — 'I looked there for N seconds, saw nothing'.",
+  "type": "object",
+  "required": ["schema", "event_id", "ts_utc", "ts_source", "node_id", "looked_at_cone", "saw_nothing_for_sec", "reason"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": { "const": "g2u.negative.v1" },
+    "event_id": { "type": "string", "minLength": 8 },
+    "track_id": { "type": "string" },
+    "ts_utc": { "type": "number" },
+    "ts_source": { "enum": ["ptp", "gps_pps", "ntp", "monotonic"] },
+    "node_id": { "type": "string" },
+    "looked_at_cone": {
+      "type": "object",
+      "required": ["anchor_wgs84", "azimuth_deg", "elevation_deg", "half_angle_deg"],
+      "properties": {
+        "anchor_wgs84": {
+          "type": "object",
+          "properties": {
+            "lat": { "type": "number" },
+            "lon": { "type": "number" },
+            "alt_m": { "type": "number" }
+          }
+        },
+        "azimuth_deg":   { "type": "number" },
+        "elevation_deg": { "type": "number" },
+        "half_angle_deg": { "type": "number" }
+      }
+    },
+    "saw_nothing_for_sec": { "type": "number", "minimum": 0 },
+    "reason": { "enum": ["lost_track", "cue_expired", "sensor_offline", "operator_negative"] }
+  }
+}

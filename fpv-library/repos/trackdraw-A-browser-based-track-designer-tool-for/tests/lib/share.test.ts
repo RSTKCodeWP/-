@@ -1,0 +1,127 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  buildShareUrl,
+  buildStoredEmbedPath,
+  buildStoredSharePath,
+  decodeDesign,
+  decodeDesignWithReason,
+  encodeDesign,
+  getShareDescription,
+  getShareTitle,
+  isShareSafe,
+} from "@/lib/share";
+import { createDefaultDesign, normalizeDesign } from "@/lib/track/design";
+import { parseEditorView } from "@/lib/editor/view";
+import LZString from "lz-string";
+
+describe("share helpers", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("encodes and decodes a design roundtrip", () => {
+    const design = createDefaultDesign();
+    design.title = "Club Race";
+
+    const token = encodeDesign(design);
+    const decoded = decodeDesign(token);
+
+    expect(decoded?.title).toBe("Club Race");
+    expect(decoded?.id).toBe(design.id);
+  });
+
+  it("strips map references from share tokens while preserving timing metadata", () => {
+    const {
+      shapeById: _shapeById,
+      shapeOrder: _shapeOrder,
+      ...baseDesign
+    } = createDefaultDesign();
+    const design = normalizeDesign({
+      ...baseDesign,
+      id: "design-share-boundary",
+      mapReference: {
+        type: "map",
+        provider: "esri-world-imagery",
+        mapStyle: "satellite",
+        centerLat: 52.1,
+        centerLng: 5.2,
+        zoom: 18,
+        rotationDeg: 12,
+        opacity: 0.7,
+        visible: true,
+        locked: true,
+      },
+      shapes: [
+        {
+          id: "gate-start",
+          kind: "gate",
+          x: 10,
+          y: 12,
+          rotation: 90,
+          width: 3,
+          height: 1.8,
+          meta: { timing: { role: "start_finish" } },
+        },
+      ],
+    });
+
+    const decoded = decodeDesign(encodeDesign(design));
+
+    expect(decoded?.mapReference).toBeNull();
+    expect(decoded?.shapeById["gate-start"]?.meta?.timing).toEqual({
+      role: "start_finish",
+    });
+  });
+
+  it("builds stored share paths and absolute share urls", () => {
+    const design = createDefaultDesign();
+    vi.stubGlobal("window", {
+      location: {
+        protocol: "https:",
+        host: "trackdraw.app",
+      },
+    });
+
+    expect(buildStoredSharePath("abc", "3d")).toBe("/share/abc?view=3d");
+    expect(buildStoredEmbedPath("abc", "2d")).toBe("/embed/abc?view=2d");
+    expect(buildShareUrl(design, "2d")).toContain("/share/");
+    expect(buildShareUrl(design, "2d")).toContain("view=2d");
+  });
+
+  it("reports decode reasons for invalid and oversized tokens", () => {
+    const decompressSpy = vi.spyOn(
+      LZString,
+      "decompressFromEncodedURIComponent"
+    );
+
+    expect(decodeDesignWithReason("%%%")).toEqual({
+      ok: false,
+      reason: "invalid",
+    });
+    expect(decodeDesignWithReason("x".repeat(7501))).toEqual({
+      ok: false,
+      reason: "too-large",
+    });
+    expect(decompressSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns sensible share title and description fallbacks", () => {
+    const design = createDefaultDesign();
+    design.title = "  ";
+    design.description = "  ";
+
+    expect(getShareTitle(design)).toBe("Untitled track");
+    expect(getShareDescription(design)).toBe(
+      "Read-only TrackDraw plan for Untitled track."
+    );
+  });
+
+  it("treats default designs as share-safe and parses editor views", () => {
+    const design = createDefaultDesign();
+
+    expect(isShareSafe(design)).toBe(true);
+    expect(parseEditorView("2d")).toBe("2d");
+    expect(parseEditorView("3d")).toBe("3d");
+    expect(parseEditorView("weird")).toBeUndefined();
+  });
+});

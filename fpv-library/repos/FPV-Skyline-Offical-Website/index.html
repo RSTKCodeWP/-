@@ -1,0 +1,2356 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FPV Skyline</title>
+    <link rel="icon" type="image/png" href="assets/images/BigIcon.png">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #000000;
+            --bg-secondary: #0a0a0a;
+            --bg-tertiary: #111111;
+            --text-primary: #ffffff;
+            --text-secondary: #a0a0a0;
+            --text-muted: #555555;
+            --accent: #4a9eff;
+            --accent-glow: rgba(74, 158, 255, 0.12);
+            --accent-secondary: #6b8cff;
+            --border: rgba(255, 255, 255, 0.08);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        ::selection {
+            background: var(--accent-glow);
+            color: var(--text-primary);
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: var(--bg-primary);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--text-muted);
+            border-radius: 3px;
+        }
+
+        /* Navigation */
+        .nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            padding: 1.25rem 2.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background 0.3s ease;
+        }
+        .nav.scrolled {
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border);
+        }
+        .nav-brand {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-weight: 700;
+            font-size: 1.1rem;
+            letter-spacing: -0.02em;
+            color: var(--text-primary);
+            text-decoration: none;
+        }
+        .nav-brand .nav-brand-skyline {
+            color: var(--accent);
+        }
+        .nav-brand-icon {
+            width: 1.6rem;
+            height: 1.6rem;
+            display: block;
+        }
+        .nav-links {
+            display: flex;
+            gap: 2.5rem;
+            align-items: center;
+        }
+        .nav-link {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: color 0.2s ease;
+        }
+        .nav-link:hover {
+            color: var(--text-primary);
+        }
+        .nav-group-links {
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+        }
+        .nav-group-link {
+            font-size: 0.8rem;
+            padding: 0.25rem 0.6rem;
+            border-radius: 4px;
+            background: rgba(74, 158, 255, 0.1);
+            border: 1px solid rgba(74, 158, 255, 0.2);
+            transition: all 0.2s ease;
+        }
+        .nav-group-link:hover {
+            background: rgba(74, 158, 255, 0.2);
+            color: var(--accent);
+        }
+        .nav-cta {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 0.6rem 1.5rem;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .nav-cta:hover {
+            background: #2563eb;
+        }
+
+        /* Hero */
+        .hero {
+            min-height: 180vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            padding: 0 2rem;
+            overflow: hidden;
+        }
+        .hero-brand {
+            position: fixed;
+            top: 55%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: clamp(5rem, 16vw, 14rem);
+            font-weight: 800;
+            letter-spacing: -0.04em;
+            line-height: 1.15;
+            z-index: 4;
+            opacity: 1;
+            pointer-events: none;
+            user-select: none;
+            white-space: nowrap;
+            transition: opacity 0.6s ease, transform 0.6s ease;
+            max-width: 100vw;
+            overflow: visible;
+            text-align: center;
+            padding: 0 1rem;
+        }
+        .hero-brand.scrolled {
+            opacity: 0;
+            transform: translate(-50%, -50%) scale(0.75);
+        }
+        .hero-brand-fpv {
+            color: #ffffff;
+        }
+        .hero-brand-skyline {
+            color: var(--accent);
+        }
+        .hero-logos-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 2.5rem;
+            margin-top: 0.6em;
+        }
+        .hero-logo-steam {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            font-weight: 500;
+            letter-spacing: 0.05em;
+            pointer-events: none;
+        }
+        .hero-logo-steam-icon {
+            width: 32px;
+            height: 32px;
+            display: block;
+        }
+        .hero-logo-bf-icon {
+            width: clamp(140px, 18vw, 240px);
+            height: auto;
+            display: block;
+        }
+        @media (max-width: 768px) {
+            .hero-brand {
+                font-size: clamp(2.8rem, 16vw, 5rem);
+                letter-spacing: -0.02em;
+            }
+            .hero-brand-fpv {
+                color: #e0e0e0;
+            }
+        }
+        .hero-brand.scrolled {
+            opacity: 0.08;
+            z-index: 0;
+        }
+        .hero-content {
+            position: fixed;
+            top: 58%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 5;
+            opacity: 0;
+            transition: opacity 0.6s ease;
+            text-align: center;
+            max-width: 600px;
+            width: 90%;
+            pointer-events: none;
+        }
+        .hero-content.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+
+        .hero-label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            margin-bottom: 1.5rem;
+        }
+        .hero-title {
+            font-size: clamp(3rem, 6vw, 5rem);
+            font-weight: 800;
+            line-height: 1.15;
+            letter-spacing: -0.04em;
+            margin-bottom: 1.5rem;
+        }
+        .hero-title .accent {
+            color: var(--accent);
+        }
+        .hero-desc {
+            font-size: 1.1rem;
+            color: var(--text-secondary);
+            max-width: 520px;
+            margin: 0 auto 2.5rem;
+            line-height: 1.7;
+        }
+        .hero-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .btn-primary {
+            background: var(--accent);
+            color: #000;
+            border: none;
+            padding: 0.9rem 2rem;
+            border-radius: 4px;
+            font-weight: 700;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: background 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            text-decoration: none;
+            letter-spacing: 0.02em;
+        }
+        .btn-primary:hover {
+            background: #6bb3ff;
+        }
+        .btn-secondary {
+            background: transparent;
+            color: var(--text-primary);
+            
+            padding: 0.9rem 2rem;
+            border-radius: 4px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: border-color 0.2s ease, background 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            text-decoration: none;
+        }
+        .btn-secondary:hover {
+            border-color: rgba(255,255,255,0.25);
+            background: rgba(255,255,255,0.03);
+        }
+
+        /* Section Base */
+        .section {
+            padding: 8rem 2rem;
+            position: relative;
+        }
+        .section-alt {
+            background: var(--bg-secondary);
+        }
+        .section-inner {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .section-label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            margin-bottom: 1rem;
+        }
+        .section-title {
+            font-size: clamp(2.2rem, 4vw, 3.2rem);
+            font-weight: 800;
+            letter-spacing: -0.03em;
+            margin-bottom: 1rem;
+            line-height: 1.1;
+        }
+        .section-desc {
+            color: var(--text-secondary);
+            font-size: 1.05rem;
+            line-height: 1.7;
+            max-width: 560px;
+        }
+
+        /* Feature Blocks - UE5 Style */
+        .feature-block {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            align-items: center;
+            margin-bottom: 4rem;
+        }
+        .feature-block:last-child {
+            margin-bottom: 0;
+        }
+        .feature-block.reverse {
+            direction: rtl;
+        }
+        .feature-block.reverse > * {
+            direction: ltr;
+        }
+        .feature-block-image {
+            aspect-ratio: 16/9;
+            width: 100%;
+            background: var(--bg-tertiary);
+            border-radius: 4px;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+        .feature-block-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+        /* Progressive Image Loading */
+        .progressive-img {
+            position: relative;
+        }
+        .progressive-thumb {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+            filter: blur(10px);
+            transform: scale(1.05);
+        }
+        .progressive-full {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+        .progressive-full.loaded {
+            opacity: 1;
+        }
+        .feature-block-image i {
+            font-size: 3rem;
+            margin-bottom: 0.5rem;
+            opacity: 0.3;
+        }
+        .feature-block-image .fc-bf-logo {
+            width: auto;
+            max-width: 100%;
+            height: auto;
+            max-height: 100%;
+            object-fit: contain;
+            display: block;
+            margin: auto;
+        }
+        /* Showcase Visual */
+        /* removed - replaced with HUD.png */
+        /* Input Decoupling Visual */
+        .input-decoupling-visual {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 18px;
+            background: var(--bg-tertiary);
+        }
+        .input-decoupling-visual .input-decoupling-icon {
+            width: 3.5rem;
+            height: 3.5rem;
+            color: var(--accent);
+            filter: drop-shadow(0 0 20px var(--accent-glow));
+            margin-bottom: 8px;
+            margin-top: 20px;
+            animation: iconPulse 1.5s ease-in-out infinite;
+            opacity: 1;
+            display: block;
+            transform: scaleX(0.7) scaleY(1.1);
+        }
+        .input-rail {
+            margin-top: 50px;
+        }
+        @keyframes iconPulse {
+            0%, 100% { transform: scaleX(0.7) scaleY(1.1); opacity: 1; }
+            50% { transform: scaleX(0.77) scaleY(1.21); opacity: 0.8; }
+        }
+        .input-rail, .render-rail {
+            position: relative;
+            width: 80%;
+            height: 3px;
+            background: rgba(255,255,255,0.15);
+            border-radius: 2px;
+        }
+        .input-signal {
+            position: absolute;
+            top: 50%;
+            left: 0;
+            transform: translate(-50%, -50%);
+            width: 7px;
+            height: 7px;
+            background: var(--accent);
+            border-radius: 50%;
+            box-shadow: 0 0 10px var(--accent-glow);
+            animation: signalFast 0.5s linear infinite;
+        }
+        .input-separator {
+            width: 70%;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+        }
+        .render-frame {
+            position: absolute;
+            top: 50%;
+            left: 0;
+            transform: translateY(-50%);
+            width: 22px;
+            height: 5px;
+            background: rgba(255,255,255,0.4);
+            border-radius: 2px;
+            animation: frameSlow 3s linear infinite;
+        }
+        @keyframes signalFast {
+            0% { left: 0; }
+            100% { left: 100%; }
+        }
+        @keyframes frameSlow {
+            0% { left: 0; }
+            100% { left: calc(100% - 22px); }
+        }
+        .flow-visual {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            background: #0a0a0a;
+        }
+        .flow-text {
+            font-size: clamp(2.5rem, 6vw, 5rem);
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            background: linear-gradient(135deg, #ffffff 30%, #4a9eff 70%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            z-index: 2;
+            position: relative;
+        }
+        .flow-streak {
+            position: absolute;
+            left: -20%;
+            height: 1.5px;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            animation: flowStreakMove 3s linear infinite;
+            border-radius: 1px;
+        }
+        @keyframes flowStreakMove {
+            0% { transform: translateX(-50%); opacity: 0; }
+            15% { opacity: 1; }
+            85% { opacity: 1; }
+            100% { transform: translateX(250%); opacity: 0; }
+        }
+        .feature-block-content {
+            padding: 0;
+        }
+        .feature-block-tag {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.7rem;
+            font-weight: 500;
+            color: var(--accent);
+            margin-bottom: 1.25rem;
+            display: block;
+            letter-spacing: 0.1em;
+        }
+        .feature-block-title {
+            font-size: 2.2rem;
+            font-weight: 700;
+            margin-bottom: 0.75rem;
+            line-height: 1.1;
+        }
+        .feature-block-desc {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            line-height: 1.6;
+            margin-bottom: 1.25rem;
+        }
+        .feature-block-list {
+            list-style: none;
+        }
+        .feature-block-list li {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.4rem 0;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+        .feature-block-list li i {
+            color: var(--accent);
+            font-size: 1rem;
+        }
+
+        /* Physics Section */
+        .physics-hero {
+            text-align: center;
+            margin-bottom: 4rem;
+        }
+        .physics-hero .section-desc {
+            margin: 0 auto;
+        }
+
+        /* AeroVoxel - Featured Block */
+        .aerovoxel-featured {
+            background: var(--bg-tertiary);
+            border-radius: 4px;
+            padding: 3rem;
+            margin-bottom: 4rem;
+            
+        }
+        .aerovoxel-featured-header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+        .aerovoxel-featured-label {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            font-weight: 500;
+            color: var(--accent);
+            margin-bottom: 0.75rem;
+            display: block;
+        }
+        .aerovoxel-featured-title {
+            font-size: clamp(2rem, 4vw, 3rem);
+            font-weight: 800;
+            letter-spacing: -0.03em;
+            margin-bottom: 0.75rem;
+        }
+        .aerovoxel-featured-desc {
+            color: var(--text-secondary);
+            font-size: 1rem;
+            line-height: 1.7;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        .aerovoxel-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 3rem;
+        }
+        .aerovoxel-item {
+            padding: 2rem 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100%;
+        }
+        .aerovoxel-item-number {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.7rem;
+            font-weight: 500;
+            color: var(--text-muted);
+            margin-bottom: 0.75rem;
+            display: block;
+            width: 100%;
+        }
+        .aerovoxel-item h4 {
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            width: 100%;
+            min-height: 1.8em;
+        }
+        .aerovoxel-item h4 i {
+            color: var(--accent);
+            font-size: 1.2rem;
+        }
+        .aerovoxel-item p {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            line-height: 1.6;
+            min-height: 4.8em;
+            width: 100%;
+            flex: 1;
+        }
+        .aerovoxel-visual {
+            margin-top: 1.5rem;
+            width: 100%;
+        }
+
+        /* Physics Cards */
+        .physics-cards {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1.5rem;
+        }
+        .physics-card {
+            padding: 2rem 0;
+            border-top: 1px solid var(--border);
+            transition: border-color 0.3s ease;
+        }
+        .physics-card:hover {
+            border-top-color: var(--accent);
+        }
+        .physics-card-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin-bottom: 0.75rem;
+        }
+        .physics-card-header i {
+            color: var(--accent);
+            font-size: 1.3rem;
+        }
+        .physics-card-desc {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+        .physics-card-tags {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 1rem;
+            flex-wrap: wrap;
+        }
+        .physics-tag {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+
+        /* Specs */
+        .specs-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4rem;
+        }
+        .spec-card {
+            padding: 2rem 0;
+            border-top: 1px solid var(--border);
+        }
+        .spec-card-header {
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .spec-card-header i {
+            color: var(--accent);
+        }
+        .spec-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.9rem;
+        }
+        .spec-row:last-child {
+            border-bottom: none;
+        }
+        .spec-label {
+            color: var(--text-secondary);
+        }
+        .spec-value {
+            color: var(--text-primary);
+            font-weight: 500;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+        }
+
+        /* Roadmap */
+        .roadmap-list {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .roadmap-item {
+            display: grid;
+            grid-template-columns: 60px 1fr;
+            gap: 2rem;
+            padding: 2.5rem 0;
+            border-bottom: 1px solid var(--border);
+        }
+        .roadmap-item:first-child {
+            border-top: 1px solid var(--border);
+        }
+        .roadmap-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: var(--bg-tertiary);
+            
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--accent);
+            font-size: 1.25rem;
+        }
+        .roadmap-title {
+            font-weight: 700;
+            font-size: 1.1rem;
+            margin-bottom: 0.5rem;
+        }
+        .roadmap-desc {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+
+        /* CTA */
+        .cta {
+            text-align: center;
+            padding: 6rem 2rem;
+        }
+        .cta-title {
+            font-size: clamp(2rem, 4vw, 3rem);
+            font-weight: 800;
+            margin-bottom: 1rem;
+            letter-spacing: -0.02em;
+        }
+        .cta-desc {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+            margin-bottom: 2.5rem;
+            line-height: 1.7;
+        }
+
+        /* Footer */
+        .footer {
+            border-top: 1px solid var(--border);
+            padding: 3rem 2rem;
+        }
+        .footer-inner {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 2rem;
+        }
+        .footer-brand {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-weight: 700;
+            font-size: 1.1rem;
+            color: var(--text-primary);
+            text-decoration: none;
+        }
+        .footer-brand-icon {
+            width: 1.3rem;
+            height: 1.3rem;
+            display: block;
+        }
+        .footer-links {
+            display: flex;
+            gap: 2rem;
+        }
+        .footer-link {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 0.875rem;
+            transition: color 0.2s ease;
+        }
+        .footer-link:hover {
+            color: var(--text-primary);
+        }
+        .footer-copy {
+            color: var(--text-muted);
+            font-size: 0.8rem;
+        }
+
+        /* Animations */
+        .fade-in {
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.6s ease, transform 0.6s ease;
+        }
+        .fade-in.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* Mobile */
+        .mobile-actions {
+            display: none;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        .mobile-menu-btn {
+            background: none;
+            border: none;
+            color: var(--text-primary);
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+        .mobile-lang-btn {
+            background: none;
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            padding: 0.35rem 0.7rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: inherit;
+            transition: all 0.2s ease;
+        }
+        .mobile-lang-btn:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        @media (max-width: 768px) {
+            .nav-links {
+                display: none;
+            }
+            .mobile-actions {
+                display: flex;
+            }
+            .feature-block {
+                grid-template-columns: 1fr;
+                gap: 2rem;
+                justify-items: center;
+            }
+            .feature-block.reverse {
+                direction: ltr;
+            }
+            .feature-block-image {
+                min-height: 200px;
+                width: 100%;
+                margin: 0 auto;
+                aspect-ratio: auto;
+                height: auto;
+            }
+            .feature-block-image img {
+                object-position: center;
+            }
+            .aerovoxel-grid {
+                grid-template-columns: 1fr;
+            }
+            .aerovoxel-item p {
+                min-height: auto;
+            }
+            .aerovoxel-comparison {
+                padding: 0 1rem;
+            }
+            .comparison-slider {
+                aspect-ratio: 4/3;
+            }
+            .physics-cards {
+                grid-template-columns: 1fr;
+            }
+            .specs-grid {
+                grid-template-columns: 1fr;
+                gap: 2rem;
+            }
+            .section {
+                padding: 4rem 1.5rem;
+            }
+            .footer-inner {
+                flex-direction: column;
+                text-align: center;
+            }
+            .aerovoxel-featured {
+                padding: 2rem;
+            }
+        }
+
+        /* Speed Lines Background */
+        #particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+            opacity: 0.5;
+        }
+        .aerovoxel-visual {
+            margin-top: 1.5rem;
+            height: 70px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+        .voxel-grid-demo {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 3px;
+            padding: 10px;
+        }
+        .voxel-cell {
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
+            background: var(--border);
+        }
+        .voxel-cell.active {
+            background: var(--accent);
+            box-shadow: 0 0 6px var(--accent-glow);
+            animation: voxelPulse 2s ease-in-out infinite;
+        }
+        .voxel-cell.active:nth-child(2n) { animation-delay: 0.2s; }
+        .voxel-cell.active:nth-child(3n) { animation-delay: 0.4s; }
+        .voxel-cell.active:nth-child(5n) { animation-delay: 0.6s; }
+        @keyframes voxelPulse {
+            0%, 100% { opacity: 0.6; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.15); }
+        }
+        .aero-flow-demo {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            width: 100%;
+            padding: 0 16px;
+        }
+        .flow-line {
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--accent), transparent);
+            border-radius: 1px;
+            animation: flowMove 1.5s ease-in-out infinite;
+            opacity: 0.6;
+        }
+        .flow-line:nth-child(1) { width: 60%; animation-delay: 0s; }
+        .flow-line:nth-child(2) { width: 80%; animation-delay: 0.2s; }
+        .flow-line:nth-child(3) { width: 50%; animation-delay: 0.4s; }
+        .flow-line:nth-child(4) { width: 70%; animation-delay: 0.1s; }
+        .flow-line:nth-child(5) { width: 45%; animation-delay: 0.3s; }
+        @keyframes flowMove {
+            0%, 100% { transform: translateX(-15px); opacity: 0.3; }
+            50% { transform: translateX(15px); opacity: 0.8; }
+        }
+        .collision-demo {
+            position: relative;
+            width: 50px;
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .collision-ring {
+            position: absolute;
+            border: 2px solid var(--accent);
+            border-radius: 50%;
+            opacity: 0;
+        }
+        .collision-ring:nth-child(1) {
+            width: 16px; height: 16px;
+            animation: collisionRipple 2s ease-out infinite;
+        }
+        .collision-ring:nth-child(2) {
+            width: 34px; height: 34px;
+            animation: collisionRipple 2s ease-out 0.4s infinite;
+        }
+        .collision-ring:nth-child(3) {
+            width: 52px; height: 52px;
+            animation: collisionRipple 2s ease-out 0.8s infinite;
+        }
+        @keyframes collisionRipple {
+            0% { transform: scale(0.5); opacity: 0.8; }
+            100% { transform: scale(1.2); opacity: 0; }
+        }
+        /* Inertia / Center of Mass Demo */
+        .inertia-demo {
+            position: relative;
+            width: 60px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .inertia-center {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 8px;
+            height: 8px;
+            background: var(--accent);
+            border-radius: 50%;
+            box-shadow: 0 0 10px var(--accent-glow);
+            z-index: 2;
+            animation: inertiaPulse 2s ease-in-out infinite;
+        }
+        .inertia-mass {
+            position: absolute;
+            width: 5px;
+            height: 5px;
+            background: var(--accent);
+            border-radius: 1px;
+            opacity: 0.5;
+        }
+        .inertia-mass:nth-child(2) { top: 8px; left: 12px; }
+        .inertia-mass:nth-child(3) { top: 12px; right: 10px; }
+        .inertia-mass:nth-child(4) { bottom: 10px; left: 18px; }
+        .inertia-mass:nth-child(5) { bottom: 8px; right: 12px; }
+        .inertia-mass:nth-child(6) { top: 22px; left: 6px; }
+        .inertia-mass:nth-child(7) { top: 28px; right: 6px; }
+        .inertia-orbit {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 38px;
+            height: 38px;
+            border: 1.5px solid rgba(74, 158, 255, 0.15);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: inertiaSpin 2.5s linear infinite;
+            transform: translate(-50%, -50%) rotate(0deg);
+        }
+        .inertia-orbit:nth-child(9) {
+            width: 50px;
+            height: 50px;
+            animation-direction: reverse;
+            animation-duration: 3.5s;
+            border-top-color: transparent;
+            border-bottom-color: var(--accent);
+        }
+        @keyframes inertiaSpin {
+            from { transform: translate(-50%, -50%) rotate(0deg); }
+            to { transform: translate(-50%, -50%) rotate(360deg); }
+        }
+        @keyframes inertiaPulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.2); opacity: 0.8; }
+        }
+        /* Mobile Menu */
+        .mobile-menu {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            width: 100%;
+            height: auto;
+            max-height: 100vh;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            padding: 5rem 2rem 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            transform: translateY(-100%);
+            transition: transform 0.3s ease;
+            z-index: 999;
+        }
+        .mobile-menu.open {
+            transform: translateY(0);
+        }
+        .mobile-menu-link {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 1rem;
+            font-weight: 500;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid var(--border);
+            transition: color 0.2s ease;
+        }
+        .mobile-menu-link:hover {
+            color: var(--text-primary);
+        }
+        .mobile-menu-cta {
+            background: var(--accent);
+            color: #000;
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 700;
+            padding: 0.9rem;
+            border-radius: 4px;
+            text-align: center;
+            margin-top: 1rem;
+            transition: background 0.2s ease;
+        }
+        .mobile-menu-cta:hover {
+            background: #6bb3ff;
+        }
+        .mobile-menu-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+            z-index: 998;
+        }
+        .mobile-menu-overlay.open {
+            opacity: 1;
+            visibility: visible;
+        }
+        .lang-toggle {
+            background: none;
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            padding: 0.4rem 0.8rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-family: inherit;
+        }
+        .lang-toggle:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+        /* AeroVoxel Comparison Slider */
+        .aerovoxel-comparison {
+            max-width: 1000px;
+            margin: 0 auto 3rem;
+        }
+        .comparison-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        .comparison-label {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            font-weight: 500;
+            color: var(--accent);
+            margin-bottom: 0.75rem;
+            display: block;
+        }
+        .comparison-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+        .comparison-desc {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+        .comparison-slider {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 16/9;
+            border-radius: 4px;
+            overflow: hidden;
+            cursor: col-resize;
+            user-select: none;
+            border: 1px solid var(--border);
+        }
+        .comparison-image {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+        .comparison-image img {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+        .comparison-thumb {
+            filter: blur(8px);
+            transform: scale(1.05);
+        }
+        .comparison-full {
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+        .comparison-full.loaded {
+            opacity: 1;
+        }
+        .comparison-before {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            z-index: 1;
+        }
+        .comparison-after {
+            background: linear-gradient(135deg, #0f3460 0%, #1a1a2e 100%);
+            z-index: 2;
+            clip-path: inset(0 50% 0 0);
+        }
+        .comparison-divider {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: 50%;
+            width: 2px;
+            background: var(--accent);
+            z-index: 3;
+            cursor: col-resize;
+            transform: translateX(-50%);
+        }
+        .comparison-handle {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 40px;
+            height: 40px;
+            background: var(--accent);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 20px var(--accent-glow);
+            cursor: col-resize;
+        }
+        .comparison-handle i {
+            color: #000;
+            font-size: 1.2rem;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="particles"></canvas>
+
+    <!-- Navigation -->
+    <nav class="nav" id="nav">
+        <a href="#" class="nav-brand">
+            <img src="assets/images/BigIcon.png" alt="FPV Skyline" class="nav-brand-icon">
+            FPV <span class="nav-brand-skyline">Skyline</span>
+        </a>
+        <div class="nav-links">
+            <a href="#features" class="nav-link" data-i18n="nav_features">功能</a>
+            <a href="#physics" class="nav-link" data-i18n="nav_physics">Flow 物理</a>
+            <a href="https://store.steampowered.com/news/app/4244680?updates=true" target="_blank" class="nav-link" data-i18n="nav_roadmap">更新路线图</a>
+            <a href="https://b23.tv/szmZsx2" target="_blank" class="nav-link" data-i18n="nav_community">社区</a>
+            <a href="https://bugnet.io/roadmap/0e4f84-fpvskyline" target="_blank" class="nav-link" data-i18n="nav_bugnet">Bug 追踪</a>
+            <div class="nav-group-links">
+                <a href="https://discord.gg/qP5bTGYyXC" target="_blank" class="nav-link nav-group-link" title="Discord" data-i18n="nav_discord">Discord</a>
+                <a href="https://qm.qq.com/q/QhVL3rz6E2" target="_blank" class="nav-link nav-group-link" title="QQ" data-i18n="nav_qq">QQ</a>
+            </div>
+            <button class="lang-toggle" id="langToggle" title="切换语言">中 / EN</button>
+        </div>
+        <div class="mobile-actions">
+            <button class="mobile-lang-btn" id="mobileLangToggle">中 / EN</button>
+            <button class="mobile-menu-btn" id="mobileMenuBtn">
+                <i class='bx bx-menu'></i>
+            </button>
+        </div>
+        <div class="mobile-menu" id="mobileMenu">
+            <a href="#features" class="mobile-menu-link" data-i18n="nav_features">功能</a>
+            <a href="#physics" class="mobile-menu-link" data-i18n="nav_physics">Flow 物理</a>
+            <a href="https://store.steampowered.com/news/app/4244680?updates=true" target="_blank" class="mobile-menu-link" data-i18n="nav_roadmap">更新路线图</a>
+            <a href="https://store.steampowered.com/app/4244680/FPV_Skyline/" target="_blank" class="mobile-menu-link" data-i18n="hero_steam">Steam 下载</a>
+            <a href="https://bugnet.io/roadmap/0e4f84-fpvskyline" target="_blank" class="mobile-menu-link" data-i18n="nav_bugnet">Bug 追踪</a>
+            <a href="https://b23.tv/szmZsx2" target="_blank" class="mobile-menu-link" data-i18n="nav_community">社区</a>
+            <a href="https://discord.gg/qP5bTGYyXC" target="_blank" class="mobile-menu-link" data-i18n="nav_discord">Discord</a>
+            <a href="https://qm.qq.com/q/QhVL3rz6E2" target="_blank" class="mobile-menu-link" data-i18n="nav_qq">QQ</a>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero" id="hero">
+        <div class="hero-brand" id="heroBrand">
+            <span class="hero-brand-fpv">FPV</span><span class="hero-brand-skyline">Skyline</span>
+            <div class="hero-logos-row">
+                <div class="hero-logo-steam">
+                    <img src="assets/images/steamlogo.svg" alt="Steam" class="hero-logo-steam-icon">
+                    <span>Steam</span>
+                </div>
+                <div class="hero-logo-bf">
+                    <img src="assets/images/bf_logo_black.svg" alt="Betaflight" class="hero-logo-bf-icon">
+                </div>
+            </div>
+        </div>
+        <div class="hero-content" id="heroContent">
+            <h1 class="hero-title" data-i18n="hero_title">
+                真实飞行<br>
+                <span class="accent">即刻开始</span>
+            </h1>
+            <p class="hero-desc" data-i18n="hero_desc">
+                基于虚幻引擎 Chaos 物理与 1000Hz 飞控模拟，还原真实操控手感。连接遥控器，即刻起飞。
+            </p>
+            <div class="hero-buttons">
+                <a href="https://store.steampowered.com/app/4244680/FPV_Skyline/" target="_blank" class="btn-primary">
+                    <i class='bx bxl-steam'></i>
+                    <span data-i18n="hero_steam">Steam 下载</span>
+                </a>
+                <a href="#features" class="btn-secondary">
+                    <span data-i18n="hero_learn">了解更多</span>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section class="section" id="features" style="position: relative; z-index: 10; background: var(--bg-primary);">
+        <div class="section-inner">
+            <div class="section-label" data-i18n="features_label">核心功能</div>
+            <h2 class="section-title" data-i18n="features_title">为飞行而生</h2>
+            <p class="section-desc" style="margin-bottom: 4rem;" data-i18n="features_desc">
+                从飞控模拟到赛道编辑，每一个细节都经过打磨，只为提供纯粹的飞行体验。
+            </p>
+
+            <div class="feature-block">
+                <div class="feature-block-image">
+                    <img src="assets/images/bf_logo_black.svg" alt="Betaflight" class="fc-bf-logo">
+                </div>
+                <div class="feature-block-content">
+                    <span class="feature-block-tag" data-i18n="feat_fc_tag">FLIGHT CONTROL</span>
+                    <h3 class="feature-block-title" data-i18n="feat_fc_title">完整飞控模拟</h3>
+                    <p class="feature-block-desc" data-i18n="feat_fc_desc">
+                        内置完整飞控系统，无需复杂参数调校即可获得真实操控反馈。PID、滤波器与电机输出均按真实飞控逻辑计算。
+                    </p>
+                    <ul class="feature-block-list">
+                        <li><i class='bx bx-check'></i> <span data-i18n="feat_fc_li1">1000Hz 更新频率</span></li>
+                        <li><i class='bx bx-check'></i> <span data-i18n="feat_fc_li2">支持 Betaflight 配置导入</span></li>
+                        <li><i class='bx bx-check'></i> <span data-i18n="feat_fc_li3"> rates 曲线自定义</span></li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="feature-block reverse">
+                <div class="feature-block-image flow-visual">
+                    <span class="flow-text">Flow</span>
+                    <div class="flow-streak" style="top:15%; width:40%; animation-delay:0s;"></div>
+                    <div class="flow-streak" style="top:28%; width:60%; animation-delay:0.8s;"></div>
+                    <div class="flow-streak" style="top:42%; width:35%; animation-delay:1.5s;"></div>
+                    <div class="flow-streak" style="top:55%; width:50%; animation-delay:2.2s;"></div>
+                    <div class="flow-streak" style="top:68%; width:45%; animation-delay:1.0s;"></div>
+                    <div class="flow-streak" style="top:82%; width:55%; animation-delay:1.8s;"></div>
+                </div>
+                <div class="feature-block-content">
+                    <span class="feature-block-tag" data-i18n="feat_ph_tag">PHYSICS</span>
+                    <h3 class="feature-block-title" data-i18n="feat_ph_title">Flow 物理引擎</h3>
+                    <p class="feature-block-desc" data-i18n="feat_ph_desc">
+                        基于虚幻引擎 Chaos 物理系统，还原空气动力学、惯性与重力对穿越机的影响。桨叶气动数据来自实测数据库。
+                    </p>
+                    <ul class="feature-block-list">
+                        <li><i class='bx bx-check'></i> <span data-i18n="feat_ph_li1">数据库查表</span></li>
+                        <li><i class='bx bx-check'></i> <span data-i18n="feat_ph_li2">多尺寸桨叶支持（5"/2.5"/65mm/31mm）</span></li>
+                        <li><i class='bx bx-check'></i> <span data-i18n="feat_ph_li3">电机 KV 值扭矩拟合</span></li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="feature-block">
+                <div class="feature-block-image input-decoupling-visual">
+                    <svg class="input-decoupling-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                    <div class="input-rail">
+                        <div class="input-signal"></div>
+                    </div>
+                    <div class="input-separator"></div>
+                    <div class="render-rail">
+                        <div class="render-frame" id="renderFrame"></div>
+                    </div>
+                </div>
+                <div class="feature-block-content">
+                    <span class="feature-block-tag" data-i18n="feat_in_tag">INPUT</span>
+                    <h3 class="feature-block-title" data-i18n="feat_in_title">低延迟高刷新</h3>
+                    <p class="feature-block-desc" data-i18n="feat_in_desc">
+                        输入与渲染分离，遥控器指令直接在 1000Hz 物理线程中读取，操控响应与画面帧率解耦。
+                    </p>
+                    <ul class="feature-block-list">
+                        <li><i class='bx bx-check'></i> <span data-i18n="feat_in_li1">输入与渲染分离</span></li>
+                        <li><i class='bx bx-check'></i> <span data-i18n="feat_in_li2">1000Hz 刷新输入</span></li>
+                        <li><i class='bx bx-check'></i> <span data-i18n="feat_in_li3">手柄与遥控器即插即用</span></li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="feature-block reverse">
+                <div class="feature-block-image progressive-img">
+                    <img src="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDABsSFBcUERsXFhceHBsgKEIrKCUlKFE6PTBCYFVlZF9VXVtqeJmBanGQc1tdhbWGkJ6jq62rZ4C8ybqmx5moq6T/2wBDARweHigjKE4rK06kbl1upKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKT/wAARCAAKABQDASIAAhEBAxEB/8QAGAAAAgMAAAAAAAAAAAAAAAAAAAQCAwX/xAAZEAADAQEBAAAAAAAAAAAAAAAAAQIDITH/xAAVAQEBAAAAAAAAAAAAAAAAAAABAv/EABURAQEAAAAAAAAAAAAAAAAAAAAR/9oADAMBAAIRAxEAPwDOwtpFz24LwF+FBN2mwFwCl//Z" alt="编辑器示意图" class="progressive-thumb">
+                    <img src="assets/images/TrackEditor.png" alt="编辑器示意图" class="progressive-full">
+                </div>
+                <div class="feature-block-content">
+                    <span class="feature-block-tag" data-i18n="feat_ed_tag">EDITOR</span>
+                    <h3 class="feature-block-title" data-i18n="feat_ed_title">高度可自定义</h3>
+                    <p class="feature-block-desc" data-i18n="feat_ed_desc">
+                        提供多种编辑器，自由设计无人机、赛道与飞行环境。支持自定义模型导入。
+                    </p>
+                    <ul class="feature-block-list">
+                        <li><i class='bx bx-check'></i> <span data-i18n="feat_ed_li1">赛道编辑器</span></li>
+                        <li><i class='bx bx-check'></i> <span data-i18n="feat_ed_li2">无人机配置器</span></li>
+                        <li><i class='bx bx-check'></i> <span data-i18n="feat_ed_li3">自定义模型导入</span></li>
+                    </ul>
+                </div>
+            </div>
+        
+            <div class="feature-block">
+                <div class="feature-block-image progressive-img">
+                    <img src="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDABsSFBcUERsXFhceHBsgKEIrKCUlKFE6PTBCYFVlZF9VXVtqeJmBanGQc1tdhbWGkJ6jq62rZ4C8ybqmx5moq6T/2wBDARweHigjKE4rK06kbl1upKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKT/wAARCAAKABQDASIAAhEBAxEB/8QAGAABAAMBAAAAAAAAAAAAAAAAAAECAwX/xAAbEAADAAIDAAAAAAAAAAAAAAAAAQIDMhEhMf/EABYBAQEBAAAAAAAAAAAAAAAAAAECA//EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAMAwEAAhEDEQA/AL4rbQyPmWMRN+GiXNvZ9A2rYAX/2Q==" alt="多布局示意图" class="progressive-thumb">
+                    <img src="assets/images/ModEditor.png" alt="多布局示意图" class="progressive-full">
+                </div>
+                <div class="feature-block-content">
+                    <span class="feature-block-tag" data-i18n="feat_layout_tag">LAYOUT</span>
+                    <h3 class="feature-block-title" data-i18n="feat_layout_title">多布局穿越机</h3>
+                    <p class="feature-block-desc" data-i18n="feat_layout_desc">
+                        支持模拟 X 型、H 型、Y型等多种机架布局的穿越机。不同布局的重心分布、惯性特性与气动表现均按真实物理计算，每种布局都有独特的操控手感。
+                    </p>
+                    <ul class="feature-block-list">
+                        <li><i class='bx bx-check'></i> <span data-i18n="feat_layout_li1">X 型 / H 型 / Y型</span></li>
+                        <li><i class='bx bx-check'></i> <span data-i18n="feat_layout_li2">每种布局独立物理参数</span></li>
+                        <li><i class='bx bx-check'></i> <span data-i18n="feat_layout_li3">自定义机架布局编辑器</span></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+</section>
+
+    <!-- Physics Section -->
+    <section class="section section-alt" id="physics">
+        <div class="section-inner">
+            <div class="physics-hero">
+                <div class="section-label" data-i18n="physics_label">物理系统</div>
+                <h2 class="section-title" data-i18n="physics_title">Flow 物理引擎</h2>
+                <p class="section-desc" data-i18n="physics_desc">
+                    Flow 是基于实测数据与学术模型构建的高保真物理引擎。
+                </p>
+            </div>
+
+            <!-- AeroVoxel -->
+            <div class="aerovoxel-featured">
+                <div class="aerovoxel-featured-header">
+                    <span class="aerovoxel-featured-label" data-i18n="aero_label">FLOW / AEROVOXEL</span>
+                    <h3 class="aerovoxel-featured-title" data-i18n="aero_title">AeroVoxel</h3>
+                    <p class="aerovoxel-featured-desc" data-i18n="aero_desc">
+                        自动将几何模型转换为体素网格，驱动空气动力学模拟与 Chaos 碰撞检测。自动计算质心与转动惯量。
+                    </p>
+                </div>
+                <div class="aerovoxel-grid">
+                    <div class="aerovoxel-item">
+                        <span class="aerovoxel-item-number">01</span>
+                        <h4 data-i18n="aero_1_title"><i class='bx bx-cube'></i> 实时生成代理网格</h4>
+                        <p data-i18n="aero_1_desc">对任意模型实时体素化分解，无需手动配置碰撞体。系统根据几何外形生成代理网格，支持运行时动态更新。</p>
+                        <div class="aerovoxel-visual">
+                            <div class="voxel-grid-demo">
+                                <div class="voxel-cell active"></div>
+                                <div class="voxel-cell active"></div>
+                                <div class="voxel-cell"></div>
+                                <div class="voxel-cell active"></div>
+                                <div class="voxel-cell active"></div>
+                                <div class="voxel-cell active"></div>
+                                <div class="voxel-cell"></div>
+                                <div class="voxel-cell active"></div>
+                                <div class="voxel-cell"></div>
+                                <div class="voxel-cell active"></div>
+                                <div class="voxel-cell active"></div>
+                                <div class="voxel-cell active"></div>
+                                <div class="voxel-cell active"></div>
+                                <div class="voxel-cell"></div>
+                                <div class="voxel-cell active"></div>
+                                <div class="voxel-cell"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="aerovoxel-item">
+                        <span class="aerovoxel-item-number">02</span>
+                        <h4 data-i18n="aero_2_title"><i class='bx bx-wind'></i> 空气动力学模拟</h4>
+                        <p data-i18n="aero_2_desc">基于体素化网格计算空气阻力分布，结合桨叶数据库查表，模拟不同姿态与速度下的气动表现。</p>
+                        <div class="aerovoxel-visual">
+                            <div class="aero-flow-demo">
+                                <div class="flow-line"></div>
+                                <div class="flow-line"></div>
+                                <div class="flow-line"></div>
+                                <div class="flow-line"></div>
+                                <div class="flow-line"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="aerovoxel-item">
+                        <span class="aerovoxel-item-number">03</span>
+                        <h4 data-i18n="aero_3_title"><i class='bx bx-shield-quarter'></i> 碰撞检测代理</h4>
+                        <p data-i18n="aero_3_desc">体素化网格直接作为 Chaos 物理引擎的碰撞代理体，支持复杂几何的精确碰撞检测。</p>
+                        <div class="aerovoxel-visual">
+                            <div class="collision-demo">
+                                <div class="collision-ring"></div>
+                                <div class="collision-ring"></div>
+                                <div class="collision-ring"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="aerovoxel-item">
+                        <span class="aerovoxel-item-number">04</span>
+                        <h4 data-i18n="aero_4_title"><i class='bx bx-crosshair'></i> 质心与转动惯量</h4>
+                        <p data-i18n="aero_4_desc">基于体素化网格自动计算质量分布、质心位置与转动惯量张量。</p>
+                        <div class="aerovoxel-visual">
+                            <div class="inertia-demo">
+                                <div class="inertia-center"></div>
+                                <div class="inertia-mass"></div>
+                                <div class="inertia-mass"></div>
+                                <div class="inertia-mass"></div>
+                                <div class="inertia-mass"></div>
+                                <div class="inertia-mass"></div>
+                                <div class="inertia-mass"></div>
+                                <div class="inertia-orbit"></div>
+                                <div class="inertia-orbit"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- AeroVoxel Comparison -->
+            <div class="aerovoxel-comparison">
+                <div class="comparison-header">
+                    <span class="comparison-label" data-i18n="aero_compare_label">AEROVOXEL 效果对比</span>
+                    <h3 class="comparison-title" data-i18n="aero_compare_title">体素化前后</h3>
+                    <p class="comparison-desc" data-i18n="aero_compare_desc">拖动滑块查看 AeroVoxel 实时体素化代理生成效果</p>
+                </div>
+                <div class="comparison-slider" id="comparisonSlider">
+                    <div class="comparison-image comparison-before">
+                        <img src="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDABsSFBcUERsXFhceHBsgKEIrKCUlKFE6PTBCYFVlZF9VXVtqeJmBanGQc1tdhbWGkJ6jq62rZ4C8ybqmx5moq6T/2wBDARweHigjKE4rK06kbl1upKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKT/wAARCAANABQDASIAAhEBAxEB/8QAFwABAQEBAAAAAAAAAAAAAAAAAAIBBf/EABgQAQEAAwAAAAAAAAAAAAAAAAARAQIS/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAL/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwDm9RmN6kkWldEAP//Z" alt="体素化代理" class="comparison-thumb">
+                        <img src="assets/images/Voxelization.png" alt="体素化代理" class="comparison-full">
+                    </div>
+                    <div class="comparison-image comparison-after">
+                        <img src="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDABsSFBcUERsXFhceHBsgKEIrKCUlKFE6PTBCYFVlZF9VXVtqeJmBanGQc1tdhbWGkJ6jq62rZ4C8ybqmx5moq6T/2wBDARweHigjKE4rK06kbl1upKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKT/wAARCAANABQDASIAAhEBAxEB/8QAFwAAAwEAAAAAAAAAAAAAAAAAAAIEAf/EABkQAQADAQEAAAAAAAAAAAAAAAEAAgMREv/EABYBAQEBAAAAAAAAAAAAAAAAAAEAAv/EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAMAwEAAhEDEQA/AIMj3YJRvgZ0EZHWyPSNfW1jizYZ2ESEg//Z" alt="原始网格" class="comparison-thumb">
+                        <img src="assets/images/Non-voxelization.png" alt="原始网格" class="comparison-full">
+                    </div>
+                    <div class="comparison-divider" id="comparisonDivider">
+                        <div class="comparison-handle">
+                            <i class='bx bx-chevrons-left'></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Physics Modules -->
+            <div class="physics-cards">
+                <div class="physics-card fade-in">
+                    <div class="physics-card-header" data-i18n="phys_1_title">
+                        <i class='bx bx-timer'></i>
+                        1000Hz 飞控模拟
+                    </div>
+                    <p class="physics-card-desc" data-i18n="phys_1_desc">
+                        飞控与物理模拟均以 1000Hz 运行。PID 控制器、滤波器与电机输出均按真实飞控逻辑计算。
+                    </p>
+                    <div class="physics-card-tags">
+                        <span class="physics-tag" data-i18n="phys_1_tag1">实时 PID</span>
+                        <span class="physics-tag" data-i18n="phys_1_tag2">低延迟</span>
+                        <span class="physics-tag" data-i18n="phys_1_tag3">1ms 周期</span>
+                    </div>
+                </div>
+                <div class="physics-card fade-in">
+                    <div class="physics-card-header" data-i18n="phys_2_title">
+                        <i class='bx bx-wind'></i>
+                        螺旋桨空气动力学
+                    </div>
+                    <p class="physics-card-desc" data-i18n="phys_2_desc">
+                        基于实测数据构建螺旋桨数据库，查表获取前进比 J、推力系数 CT、阻力系数 CP 等气动参数。支持 5 寸、2.5 寸、65mm、31mm 等桨叶尺寸。
+                    </p>
+                    <div class="physics-card-tags">
+                        <span class="physics-tag" data-i18n="phys_2_tag1">数据库查表</span>
+                        <span class="physics-tag" data-i18n="phys_2_tag2">前进比 J</span>
+                        <span class="physics-tag" data-i18n="phys_2_tag3">多尺寸桨叶</span>
+                    </div>
+                </div>
+                <div class="physics-card fade-in">
+                    <div class="physics-card-header" data-i18n="phys_3_title">
+                        <i class='bx bx-bolt-circle'></i>
+                        电机数据库模型
+                    </div>
+                    <p class="physics-card-desc" data-i18n="phys_3_desc">
+                        基于 KV 值、内阻与功率-扭矩关系的电机模型，扭矩输出按实测数据拟合。涵盖 2207、1404、1102 等主流电机规格。
+                    </p>
+                    <div class="physics-card-tags">
+                        <span class="physics-tag" data-i18n="phys_3_tag1">KV 值模型</span>
+                        <span class="physics-tag" data-i18n="phys_3_tag2">内阻拟合</span>
+                        <span class="physics-tag" data-i18n="phys_3_tag3">扭矩校准</span>
+                    </div>
+                </div>
+                <div class="physics-card fade-in">
+                    <div class="physics-card-header" data-i18n="phys_4_title">
+                        <i class='bx bx-cube'></i>
+                        刚体动力学
+                    </div>
+                    <p class="physics-card-desc" data-i18n="phys_4_desc">
+                        底层基于虚幻引擎 Chaos 物理引擎，质心与转动惯量由 AeroVoxel 实时体素化代理生成（输入质量即可）。还原高速机动、急转弯与碰撞时的惯性响应。
+                    </p>
+                    <div class="physics-card-tags">
+                        <span class="physics-tag" data-i18n="phys_4_tag1">Chaos 物理</span>
+                        <span class="physics-tag" data-i18n="phys_4_tag2">转动惯量</span>
+                        <span class="physics-tag" data-i18n="phys_4_tag3">碰撞响应</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Showcase Section -->
+    <section class="section" id="showcase">
+        <div class="section-inner">
+            <div class="feature-block">
+                <div class="feature-block-image progressive-img">
+                    <img src="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDABsSFBcUERsXFhceHBsgKEIrKCUlKFE6PTBCYFVlZF9VXVtqeJmBanGQc1tdhbWGkJ6jq62rZ4C8ybqmx5moq6T/2wBDARweHigjKE4rK06kbl1upKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKT/wAARCAALABQDASIAAhEBAxEB/8QAFwAAAwEAAAAAAAAAAAAAAAAAAAIDBP/EABsQAAMAAgMAAAAAAAAAAAAAAAABAgMhBBFB/8QAFQEBAQAAAAAAAAAAAAAAAAAAAQL/xAAWEQEBAQAAAAAAAAAAAAAAAAAAARH/2gAMAwEAAhEDEQA/ALXyZ8ZkzZqvSM+JtrbHZUFqbjtgOA4Nf//Z" alt="游戏画面" class="progressive-thumb">
+                    <img src="assets/images/HUD.png" alt="游戏画面" class="progressive-full">
+                </div>
+                <div class="feature-block-content">
+                    <span class="feature-block-tag" data-i18n="show_tag">EXPERIENCE</span>
+                    <h3 class="feature-block-title" data-i18n="show_title">沉浸飞行体验</h3>
+                    <p class="feature-block-desc" data-i18n="show_desc">
+                        无论是练习场磨练技术，还是赛道挑战极限，都能带来沉浸的飞行体验。
+                    </p>
+                    <ul class="feature-block-list">
+                        <li><i class='bx bx-check'></i> <span data-i18n="show_li1">无需复杂配置，开箱即飞</span></li>
+                        <li><i class='bx bx-check'></i> <span data-i18n="show_li2">支持手柄与遥控器</span></li>
+                        <li><i class='bx bx-check'></i> <span data-i18n="show_li3">赛道编辑器，创造无限可能</span></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Specs Section -->
+    <section class="section section-alt" id="specs">
+        <div class="section-inner">
+            <div class="section-label" data-i18n="specs_label">系统需求</div>
+            <h2 class="section-title" data-i18n="specs_title">流畅运行</h2>
+            <p class="section-desc" style="margin-bottom: 4rem;" data-i18n="specs_desc">
+                在主流硬件上即可获得出色的飞行体验。
+            </p>
+            <div class="specs-grid">
+                <div class="spec-card">
+                    <div class="spec-card-header" data-i18n="spec_min">
+                        <i class='bx bx-chevron-right'></i>
+                        最低配置
+                    </div>
+                    <div class="spec-row">
+                        <span class="spec-label" data-i18n="spec_os">操作系统</span>
+                        <span class="spec-value">64-bit Windows 10 / 11</span>
+                    </div>
+                    <div class="spec-row">
+                        <span class="spec-label" data-i18n="spec_cpu">处理器</span>
+                        <span class="spec-value">Intel 10600K / AMD 1900X</span>
+                    </div>
+                    <div class="spec-row">
+                        <span class="spec-label" data-i18n="spec_ram">内存</span>
+                        <span class="spec-value">8 GB RAM</span>
+                    </div>
+                    <div class="spec-row">
+                        <span class="spec-label" data-i18n="spec_gpu">显卡</span>
+                        <span class="spec-value">GeForce GTX 1060</span>
+                    </div>
+                    <div class="spec-row">
+                        <span class="spec-label" data-i18n="spec_dx">DirectX</span>
+                        <span class="spec-value" data-i18n="spec_dx_val">版本 12</span>
+                    </div>
+                    <div class="spec-row">
+                        <span class="spec-label" data-i18n="spec_storage">存储空间</span>
+                        <span class="spec-value" data-i18n="spec_storage_val">10 GB 可用空间</span>
+                    </div>
+                </div>
+                <div class="spec-card">
+                    <div class="spec-card-header" data-i18n="spec_rec">
+                        <i class='bx bx-trophy'></i>
+                        推荐配置
+                    </div>
+                    <div class="spec-row">
+                        <span class="spec-label" data-i18n="spec_os">操作系统</span>
+                        <span class="spec-value">64-bit Windows 11</span>
+                    </div>
+                    <div class="spec-row">
+                        <span class="spec-label" data-i18n="spec_cpu">处理器</span>
+                        <span class="spec-value">Intel 12490F / AMD 3900</span>
+                    </div>
+                    <div class="spec-row">
+                        <span class="spec-label" data-i18n="spec_ram">内存</span>
+                        <span class="spec-value">16 GB RAM</span>
+                    </div>
+                    <div class="spec-row">
+                        <span class="spec-label" data-i18n="spec_gpu">显卡</span>
+                        <span class="spec-value">GeForce RTX 3060</span>
+                    </div>
+                    <div class="spec-row">
+                        <span class="spec-label" data-i18n="spec_dx">DirectX</span>
+                        <span class="spec-value" data-i18n="spec_dx_val">版本 12</span>
+                    </div>
+                    <div class="spec-row">
+                        <span class="spec-label" data-i18n="spec_storage">存储空间</span>
+                        <span class="spec-value" data-i18n="spec_storage_val">10 GB 可用空间</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Roadmap Section -->
+    <section class="section" id="roadmap">
+        <div class="section-inner">
+            <div class="section-label" data-i18n="roadmap_label">未来计划</div>
+            <h2 class="section-title" data-i18n="roadmap_title">持续进化</h2>
+            <p class="section-desc" style="margin-bottom: 4rem;" data-i18n="roadmap_desc">
+                FPV Skyline 还在不断成长。
+            </p>
+            <div class="roadmap-list">
+                <div class="roadmap-item fade-in">
+                    <div class="roadmap-icon">
+                        <i class='bx bx-cube'></i>
+                    </div>
+                    <div>
+                        <h3 class="roadmap-title" data-i18n="road_1_title">用户模型导入</h3>
+                        <p class="roadmap-desc" data-i18n="road_1_desc">支持导入自定义模型作为机架、电机、桨叶等部件。</p>
+                    </div>
+                </div>
+                <div class="roadmap-item fade-in">
+                    <div class="roadmap-icon">
+                        <i class='bx bx-wind'></i>
+                    </div>
+                    <div>
+                        <h3 class="roadmap-title" data-i18n="road_2_title">固定翼 FPV</h3>
+                        <p class="roadmap-desc" data-i18n="road_2_desc">扩展飞行体验，支持固定翼 FPV 飞行模式。</p>
+                    </div>
+                </div>
+                <div class="roadmap-item fade-in">
+                    <div class="roadmap-icon">
+                        <i class='bx bx-cloud'></i>
+                    </div>
+                    <div>
+                        <h3 class="roadmap-title" data-i18n="road_3_title">天气与季节系统</h3>
+                        <p class="roadmap-desc" data-i18n="road_3_desc">动态天气与季节变化。</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="section section-alt cta" id="download">
+        <div class="section-inner">
+            <h2 class="cta-title" data-i18n="cta_title">准备好起飞了吗？</h2>
+            <p class="cta-desc" data-i18n="cta_desc">
+            </p>
+            <div class="hero-buttons">
+                <a href="https://store.steampowered.com/app/4244680/FPV_Skyline/" target="_blank" class="btn-primary">
+                    <i class='bx bxl-steam'></i>
+                    <span data-i18n="hero_steam">Steam 下载</span>
+                </a>
+                <a href="https://www.bilibili.com/video/BV1EYiTB6ELP" target="_blank" class="btn-secondary">
+                    <i class='bx bx-video'></i>
+                    <span data-i18n="cta_demo">观看演示</span>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-inner">
+            <a href="#" class="footer-brand">
+                <img src="assets/images/BigIcon.png" alt="FPV Skyline" class="footer-brand-icon">
+                FPV Skyline
+            </a>
+            <div class="footer-links">
+                <a href="https://b23.tv/szmZsx2" target="_blank" class="footer-link" data-i18n="footer_bili">哔哩哔哩</a>
+                <a href="https://youtube.com/@fpvskyline?si=vlTUUu3cply-FHEA" target="_blank" class="footer-link" data-i18n="footer_youtube">YouTube</a>
+                <a href="https://v.douyin.com/bmSCwCTyAYA/" target="_blank" class="footer-link" data-i18n="footer_douyin">抖音</a>
+                <a href="https://steamcommunity.com/app/4244710" target="_blank" class="footer-link" data-i18n="footer_steam">Steam 社区</a>
+            </div>
+            <div class="footer-copy" data-i18n="footer_copy">QXNY Studio. FPV Skyline 开发中。</div>
+        </div>
+    </footer>
+
+    <script>
+        // Speed Streaks Background
+        const canvas = document.getElementById('particles');
+        const ctx = canvas.getContext('2d');
+        let streaks = [];
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        class SpeedStreak {
+            constructor() {
+                this.reset(true);
+            }
+            reset(initial = false) {
+                this.x = Math.random() * canvas.width;
+                this.y = initial ? Math.random() * canvas.height : -Math.random() * 200;
+                this.length = Math.random() * 120 + 40;
+                this.speed = Math.random() * 3 + 1.5;
+                this.width = Math.random() * 1.5 + 0.3;
+                this.opacity = Math.random() * 0.15 + 0.03;
+                this.angle = Math.random() * 0.15 - 0.075;
+                this.color = Math.random() > 0.7 ? '100, 160, 255' : '180, 190, 210';
+            }
+            update() {
+                this.y += this.speed;
+                if (this.y > canvas.height + this.length) this.reset();
+            }
+            draw() {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.angle);
+                const grad = ctx.createLinearGradient(0, -this.length, 0, 0);
+                grad.addColorStop(0, `rgba(${this.color}, 0)`);
+                grad.addColorStop(0.5, `rgba(${this.color}, ${this.opacity})`);
+                grad.addColorStop(1, `rgba(${this.color}, 0)`);
+                ctx.strokeStyle = grad;
+                ctx.lineWidth = this.width;
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                ctx.moveTo(0, -this.length);
+                ctx.lineTo(0, 0);
+                ctx.stroke();
+                ctx.restore();
+            }
+        }
+
+        function initStreaks() {
+            streaks = [];
+            const count = Math.min(Math.floor(window.innerWidth / 8), 100);
+            for (let i = 0; i < count; i++) streaks.push(new SpeedStreak());
+        }
+        initStreaks();
+
+        function animateParticles() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            streaks.forEach(s => { s.update(); s.draw(); });
+            requestAnimationFrame(animateParticles);
+        }
+        animateParticles();
+
+        // Nav Scroll Effect
+        const nav = document.getElementById('nav');
+        const heroBrand = document.getElementById('heroBrand');
+        const heroContent = document.getElementById('heroContent');
+
+        window.addEventListener('scroll', () => {
+            const scrollY = window.scrollY;
+            const vh = window.innerHeight;
+
+            if (scrollY > 50) {
+                nav.classList.add('scrolled');
+            } else {
+                nav.classList.remove('scrolled');
+            }
+
+            // Hero brand: fades out after 10% scroll
+            if (heroBrand) {
+                if (scrollY > vh * 0.1) {
+                    heroBrand.classList.add('scrolled');
+                } else {
+                    heroBrand.classList.remove('scrolled');
+                }
+            }
+
+            // Hero content: fades in after 20% scroll, fades out after 120% scroll
+            if (heroContent) {
+                if (scrollY > vh * 0.2 && scrollY < vh * 1.2) {
+                    heroContent.classList.add('visible');
+                } else {
+                    heroContent.classList.remove('visible');
+                }
+            }
+        });
+
+        // Intersection Observer
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible');
+                }
+            });
+        }, { threshold: 0.1, rootMargin: '0px 0px -50px 0px' });
+
+        document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+
+        // Smooth Scroll
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function(e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            });
+        });
+
+// Mobile Menu
+        (function() {
+            var menuBtn = document.getElementById('mobileMenuBtn');
+            var mobileMenu = document.getElementById('mobileMenu');
+            if (!menuBtn || !mobileMenu) return;
+
+            // Create overlay
+            var overlay = document.createElement('div');
+            overlay.className = 'mobile-menu-overlay';
+            document.body.appendChild(overlay);
+
+            menuBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                mobileMenu.classList.toggle('open');
+                overlay.classList.toggle('open');
+            });
+
+            overlay.addEventListener('click', function() {
+                mobileMenu.classList.remove('open');
+                overlay.classList.remove('open');
+            });
+
+            // Close menu when clicking a link
+            mobileMenu.querySelectorAll('a').forEach(function(link) {
+                link.addEventListener('click', function() {
+                    mobileMenu.classList.remove('open');
+                    overlay.classList.remove('open');
+                });
+            });
+        })();
+
+        // Comparison Slider
+        (function() {
+            var slider = document.getElementById('comparisonSlider');
+            var divider = document.getElementById('comparisonDivider');
+            var afterImage = document.querySelector('.comparison-after');
+            if (!slider || !divider || !afterImage) return;
+
+            var isDragging = false;
+
+            function updatePosition(x) {
+                var rect = slider.getBoundingClientRect();
+                var pos = (x - rect.left) / rect.width;
+                pos = Math.max(0, Math.min(1, pos));
+                var percentage = pos * 100;
+
+                divider.style.left = percentage + '%';
+                afterImage.style.clipPath = 'inset(0 ' + (100 - percentage) + '% 0 0)';
+            }
+
+            divider.addEventListener('mousedown', function(e) {
+                isDragging = true;
+                e.preventDefault();
+            });
+
+            slider.addEventListener('mousedown', function(e) {
+                if (e.target === divider || e.target.closest('.comparison-handle')) return;
+                updatePosition(e.clientX);
+            });
+
+            document.addEventListener('mousemove', function(e) {
+                if (!isDragging) return;
+                updatePosition(e.clientX);
+            });
+
+            document.addEventListener('mouseup', function() {
+                isDragging = false;
+            });
+
+            divider.addEventListener('touchstart', function(e) {
+                isDragging = true;
+                e.preventDefault();
+            });
+
+            slider.addEventListener('touchstart', function(e) {
+                if (e.target === divider || e.target.closest('.comparison-handle')) return;
+                updatePosition(e.touches[0].clientX);
+            });
+
+            document.addEventListener('touchmove', function(e) {
+                if (!isDragging) return;
+                updatePosition(e.touches[0].clientX);
+            });
+
+            document.addEventListener('touchend', function() {
+                isDragging = false;
+            });
+        })();
+
+        // Randomize render frame speed for input decoupling visual
+        (function() {
+            var frame = document.getElementById('renderFrame');
+            if (frame) {
+                var randomDuration = (2.5 + Math.random() * 2).toFixed(2) + 's';
+                frame.style.animationDuration = randomDuration;
+            }
+        })();
+
+        // i18n
+        var translations = {
+            zh: {
+                nav_features: '功能',
+                nav_physics: 'Flow 物理',
+                nav_experience: '体验',
+                nav_specs: '配置',
+                nav_roadmap: '更新路线图',
+                nav_community: '社区',
+                nav_bugnet: 'Bug 追踪',
+                nav_discord: 'Discord',
+                nav_qq: 'QQ',
+                hero_title: '真实飞行<br><span class="accent">即刻开始</span>',
+                hero_desc: '基于虚幻引擎 Chaos 物理与 1000Hz 飞控模拟，还原真实操控手感。连接遥控器，即刻起飞。',
+                hero_steam: 'Steam 下载',
+                hero_learn: '了解更多',
+                features_label: '核心功能',
+                features_title: '为飞行而生',
+                features_desc: '从飞控模拟到赛道编辑，每一个细节都经过打磨，只为提供纯粹的飞行体验。',
+                feat_fc_tag: '飞控系统',
+                feat_fc_title: '完整飞控模拟',
+                feat_fc_desc: '内置完整飞控系统，无需复杂参数调校即可获得真实操控反馈。PID、滤波器与电机输出均按真实飞控逻辑计算。',
+                feat_fc_li1: '1000Hz 更新频率',
+                feat_fc_li2: '支持 Betaflight 配置导入',
+                feat_fc_li3: 'rates 曲线自定义',
+                feat_ph_tag: '物理引擎',
+                feat_ph_title: 'Flow 物理引擎',
+                feat_ph_desc: '基于虚幻引擎 Chaos 物理系统，还原空气动力学、惯性与重力对穿越机的影响。桨叶气动数据来自实测数据库。',
+                feat_ph_li1: '数据库查表',
+                feat_ph_li2: '多尺寸桨叶支持（5"/2.5"/65mm/31mm）',
+                feat_ph_li3: '电机 KV 值扭矩拟合',
+                feat_in_tag: '输入系统',
+                feat_in_title: '低延迟高刷新',
+                feat_in_desc: '输入与渲染分离，遥控器指令直接在 1000Hz 物理线程中读取，操控响应与画面帧率解耦。',
+                feat_in_li1: '输入与渲染分离',
+                feat_in_li2: '1000Hz 刷新输入',
+                feat_in_li3: '手柄与遥控器即插即用',
+                feat_ed_tag: '编辑器',
+                feat_ed_title: '高度可自定义',
+                feat_ed_desc: '提供多种编辑器，自由设计无人机、赛道与飞行环境。支持自定义模型导入。',
+                feat_ed_li1: '赛道编辑器',
+                feat_ed_li2: '无人机配置器',
+                feat_ed_li3: '自定义模型导入',
+                feat_layout_tag: '机架布局',
+                feat_layout_title: '多布局穿越机',
+                feat_layout_desc: '支持模拟 X 型、H 型、Y型等多种机架布局的穿越机。不同布局的重心分布、惯性特性与气动表现均按真实物理计算，每种布局都有独特的操控手感。',
+                feat_layout_li1: 'X 型 / H 型 / Y型',
+                feat_layout_li2: '每种布局独立物理参数',
+                feat_layout_li3: '自定义机架布局编辑器',
+                physics_label: '物理系统',
+                physics_title: 'Flow 物理引擎',
+                physics_desc: 'Flow 是基于实测数据与学术模型构建的高保真物理引擎。',
+                aero_label: 'FLOW / AEROVOXEL',
+                aero_title: 'AeroVoxel',
+                aero_desc: '自动将几何模型转换为体素网格，驱动空气动力学模拟与 Chaos 碰撞检测。自动计算质心与转动惯量。',
+                aero_1_title: '<i class="bx bx-cube"></i> 实时生成代理网格',
+                aero_1_desc: '对任意模型实时体素化分解，无需手动配置碰撞体。系统根据几何外形生成代理网格，支持运行时动态更新。',
+                aero_2_title: '<i class="bx bx-wind"></i> 空气动力学模拟',
+                aero_2_desc: '基于体素化网格计算空气阻力分布，结合桨叶数据库查表，模拟不同姿态与速度下的气动表现。',
+                aero_3_title: '<i class="bx bx-shield-quarter"></i> 碰撞检测代理',
+                aero_3_desc: '体素化网格直接作为 Chaos 物理引擎的碰撞代理体，支持复杂几何的精确碰撞检测。',
+                aero_4_title: '<i class="bx bx-crosshair"></i> 质心与转动惯量',
+                aero_4_desc: '基于体素化网格自动计算质量分布、质心位置与转动惯量张量。',
+                aero_compare_label: 'AEROVOXEL 效果对比',
+                aero_compare_title: '体素化前后',
+                aero_compare_desc: '拖动滑块查看 AeroVoxel 实时体素化代理生成效果',
+                aero_compare_before: '原始网格',
+                aero_compare_after: '体素化代理',
+                phys_1_title: '<i class="bx bx-timer"></i> 1000Hz 飞控模拟',
+                phys_1_desc: '飞控与物理模拟均以 1000Hz 运行。PID 控制器、滤波器与电机输出均按真实飞控逻辑计算。',
+                phys_1_tag1: '实时 PID',
+                phys_1_tag2: '低延迟',
+                phys_1_tag3: '1ms 周期',
+                phys_2_title: '<i class="bx bx-wind"></i> 螺旋桨空气动力学',
+                phys_2_desc: '基于实测数据构建螺旋桨数据库，查表获取前进比 J、推力系数 CT、阻力系数 CP 等气动参数。支持 5 寸、2.5 寸、65mm、31mm 等桨叶尺寸。',
+                phys_2_tag1: '数据库查表',
+                phys_2_tag2: '前进比 J',
+                phys_2_tag3: '多尺寸桨叶',
+                phys_3_title: '<i class="bx bx-bolt-circle"></i> 电机数据库模型',
+                phys_3_desc: '基于 KV 值、内阻与功率-扭矩关系的电机模型，扭矩输出按实测数据拟合。涵盖 2207、1404、1102 等主流电机规格。',
+                phys_3_tag1: 'KV 值模型',
+                phys_3_tag2: '内阻拟合',
+                phys_3_tag3: '扭矩校准',
+                phys_4_title: '<i class="bx bx-cube"></i> 刚体动力学',
+                phys_4_desc: '底层基于虚幻引擎 Chaos 物理引擎，质心与转动惯量由 AeroVoxel 实时体素化代理生成。还原高速机动、急转弯与碰撞时的惯性响应。',
+                phys_4_tag1: 'Chaos 物理',
+                phys_4_tag2: '转动惯量',
+                phys_4_tag3: '碰撞响应',
+                show_tag: '飞行体验',
+                show_title: '沉浸飞行体验',
+                show_desc: '无论是练习场磨练技术，还是赛道挑战极限，都能带来沉浸的飞行体验。',
+                show_li1: '无需复杂配置，开箱即飞',
+                show_li2: '支持手柄与遥控器',
+                show_li3: '赛道编辑器，创造无限可能',
+                specs_label: '系统需求',
+                specs_title: '流畅运行',
+                specs_desc: '在主流硬件上即可获得出色的飞行体验。',
+                spec_min: '<i class="bx bx-chevron-right"></i> 最低配置',
+                spec_rec: '<i class="bx bx-trophy"></i> 推荐配置',
+                spec_os: '操作系统',
+                spec_cpu: '处理器',
+                spec_ram: '内存',
+                spec_gpu: '显卡',
+                spec_dx: 'DirectX',
+                spec_storage: '存储空间',
+                roadmap_label: '未来计划',
+                roadmap_title: '持续进化',
+                roadmap_desc: 'FPV Skyline 还在不断成长。',
+                road_1_title: '用户模型导入',
+                road_1_desc: '支持导入自定义模型作为机架、电机、桨叶等部件。',
+                road_2_title: '固定翼 FPV',
+                road_2_desc: '扩展飞行体验，支持固定翼 FPV 飞行模式。',
+                road_3_title: '天气与季节系统',
+                road_3_desc: '动态天气与季节变化。',
+                cta_title: '准备好起飞了吗？',
+                cta_desc: '',
+                cta_steam: '立即下载',
+                cta_demo: '观看演示',
+                feat_fc_img: '飞控系统示意图',
+                feat_ph_img: '物理引擎示意图',
+                feat_in_img: '输入延迟示意图',
+                feat_ed_img: '编辑器示意图',
+                feat_layout_img: '多布局示意图',
+                show_img: '游戏画面',
+                spec_dx_val: '版本 12',
+                spec_storage_val: '10 GB 可用空间',
+                footer_bili: '哔哩哔哩',
+                footer_douyin: '抖音',
+                footer_steam: 'Steam 社区',
+                footer_copy: 'QXNY Studio. FPV Skyline 开发中。'
+            },
+            en: {
+                nav_features: 'Features',
+                nav_physics: 'Flow Physics',
+                nav_experience: 'Experience',
+                nav_specs: 'Specs',
+                nav_roadmap: 'Roadmap',
+                nav_community: 'Community',
+                nav_bugnet: 'Bug Tracker',
+                nav_discord: 'Discord',
+                nav_qq: 'QQ',
+                hero_title: 'Real Flight<br><span class="accent">Starts Now</span>',
+                hero_desc: 'Based on Unreal Engine Chaos physics and 1000Hz flight control simulation, restoring authentic control feel. Connect your transmitter and take off.',
+                hero_steam: 'Steam Download',
+                hero_learn: 'Learn More',
+                features_label: 'CORE FEATURES',
+                features_title: 'Built for Flight',
+                features_desc: 'From flight control simulation to track editing, every detail is polished to provide a pure flight experience.',
+                feat_fc_tag: 'FLIGHT CONTROL',
+                feat_fc_title: 'Complete Flight Control',
+                feat_fc_desc: 'Built-in complete flight control system, no complex parameter tuning needed for authentic control feedback. PID, filters, and motor outputs calculated according to real flight control logic.',
+                feat_fc_li1: '1000Hz Update Rate',
+                feat_fc_li2: 'Betaflight Config Import',
+                feat_fc_li3: 'Rates Curve Customization',
+                feat_ph_tag: 'PHYSICS',
+                feat_ph_title: 'Precise Physics Engine',
+                feat_ph_desc: 'Based on Unreal Engine Chaos physics system, restoring aerodynamics, inertia, and gravity effects on FPV drones. Propeller aerodynamic data from measured database.',
+                feat_ph_li1: 'Database Lookup',
+                feat_ph_li2: 'Multi-size Propellers (5"/2.5"/65mm/31mm)',
+                feat_ph_li3: 'Motor KV Torque Fitting',
+                feat_in_tag: 'INPUT',
+                feat_in_title: 'Low Latency High Refresh',
+                feat_in_desc: 'Input and rendering separated, transmitter commands read directly in the independent 1000Hz physics thread. Control response decoupled from frame rate.',
+                feat_in_li1: 'Input & Rendering Separation',
+                feat_in_li2: '1000Hz Input Refresh',
+                feat_in_li3: 'Plug & Play Controllers',
+                feat_ed_tag: 'EDITOR',
+                feat_ed_title: 'Highly Customizable',
+                feat_ed_desc: 'Multiple editors provided, freely design drones, tracks, and flight environments. Support custom model imports.',
+                feat_ed_li1: 'Track Editor',
+                feat_ed_li2: 'Drone Configurator',
+                feat_ed_li3: 'Custom Model Import',
+                feat_layout_tag: 'LAYOUT',
+                feat_layout_title: 'Multi-Layout Drones',
+                feat_layout_desc: 'Supports simulating X-type, H-type, dead-cat, and other frame layouts. Each layout has unique center of gravity, inertia characteristics, and aerodynamic performance calculated by real physics.',
+                feat_layout_li1: 'X-type / H-type / Dead-cat',
+                feat_layout_li2: 'Independent physics per layout',
+                feat_layout_li3: 'Custom frame layout editor',
+                physics_label: 'PHYSICS SYSTEM',
+                physics_title: 'Flow Physics Engine',
+                physics_desc: 'Flow is a high-fidelity physics engine built on measured data and academic models.',
+                aero_label: 'FLOW / AEROVOXEL',
+                aero_title: 'AeroVoxel',
+                aero_desc: 'Automatically converts geometric models to voxel grids, driving aerodynamic simulation and Chaos collision detection. Calculates center of mass and moment of inertia.',
+                aero_1_title: '<i class="bx bx-cube"></i> Real-time Proxy Mesh',
+                aero_1_desc: 'Real-time voxelization decomposition for any model, no manual collision body configuration needed. System generates proxy meshes based on geometry, supports runtime dynamic updates.',
+                aero_2_title: '<i class="bx bx-wind"></i> Aerodynamic Simulation',
+                aero_2_desc: 'Calculates air resistance distribution based on voxelized grids, combined with propeller database lookup, simulating aerodynamic performance at different attitudes and speeds.',
+                aero_3_title: '<i class="bx bx-shield-quarter"></i> Collision Detection Proxy',
+                aero_3_desc: 'Voxelized grids serve directly as Chaos physics engine collision proxies, supporting precise collision detection for complex geometry.',
+                aero_4_title: '<i class="bx bx-crosshair"></i> Center of Mass & Inertia',
+                aero_4_desc: 'Automatically calculates mass distribution, center of mass position, and inertia tensor based on voxelized grids. No manual physics parameter input needed, ensuring accurate rigid body dynamics simulation.',
+                aero_compare_label: 'AEROVOXEL COMPARISON',
+                aero_compare_title: 'Before & After',
+                aero_compare_desc: 'Drag the slider to see AeroVoxel real-time voxelization proxy generation',
+                aero_compare_before: 'Original Mesh',
+                aero_compare_after: 'Voxelized Proxy',
+                phys_1_title: '<i class="bx bx-timer"></i> 1000Hz Flight Control',
+                phys_1_desc: 'Flight control and physics simulation both run at 1000Hz. PID controllers, filters, and motor outputs calculated according to real flight control logic.',
+                phys_1_tag1: 'Real-time PID',
+                phys_1_tag2: 'Low Latency',
+                phys_1_tag3: '1ms Cycle',
+                phys_2_title: '<i class="bx bx-wind"></i> Propeller Aerodynamics',
+                phys_2_desc: 'Built propeller database based on measured data, lookup for advance ratio J, thrust coefficient CT, drag coefficient CP. Supports 5", 2.5", 65mm, 31mm propeller sizes.',
+                phys_2_tag1: 'Database Lookup',
+                phys_2_tag2: 'Advance Ratio J',
+                phys_2_tag3: 'Multi-size Props',
+                phys_3_title: '<i class="bx bx-bolt-circle"></i> Motor Database Model',
+                phys_3_desc: 'Motor model based on KV value, internal resistance, and power-torque relationship. Torque output fitted to measured data. Covers 2207, 1404, 1102 and other mainstream motor specs.',
+                phys_3_tag1: 'KV Model',
+                phys_3_tag2: 'Resistance Fitting',
+                phys_3_tag3: 'Torque Calibration',
+                phys_4_title: '<i class="bx bx-cube"></i> Rigid Body Dynamics',
+                phys_4_desc: 'Based on Unreal Engine Chaos physics engine. Center of mass and moment of inertia generated by AeroVoxel real-time voxelization proxy. Restores inertia response during high-speed maneuvers, sharp turns, and collisions.',
+                phys_4_tag1: 'Chaos Physics',
+                phys_4_tag2: 'Moment of Inertia',
+                phys_4_tag3: 'Collision Response',
+                show_tag: 'EXPERIENCE',
+                show_title: 'Immersive Flight Experience',
+                show_desc: 'Whether practicing in the training ground or challenging limits on the track, delivers an immersive flight experience.',
+                show_li1: 'No complex config, fly out of the box',
+                show_li2: 'Gamepad & transmitter support',
+                show_li3: 'Track editor, infinite possibilities',
+                specs_label: 'SYSTEM REQUIREMENTS',
+                specs_title: 'Smooth Performance',
+                specs_desc: 'Excellent flight experience on mainstream hardware.',
+                spec_min: '<i class="bx bx-chevron-right"></i> Minimum',
+                spec_rec: '<i class="bx bx-trophy"></i> Recommended',
+                spec_os: 'OS',
+                spec_cpu: 'Processor',
+                spec_ram: 'Memory',
+                spec_gpu: 'Graphics',
+                spec_dx: 'DirectX',
+                spec_storage: 'Storage',
+                roadmap_label: 'FUTURE PLANS',
+                roadmap_title: 'Continuous Evolution',
+                roadmap_desc: 'FPV Skyline is still growing.',
+                road_1_title: 'Custom Model Import',
+                road_1_desc: 'Support importing custom models as frames, motors, propellers, and other components.',
+                road_2_title: 'Fixed-wing FPV',
+                road_2_desc: 'Expand flight experience, support fixed-wing FPV flight mode.',
+                road_3_title: 'Weather & Season System',
+                road_3_desc: 'Dynamic weather and seasonal changes.',
+                cta_title: 'Ready to Take Off?',
+                cta_desc: '',
+                cta_steam: 'Download Now',
+                cta_demo: 'Watch Demo',
+                feat_fc_img: 'Flight Control Diagram',
+                feat_ph_img: 'Physics Engine Diagram',
+                feat_in_img: 'Input Latency Diagram',
+                feat_ed_img: 'Editor Diagram',
+                feat_layout_img: 'Multi-Layout Diagram',
+                show_img: 'Gameplay',
+                spec_dx_val: 'Version 12',
+                spec_storage_val: '10 GB available space',
+                footer_bili: 'Bilibili',
+                footer_douyin: 'TikTok',
+                footer_steam: 'Steam Community',
+                footer_copy: 'QXNY Studio. FPV Skyline in development.'
+            }
+        };
+
+        var currentLang = (function() {
+            var lang = navigator.language || navigator.userLanguage || 'zh';
+            return lang.toLowerCase().startsWith('zh') ? 'zh' : 'en';
+        })();
+        var langToggle = document.getElementById('langToggle');
+
+        function updateLanguage(lang) {
+            currentLang = lang;
+            var elements = document.querySelectorAll('[data-i18n]');
+            elements.forEach(function(el) {
+                var key = el.getAttribute('data-i18n');
+                if (translations[lang] && translations[lang][key]) {
+                    el.innerHTML = translations[lang][key];
+                }
+            });
+            if (langToggle) {
+                langToggle.textContent = lang === 'zh' ? '中 / EN' : 'EN / 中';
+            }
+            var mobileLangToggle = document.getElementById('mobileLangToggle');
+            if (mobileLangToggle) {
+                mobileLangToggle.textContent = lang === 'zh' ? '中 / EN' : 'EN / 中';
+            }
+        }
+
+        if (langToggle) {
+            langToggle.addEventListener('click', function() {
+                var newLang = currentLang === 'zh' ? 'en' : 'zh';
+                updateLanguage(newLang);
+            });
+        }
+
+        var mobileLangToggle = document.getElementById('mobileLangToggle');
+        if (mobileLangToggle) {
+            mobileLangToggle.addEventListener('click', function() {
+                var newLang = currentLang === 'zh' ? 'en' : 'zh';
+                updateLanguage(newLang);
+            });
+        }
+
+        // Progressive image loading: swap blurred thumb for full-res
+        document.querySelectorAll('.progressive-full, .comparison-full').forEach(function(img) {
+            if (img.complete) {
+                img.classList.add('loaded');
+            } else {
+                img.addEventListener('load', function() {
+                    img.classList.add('loaded');
+                });
+            }
+        });
+
+        // Apply default language on page load
+        updateLanguage(currentLang);
+    </script>
+</body>
+</html>

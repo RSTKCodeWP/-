@@ -1,0 +1,96 @@
+name: MSBuild
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  SOLUTION_FILE_PATH: .
+  BUILD_CONFIGURATION: Release
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Add MSBuild to PATH
+        uses: ilammy/msvc-dev-cmd@v1.4.1
+
+      - name: Set up cache for vcpkg/installed
+        id: cache-vcpkg
+        uses: actions/cache@v3
+        with:
+          path: vcpkg/installed
+          key: ${{ runner.os }}-vcpkg-${{ hashFiles('vcpkg/installed/**/*') }}
+          restore-keys: |
+            ${{ runner.os }}-vcpkg-
+
+      - name: Build
+        working-directory: ${{env.GITHUB_WORKSPACE}}
+        run: |
+          git submodule update --init
+          if (-Not (Test-Path -Path vcpkg )) { New-Item -ItemType Directory -Path vcpkg }
+          cd vcpkg
+          git init
+          git remote add origin https://github.com/microsoft/vcpkg.git
+          git fetch origin
+          git checkout -b master --track origin/master
+          git checkout b27651341123a59f7187b42ef2bc476284afb310
+          .\bootstrap-vcpkg.bat
+          .\vcpkg integrate install
+          .\vcpkg install libusb libpcap libsodium ffmpeg qt5 sdl2 vcpkg-tool-ninja
+          cd ..
+          cmake "-DCMAKE_TOOLCHAIN_FILE=D:/a/fpv4win/fpv4win/vcpkg/scripts/buildsystems/vcpkg.cmake" -S ./ -B "build"
+          cmake --build build --config Release --target fpv4win
+          cp gs.key build/Release/
+          Invoke-WebRequest -Uri https://github.com/pbatard/libwdi/releases/download/v1.5.0/zadig-2.8.exe -OutFile build/Release/zadig-2.8.exe
+          Invoke-WebRequest -Uri https://aka.ms/vs/17/release/vc_redist.x64.exe -OutFile build/Release/vcredist_x64.exe
+
+      - name: Upload Artifact
+        id: upload-artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fpv4win
+          path: build/Release/
+
+  release:
+    if: false
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - name: Download Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: fpv4win
+          path: build/Release/
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          body: |
+            Release for version ${{ github.ref }}
+          draft: false
+          prerelease: false
+
+      - name: Upload Release Asset
+        id: upload-release-asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./build/Release/*
+          asset_name: fpv4win-${{ github.ref }}.zip
+          asset_content_type: application/zip

@@ -1,0 +1,42 @@
+# Compiled Python scripts
+*.pyc
+
+# Development resources
+/.settings
+/.project
+/.pydevproject
+/RotorHazard.iml
+/.idea
+/.vscode
+/src/libraries
+
+# RH Database and backups
+*.db
+/src/server/db_bkp
+*.db-shm
+*.db-wal
+
+# Local system configuration
+/src/server/config*.json
+/src/tests/config*.json
+/src/server/cfg_bkp
+datapath.ini
+
+# Run logs
+logs
+
+# Specific folders
+venv
+.venv
+
+# User files, except the README
+/src/server/static/user/*
+!/src/server/static/user/README.md
+
+# User plugins folder
+/src/server/plugins/*
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride

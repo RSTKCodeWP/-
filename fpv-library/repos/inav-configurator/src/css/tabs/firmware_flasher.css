@@ -1,0 +1,725 @@
+.tab-firmware_flasher .info {
+    margin: 10px 0 0 0;
+    position: relative;
+}
+
+.tab-firmware_flasher .info .progressLabel {
+    position: absolute;
+    width: 100%;
+    height: 26px;
+    top: 0;
+    left: 0;
+    text-align: center;
+    line-height: 24px;
+    color: white;
+    font-weight: bold;
+
+    /* text-shadow: 1px 0px 2px rgba(0, 0, 0, 0.9);*/
+}
+
+.darkgrey {
+    background-color: #575757;
+}
+
+.tab-firmware_flasher .spacer_box_title {
+    float: none;
+}
+
+.tab-firmware_flasher .info {
+    float: left;
+    width: 100%;
+}
+
+.tab-firmware_flasher .info .progressLabel a {
+    color: white;
+}
+
+.tab-firmware_flasher .info .progressLabel a:hover {
+    text-decoration: underline;
+}
+
+.tab-firmware_flasher .info .progress {
+    width: 100%;
+    height: 26px;
+    border-radius: 5px;
+    border: 1px solid silver;
+}
+
+.tab-firmware_flasher .info .progress {
+    -webkit-appearance: none;
+}
+
+.tab-firmware_flasher .autoselect_description {
+    margin-left: 10px;
+    line-height: 25px;
+}
+
+/*noinspection ALL*/
+.tab-firmware_flasher .info .progress::-webkit-progress-bar {
+    background-color: #4f4f4f;
+    border-radius: 4px;
+    box-shadow: inset 0 0 5px #2f2f2f;
+}
+
+/*noinspection CssInvalidPseudoSelector*/
+.tab-firmware_flasher .info .progress::-webkit-progress-value {
+    background-color: #F86008;
+    border-radius: 4px;
+}
+
+.tab-firmware_flasher .info .progress.valid::-webkit-progress-bar {
+    background-color: #37a8db;
+    border-radius: 4px;
+}
+
+.tab-firmware_flasher .info .progress.valid::-webkit-progress-value {
+    background-color: #37a8db;
+    border-radius: 4px;
+}
+
+.tab-firmware_flasher .info .progress.invalid::-webkit-progress-bar {
+    background-color: #A62E32;
+    border-radius: 4px;
+}
+
+.tab-firmware_flasher .info .progress.invalid::-webkit-progress-value {
+    background-color: #A62E32;
+    border-radius: 4px;
+}
+
+.tab-firmware_flasher ul li {
+    list-style: circle;
+    margin-left: 30px;
+}
+
+.tab-firmware_flasher .options {
+    position: relative;
+    margin-bottom: 10px;
+    line-height: 18px;
+    text-align: left;
+}
+
+.tab-firmware_flasher td {
+    text-align: left;
+}
+
+.tab-firmware_flasher .options label input {
+    float: left;
+    margin-top: 2px;
+}
+
+.tab-firmware_flasher .options label span {
+    font-weight: bold;
+    margin-left: 6px;
+}
+
+.tab-firmware_flasher .options select {
+    width: 300px;
+    height: 20px;
+    border: 1px solid silver;
+}
+
+.tab-firmware_flasher .options .releases select {
+    width: 280px;
+}
+
+.tab-firmware_flasher .option.releases {
+    margin: 0 0 2px 0;
+    line-height: 20px;
+}
+
+.tab-firmware_flasher .options .description {
+    position: relative;
+    left: 0;
+    font-style: italic;
+    color: #818181;
+}
+
+.tab-firmware_flasher .cf_table td:last-child {
+    text-align: left;
+}
+
+.tab-firmware_flasher .options .flash_on_connect_wrapper {
+    display: none;
+}
+
+.tab-firmware_flasher .options .manual_baud_rate select {
+    width: 75px;
+    margin-left: 19px;
+}
+
+.tab-firmware_flasher .release_info {
+    display: none;
+}
+
+.tab-firmware_flasher .release_info .title {
+    line-height: 20px;
+    text-align: center;
+    font-weight: bold;
+    color: white;
+    border-bottom: 1px solid silver;
+    background-color: #3f4241;
+}
+
+.tab-firmware_flasher .release_info .target {
+    color: blue;
+}
+
+.tab-firmware_flasher .release_info p {
+    padding: 5px;
+}
+
+.tab-firmware_flasher .release_info p a {
+    font-weight: bold;
+}
+
+.tab-firmware_flasher .release_info p a:hover {
+    text-decoration: underline;
+}
+
+.tab-firmware_flasher .release_info .notes {
+    padding: 5px;
+}
+
+.tab-firmware_flasher .release_info .notes img {
+    max-width: 100%;
+}
+
+.tab-firmware_flasher .git_info {
+    display: none;
+    margin-bottom: 10px;
+    border: 1px solid silver;
+}
+
+.tab-firmware_flasher .git_info .title {
+    line-height: 20px;
+    text-align: center;
+    font-weight: bold;
+    color: white;
+    border-bottom: 1px solid silver;
+    background-color: #3f4241;
+}
+
+.tab-firmware_flasher .git_info p {
+    padding: 5px;
+}
+
+.tab-firmware_flasher .git_info p a {
+    font-weight: bold;
+}
+
+.tab-firmware_flasher .git_info p a:hover {
+    text-decoration: underline;
+}
+
+.tab-firmware_flasher .buttons {
+    width: calc(100% - 20px);
+    margin-top: 10px;
+    bottom: 10px;
+}
+
+.tab-firmware_flasher .buttons a {
+    display: block;
+    float: left;
+    margin: 0 10px 0 0;
+    padding: 0 15px 0 15px;
+    height: 28px;
+    line-height: 28px;
+    text-align: center;
+    font-weight: bold;
+    border: 1px solid silver;
+    background-color: #ececec;
+}
+
+.tab-firmware_flasher .buttons a:hover {
+    background-color: #dedcdc;
+}
+
+.tab-firmware_flasher .buttons a.flash_firmware.locked {
+    background-color: #b8b8b8;
+}
+
+.tab-firmware_flasher .buttons a.flash_firmware.locked:hover {
+    cursor: default;
+    background-color: #b8b8b8;
+}
+
+.tab-firmware_flasher .buttons a.load_remote_file.locked {
+    background-color: #b8b8b8;
+}
+
+.tab-firmware_flasher .buttons a.load_remote_file.locked:hover {
+    cursor: default;
+    background-color: #b8b8b8;
+}
+
+.tab-firmware_flasher .buttons .back {
+    float: right;
+    margin: 0;
+}
+
+.btn .disabled {
+    cursor: default;
+    color: #fff;
+    background-color: #AFAFAF;
+    border: none;
+    pointer-events: none;
+    text-shadow: none;
+    opacity: 0.5;
+}
+
+.tab-firmware_flasher .target_search {
+    padding-left: 3px;
+    width: 295px;
+    height: 20px;
+    line-height: 20px;
+    text-align: left;
+    border: 1px solid silver;
+    border-radius: 3px;
+    margin-bottom: 5px;
+    font-size: 12px;
+    font-weight: normal;
+}
+
+/* Version warning overlay: minor/major update without chip erase */
+#version-warning-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#version-warning-overlay.is-hidden {
+    display: none;
+}
+
+.version-warning-overlay__content {
+    background: #fff;
+    border-radius: 8px;
+    padding: 2em 3em;
+    min-width: 380px;
+    max-width: 560px;
+    text-align: center;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.version-warning-overlay__title {
+    font-size: 1.3em;
+    font-weight: bold;
+    margin-bottom: 1em;
+    color: #c00;
+}
+
+.version-warning-overlay__text {
+    font-size: 1em;
+    margin-bottom: 1.5em;
+    color: #555;
+    line-height: 1.6;
+}
+
+.version-warning-overlay__buttons {
+    display: flex;
+    justify-content: center;
+    gap: 1em;
+}
+
+.version-warning-overlay__btn {
+    padding: 0.7em 1.5em;
+    border-radius: 4px;
+    font-weight: bold;
+    font-size: 0.95em;
+    cursor: pointer;
+    text-decoration: none;
+    text-align: center;
+    transition: all ease 0.2s;
+}
+
+.version-warning-overlay__btn--continue {
+    background: #c00;
+    border: 1px solid #a00;
+    color: #fff;
+}
+
+.version-warning-overlay__btn--continue:hover {
+    background: #a00;
+}
+
+.version-warning-overlay__btn--cancel {
+    background: #37a8db;
+    border: 1px solid #3a9dbf;
+    color: #fff;
+    text-shadow: 0 1px rgba(0, 0, 0, 0.25);
+}
+
+.version-warning-overlay__btn--cancel:hover {
+    background: #3394b5;
+}
+
+/* Restore overlay: blocks entire tab during restore */
+#restore-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#restore-overlay.is-hidden {
+    display: none;
+}
+
+.restore-overlay__content {
+    background: #fff;
+    border-radius: 8px;
+    padding: 2em 3em;
+    min-width: 380px;
+    max-width: 500px;
+    text-align: center;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.restore-overlay__title {
+    font-size: 1.4em;
+    font-weight: bold;
+    margin-bottom: 1em;
+    color: #333;
+}
+
+.restore-overlay__status {
+    font-size: 1.1em;
+    margin-bottom: 1em;
+    color: #555;
+}
+
+.restore-overlay__progress-bar {
+    width: 100%;
+    height: 22px;
+    background: #4f4f4f;
+    border-radius: 4px;
+    overflow: hidden;
+    box-shadow: inset 0 0 5px #2f2f2f;
+}
+
+.restore-overlay__progress-fill {
+    height: 100%;
+    width: 0%;
+    background: #37a8db;
+    border-radius: 4px;
+    transition: width 0.15s ease;
+}
+
+.restore-overlay__progress-text {
+    margin-top: 0.5em;
+    font-size: 0.95em;
+    color: #777;
+}
+
+/* Confirm overlay: auto-restore prompt after flash */
+#restore-confirm-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#restore-confirm-overlay.is-hidden {
+    display: none;
+}
+
+.restore-confirm-overlay__content {
+    background: #fff;
+    border-radius: 8px;
+    padding: 2em 3em;
+    min-width: 380px;
+    max-width: 520px;
+    text-align: center;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.restore-confirm-overlay__title {
+    font-size: 1.2em;
+    font-weight: bold;
+    margin-bottom: 1em;
+    color: #333;
+    line-height: 1.5;
+}
+
+.restore-confirm-overlay__status {
+    font-size: 1em;
+    margin-bottom: 1em;
+    color: #555;
+}
+
+.restore-confirm-overlay__status:empty {
+    display: none;
+}
+
+.restore-confirm-overlay__buttons {
+    display: flex;
+    justify-content: center;
+    gap: 1em;
+    margin-top: 1.5em;
+}
+
+.restore-confirm-overlay__btn {
+    padding: 0.7em 1.5em;
+    border-radius: 4px;
+    font-weight: bold;
+    font-size: 0.95em;
+    cursor: pointer;
+    text-decoration: none;
+    text-align: center;
+    transition: all ease 0.2s;
+}
+
+.restore-confirm-overlay__btn--no {
+    background: #fff;
+    border: 1px solid #888;
+    color: #555;
+}
+
+.restore-confirm-overlay__btn--no:hover {
+    background: #eee;
+    color: #333;
+}
+
+.restore-confirm-overlay__btn--yes {
+    background: #37a8db;
+    border: 1px solid #3a9dbf;
+    color: #fff;
+    text-shadow: 0 1px rgba(0, 0, 0, 0.25);
+}
+
+.restore-confirm-overlay__btn--yes:hover {
+    background: #3394b5;
+}
+
+/* Error dialog overlay after restore */
+#restore-error-dialog {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 10001;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#restore-error-dialog.is-hidden {
+    display: none;
+}
+
+.restore-error-dialog__content {
+    background: #fff;
+    border-radius: 8px;
+    padding: 2em;
+    min-width: 400px;
+    max-width: 600px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.restore-error-dialog__title {
+    font-size: 1.3em;
+    font-weight: bold;
+    color: darkred;
+    margin-bottom: 0.8em;
+}
+
+.restore-error-dialog__text {
+    font-size: 1em;
+    color: #555;
+    margin-bottom: 1em;
+    line-height: 1.5;
+}
+
+.restore-error-dialog__errors {
+    max-height: 200px;
+    overflow-y: auto;
+    background: #f5f5f5;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 0.8em;
+    margin-bottom: 1.5em;
+    font-family: monospace;
+    font-size: 0.85em;
+    line-height: 1.6;
+    color: #c00;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.restore-error-dialog__buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 1em;
+}
+
+.restore-error-dialog__btn {
+    padding: 0.7em 1.5em;
+    border-radius: 4px;
+    font-weight: bold;
+    font-size: 0.95em;
+    cursor: pointer;
+    text-decoration: none;
+    text-align: center;
+    transition: all ease 0.2s;
+}
+
+.restore-error-dialog__btn--abort {
+    background: #fff;
+    border: 1px solid #c00;
+    color: #c00;
+}
+
+.restore-error-dialog__btn--abort:hover {
+    background: #c00;
+    color: #fff;
+}
+
+.restore-error-dialog__btn--save {
+    background: #37a8db;
+    border: 1px solid #3a9dbf;
+    color: #fff;
+    text-shadow: 0 1px rgba(0, 0, 0, 0.25);
+}
+
+.restore-error-dialog__btn--save:hover {
+    background: #3394b5;
+}
+
+/* Migration preview overlay: shown before restore when migration is needed */
+#migration-preview-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#migration-preview-overlay.is-hidden {
+    display: none;
+}
+
+.migration-preview__content {
+    background: #fff;
+    border-radius: 8px;
+    padding: 2em;
+    min-width: 420px;
+    max-width: 640px;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.migration-preview__title {
+    font-size: 1.3em;
+    font-weight: bold;
+    margin-bottom: 0.5em;
+    color: #333;
+}
+
+.migration-preview__subtitle {
+    font-size: 1em;
+    margin-bottom: 1.2em;
+    color: #555;
+}
+
+.migration-preview__changes {
+    max-height: 300px;
+    overflow-y: auto;
+    background: #f9f9f9;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 0.8em;
+    margin-bottom: 1em;
+    font-family: monospace;
+    font-size: 0.85em;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.migration-preview__changes:empty {
+    display: none;
+}
+
+.migration-preview__warnings {
+    background: #fff8e1;
+    border: 1px solid #ffe082;
+    border-radius: 4px;
+    padding: 0.8em;
+    margin-bottom: 1.5em;
+    font-size: 0.9em;
+    line-height: 1.6;
+    color: #795548;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.migration-preview__warnings:empty {
+    display: none;
+}
+
+.migration-preview__buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 1em;
+}
+
+.migration-preview__btn {
+    padding: 0.7em 1.5em;
+    border-radius: 4px;
+    font-weight: bold;
+    font-size: 0.95em;
+    cursor: pointer;
+    text-decoration: none;
+    text-align: center;
+    transition: all ease 0.2s;
+}
+
+.migration-preview__btn--cancel {
+    background: #fff;
+    border: 1px solid #888;
+    color: #555;
+}
+
+.migration-preview__btn--cancel:hover {
+    background: #eee;
+    color: #333;
+}
+
+.migration-preview__btn--continue {
+    background: #37a8db;
+    border: 1px solid #3a9dbf;
+    color: #fff;
+    text-shadow: 0 1px rgba(0, 0, 0, 0.25);
+}
+
+.migration-preview__btn--continue:hover {
+    background: #3394b5;
+}

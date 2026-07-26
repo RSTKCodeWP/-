@@ -1,0 +1,185 @@
+defaults nosave
+
+# diff all
+
+# version
+# Betaflight / STM32F411 (S411) 4.4.2 Jun  1 2023 / 04:11:35 (23d066d08) MSP API: 1.45
+
+# config: YES
+
+# start the command batch
+batch start
+
+# reset configuration to default settings
+defaults nosave
+
+board_name CRAZYBEEF4DX
+manufacturer_id HAMO
+mcu_id 003300564831500c20393153
+signature 
+
+# name: M6 ECO
+
+# feature
+feature -AIRMODE
+
+# serial
+serial 0 131073 115200 57600 0 115200
+
+# map
+map AETR1234
+
+# aux
+aux 0 0 0 900 1450 0 0
+aux 1 1 1 1700 2100 0 0
+aux 2 13 2 1700 2075 0 0
+aux 3 28 1 900 1200 0 0
+aux 4 35 1 1200 1700 0 0
+aux 5 39 3 1200 2100 0 0
+
+# adjrange
+adjrange 0 0 4 900 2100 12 4 0 0
+
+# vtxtable
+vtxtable bands 6
+vtxtable channels 8
+vtxtable band 1 BOSCAM_A A CUSTOM     0    0    0    0    0    0    0    0
+vtxtable band 2 BOSCAM_B B CUSTOM     0    0    0    0    0    0    0    0
+vtxtable band 3 BOSCAM_E E CUSTOM  5705    0    0    0    0    0    0    0
+vtxtable band 4 FATSHARK F CUSTOM  5740 5760    0 5800    0    0    0    0
+vtxtable band 5 RACEBAND R CUSTOM  5658 5695 5732 5769 5806 5843 5880 5917
+vtxtable band 6 LOWBAND  L CUSTOM     0    0    0    0    0    0    0    0
+vtxtable powerlevels 3
+vtxtable powervalues 14 23 0
+vtxtable powerlabels 25 200 0
+
+# master
+set gyro_lpf1_static_hz = 0
+set dyn_notch_count = 0
+set dyn_notch_q = 450
+set gyro_lpf1_dyn_min_hz = 0
+set acc_lpf_hz = 10
+set acc_calibration = -46,73,27,1
+set dshot_idle_value = 600
+set dshot_bidir = ON
+set motor_pwm_protocol = DSHOT300
+set motor_poles = 12
+set vbat_max_cell_voltage = 440
+set vbat_min_cell_voltage = 310
+set vbat_warning_cell_voltage = 330
+set ibata_scale = 470
+set yaw_motors_reversed = ON
+set small_angle = 180
+set report_cell_voltage = ON
+set osd_tim2 = 2563
+set osd_vbat_pos = 2433
+set osd_rssi_pos = 33
+set osd_link_quality_pos = 2102
+set osd_rssi_dbm_pos = 3107
+set osd_tim_1_pos = 3244
+set osd_tim_2_pos = 3276
+set osd_flymode_pos = 2589
+set osd_g_force_pos = 65
+set osd_throttle_pos = 1483
+set osd_vtx_channel_pos = 2081
+set osd_current_pos = 480
+set osd_mah_drawn_pos = 449
+set osd_craft_name_pos = 2574
+set osd_pilot_name_pos = 2561
+set osd_warnings_pos = 2541
+set osd_avg_cell_voltage_pos = 2465
+set osd_disarmed_pos = 2558
+set osd_esc_rpm_pos = 161
+set osd_core_temp_pos = 280
+set osd_rate_profile_name_pos = 2273
+set osd_stat_bitmask = 14126
+set osd_displayport_device = MSP
+set osd_canvas_width = 50
+set osd_canvas_height = 18
+set debug_mode = GYRO_RAW
+set rate_6pos_switch = ON
+set vtx_band = 5
+set vtx_channel = 8
+set vtx_power = 1
+set vtx_freq = 5917
+set vcd_video_system = HD
+set gyro_1_sensor_align = CW0
+set craft_name = M6 ECO
+set pilot_name = papfpv
+
+profile 0
+
+# profile 0
+set crash_recovery = ON
+set iterm_relax_cutoff = 20
+set p_pitch = 71
+set i_pitch = 63
+set d_pitch = 67
+set f_pitch = 249
+set p_roll = 68
+set i_roll = 60
+set d_roll = 62
+set f_roll = 239
+set p_yaw = 68
+set i_yaw = 60
+set f_yaw = 239
+set angle_level_strength = 60
+set level_limit = 60
+set d_min_roll = 62
+set d_min_pitch = 67
+set d_max_advance = 0
+set feedforward_averaging = 2_POINT
+set feedforward_smooth_factor = 35
+set feedforward_jitter_factor = 4
+set feedforward_boost = 18
+set feedforward_max_rate_limit = 95
+set dyn_idle_min_rpm = 50
+set simplified_master_multiplier = 105
+set simplified_i_gain = 50
+set simplified_d_gain = 200
+set simplified_pi_gain = 145
+set simplified_dmax_gain = 0
+set simplified_feedforward_gain = 190
+set simplified_pitch_d_gain = 95
+set tpa_breakpoint = 1250
+
+profile 1
+
+profile 2
+
+profile 3
+
+# restore original profile selection
+profile 0
+
+rateprofile 0
+
+# rateprofile 0
+set rateprofile_name = R_Angle
+
+rateprofile 1
+
+# rateprofile 1
+set rateprofile_name = R_Acro
+set thr_mid = 100
+set thr_expo = 30
+set roll_rc_rate = 20
+set pitch_rc_rate = 20
+set yaw_rc_rate = 20
+set roll_expo = 50
+set pitch_expo = 50
+set yaw_expo = 25
+set roll_srate = 50
+set pitch_srate = 50
+set yaw_srate = 50
+set throttle_limit_type = SCALE
+set throttle_limit_percent = 90
+
+rateprofile 2
+
+rateprofile 3
+
+# restore original rateprofile selection
+rateprofile 0
+
+# save configuration

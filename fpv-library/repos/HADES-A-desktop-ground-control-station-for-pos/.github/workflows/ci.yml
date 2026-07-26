@@ -1,0 +1,83 @@
+name: CI
+
+# NOTE: This project does not commit/push during development (no-commit rule),
+# so CI will not actually trigger yet. The file is authored now so it is ready
+# when commits resume. During development the real per-phase gate is running the
+# test commands locally (`uv run pytest`, `uv run ruff check`, `pnpm test`).
+#
+# CI is CPU-only: there is no Apple Neural Engine / Core ML / GPU on GitHub
+# runners, so ANE-dependent tests are marked `@pytest.mark.ane` and excluded
+# here. The deterministic CPU path (ONNX Runtime, built in Phase 2.4) is what
+# CI exercises for detection.
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  service:
+    name: Python service (pytest + ruff, CPU-only)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: service
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install
+
+      - name: Sync dependencies
+        run: uv sync --frozen
+
+      - name: Lint (ruff)
+        run: uv run ruff check
+
+      - name: Test (pytest, exclude ANE)
+        run: uv run pytest -m "not ane"
+
+  ui:
+    name: UI shell (Playwright, Electron headless)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ui
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Enable pnpm
+        run: corepack enable
+
+      - name: Install dependencies
+        # Electron + esbuild need their postinstall scripts (allowlisted in
+        # pnpm-workspace.yaml) to fetch native binaries.
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Electron system libraries
+        # _electron.launch() runs the project's own Electron binary, which on a
+        # bare Ubuntu 24.04 runner aborts without these shared libs. xvfb alone
+        # (next step) only supplies a virtual display, not these dependencies.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libnss3 libatk1.0-0t64 libatk-bridge2.0-0t64 libcups2t64 \
+            libgbm1 libasound2t64 libgtk-3-0t64 libxshmfence1 libdrm2 \
+            libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libpango-1.0-0
+
+      - name: Test (Playwright over built Electron app)
+        # Electron needs a display on Linux runners; xvfb provides a virtual one.
+        run: xvfb-run --auto-servernum pnpm test

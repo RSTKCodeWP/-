@@ -1,0 +1,205 @@
+"use client";
+
+import Link from "next/link";
+import { useState } from "react";
+import { LayoutDashboard, LogIn, LogOut, UserRound } from "lucide-react";
+import AccountDialog from "@/components/dialogs/AccountDialog";
+import UserAvatar from "@/components/UserAvatar";
+import { Button, buttonVariants } from "@/components/ui/button";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { authClient } from "@/lib/auth-client";
+import { cn } from "@/lib/utils";
+import { useTranslations } from "next-intl";
+
+function canAccessDashboard(user: unknown): boolean {
+  return (
+    typeof user === "object" &&
+    user !== null &&
+    "role" in user &&
+    (user.role === "admin" || user.role === "moderator")
+  );
+}
+
+type UserLike =
+  { email?: string | null; name?: string | null } | null | undefined;
+
+function getUserDisplayName(user: UserLike, signedInLabel: string) {
+  return user?.name?.trim() || user?.email?.trim() || signedInLabel;
+}
+
+function getUserSecondaryLabel(
+  user: UserLike,
+  labels: { trackdrawAccount: string; noDisplayName: string; signedIn: string }
+) {
+  if (user?.name?.trim() && user.email?.trim()) return labels.trackdrawAccount;
+  if (!user?.name?.trim() && user?.email?.trim()) return labels.noDisplayName;
+  return labels.signedIn;
+}
+
+const accountMenuItemClassName =
+  "text-muted-foreground hover:text-foreground hover:bg-muted flex h-9 w-full cursor-pointer items-center gap-2.5 rounded-lg px-2.5 text-left text-[13px] transition-colors";
+
+interface AccountMenuProps {
+  collapsed?: boolean;
+}
+
+export default function AccountMenu({ collapsed = false }: AccountMenuProps) {
+  const t = useTranslations("editor");
+  const { data, isPending } = authClient.useSession();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+  const user = data?.user;
+
+  const handleSignOut = async () => {
+    setSigningOut(true);
+
+    try {
+      await authClient.signOut({
+        fetchOptions: {
+          onSuccess: () => {
+            window.location.href = "/studio";
+          },
+        },
+      });
+    } finally {
+      setSigningOut(false);
+    }
+  };
+
+  if (isPending) {
+    return (
+      <span className="text-muted-foreground block px-3 pb-1 text-xs">
+        {t("accountMenu.checkingAuth")}
+      </span>
+    );
+  }
+
+  if (!user) {
+    return (
+      <Link
+        href="/login"
+        className={cn(
+          buttonVariants({ variant: "ghost", size: "sm" }),
+          collapsed
+            ? "text-sidebar-foreground/65 hover:border-border/80 hover:bg-muted hover:text-foreground flex h-9 w-full items-center justify-center rounded-xl border border-transparent transition-colors"
+            : "text-sidebar-foreground/75 hover:border-border/80 hover:bg-muted hover:text-foreground flex h-9 w-full items-center gap-2.5 rounded-xl border border-transparent px-2.5 text-[13px] transition-all duration-200"
+        )}
+      >
+        <span className="flex size-4 shrink-0 items-center justify-center">
+          <LogIn className="size-3.5" />
+        </span>
+        {!collapsed && <span>{t("accountMenu.signIn")}</span>}
+      </Link>
+    );
+  }
+
+  return (
+    <Popover open={menuOpen} onOpenChange={setMenuOpen}>
+      <PopoverTrigger
+        className={cn(
+          buttonVariants({ variant: "ghost", size: "sm" }),
+          collapsed
+            ? "text-sidebar-foreground/65 hover:bg-muted hover:text-foreground flex h-9 w-full cursor-pointer items-center justify-center rounded-xl px-0 transition-colors"
+            : "text-sidebar-foreground/80 hover:bg-muted hover:text-foreground flex h-10 w-full cursor-pointer items-center gap-2.5 rounded-xl px-2.5 text-[13px] transition-colors"
+        )}
+      >
+        <UserAvatar
+          name={user?.name}
+          email={user?.email}
+          className="size-6 text-[10px]"
+        />
+        {!collapsed && (
+          <span className="min-w-0 flex-1 text-left">
+            <span className="text-foreground block truncate text-[12px] font-medium">
+              {getUserDisplayName(user, t("accountMenu.signedIn"))}
+            </span>
+            <span className="text-muted-foreground block truncate pt-0.5 text-[10px]">
+              {getUserSecondaryLabel(user, {
+                trackdrawAccount: t("accountMenu.trackdrawAccount"),
+                noDisplayName: t("accountMenu.noDisplayName"),
+                signedIn: t("accountMenu.signedIn"),
+              })}
+            </span>
+          </span>
+        )}
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        side="top"
+        sideOffset={10}
+        alignOffset={8}
+        className="border-border/70 bg-popover w-68 gap-0 rounded-2xl border p-0 shadow-[0_18px_48px_rgba(15,23,42,0.16)]"
+      >
+        <div className="bg-muted/20 px-3 py-3">
+          <div className="flex items-center gap-3 rounded-xl px-1">
+            <UserAvatar
+              name={user?.name}
+              email={user?.email}
+              className="size-8 text-xs"
+            />
+            <div className="min-w-0 flex-1 text-left">
+              <p className="text-foreground truncate text-[12px] font-medium">
+                {getUserDisplayName(user, t("accountMenu.signedIn"))}
+              </p>
+              <p className="text-muted-foreground truncate pt-0.5 text-[11px]">
+                {user?.email ?? t("accountMenu.trackdrawAccount")}
+              </p>
+            </div>
+          </div>
+        </div>
+        <div className="p-1.5">
+          <button
+            type="button"
+            onClick={() => {
+              setMenuOpen(false);
+              window.setTimeout(() => {
+                setAccountOpen(true);
+              }, 0);
+            }}
+            className={accountMenuItemClassName}
+          >
+            <span className="text-muted-foreground flex size-4 shrink-0 items-center justify-center">
+              <UserRound className="size-4" />
+            </span>
+            <span className="flex-1">{t("accountMenu.profile")}</span>
+          </button>
+          {canAccessDashboard(user) ? (
+            <Link
+              href="/dashboard"
+              onClick={() => setMenuOpen(false)}
+              className={accountMenuItemClassName}
+            >
+              <span className="text-muted-foreground flex size-4 shrink-0 items-center justify-center">
+                <LayoutDashboard className="size-4" />
+              </span>
+              <span className="flex-1">{t("accountMenu.dashboard")}</span>
+            </Link>
+          ) : null}
+        </div>
+        <div className="border-border/60 border-t p-1.5">
+          <Button
+            type="button"
+            onClick={handleSignOut}
+            disabled={signingOut}
+            variant="ghost"
+            size="sm"
+            className={cn(accountMenuItemClassName, "justify-start")}
+          >
+            <LogOut className="size-4" />
+            <span>
+              {signingOut
+                ? t("accountMenu.signingOut")
+                : t("accountMenu.signOut")}
+            </span>
+          </Button>
+        </div>
+      </PopoverContent>
+      <AccountDialog open={accountOpen} onOpenChange={setAccountOpen} />
+    </Popover>
+  );
+}

@@ -1,0 +1,110 @@
+@import url("https://fonts.googleapis.com/css2?family=Teko:wght@300;400;500;600;700&family=Rajdhani:wght@600;700&family=Oxanium:wght@600;700&display=swap");
+
+:root {
+  --topbar-height: 100px;
+  --topbar-background-color: #111;
+}
+
+body {
+  background: grey;
+  margin: 0;
+}
+
+.item {
+  position: absolute;
+}
+
+/* Styling for the info part */
+#info-row {
+  width: 100%;
+  height: var(--topbar-height);
+  background: var(--topbar-background-color);
+  border-radius: 25px 0 25px 0;
+
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+#info-row > div {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#heat-info {
+  font-family: "Teko", sans-serif;
+  font-weight: bold;
+  color: white;
+  font-size: 3rem; /* Adjust the font size as needed */
+
+  justify-content: center;
+}
+
+.topbar-heat-content {
+  margin-left: 250px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.separator {
+  margin: 0 10px;
+}
+
+#timer {
+  top: 0;
+  left: 0;
+  width: 250px;
+  height: var(--topbar-height);
+  border-radius: 25px 0 25px 0;
+}
+
+.timing-clock {
+  background-color: white;
+  color: black;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "Oxanium", "Teko", sans-serif;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1, "lnum" 1;
+  font-kerning: none;
+  font-variant-ligatures: none;
+}
+
+.time-display {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: 3.3rem;
+  margin: 0;
+  margin-top: 4px;
+  width: 8ch;
+
+  font-family: "Oxanium", "Teko", sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.015em;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1, "lnum" 1;
+  font-kerning: none;
+  font-variant-ligatures: none;
+}
+
+.race-running .timing-clock {
+  color: white;
+  background-color: hsl(92.7, 67.8%, 29.2%);
+}
+
+.race-stopped .timing-clock {
+  color: white;
+  background-color: #cd360c;
+}
+
+.timing-clock.staging {
+  background-color: orange;
+  color: black;
+}

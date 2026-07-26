@@ -1,0 +1,4011 @@
+# History
+
+## [0.51.1] - 2026-07-24
+
+Detector hardening follow-ups from the v0.51.0 upstream review — four
+defensive fixes, no behavioural change on the normal path.
+
+- **Idempotent `libmi_sys` load** (`star6e_ipu_yolo.c`) — the detector opened
+  `libmi_sys.so` on every start and never closed it, so each SIGHUP reinit with
+  `detect.enabled` bumped the dlopen refcount unboundedly. The handle is now
+  cached in a file-static and opened once for the run.
+- **Float→pixel clamp before the cast** (`star6e_runtime.c`) — the debug-OSD box
+  path clamped only the low side before the `float`→`uint32_t` conversion, so a
+  huge/`inf`/`NaN` edge from an out-of-contract plugin hit implementation-defined
+  UB before the high clamp ran. New `osd_box_px()` helper does the full range
+  clamp (negatives, `inf`, `NaN` → in-range) in float, then casts.
+- **NaN-safe wire quantization** (`detect_wire.c`) — `norm_coord()` / `score_u8()`
+  used `<=0` / `>=1` guards that a `NaN` slips through (all comparisons false),
+  reaching an implementation-defined cast. Reordered to `!(x > 0)` so `NaN` maps
+  to 0. Adds four `test_detect_wire` cases (negative / huge / `inf` / `NaN`
+  coords and scores) asserting the wire output stays in range.
+- **ipu_probe overflow guard** (`tools/ipu_probe.c`, dev-only) — the tensor
+  element count is now checked against `size_t` multiply overflow and the
+  source `aligned_buf_size` before `malloc`/dequant, so a malformed `.img` fed
+  to the bring-up tool can no longer short-allocate or over-read.
+- `make test-werror` / `test-asan` **2078/0**; cross-build clean both backends;
+  `ipu-probe` clean under `-Wall -Wextra`.
+
+## [0.51.0] - 2026-07-24
+
+Detector tuning surface: expose the confidence/NMS thresholds, the tap
+geometry, and the wire `model_id` as config (#191). These rode into the fork
+under the 0.50.0 tag without their own bump; versioned here so the config is
+documented and the version uniquely identifies the build.
+
+- **`detect.confThresh` / `detect.nmsIou`** now reach the plugin. The plugin
+  ABI has carried these since the boundary landed, but the host passed zeros so
+  every backend ran on its built-in `0.40` / `0.45`. `0.40` is too high for the
+  small-object workload — INT8 quantization costs ~30% of the FP32 score on
+  small objects — and the ground tracker confirms weak detections over time, so
+  running the detector at ~`0.20` and letting the tracker's 2-hit confirmation
+  reject noise is the intended architecture. `<=0` = plugin default.
+- **`detect.netWidth` / `detect.netHeight`** replace the hardcoded `640x352`
+  VPE port1 tap. That geometry was inherited from the collaborator's VisDrone
+  model, not chosen for this sensor, and is the single largest constraint on
+  small-object recall. Validated at start: both dims must be multiples of 32
+  (the head strides 8/16/32) and must match the compiled `.img` (the backend
+  already rejects a mismatched frame). `0` -> `640` / `352`.
+- **`detect.modelId`** puts a configurable class-table selector on the DETECT
+  sidecar trailer (see `documentation/RTP_SIDECAR_PROTOCOL.md`). It was
+  hardcoded to VisDrone, so a one-class SAR-person model announced itself as
+  VisDrone-10 and every box came out labelled "pedestrian". `model_id` cannot
+  be derived — the plugin loads whatever `.img` `detect.modelPath` names — so it
+  is operator config, registered alongside `netWidth`/`netHeight`. The host now
+  calls the plugin's `describe()` hook at start and warns when the reported
+  class count contradicts the configured id; unknown ids skip the check (a
+  private `model_id` is legitimate).
+- All new members appended at the END of `VencConfigDetect` — the config ABI is
+  append-only (SigmaStar ISP bin loading breaks if `VencConfig`'s layout
+  shifts). Host tests **2074/0**; cross-build clean both backends.
+- **Docs**: adds `documentation/RTP_SIDECAR_PROTOCOL.md` — a self-contained
+  in-tree spec for the RTP sidecar wire format (FRAME base, trailer ordering,
+  ENC_INFO/TRANSPORT_INFO/ATTITUDE/DETECT, and the `model_id` registry),
+  tracking the canonical `include/rtp_sidecar.h`.
+
+## [0.50.0] - 2026-07-23
+
+Volatile config writes: `GET /api/v1/live/set`.
+
+- **New endpoint `/api/v1/live/set`** — `/set`'s field surface applied to the
+  running config only, no write to `/etc/waybeam.json`.  Built for
+  high-cadence automated writers (waybeam-link adaptive bitrate / frame-cap /
+  fps actuation, waybeam-link spec Pass 73): persist-on-set at controller
+  cadence wears flash and reboots into the last adaptive transient.
+- Live (MUT_LIVE) fields only; restart-required fields answer `400`
+  ("restart-class field requires persistence; use /api/v1/set") because a
+  pipeline reinit reloads from disk and would silently discard the value.
+  Response shapes are byte-identical to `/set`; single- and multi-set both
+  supported.
+- A later persisting `/set` / `/defaults` snapshots the whole running config,
+  volatile changes included (one config struct, by design).
+- Builds without the endpoint 404 — clients probe once and fall back to the
+  persisting `/set` (waybeam-link does exactly this).
+- Contract version 0.12.1 -> 0.13.0 (non-breaking endpoint addition).
+
+## [0.49.0] - 2026-07-19
+
+WebUI exposure for the per-frame size caps.
+
+- **`video0.maxIBytes` / `video0.maxPBytes` in the dashboard** — the 0.45.0
+  frame-size caps were API-only; they now carry data-driven UI metadata
+  (`FIELD_UI`) and render as a "Frame size caps" group from
+  `/api/v1/capabilities`. No dashboard.html change — the group comes entirely
+  from the capabilities feed, tooltips included (cap semantics, the
+  framebits-first/bitrate-first RC-priority flip, IDR-on-apply).
+
+## [0.48.0] - 2026-07-19
+
+Star6E NPU object detection (#183): pluggable object detection on the idle
+IPU, results streamed as sidecar metadata and drawn on the debug OSD.
+
+- **Detector plugin boundary** (`include/detect_plugin.h`): the host owns the
+  VPE port1 tap (model-input-size NV12, drop-not-block), the reader thread,
+  config, and the carriers; a dlopen'd plugin `.so` (`detect.plugin`) owns the
+  IPU device and the decode and returns `DetectBox[]`.  New model = config
+  change, no venc rebuild; all model-specific code (models, decode, class
+  tables, usage docs) lives with the plugin, out of this repo.
+- **RTP sidecar DETECT trailer** (flag 0x10, appended last): per-frame
+  detection metadata — 16 B header (model_id, schema_ver, count, detect_seq,
+  payload_len, age_ms) + TLV body with normalized-u16 BOX records.  Attached
+  every frame while a subscriber is present, for RF-loss resilience.  The
+  sidecar send path was rebuilt around a 512 B datagram buffer with
+  flag-ordered variable trailers (spec: coordination `protocols/rtp-sidecar.md`).
+- **Debug-OSD box rendering** (`detect.osd`, needs `debug.showOsd`): the
+  encode-thread OSD pass scales the published snapshot onto the canvas and
+  draws palette-colored rects per class plus a `det N` row; snapshots older
+  than 700 ms are not drawn.
+- Reader publishes a mutex double-buffered snapshot (<= 64 boxes) consumed by
+  both the sidecar and the OSD; lock held only for the copy, never across an
+  IPU invoke.  Detection is best-effort — any bring-up failure logs and the
+  stream continues without it.  `detect` config block is trailing/append-only;
+  detect and `framing=stab` are mutually exclusive (both claim VPE port1).
+- WebUI: new **Detection** dashboard section exposing the `detect.*` config
+  fields (enabled, plugin, modelPath, firmwarePath, inferInterval, osd).
+- New host tests: `tests/test_detect_wire.c` (39 cases) for the trailer
+  builder; sidecar send-path call sites updated.
+
+
+## [0.47.0] - 2026-07-18
+
+Retire the Star6E `aeEngine=custom` userspace AE and remove the `custom` value
+entirely (mirrors Maruko's 0.22.0 move).
+
+- **`aeEngine=custom` is removed.**  The `cus3a` thread never did AE convergence —
+  the ISP firmware/bin AE always drives it, in both engine modes.  Since 0.46.0
+  made the thread enforce gain/shutter limits under `sdk` too, the only thing
+  `custom` still did was run the fps-derived shutter cap and the cold-boot fps
+  kick from the thread instead of the pipeline.  Star6E now always runs the single
+  limits-only enforcer beside the firmware AE.  `isp.aeEngine` accepts only `sdk`;
+  any other value (including a stale `custom` in an old config) warns and falls
+  back to `sdk`, so existing configs still load.
+- Behaviour for the default (`sdk`) path is unchanged: convergence, cold-boot fps
+  recovery (pipeline `cap_exposure_for_fps` + `MI_SNR_SetFps` kicks, now
+  unconditional), and gain/shutter min/max enforcement all behave exactly as in
+  0.46.0.  The retirement does **not** adopt custom's continuous fps-derived
+  shutter cap — the pipeline already caps at init and on bin reload.
+- Removed the now-dead custom-only internals from `star6e_cus3a` (the
+  `limits_only`/`sensor_fps` config fields, the `MI_SNR_SetFps` symbol + the
+  frame-15 cold-boot kick, and `compute_max_shutter`'s fps fallback) and made the
+  pipeline's three cold-boot `SetFps` kicks unconditional.  `start_custom_ae` →
+  `start_ae_enforcer`, `star6e_pipeline_legacy_fps_rekick` →
+  `star6e_pipeline_cold_boot_fps_rekick`.
+- Dropped the vestigial `VencConfigIsp::legacy_ae` / `ae_mode` derived fields, the
+  `MarukoConfig::ae_mode` mirror, and both backends' retirement-NOTE branches —
+  `custom` no longer exists to record.
+- `make verify` clean both backends; `test-werror` + `test-asan` **1979/0**.
+  Device-verified on `.201` (IMX335): `sdk` enforcer clamps the live firmware AE
+  (gainMax 5000→gain 5000, revert→30000); cold-boot fps holds 60.  `.201`
+  restored to its 0.45.0 baseline.
+
+## [0.46.0] - 2026-07-18
+
+Manual minimum exposure / gain floors for the supervisory AE.
+
+- **New `isp.gainMin` / `isp.shutterMinUs` live controls** — set an explicit
+  minimum sensor gain and minimum exposure (µs) floor for the 3A, completing
+  the manual min/max envelope alongside the existing `isp.gainMax` /
+  `isp.shutterMaxUs` ceilings.  Both default `0` = "use the ISP bin's
+  calibrated floor" (no override).
+- The supervisory cus3a thread writes the floors into `minSensorGain` /
+  `minShutterUs` of the ISP exposure limit on startup and re-enforces them
+  each tick.  Each floor is clamped so it can never exceed its ceiling, and
+  `isp.shutterRule180` (which pins `min==max`) takes precedence over a manual
+  `shutterMin`.  Setting a floor back to `0` restores the ISP bin's calibrated
+  floor (the thread captures `minSensorGain`/`minShutterUs` from the bin at
+  startup and falls back to it, mirroring the ceiling's `bin_max_*` fallback).
+  `MUT_LIVE`, both Star6E and Maruko backends.  Device-verified on `.201`
+  (IMX335) and `.233` (IMX415): floors apply, clamp to ceiling, pin overrides
+  shutter floor, and `0` restores the bin default.
+- **Star6E: the supervisory thread now runs as a limits-only enforcer under the
+  SDK firmware AE too** (`aeEngine=sdk`), so `gainMin/Max` + `shutterMin/Max`
+  work without switching to the custom AE (Maruko already enforced in both
+  modes).  The thread starts whenever `aeFps>0`; in `sdk`/`legacy_ae` it sets
+  `limits_only` — it enforces only explicit user gain/shutter min/max (with the
+  bin baseline restored on `0`) and skips the fps-derived shutter cap and the
+  cold-boot fps kick, which the pipeline already owns in legacy mode.
+  Device-verified on `.201` in `sdk`: all four knobs apply and fully revert, and
+  a binding `gainMax` genuinely clamps the live firmware AE (long gain 20129 →
+  5000 → 3000, luma tracks; recovers on revert) — the AE stays converged.
+- camelCase aliases `isp.gainMin` / `isp.shutterMinUs`; added to the config
+  schema, pretty-printer, JSON export, default configs, and HTTP API contract.
+
+## [0.45.0] - 2026-07-18
+
+Live per-frame I/P frame-size caps (MaxISize/MaxPSize) with RC priority.
+
+- **New `video0.maxIBytes` / `video0.maxPBytes` live controls** — cap the
+  per-frame encoded I-frame and P-frame size via the MI_VENC RC params
+  `u32MaxISize` / `u32MaxPSize`. `MUT_LIVE`, applied atomically as a group;
+  0 = unlimited (default).
+- **RC priority switch** — when either cap is > 0, RC priority is set to
+  `FRAMEBITS_FIRST` so the encoder treats the size cap as a hard ceiling;
+  when both return to 0, `BITRATE_FIRST` is restored. An IDR is requested
+  after each apply.
+- **Dual-backend parity** — Star6E (2-arg `MI_VENC_SetRcPriority`) and
+  Maruko (3-arg with VeDev), both loaded as optional dlsym symbols
+  (NULL-safe). Mode-aware `GetRcParam` → set the correct RC union member
+  (H265/H264 × CBR/VBR/AVBR) → `SetRcParam` → `SetRcPriority`.
+- **`SetRcPriority` takes a POINTER to the enum** — `MI_VENC_SetRcPriority`'s
+  last arg is `MI_VENC_RcPriority_e *peRcPriority`, not the value (verified
+  against the i6e/i6c SDK headers). The initial implementation passed the
+  enum value, so the SDK dereferenced `0x2` as a pointer and faulted the
+  encoder pipeline (SCL teardown + "Sensor abnormal"). Both backends now
+  pass the address of a temporary. Device-verified: Star6E .201 (P-cap 5619→
+  1868 kbps at maxPBytes=2000, no crash) and Maruko .233 (priority=framebits,
+  no crash).
+- Config JSON: `maxIBytes` / `maxPBytes` camelCase load/save/render.
+- Adds `specs/2026-07-17-capped-vbr-rc-mode/` (requirements + plan) for a
+  follow-on capped-VBR profile.
+
+## [0.44.0] - 2026-07-18
+
+Live FPS change improvements and exposure-based FPS override.
+
+- **Reduced live FPS change stream stall** — `apply_fps()` (Star6E) and
+  `maruko_apply_fps()` now skip the VPE→VENC unbind/rebind when the
+  requested FPS matches the currently delivered FPS (no-op early-out),
+  and request an IDR frame immediately after a successful rebind so the
+  decoder recovers without waiting for the next GOP boundary.
+- **New `isp.shutterMaxUs` live control** — exposes the CUS3A supervisory
+  thread's `shutter_max_us` as a `MUT_LIVE` API field.  Setting this
+  above the frame period (e.g. 33333 µs at 60 fps bound) forces the
+  sensor to skip frames, reducing effective output FPS proportionally
+  without the ~0.5 s bind-rebind stall.  Bitrate scales with effective
+  FPS.  0 = automatic (1/sensor_fps).  Both Star6E and Maruko backends
+  supported.  Dashboard ISP section updated with the new control.
+- Config JSON: `isp.shutterMaxUs` parsed and serialized (persists across
+  restarts).  Pipeline startup applies a non-zero persisted value to the
+  CUS3A config (subordinate to `shutterRule180` when both are set).
+
+## [0.43.0] - 2026-07-15
+
+Frame-SHM tagging for GDR and SVC-T enhance-layer frames.
+
+- **New `VencFrameMeta` flag bits** — `VENC_FRAME_FLAG_GDR` (0x02) and
+  `VENC_FRAME_FLAG_ENHANCE` (0x04) in `include/venc_frame_ring.h`. No
+  struct size change; uses bits 1–2 of the existing `flags` byte. Old
+  consumers ignore unknown bits — no ring version bump needed.
+- **GDR cycle position** — the former `reserved` field is replaced by
+  `gdr_pos` (0-based position in the refresh cycle) and `gdr_len` (cycle
+  length in frames). The transport layer can use these to apply stronger
+  FEC or ARQ near the end of the cycle where the refresh completes.
+  Cycle length is derived at pipeline init from `ceil(total_ctu_rows /
+  lines_per_frame)`. Counter resets on each IDR.
+- **GDR tagging** — when intra refresh is active (resilience preset is not
+  "off"), every non-IDR frame is tagged with `VENC_FRAME_FLAG_GDR` to
+  indicate a rolling intra stripe is present. Both Star6E and Maruko
+  backends track `gdr_active` on the output struct.
+- **SVC-T enhance tagging** — when temporal scalability is configured
+  (`ref_base > 0`), frames with `refType == ENHANCE_P_NOTFORREF` (the
+  droppable top enhance layer) are tagged with `VENC_FRAME_FLAG_ENHANCE`.
+  Both backends track `svct_active` on the output struct.
+- `frame_shm_consumer_test` reports GDR and ENHANCE frame counts plus
+  cycle length in both per-second interval output and the final summary.
+
+Device-verification fixes (Star6E IMX335 .201):
+- **Fixed: Star6E GDR/SVC-T fields zeroed by output reset.** The pipeline
+  set `gdr_active`/`svct_active`/`gdr_cycle_len` before
+  `bind_and_finalize_pipeline()`, which calls `star6e_output_init()` →
+  `star6e_output_reset()` (a full `memset`), wiping them — so Star6E emitted
+  zero GDR/ENHANCE tags. The assignment now runs after finalize.
+- **Fixed: wrong `ENHANCE_P_NOTFORREF` refType constant (both backends).**
+  It was `4` (the HiSilicon enum value); the SigmaStar i6e/i6c enum inserts
+  `BASE_P_REFTOIDR` at index 1, making `ENHANCE_P_NOTFORREF` = `5` (value 4
+  is `ENHANCE_P_REFBYENHANCE`, a referenced, non-droppable frame).
+  Consolidated into one shared define per backend
+  (`STAR6E_REFTYPE_ENHANCE_P_NOTFORREF` in `star6e.h`,
+  `MARUKO_REFTYPE_ENHANCE_P_NOTFORREF` in `maruko_video.h`), which also
+  corrects the pre-existing TRAIL_R→TRAIL_N error-resilience rewrite in
+  `star6e_runtime.c` / `maruko_pipeline.c` that shared the same wrong value.
+  Verified on i6e: 1:1 SVC-T → 50% frames tagged ENHANCE and rewritten to
+  TRAIL_N; reference frames stay TRAIL_R.
+
+## [0.42.1] - 2026-07-11
+
+- **Frame-SHM wait wakeup hardening.** `venc_frame_ring_read_wait()` now re-checks
+  the ring after publishing `consumer_waiting` and before entering the futex wait,
+  closing a lost-wake race where a consumer could sleep even though a frame had
+  already been committed. The standalone frame-SHM consumer now sizes its read
+  buffer from the attached ring header instead of assuming 512 KiB slots.
+- **Frame-SHM ring geometry tuned for realtime.** The `frame-shm://` ring now
+  allocates 8 slots × 384 KiB (~3 MiB) instead of 16 × 512 KiB (~8 MiB) on both
+  Star6E and Maruko backends. Observed ≤1080p IDRs are ≤28 KiB, so 384 KiB
+  retains large headroom while a drop-not-block realtime ring needs far fewer
+  than 16 in-flight slots. Consumers read the geometry from the ring header, so
+  no consumer change is required.
+## [0.42.0] - 2026-07-11
+
+Full-frame SHM emissions — a new `frame-shm://` URI scheme that transfers
+whole encoded video frames over POSIX shared memory, bypassing RTP
+packetization entirely.
+
+- **`venc_frame_ring` — SPSC lock-free ring buffer for whole frames.**
+  New `include/venc_frame_ring.h` + `src/venc_frame_ring.c`. Same POSIX SHM /
+  futex architecture as `venc_ring` but tuned for video frames: `uint32_t`
+  slot lengths (frames can exceed 64 KB), 8-byte `VencFrameMeta` header
+  (pts, codec, flags), and a staged write API (`begin_write`/`append`/
+  `commit_write`/`abort_write`) that gathers scattered NAL data from the
+  encoder stream directly into the ring slot — no staging buffer needed.
+  Magic `0x5646524D` ("VFRM"), version 1.
+- **`frame-shm://` output URI** — new `VENC_OUTPUT_URI_FRAME_SHM` transport
+  on both Star6E and Maruko backends. Creates a 16-slot × 512 KB frame ring
+  (~8 MB SHM region). The frame sender iterates the encoder stream packs,
+  detects IDR frames from `h265Nalu` types 19/20, populates `VencFrameMeta`,
+  and writes raw Annex B data (start codes preserved) so the consumer
+  (waybeam-link) can apply its own framing/FEC at frame boundaries.
+- Frame-SHM bypasses RTP entirely — no `MarukoRtpState`, no
+  `star6e_hevc_rtp`, no sendmmsg batching. The output pressure observer
+  reports frame-ring fill alongside the existing RTP-packet ring.
+- `apply_server` rejects frame-SHM outputs (no live retarget for SHM).
+- Transport type string reports `"frame-shm"` in both backends' controls.
+- Unit tests: `tests/test_venc_frame_ring.c` — lifecycle, staged write,
+  abort, bulk write, fill/drain, wraparound, concurrent producer/consumer,
+  stride alignment, corrupt header/slot, overflow, init_complete, stats,
+  fill observation.
+
+## [0.41.0] - 2026-07-11
+
+- **180° shutter rule toggle (`isp.shutterRule180`).** New boolean config
+  field (default `false`, restart-required) that pins AE exposure to
+  exactly 1/(2×fps) — `minShutterUs == maxShutterUs` in the ISP exposure
+  limit, so the AE shutter dimension is locked while gain still
+  auto-adjusts for brightness.  At 60 fps the shutter is fixed at
+  8 333 µs (1/120 s).  Both Star6E and Maruko backends; the supervisory
+  cus3a threads continuously enforce the pin so ISP bin reloads or
+  cold-boot AE init cannot override it.  Contract `0.12.1`.
+
+## [0.40.1] - 2026-07-11
+
+Pre-upstream hardening (adversarial review of the #167–175 workstreams).
+
+- **Attitude estimator: reject corrupt IMU samples.** A single NaN/Inf
+  accel/gyro value used to poison the complementary filter permanently
+  (the accel gate stays false so it never recovers) while
+  `attitude_frame_update` still stamped `ATTITUDE.status = valid` — the
+  HUD AHI would show a stuck, "valid", perfectly-level horizon. `wrap_pi`
+  also spun forever on an Inf argument, hanging the encode thread.
+  `attitude_est_update` now drops non-finite samples, `wrap_pi` guards
+  non-finite, and the sidecar trailer is gated on a new
+  `attitude_est_healthy()` so a non-finite state emits no trailer.
+- **Level calibration works at any IMU ODR.** `calibrate_level` required
+  256 samples but waited only ≤3 s, so at ODR ≤ ~85 Hz it always timed
+  out. It now completes early at the sample target and otherwise accepts
+  the ≤2 s window's samples once ≥ 32 are in (and the shorter window
+  bounds how long the calibration holds the HTTP dispatch lock).
+- **Maruko plain-stab: skip un-mapped tap frames.** The detector ran
+  `IveShift` even when the tap copy was skipped (unmapped/short frame),
+  correlating a stale or all-black buffer into a bogus shift and a
+  one-frame crop jump; it now retries without advancing (parity with the
+  stab-fill thread).
+- **Fix `make test-werror`/`test-asan`/`test-tsan`.** `test_attitude_est`
+  called `fabsf()` on `int16_t` returns → `-Werror=absolute-value`; the
+  strict test targets did not build. Added NaN/Inf-hardening regression
+  coverage.
+- **Remove committed host binary.** `rtp_timing_probe` (an x86-64 build
+  artifact) was tracked at the repo root; removed and gitignored.
+
+## [0.40.0] - 2026-07-10
+
+One-click attitude calibration + live attitude API (contract 0.12.0).
+
+- **`GET /api/v1/attitude`** — live fused roll/pitch/yaw snapshot
+  (camera frame, post-remap/trims). The estimator now runs whenever
+  `attitude.enabled` + `imu.enabled` — no sidecar subscriber needed —
+  so the WebUI readout works standalone.
+- **`GET /api/v1/attitude/calibrate_level`** — hold the camera level:
+  averages ~1.3 s of accel in the frame loop, solves the boresight
+  trims exactly (`attitude_axis_map_solve_trims`, unit-tested), and
+  persists `attitude.trimRollDeg`/`trimPitchDeg` via the standard
+  restart-set path. 409 on no-IMU/moving, 501 on Maruko.
+- **WebUI Attitude section**: live roll/pitch/yaw readout (1 Hz poll)
+  and a "Capture level trims" button that calibrates, updates the
+  fields, and restarts the pipeline.
+
+## [0.39.1] - 2026-07-10
+
+- **Sensor→camera axis remap** (`attitude.axisFwd` / `attitude.axisDown`,
+  MUT_RESTART, defaults `+x`/`+z` = identity). A signed permutation
+  applied to gyro+accel BEFORE the estimator, correcting boards mounted
+  in any of the 24 axis-aligned orientations (the output-side
+  `mountDeg`/invert trims only rotate about the camera axis and cannot
+  fix a vertical board). Set from a two-pose bench calibration: axisDown
+  = the sensor axis reading "down" with the camera level, axisFwd = the
+  one reading "down" with the camera nose pointed at the floor. Invalid
+  or parallel axes log once and fall back to identity.
+
+## [0.39.0] - 2026-07-10
+
+RTP sidecar: multi-subscriber sender + ATTITUDE trailer (cross-repo spec
+`protocols/rtp-sidecar.md`, multi-telemetry HUD group 6).
+
+- **Multi-subscriber sidecar.** The sender now keeps 4 subscriber slots
+  keyed by addr:port with per-slot 5 s TTLs; MSG_FRAME fans out to every
+  live slot and SYNC_RESP goes only to the requester. Removes the
+  single-slot hijack where any MSG_SUBSCRIBE stole the feed from the
+  wfb link_controller or ground pipeline-stats consumer.
+- **ATTITUDE trailer (flag 0x08, 12 B).** Optional roll/pitch/yaw
+  (int16 0.1°) + status + imu_age_ms appended last in flag order.
+  Fed by a new complementary-filter estimator (`src/attitude_est.c`,
+  unit-tested) running on the BMI270 ring in the Star6E frame loop;
+  computed only when `attitude.enabled` AND a subscriber is live.
+  Maruko builds carry the config but never emit the trailer (its IMU
+  push path is not wired yet).
+- **New `attitude` config section** (trailing struct, ABI append-only):
+  `enabled`, `mountDeg` (0/90/180/270), `invertRoll`, `invertPitch` —
+  all MUT_RESTART, full 7-touch (defaults/parse/pretty/JSON/fields/
+  aliases/docs).
+- `tools/rtp_timing_probe` decodes and prints the ATTITUDE trailer.
+
+## [0.38.0] - 2026-07-09
+
+Star6E sensor-driver mode quality: **fixed-framerate exposure policy + exact
+nominal fps landing** for the in-tree IMX335/IMX415 drivers. Device-verified
+on SSC338Q at 192.168.2.201 (IMX335).
+
+- **IMX335: exposure clamp instead of VMAX extension.** The stock
+  `SetAEUSecs`/`SetFPS` paths stretched VMAX whenever AE requested more than
+  the frame budget — with AE pinned at the 1/144s shutter ceiling (any
+  indoor scene) mode 5 ran at VMAX 1887 instead of 1880, delivering a
+  brightness-dependent 142–143.5fps instead of 144. Both sites now clamp
+  exposure to `vts - 9` (SHR floor); VMAX is pinned by construction.
+  Verified: encoder `Fps_1s` 144.00 sustained, VMAX register at seed.
+- **IMX335: empirical vts trims** — the real pixel clock runs ~0.2–0.5%
+  below the K constant; modes 2/3/4/5 seeds trimmed (3016→3001, 2707→2701,
+  2256→2250, 1880→1875) so delivered fps lands at/just above the label.
+- **IMX335: orientation (flip) rewrites fixed for the new lineup** — the
+  inherited M0F1/M1F1 block used stock indices: our idx 3 got the stock
+  1080p AREA3 value and idx 4/5 got no flip writes at all. Extended using
+  the verified `AREA3_ST_flipped = 4288 − normal` relation (idx3 3392,
+  idx4 3248, idx5 3068 + cropped-mode OB values). Not yet camera-verified
+  (bench runs flip=off).
+- **IMX335: mode 2 label corrected** to 2560×1440@90 (row said 2400×1350,
+  hardware reads out 2560×1440, Y_OUT=1460).
+- **IMX415: same fixed-framerate exposure clamp** in `SetAEUSecs`.
+- **IMX415: idx 1 retimed 4K@40 → 4K@~33.3** (VMAX 2250→2700 at HMAX=825):
+  the 40fps probe sat within ~5% of both the ISP throughput wall and the
+  analog HMAX floor; 33.3 keeps margin and still beats stock 4K@30 by ~11%.
+  Retime not yet device-verified (no IMX415 on the bench).
+- **Exact-CBR compensation for >120fps modes** (closes the deferred
+  follow-up in the 2026-07-06 spec): the RC budgets at the 120 fpsNum cap
+  while the bind delivers the true rate, so the wire ran ~1.19× the set
+  bitrate at 144. The encoder budget is now scaled ×rc_fps/delivered at
+  the three sites (pipeline create `venc_max_rate`, live `apply_bitrate`,
+  re-applied on `apply_fps` when the factor changes). Device-verified:
+  19.6 Mbps wire against a 20 Mbps config at Fps_1s 143.99 (was 23.8).
+
+## [0.37.0] - 2026-07-09
+
+Stabilization: **Maruko `video0.framing = stab-fill`** — full-FOV
+stabilization (the whole frame floats on a moving black border, no crop-in) on
+the Infinity6C, completing stab parity with Star6E. Device-verified on
+SSC378QE at IMX415 1080×720@50 (visual + 5-cycle teardown soak, 0 MMU resets).
+
+- **The Phase 5a "i6c VENC cannot be manually pushed" device result is
+  OVERTURNED** — it was an ABI artifact. The i6c `MI_SYS_BufConf_t` differs
+  from Star6E's in three load-bearing ways: `E_MI_SYS_BUFDATA_FRAME` is **1**
+  (0 is `RAW`!), the struct carries `bDirectBuf`+`bCrcCheck` before the config
+  union (union at offset 24, not 16), and `BufFrameConfig` has no embedded
+  extra-conf. With the corrected layout, `MI_SYS_ChnInputPortGetBuf/PutBuf`
+  straight into a `NORMAL_FRMBASE` VENC input **encodes at the full sensor
+  rate** — so Maruko stab-fill uses the same manual-feed shape as Star6E; no
+  SCL bridge or FRAME_BASE bind needed.
+- Graph rewire (only when `framing == "stab-fill"`): SCL port0 → RAW +
+  unbound, drained by the fill thread; VENC created `NORMAL` (frame-base)
+  with `StartRecvPic` deferred to post-graph; no VENC ring pool. `off`/`zoom`/
+  `stab` keep the zero-copy RING leg untouched. Requires the unbound VENC
+  input port to be given `MI_SYS_SetChnInputPortFrc(USERINJECT, fps/fps)`.
+- Fill loop (in `maruko_framing_stab.c`, second registered module sharing the
+  detector/Kalman/`stab_accuracy` with `stab`): drain port0 → detect on the
+  centre patch → Kalman → compose (shift + Y=16/UV=128 borders) via
+  `MI_SYS_BufBlitPa`/`BufFillPa` (present on i6c, leading-SocId signatures) →
+  push. Measured: detect 5.2 ms + compose 3.0 ms ≈ **5.8 ms/frame thread CPU**
+  (~29% of the single A7 at 50 fps) at `stab_accuracy=low`.
+- `stab_crop_pct` is the float/border budget (max_off = enc·(100−pct)/200 per
+  side); `pause_stab` glide-home works unchanged.
+- WebUI: `stab-fill` un-gated on Maruko (reverses the #165 disable); tooltip
+  updated. `record.mode=dual` is refused under stab-fill (chn 1 is RING-fed —
+  can't mix with a frame-base chn 0 on the one H26x device).
+- The 5a probe's BufConf ABI is corrected in-tree so the archived bench now
+  reports the true answer.
+
+Reinit hardening (found by adversarial resolution/sensor-mode switch testing
+with the stab presets active — ~40 API-driven reinit switches on `.233`):
+
+- **Two-phase stab teardown (BOTH presets).** Joining the consumer thread of a
+  user-drained SCL port (fill: port0; stab: the port-2 tap) while the camera
+  still produces pins SCL/ISP working tasks, and the ISP→SCL REALTIME unbind's
+  UNBOUNDED kernel flush then wedges in uninterruptible D-state
+  (`MI_SYS_IMPL_FlushRealTimeOutputBuf`) — ending as a zombie process or a
+  hardware-watchdog reset.  Device-reproduced from stab-fill AND plain stab on
+  size/preset switches; retroactively explains the 2026-07-03 teardown hangs.
+  Now: `framing_stop` flips the thread to drain-only (no IVE/compose, pure
+  GetBuf/PutBuf) so consumption continues while the ports are disabled;
+  teardown joins + sweeps the residue afterwards (`finish_stop`).  Cut the
+  wedge incidence from ~1-in-2 (fill) to <1-in-20 across the switch barrage.
+- **Teardown watchdog (roadmap item, now shipped).** The residual SDK race is
+  GENERIC and pre-existing — control test: `framing=off` wedged on its first
+  size-change reinit, no stab code in the path (matches the 2026-07-03 hangs
+  and the factory binary wedging identically).  It cannot be closed from
+  userspace ordering, so a watchdog armed at teardown entry forces
+  `reboot(RB_AUTOBOOT)` after 12 s if teardown has not completed — a bounded,
+  logged, self-recovering ~45 s reboot instead of open-ended D-state limbo
+  (no sysrq on I6C; SIGKILL leaves an MI zombie).  Benefits every mode, not
+  just the stab presets.
+- **Live fps change under stab-fill fixed.** `maruko_apply_fps` re-bound
+  SCL→VENC RING as its fps divider — on the frame-base manual-fed VENC that
+  stalls the encoder dead (instant "no encoder data" abort, device-reproduced).
+  In fill mode the divider is now the VENC input port's USERINJECT FRC
+  (src:dst), applied live with no graph change.
+
+## [0.36.0] - 2026-07-09
+
+Stabilization: **`video0.stab_accuracy` — a shared high/medium/low detector
+level, replacing the silent per-backend divergence.** The Shift_Detector
+geometry (crop/box/pyramid/search) was hardcoded differently in each backend
+(Star6E 384/256/3, Maruko 256/128/2) — invisible to users and impossible to
+tune per sensor mode.
+
+- New enum field `video0.stab_accuracy = auto | high | medium | low`, shared by
+  both backends and by both stab presets (`stab` + `stab-fill`). One geometry
+  table in `include/framing_stab_accuracy.h` — the two backends now resolve
+  through it, so they cannot drift again.
+  - **high** 384/256/3/96 (smoothest) · **medium** 320/192/3/80 (new middle
+    step) · **low** 256/128/2/64 (cheapest). All keep margin = (crop−box)/2 =
+    64px. The detector is NEON software, so the level is the CPU/quality lever.
+- **`auto` (default) resolves per-backend** — high on Star6E, low on
+  single-core Maruko — so an unset field reproduces each backend's previous
+  behaviour exactly (zero regression on upgrade).
+- Data-driven WebUI: the field carries `FieldUi` metadata (`control:"select"`),
+  so the dashboard renders the dropdown straight from `/api/v1/capabilities` —
+  no `dashboard.html` edit or webui-blob rebuild. Supported on both backends
+  (no Maruko gate); MUT_RESTART.
+- Tests: `tests/test_framing_stab_accuracy.c` pins the level table, the 64px
+  margin invariant, per-backend `auto` resolution and lenient unknown→fallback;
+  plus config load + API set/validate guards. Suite 1744/0.
+
+## [0.35.0] - 2026-07-09
+
+Maruko (Infinity6C): **`video0.framing = "stab"` — IVE stabilization on i6c,
+at parity with Star6E.** The motion detector (`MI_IVE_Shift_Detector`) was
+previously dead on Maruko (`MI_IVE_Create` failed); the root cause was a
+userspace blob vintage mismatch, not a kernel bug.
+
+- **Blob unblock:** swap **only** `libmi_ive.so` for the BSP uClibc build
+  (md5 `d608368e`, ive tag `c6a1e30`), which does its IC-version check via
+  `/dev/mstar_ive0` ioctls instead of raw-mmapping `/dev/mem` (which EINVALs
+  on this firmware). Do **not** also swap `libmi_sys`/`libmi_common` — the BSP
+  variants segfault on the musl rootfs. Delivered as a builder osdrv override
+  (builder#24).
+- **Cost model, stated honestly:** the detector is SigmaStar's NEON software
+  vision lib (`Simd::Neon`), **not** HW-accelerated — ~17 ms/call on one A7.
+  i6c is single-core, so the config is cheapened to 256 tap / 128 box / 2-level
+  pyramid (core 100%→55%, keeps 50 fps) at a documented noise cost.
+- **Shared Kalman:** the control law is extracted to `framing_kalman.{c,h}`,
+  linked by both backends; the Star6E refactor onto it is proven bit-identical
+  by `tests/test_framing_kalman.c`. Maruko stabilizes in the SCL-input domain
+  (crop + center-tap share one surface — simpler than Star6E's precrop path).
+- **Teardown:** the detector thread is joined **before** the tap port is
+  disabled (avoids an MI_SYS MMU-callback storm → watchdog); verified clean
+  across repeated start/stop cycles, zero MMU resets.
+- **Knobs un-gated on Maruko:** `stab_crop_pct`, `recenter_speed`,
+  `stab_kalman_q`, `stab_kalman_r`, `pause_stab` now validate/apply and the
+  WebUI no longer greys them out. `pause_stab` glides the frame home.
+- **`framing = "stab-fill"` is planned, not yet shipped** on Maruko — it hinges
+  on whether the i6c VENC accepts manually pushed input frames (RING_DMA-fed
+  today); see `specs/2026-07-08-maruko-stab/plan.md` Phase 5.
+
+## [0.34.1] - 2026-07-09
+
+Star6E IMX335: **true 144fps encode — decouple VENC delivery from the RC
+fpsNum parameter.** Supersedes the earlier cap-to-120 approach.
+
+- The i6e VENC encodes 143fps fine; the 120 ceiling is only on the
+  rate-control `fpsNum` parameter — `_MI_VENC_VerifyFps` rejects RC fps > 120
+  and silently resets it to 30, wrecking CBR (3000 kbps → ~15 Mbps at 143fps).
+- Fix: deliver the **true** sensor rate to VENC (encodes 143) but cap only the
+  RC `fpsNum` to `STAR6E_VENC_INPUT_FPS_MAX` (120) so `VerifyFps` never resets.
+  `rc_fps=120` vs `143` delivered = ~1.19× CBR overshoot (QP normal regime)
+  instead of 4.7×.
+- `star6e_pipeline.c`: create-path `venc_fps` (RC) capped to 120; both
+  `bind_dst` deliver the true rate; GOP from the capped RC fps (240).
+  `star6e_controls.c`: `apply_fps()` bind dst = true fps,
+  `apply_encoder_fps(rc_fps)`.
+- Device-verified (fps=144): RC SrcFrmRate 120/1, actual Fps_1s 143.0, no
+  VerifyFps reset, wire ~4080–4188 kbps. Optional follow-up: bitrate
+  compensation ×120/143 for exact CBR.
+
+## [0.34.0] - 2026-07-06
+
+Star6E IMX415: **hide four modes from the SDK/WebUI enumeration while keeping
+them compiled in the driver.**
+
+- New `imx415_linear_visible[] = {1, 2, 4, 6, 8}` maps table indices to the
+  SDK-enumerated list. The capability loop enumerates only those (so `num_res`
+  = 5) and `pCus_SetVideoRes()` maps the SDK index back to the table index,
+  re-asserting `ulcur_res`. All 9 mode tables and dispatch cases stay compiled
+  — re-enabling a hidden mode is a one-line edit (add its table index back).
+- **Visible (5, fps-ordered):** 0:3840×2160@40, 1:2816×1584@60, 2:1920×1080@90,
+  3:1728×972@100, 4:1728×816@120.
+- **Hidden (4, kept in driver):** table idx 0 (4K@30), 3 (3840×1152@60),
+  5 (2304×1296@100), 7 (1472×816@120).
+- **Note:** the SDK-enumerated indices shifted (now 0–4). Configs referencing
+  the old 0–8 indices must be remapped — e.g. the bench box `/etc/waybeam.json`
+  moved `"mode": 6` → `"mode": 3` to keep 1728×972@100. Device-verified on .13:
+  enumerates 5 modes, mode 3 runs clean at 100fps, 0 drops.
+
+## [0.33.0] - 2026-07-05
+
+Star6E IMX415: **removed the two image-corrupt full-FOV binned modes** and settled
+on a clean 9-mode fps-ordered lineup.
+
+- Removed **1920×1080@100** and **1920×1080@120** (full-FOV 2×2-binned). They
+  reported correct fps but rendered black + colored horizontal lines on the I6E
+  ISP — to reach 100/120fps their HMAX drops to 328/275, below the wide binned
+  line's WINMODE=0x04 crop floor (~365). Init tables, thunks, enum entries, mode
+  rows and dispatch cases all deleted (no dead code).
+- **Kept 1920×1080@90** (full-FOV 2×2-binned, idx4): at 90fps HMAX stays above the
+  crop floor, so it renders a clean image — device-confirmed.
+- Final lineup (idx : res@fps): 0:4K@30, 1:4K@40, 2:2816×1584@60, 3:3840×1152@60,
+  4:1920×1080@90, 5:2304×1296@100, 6:1728×972@100, 7:1472×816@120, 8:1728×816@120.
+  Every mode renders a valid image; still strict fps order.
+- Docs (`STAR6E_IMX415_MODES.md`, `HEADROOM.md` §5.6) updated to match.
+
+## [0.32.0] - 2026-07-05
+
+Star6E IMX415: **strict fps ordering** of the full 11-mode lineup. No behaviour
+change per mode — only the resolution-table order and dispatch case indices were
+permuted so `sensor.mode` steps monotonically in frame rate.
+
+New index map (old → new): 0→0, 1→2, 2→4, 3→5, 4→6, 5→8, 6→9, 7→3, 8→1, 9→7,
+10→10. Resulting order (idx : res@fps): 0:4K@30, 1:4K@40, 2:2816×1584@60,
+3:3840×1152@60, 4:1920×1080@90, 5:2304×1296@100, 6:1920×1080@100, 7:1728×972@100,
+8:1472×816@120, 9:1920×1080@120, 10:1728×816@120.
+
+- The `imx415_mipi_linear[]` rows and the `pCus_SetVideoRes` cases were reordered
+  together; each case keeps its exact init table / vts_30fps / fps / line_period /
+  data_prec. Verified: `.ko` mode strings now enumerate in fps-ascending order.
+- The full-FOV binned corruption warning (idx4/6/9 in the new numbering) is
+  restated in the driver header and docs.
+- Doc tables (`STAR6E_IMX415_MODES.md`) re-sorted to match; narrative
+  sub-sections retain original-order idx labels (flagged inline) and identify
+  modes by resolution.
+
+## [0.31.0] - 2026-07-05
+
+Star6E IMX415: two **binned wide-crop** modes (idx9/idx10) that give the widest
+2×2-binned FOV which renders *clean* at 100/120fps, plus the diagnosis of why
+full-FOV 1920×1080 binned is corrupt on the I6E ISP.
+
+- **1728×972@100fps 2×2-binned wide crop** (`Sensor_bc1728_100fps_init_table_
+  4lane_linear`, idx9) — widest binned FOV (~80% of full-4K linear) that renders
+  clean at 100fps. HMAX=365, VMAX=2034, 891 link. Image-verified on the display.
+- **1728×816@120fps 2×2-binned wide crop** (`Sensor_bc1728_120fps_init_table_
+  4lane_linear`, idx10) — same 1728 width at 120fps. Height capped at 816 because
+  120fps forces HMAX=365/VMAX=1700 and a taller frame drops HMAX below the crop
+  floor. 17% wider than the idx5 1472×816 crop. Image-verified.
+- **Root-caused the black+colored-lines corruption**: the full-FOV 1920×1080
+  binned modes (idx2/4/6) report correct fps but render garbage on the I6E ISP —
+  the `WINMODE=0x04` crop path needs `HMAX ≥ ~365` for a wide binned line. A
+  1728-wide crop clears this; the 1920-wide full-FOV readout does not (its
+  reduced-HMAX≈308/328 falls below the floor → malformed readout). The binned
+  wide-crops keep HMAX=365 and stay clean. idx2/4/6 retained only for
+  stock-index compatibility; use idx9/idx10 for high-FOV binned video.
+- Both new modes clone the device-proven idx5 1472×816 crop (`WINMODE=0x04` +
+  explicit centered window) and widen it, changing only the window + VMAX/HMAX.
+
+## [0.30.0] - 2026-07-05
+
+Star6E IMX415: a **native 3840×2160@40fps** full-4K mode (idx8), appended
+alongside the lineup (indices 0–7 unchanged), plus the resolution of the
+ISP/CSI-clock investigation.
+
+- **3840×2160@40fps full 4K** (`Sensor_8m_40fps_init_table_4lane_linear`, idx8)
+  — native 4K at 40fps, +33% over the stock idx0 4K@30. Non-binned on the 1485
+  link, full-height window (VST=0/VWIDTH=4320), VMAX=2250, HMAX=825 (332 MPix/s).
+  Device-verified on `.13`: sensor=enqueue=delivered=40.8fps, 0 drops, 0
+  steady-state FIFO-FULL.
+- This is the **clean full-4K ceiling**. Bench probes established the two walls
+  just above it: 4K@42 (HMAX=779, 352 MPix/s) hits the ISP throughput wall
+  (FIFO-FULL, ~7% loss); 4K@45 (HMAX=733) breaches the sensor's analog HMAX
+  floor (733<floor≤779) with a clean silent halve. Neither is clock-fixable.
+- **ISP/CSI-clock lever — resolved as unavailable on i6e.** The Maruko/i6c 288MHz
+  CSI-MAC lever does not port: this SoC's vendor CSI driver rejects
+  `CUS_CSI_CLK_288M` (dmesg `[Drv_CSISetClk] Not supported CSI CLK 288000` →
+  sensor never powers on). 216M is the hard CSI ceiling; the driver pins it for
+  all modes with an explanatory comment. See
+  `documentation/STAR6E_IMX415_HEADROOM.md` §5.3-5.4.
+
+## [0.29.0] - 2026-07-05
+
+Star6E IMX415: an **ultrawide 3840×1152@60fps** mode (idx7) — full sensor
+*width* at 60fps, appended alongside the lineup (indices 0–6 unchanged).
+
+- **3840×1152@60fps ultrawide** (`Sensor_uw_3840x1152_60_init_table_4lane_linear`,
+  idx7) — 100% horizontal FOV, letterboxed to 1152 lines (3.33:1), non-binned
+  on the 1485 link. Built on idx1's 1485 base with the window widened to full
+  3840 and height cropped to 1152; HMAX=1022 (idx0's proven full-width line, so
+  no analog-floor risk), VMAX=1211 → 60fps, which clears the vertical wall
+  (1211 ≥ 1152 physical + vblank) and the ISP wall (265 MPix/s). Device-verified
+  59.98fps, 0 drops, 0 FIFO-FULL over a 15 s soak (`incrop 0,0,3840,1152`).
+  Height is HMAX-bounded to ~1160; a taller 3840×1296 (2.96:1) would need
+  HMAX≈917 (below idx0's line, ISP at ~299 MPix/s) — a riskier stretch, left
+  out. See `STAR6E_IMX415_HEADROOM.md`.
+
+## [0.28.0] - 2026-07-05
+
+Star6E IMX415: a **full-FOV 2×2-binned 1920×1080@120fps** mode (idx6), added
+alongside the existing lineup (indices 0–5 unchanged).
+
+- **1920×1080@120fps full-FOV binned** (`Sensor_2m_120fps_init_table_4lane_linear`,
+  appended at idx6) — the full sensor FOV at 120fps (soft), a full-FOV
+  alternative to the stock 1472×816@120 crop (idx5, kept). Same reduced-HMAX
+  approach as idx4, one notch faster: HMAX=275 (line 3712 ns) with VMAX=2250,
+  which sits just above the full-width binned analog HMAX floor (~250–275;
+  HMAX=229 halves at 144fps). This is the practical full-FOV binned ceiling —
+  the ISP (249 MPix/s) would allow more, but the sensor's line-readout floor
+  caps it near 120–130fps. Device-verified 120.15fps, 0 drops, 0 FIFO-FULL over
+  a 20 s soak. See `STAR6E_IMX415_HEADROOM.md` for the full model.
+
+## [0.27.0] - 2026-07-05
+
+Star6E IMX415: a **full-FOV 2×2-binned 1920×1080@100fps** mode, and a **widened
+2816×1584@60fps** replacing the old 2560×1440. Both device-verified on .13.
+
+- **1920×1080@100fps full-FOV binned** (`drivers/sensor_imx415_star6e.c`,
+  `Sensor_2m_100fps_init_table_4lane_linear`, inserted fps-ordered at idx4) —
+  the *full sensor FOV* at 100fps (soft/binned), complementing the sharp
+  non-binned 2304×1296@100 (idx3) at the same fps. Device-verified 100.00 fps,
+  0 drops over a 30 s soak, warm-switch clean both directions.
+  The obstacle was the **binned vertical-timing wall**, not bandwidth or the ISP
+  MPix ceiling: a binned readout's VMAX must cover the *physical* lines read
+  (2×output_h = 2160) plus vblank, so at the stock binned HMAX=365 a 100fps
+  frame caps VMAX at ~2023 < 2160 and the VIF silently delivers *exactly half*
+  (~50 fps, DropCnt=0). Fix = the same reduced-HMAX trick as the non-binned
+  modes: HMAX 365→**328** lets VMAX be 2250 (=2160+90 vblank, matching the stock
+  90fps mode) at 100fps. Bit depth (10 vs 12bpp) and link (891 vs 1485) were
+  both ruled out as red herrings before the timing wall was identified.
+- **2816×1584@60fps** (idx1, widened from 2560×1440) — the stock 60fps table
+  already reads a 2952×1656 window but venc center-cropped it to 2560×1440,
+  discarding FOV. Widening the output to 2816×1584 (mode-table only, no sensor
+  register change) lifts FOV area from ~44% to ~58% of the sensor. Held at
+  ~2816-wide (267 MPix/s) rather than the full 2952 (293 MPix/s, startup
+  FIFO-FULL) to leave ISP headroom for the OSD overlay. Verified 59.52 fps,
+  0 drops, 0 steady-state FIFO-FULL.
+
+## [0.26.0] - 2026-07-05
+
+Star6E IMX415: a new **non-binned 2304×1296@100fps** window-crop mode, plus
+warm-switch register safety. Follows the 0.25.0 in-tree Star6E drivers.
+
+- **2304×1296@100fps non-binned** (`drivers/sensor_imx415_star6e.c`, inserted
+  fps-ordered at idx3) — the widest 16:9 the I6E ISP sustains non-binned at
+  100fps: 2.99 MPix / ~299 MPix/s, device-verified 99.0 fps + 0 drops over a
+  30 s soak. Challenges the "must bin for FOV at high fps" assumption: native
+  sharp resolution (35% FOV area) where the stock 90/120 modes are 2×2 binned.
+  Enabled by (1) the 1485 Mbps link (`SYS_MODE=0x08`, reused from idx1's base,
+  no venc changes — Star6E's REALTIME bind carries it), (2) a **reduced HMAX**
+  (548) to beat the vertical-timing wall a fixed HMAX=652 would cap at ~89fps,
+  and (3) the I6E ISP sustaining ~300 MPix/s. The wall was device-mapped:
+  2304×1296 clean, 2432×1368 (333 MPix/s) drops, 2560×1440 halves.
+- **Warm-switch register safety** — the SDK keeps sensor registers across a
+  mode switch, and the stock non-binned tables (idx0/idx1) never wrote the
+  binning registers, so a warm switch binned→non-binned (e.g. 90→30) left 2×2
+  binning latched and corrupted the readout. The non-binned idx0/idx1 tables
+  and the new crop now write `0x3020/21/22=0x00` + all-pixel DIG_CLP
+  (`0x30D9=0x06`/`0x30DA=0x02`) explicitly in standby. Verified both
+  directions, 0 drops (120→30, 90→100, 120→60, 90→30).
+
+## [0.25.0] - 2026-07-05
+
+In-tree Star6E (Infinity6E) sensor drivers for IMX335 and IMX415 — the Star6E
+counterpart to the Maruko custom drivers. Previously Star6E had only prebuilt
+stock `.ko`; now the mode lineups are owned in-repo and buildable via
+`make drivers-star6e KSRC_STAR6E=<i6e-4.9.84-kernel>`. Both seeded from the
+OpenIPC infinity6e blueprints, HDR/DOL removed (the two HDR handles are `NULL`
+and the SEF handle made `static`, so the compiler dead-code-eliminates the
+whole HDR subtree). Device-verified on SSC338Q @192.168.1.13, 0 sustained
+drops on every mode.
+
+- **IMX335 — fps-ordered lineup with two new higher-FOV window-crop tiers**
+  (`drivers/sensor_imx335_star6e.c`, `documentation/STAR6E_IMX335_MODES.md`):
+  2560×1920@30 / @60, 2400×1350@90, **2176×1224@100** (new crop, VIF 99.8),
+  1920×1080@120, **1600×900@144** (new crop, VIF 143.3). The two crops push to
+  the highest FOV the I6E ISP sustains — measured ceiling ≈2.66 MPix@100 /
+  ≈1.44 MPix@144; over budget the ISP silently halves (0 fifo/skip logged), so
+  the VIF `/proc` FPS column is the truth signal. The Maruko I6C ceiling model
+  does not apply to I6E. No 50fps mode. `imx335_init_window_crop()` reuses the
+  proven 120fps analog/PLL base and overrides only the readout window + HMAX,
+  latching the geometry in standby (PR#156 discipline).
+- **IMX415 — stock fps-ordered lineup** (`drivers/sensor_imx415_star6e.c`,
+  `documentation/STAR6E_IMX415_MODES.md`): 3840×2160@30, 2560×1440@60,
+  1920×1080@90, 1472×816@120. Stock tables verbatim; no crop tiers.
+- **Build wiring** (`drivers/Makefile`, `Makefile`): `SOC=star6e` obj-m builds
+  both sensor objects; `make drivers-star6e` stages
+  `sensors/star6e/sensor_imx*_star6e.ko`.
+
+Note: venc persists `sensor.mode` in `/etc/waybeam.json`. These drivers expose
+fewer modes than the stock 11-mode IMX415 driver, so a persisted mode index
+beyond the new range makes venc fail mode-select and exit on boot — patch the
+config to a valid index when deploying over a box that ran the stock driver.
+
+## [0.24.1] - 2026-07-04
+
+Pre-upstream-squash cleanup: adversarial review of the 0.22.0–0.24.0 range
+(PRs #157–#160) surfaced a handful of straggling defects, all fixed here.
+No functional feature changes.
+
+- **GOP frame count now tracks the *actual* encoder fps, not the committed
+  request** (`src/venc_api.c`) — a live `video0.fps` above the current sensor
+  mode's max is clamped to `sensor_fps` for the bind, but the GOP was computed
+  from the unclamped value, stretching the I-frame interval (e.g. GOP for 144
+  while the encoder is pinned at 100 → 1.44 s instead of 1 s). Now uses
+  `query_live_fps()`; the 120→144 ceiling raise had widened this drift.
+- **Star6E debug-OSD "enc" row no longer shows `0x0`** (`src/star6e_runtime.c`)
+  — it printed the raw `video0.width/height` config (default `0/0` = auto)
+  instead of the resolved `image_width/height`; Maruko already did it right.
+- **AE pacer teardown join is now bounded** (`src/maruko_pipeline.c`) — the
+  pacer's steady-state loop calls `CUS3A_RunOnce`, which can stall inside the
+  SDK during an ISP fault; the previous unbounded `pthread_join` would then
+  wedge teardown/respawn. Now `pthread_timedjoin_np` (300 ms) + detach-on-
+  timeout. Device-verified: 0 spurious timeouts across mode-cycle teardowns.
+- **Star6E fps rebind restores on encoder-apply failure**
+  (`src/star6e_controls.c`) — a post-bind encoder/scene fps write failure no
+  longer leaves VPE→VENC bound at the new fps while the caller rolls back.
+- **CPU% debug-OSD window corrected to the documented ~1 s**
+  (`src/debug_osd.c`, `OSD_CPU_RING` 3→2 — was a 1.5 s span).
+- **Removed the retired `throttle_mode` AE controller** (`src/maruko_cus3a.c`,
+  `include/maruko_cus3a.h`) — the 0.9.12 "aeEngine=custom" log-domain IIR
+  controller and its `MarukoAeResult`/`SetAeParam` plumbing were dead
+  (`throttle_mode` hard-wired off since paced native 3A superseded it). The
+  supervisory thread is now cleanly limits-only. Device-verified on I6C: native
+  AE still enforces `isp.gainMax`, reads stats, adapts exposure, and tears down
+  clean across mode cycles.
+- **Upstream hygiene**: dropped `.serena/` tooling config from tracking (now
+  gitignored) and four transient handoff/investigation docs.
+
+## [0.24.0] - 2026-07-04
+
+IMX335 gets a **144fps ultra-low-latency mode** + a `WAYBEAM_NO_3A` debug
+toggle. Full mode detail: `documentation/MARUKO_IMX335_MODES.md`.
+
+- **New mode 5 = 1536x864@144 (16:9)** — device-verified clean end-to-end on
+  SSC378QE + IMX335: SCL 144.0 fps, VENC 143.4 fps, **0 DropCnt / 0 FIFO-FULL /
+  0 Skip-IQ**. Reuses the proven 120fps analog window (HMAX=275, `imx335_geo_
+  1536x864`), VMAX paced to 144 (`vts_30fps=1875`). The lowest-latency mode in
+  the lineup (6.94 ms frame period).
+
+- **Why 1536x864 and not larger** — 144fps is bound by TWO independent ISP
+  walls, both device-proven: (a) **bandwidth** ~274 MPix/s — 1920x1080@144 =
+  298 MPix/s overflows the ISP P0 FIFO and collapses to ~26 fps; (b) **per-frame
+  time** T ≈ 1.7 ms fixed + 3.65 ns/px vs the 6.94 ms frame period — 1600x900
+  (1.44 MP, ~6.96 ms) misses by ~1% and Skip-IQ stalls. Both limits are at the
+  ISP *input*, so an output/SCL downscale rescues neither; the sensor readout
+  window itself must shrink. 1536x864 (1.33 MP) sits under both.
+
+- **`WAYBEAM_NO_3A=1` env var** (`src/maruko_pipeline.c`) — freezes 3A entirely
+  (`CUS3A_SetRunMode(OFF)`, no pacer/supervisory) for bench diagnosis. Used to
+  prove the fixed per-frame ISP cost is **not** reclaimable by disabling 3A
+  (1600x900@144 still stalls with 3A frozen — the ~1.7 ms is vendor ISP pixel
+  processing, not 3A). Exposure is static when set; bench use only.
+
+- **Live `video0.fps` accepts up to 144** (`PIPELINE_LIVE_FPS_MAX`,
+  `include/pipeline_common.h`; `maruko_apply_fps`, star6e `apply_fps`) — the
+  live-apply path previously hard-rejected any `fps > 120`, making it
+  impossible to *pre-stage* fps=144 while parked in a lower-fps mode (so the
+  next respawn's auto sensor-select could pick the 144 mode). The request is no
+  longer rejected: the requested value is committed to config, and each
+  platform's existing clamp-to-`sensor_fps` caps the actual VPE→VENC rebind to
+  the current mode's max — so a 100fps mode still binds at 100, but the config
+  now carries 144 for `sensor.mode:-1` to resolve on the next mode switch
+  (`sensor_mode_clamp_fps` re-clamps there too). 144 is the ceiling because it
+  is the highest fps any mode offers; above it is still a client error.
+
+## [0.23.0] - 2026-07-04
+
+Maruko IMX335 best-per-fps mode lineup + debug-OSD readouts. Full mode
+detail: `documentation/MARUKO_IMX335_MODES.md`.
+
+- **IMX335 gets a 5-mode best-per-fps lineup**, porting the IMX415 method
+  to the 4:3 5MP sensor. One mode per fps tier, native 4:3 aspect for
+  0–3, 16:9 low-latency hero at 100 fps:
+
+  | idx | resolution | fps | aspect | role |
+  |---|---|---|---|---|
+  | 0 | 2592x1944 | 30 | 4:3 | full-res all-pixel (best IQ / full FOV) |
+  | 1 | 2496x1872 | 50 | 4:3 | center crop |
+  | 2 | 2272x1704 | 60 | 4:3 | center crop |
+  | 3 | 1792x1344 | 90 | 4:3 | center crop |
+  | 4 | 1920x1080 | 100 | 16:9 | low-latency hero (REALTIME) |
+
+  All device-verified on SSC378QE + IMX335. **Window mode works on I6C** —
+  the old "windowed readout hangs the ISP" claim was a stale-register
+  artifact. Each crop writes its full readout geometry
+  (HTRIM/HNUM/Y_OUT/AREA3/HMAX) explicitly in standby
+  (`imx335_init_window_crop`), reusing the proven 120fps analog config;
+  geometry is derived exact from the 1920x1080 window mode. Crop sizes sit
+  ~5–8% under the ISP throughput ceiling (~245–274 MPix/s); all bind
+  REALTIME for minimum latency.
+- **BREAKING `sensor.mode` remap** — dropped the two redundant 16:9
+  1920x1080@60/@90 modes (60/90 are now the higher-res 4:3 crops) and
+  renumbered. Pinned `sensor.mode` configs must be updated; `sensor.mode:
+  -1` (auto) resolves by target dims and needs no change.
+- **Cold-boot enum wedge documented**: repeated `reboot -f` after a hung
+  teardown can leave IMX335 i2c enumeration wedged (`QueryResCount → 0`,
+  every mode fails "not available on pad", mode-independent). Recovery is a
+  power-cycle; graceful `reboot` avoids it. Not a geometry bug.
+- **Debug OSD gains sensor + encode readouts** (both Maruko and Star6E):
+  two fixed rows below `cpu` — `snr <WxH>@<fps> m<idx>` (sensor readout +
+  mode index) and `enc <WxH> <codec>` — so a tester can read the live mode
+  straight off the overlay. Inserted at rows 2–3; the AE/AWB/exp block
+  shifts down, nothing clobbered.
+
+## [0.22.0] - 2026-07-04
+
+Maruko AE rework: **paced native 3A** replaces both historical AE engines.
+Full investigation: `documentation/MARUKO_CUS3A_INJECT_HANDOFF.md`.
+
+- **Maruko now runs ONE AE mode**: the vendor AE+AWB converge at full rate
+  for ~3 s after pipeline start, then the CUS3A per-frame auto-run is
+  paused (`CUS3A_SetRunMode(OFF)`) and a pacer thread re-runs the same
+  converged algo via `CUS3A_RunOnce` at `sensor_fps/3` (floor 30 Hz).
+  Applies keep flowing through the stock ISP-API agent path.
+  Device-measured @1080p100: 70.0% of the core (old `sdk` full-rate) /
+  52.8% (old `custom` throttle) → **39.4%**, at full vendor image quality
+  (exposure + AWB convergence verified live, below majestic's 42.9%).
+- **`isp.aeEngine` is retired on Maruko** (still honored on Star6E). The
+  key still parses so existing configs load; `custom` logs a notice and
+  behaves as paced. The 0.9.12 no-op AE adaptor + P1 throttle controller
+  path is removed. `isp.aeFps` keeps governing only the supervisory
+  limits thread (Star6E semantics unchanged).
+- Pacer rate is auto-derived — no user knob: 100 fps → 33 Hz,
+  90 fps → 30 Hz, ≤90 fps → 30 Hz floor (full-rate quality at low fps).
+- **`isp.gainMax` fixes** (found live-testing gain headroom): (1) the
+  supervisory limits thread now compares against a fresh
+  `GetExposureLimit` read each tick instead of a local cache — the CUS3A
+  AE init was silently resetting limits to bin values right after the
+  startup push, so a config `gainMax` above the bin ceiling never stuck;
+  (2) the live `isp.gainMax` API setter now routes through the
+  supervisory target (`maruko_cus3a_set_gain_max`) instead of writing
+  the raw limit — writing `0` ("bin default") used to push a literal
+  0 limit and slam the image black.  Verified live on-device:
+  32000 → sgain rises past the bin's 8192 (to the algo's internal
+  ~11470 cap), 2048 → clamps down, 0 → returns to bin default 8192.
+- Findings for posterity: CUS3A INJECT run-mode makes the agent mid-layer
+  silently drop every exposure apply (do not revisit); `CUS3A_RunOnceEn`
+  only arms algo selection while `CUS3A_RunOnce` executes synchronously in
+  the caller; `MI_ISP_RegisterIspApiAgent` is pure userspace fp tables.
+- **Debug OSD: smoothed CPU% + live AE/AWB readouts.** The CPU% readout
+  is now a sliding ~1 s average (snapshot ring at 500 ms cadence) instead
+  of a jumpy 500 ms delta; the duplicated per-platform `/proc/stat`
+  sampler in `debug_osd.c` is folded into one shared implementation
+  (both Star6E and Maruko). Maruko additionally gains three OSD rows,
+  refreshed at 1 Hz, to watch the paced 3A adapt live:
+  `exp` (shutter µs, sensor gain/limit, ISP gain), `ae` (measured luma
+  vs scene target, stable/adj/bound state, pacer Hz), and `awb`
+  (R/B gains, color temp, stable/adj) — backed by a new
+  `maruko_controls_ae_osd_status()` reusing the `/api/v1/ae/info` +
+  `/api/v1/awb/info` SDK queries.
+- **Review-pass hardening** (adversarial multi-agent review of the above):
+  (1) the `ae` OSD row is now gated on a distinct `ae_info_valid` flag so
+  it no longer renders fabricated zeros when only the sensor-plane query
+  answers (the `exp` row keeps its sensor-plane fallback); (2) the AE
+  pacer now requires all three CUS3A symbols (`RunOnceEn`/`RunOnce`/
+  `SetRunMode`) before engaging — a missing `RunOnceEn` falls back to
+  vendor full-rate instead of pausing auto-run and ticking an unarmed
+  `RunOnce` (frozen 3A); (3) the pacer's 3 s convergence wait is now an
+  interruptible 50 ms poll of `g_inj_run`, so a teardown/respawn in the
+  first 3 s joins in ≤50 ms instead of blocking the whole window — matters
+  on this restart-latency-sensitive SoC. Device-verified: pacer
+  re-derives 33 Hz on live switch to 1080p100, both OSD rows show valid
+  data, ~48% busy with OSD active.
+
+## [0.21.0] - 2026-07-03
+
+Maruko IMX415 mode-lineup rework: one best mode per FPS tier, all non-binned
+and ~16:9 (sensor native aspect). See `documentation/MARUKO_IMX415_1485_MODES.md`.
+
+- **BREAKING: `sensor.mode` index remap** (Maruko IMX415). New lineup:
+  0 = `3760x2116@30fps` (891, REALTIME), 1 = `2952x1656@50fps_1485`,
+  2 = `2688x1512@60fps_1485` (NEW — exact 16:9, replaces 2952x1368 19.4:9),
+  3 = `2112x1184@90fps_1485`, 4 = `1920x1080@100fps_1485` (NEW).
+  Old→new: 0→0, 5→1, 7→3. Configs with a pinned mode index must be updated;
+  `sensor.mode: -1` (auto) resolves correctly unchanged.
+- **New 100 fps tier replaces the vendor 120 fps mode**: `1920x1080@100_1485`
+  is non-binned, exact 16:9, and sized ~8% under the ISP m2m ceiling
+  (capacity ~108 fps) so the FRAMEBASE queue stays empty — minimum latency
+  at full nominal rate. The old binned 1472x816@120 never delivered 120
+  (115–118 measured): its HMAX=365 table bursts 393 MPix/s, above the
+  384 MPix/s ISP REALTIME drain.
+- **Vendor superwide + binned modes unsurfaced** (superwide 3760x1024@59,
+  binned 1080p60-ispsafe, binned 1080p90, 1472x816@120): tables parked
+  under `#if 0` in the driver for posterity; all suffered either non-16:9
+  geometry or the 393 MPix/s FIFO-pressure defect.
+- CSI-MAC clock selection now keyed on a per-mode `link_mbps` field instead
+  of a hardcoded index threshold (renumber-safe; the FRAMEBASE bind was
+  already keyed on the `_1485` name suffix).
+- **`video0.size` width alignment relaxed /16 → /8.** The former rule
+  (#63/#55, derived from an 854×480 failure that is only ÷2) needlessly
+  rejected native ÷8 widths like 2952. Mode 1's `2952x1656` may now be set
+  explicitly instead of only via `auto`; forcing the nearest /16 (2944)
+  anamorphically downscaled 2952→2944 and cost ~7 fps (43 vs 50, device-
+  verified). Height /8 unchanged. HEVC's conformance window covers the
+  sub-CTU remainder, so /8 is the correct minimum.
+
+## [0.20.0] - 2026-07-03
+
+Maruko (Infinity6C/SSC378QE) IMX415 1485 Mbps non-binned sensor modes, plus
+the operational fixes discovered while bringing them up on hardware. Full
+platform notes in `documentation/MARUKO_IMX415_1485_MODES.md`.
+
+- **Three new sensor modes** (indexes 5–7): `2952x1656@50fps_1485` (1:1 5MP),
+  `2952x1368@60fps_1485` (ISP-ceiling max @60), `2112x1184@90fps_1485`
+  (ISP-ceiling max @90). Requires CSI-MAC clock 288 MHz (set in `poweron`
+  for mode index ≥ 5) and a mode-conditional VIF→ISP bind: FRAMEBASE for
+  `_1485` modes (REALTIME overflows the ISP input FIFO at 594 MPix/s line
+  bursts), REALTIME retained for 891 modes (minimum latency).
+- **Sensor register-state hardening**: 1485 and non-binned 891 tables now
+  write the readout-mode registers explicitly (`0x3020/21/22`, `0x30D9/DA`)
+  — the IMX415 latches binning across teardown and warm reboot, which
+  previously wedged every warm binned→1485 switch until a power-cycle.
+  Vendor 1485 table's `0x3032=0x00` dark-image bug fixed (`0x01`).
+- **Mode 2 (1920x1080@60 binned) frame-rate fix**: the ISP-safe HMAX
+  rework (HMAX=1100) could not deliver 60 fps at all — in 2x2 binning
+  VMAX counts physical lines (~2250 minimum for 1080p output), which at
+  a 14.8 µs line is 30 fps; the stored `vts_30fps=2250` shipped exactly
+  that under a 60 fps label. Now HMAX=550 (7.407 µs line): VMAX=2250 →
+  device-measured 60.0 fps, line burst 259 MPix/s (safely under the
+  384 MPix/s ISP drain that FIFO-FULLed the vendor HMAX=365 table).
+- **Teardown drain**: poll SCL/ISP output-port task counts (worst row
+  across all ports) before unbind so the kernel's unbounded REALTIME/RING
+  flush isn't entered with in-flight tasks that can no longer complete
+  (D-state hang observed after long runs; drain is bounded + advisory).
+- **Honest keep_aspect on Maruko**: true width crops are impossible on the
+  I6C camera path (SCL output crop must match ring stride; RDMA input crop
+  needs a FRAMEBASE producer bind that mi_sys refuses on ISP→SCL) — wide →
+  narrow-AR now anamorphically squeezes full sensor width with a one-line
+  startup notice (>2% width delta), height crops still honored, AE zoom
+  crop normalized against full ISP dims, zoom windows confined to the
+  keep_aspect framing surface. Star6E is unaffected (VIF capture-window
+  crop remains a real crop there).
+
+## [0.19.0] - 2026-07-02
+
+Remove the SDK VENC frame-lost strategy entirely — config field, live plumbing,
+and the `MI_VENC_SetFrameLostStrategy` dlopen bindings on both backends.
+
+Device testing on Star6E (SSC338Q i6e, .13) showed the feature never did its
+advertised job: as a bandwidth throttle it is inert — a `frameLostThreshold`
+set to ⅛ of the CBR target dropped **zero** frames over 10 s of steady
+streaming — and the `E_MI_VENC_FRMLOST_PSKIP` placeholder-frame variant is
+rejected by the driver with `E_MI_ERR_NOT_SUPPORT` (declared in the SDK header
+but unimplemented in `libmi_venc`).  In practice it only acted as an I-frame
+overshoot guard, a role the CBR rate controller already fills.  The real
+backpressure levers are `video0.bitrate` (smooth, quality) and `video0.fps`
+(coarse, temporal — a genuine frame-skip via VPE→VENC bind decimation).
+
+- Drop `video0.frameLost` (`frame_lost`) from `VencConfig`, the API field
+  table, aliases, defaults, JSON load/render/serialize, and both default
+  configs.
+- Remove `star6e_controls_apply_frame_lost_threshold`,
+  `pipeline_common_frame_lost_threshold`, the boot/dual frame-lost blocks in
+  both pipelines, and the `frame_lost` params threaded through
+  `*_pipeline_start_dual` / `venc_api_dual_register`.
+- Remove the `MI_VENC_{Set,Get}FrameLostStrategy` bindings, macros, and
+  `MI_VENC_ParamFrameLost_t`/`MI_VENC_FrameLostMode_e` decls from the star6e
+  and maruko SDK shims.
+- Contract `0.10.1` → `0.11.0` (breaking: field removed); in-binary
+  `/api/v1/version` bumped to match.
+- Supersedes the abandoned PR #153 (which had tried to expose the PSKIP mode
+  and make the strategy live-tunable).
+
+## [0.18.1] - 2026-06-24
+
+Expose the mDNS `discovery` config section through the HTTP API and WebUI. The
+fields shipped in 0.18.0 (`discovery.enabled`, `discovery.serviceType`,
+`discovery.name`, `discovery.bareAlias`) were wired into the config
+loader/serializer but never registered in the API field table, so they were
+reachable only by hand-editing `/etc/waybeam.json` — invisible to
+`/api/v1/set`, `/api/v1/capabilities`, and the dashboard.
+
+- Register the four discovery fields in `g_fields[]` (all `restart_required`:
+  the beacon reads config at boot / re-reads on SIGHUP-respawn, with no live
+  re-announce path), plus camelCase aliases for `serviceType`/`bareAlias`.
+- Add a **Discovery** section to the WebUI settings, with per-field tooltips
+  (`web/dashboard.html`; `src/venc_webui.c` regenerated).
+
+No protocol or beacon behavior change — purely makes the existing discovery
+config settable at runtime and visible to operators.
+
+## [0.18.0] - 2026-06-16
+
+Add an mDNS device beacon (discovery migration, Phase 1). waybeam_venc now
+announces itself as a `_waybeam-venc._tcp.local` service on the multicast
+group 224.0.0.251:5353, so ground stations and Android clients can discover
+the encoder directly — independent of the optional waybeam-hub, which is the
+only thing that previously advertised the vehicle.
+
+**Announce-only, self-contained, off the hot path.** The beacon runs on its
+own thread (`src/mdns_beacon.c`), started from `main()` and torn down (with a
+multicast goodbye) before any SIGHUP-respawn exec. It responds to PTR queries
+for its own service type and re-announces periodically; it does **not**
+discover peers or feed any trust layer. The RFC 6762/6763 wire codec lives in
+`src/mdns_wire.c` (`MDNS_WIRE_VERSION 1`) — the source of truth that
+waybeam-hub will vendor; keep both in sync. The wire codec and multicast
+socket handling are derived from
+[OpenIPC herald](https://github.com/OpenIPC/firmware/tree/master/general/package/herald)
+(MIT), the compact mDNS/DNS-SD stack for the OpenIPC project.
+
+TXT is kept **deliberately minimal**: the service type `_waybeam-venc._tcp`
+is itself the recognition signal ("an OpenIPC camera running the waybeam
+encoder"), so TXT carries only `proto` (wire-schema version) and `version`
+(waybeam version). The hostname/IP/port travel in the standard SRV/A/instance
+records; live state (bitrate/fps/mode) is never advertised. The sidecar port,
+backend/SoC, codec, full serial, and hub presence are left for the consumer to
+fetch with one `GET /api/v1/config` after discovery — the beacon announces an
+always-true device fact, capabilities are queried on demand.
+
+**Serial-suffix naming.** The instance/host name is `waybeam-<suffix>.local`,
+where `<suffix>` is the tail of the SigmaStar SoC **die ID** read natively
+from RIU registers via `/dev/mem` (`src/device_id.c`, method lifted from
+OpenIPC `ipctool` and device-verified against `ipcinfo -i`). This gives every
+Star6E a stable, collision-free name with no RFC 6762 rename churn. SoCs with
+no die ID (ssc37x / Maruko, verified) fall back to `discovery.name` or bare
+`waybeam`. The full 12-hex die ID is the fleet key, exposed read-only at
+`GET /api/v1/config` → `data.device.serial`.
+
+**Bare `waybeam.local` alias.** Because most setups run a single vehicle, the
+beacon also claims the bare host name `waybeam.local` (config
+`discovery.bareAlias`, default true) so it can be reached as
+`http://waybeam.local` without the suffix. It publishes A records for both
+names and answers `A` queries for either. If a second waybeam device contests
+`waybeam.local`, the conflict is resolved on the existing RX socket by an
+RFC 6762 §8.2 IP tiebreak (higher IP keeps it; the lower IP yields with a
+goodbye and keeps only its unique suffixed name) — no flapping, every device
+still reachable by `waybeam-<suffix>.local`.
+
+New `discovery` config section (`enabled` default true, `serviceType`,
+`name`, `bareAlias`). The beacon is inert when disabled, when no usable
+interface exists, or if the socket can't bind — it never blocks the encode
+path.
+
+Design: `documentation/DISCOVERY_TRUST_MIGRATION_SPEC.md`.
+
+## [0.17.1] - 2026-06-13
+
+Fix dual-record mode never engaging under runtime control — the SD-card
+recording bitrate is now independent of the live stream bitrate, as documented.
+
+**Dual-VENC channel creation is gated on `record.mode`, not `record.enabled`.**
+Previously the secondary (ch1) record channel was created at pipeline init only
+when `record.enabled` was true. A runtime-control client (e.g. RubyFPV) that
+sets `record.enabled=false` and starts recording later via
+`/api/v1/record/start` never got the ch1 channel: the record path fell back to
+mirror mode and captured ch0 (the `video0` stream bitrate, typically ~5–12 Mbps
+adaptive) instead of ch1 (`record.bitrate`, e.g. 40 Mbps). Recordings silently
+tracked the link bitrate and the documented "stream low / record high" dual mode
+was unreachable outside the auto-start-at-boot path.
+
+The channel topology now follows `record.mode` alone; `record.enabled` still
+controls only whether recording auto-starts at boot. The ch1 TS writer already
+no-ops while the recorder is closed, so an idle ch1 (mode=dual, not yet
+recording) writes nothing until `/api/v1/record/start` opens the file. Star6E
+only (Maruko has no TS recording).
+
+## [0.17.0] - 2026-06-12
+
+Dropped HEVC RTP Aggregation Packets (AP, NAL type 48) entirely — the wire
+output is now single-NAL + FU-A only, on both backends.
+
+**Why.** AP is valid RFC 7798, but it bought waybeam almost nothing in the
+FPV profile and actively hurt resilience. In single-slice H.265 the picture
+is one large VCL NAL that goes out as FU-A regardless; the only NALs small
+enough to aggregate were the VPS/SPS/PPS triplet on each IDR. Bundling those
+three into one packet means a single lost datagram takes out the entire
+parameter set and renders the whole GOP undecodable — the worst thing to
+aggregate on a lossy RF link. It also broke receivers that only implement
+the universally-supported single-NAL + FU-A subset (e.g. majestic-tuned RTP
+depacketizers), which forwarded the type-48 packets as corrupt video. The
+benefit was ~2 fewer packets per keyframe; the cost was interop failures and
+reduced loss tolerance. Net negative for this use case, so it's gone rather
+than gated behind a config flag.
+
+**What changed.**
+- `hevc_rtp` no longer has an `HevcApBuilder`. `hevc_rtp_send_nal()` and
+  `hevc_rtp_prepend_param_sets()` drop their aggregation-builder argument;
+  each NAL is emitted immediately as a single-NAL packet or FU-A fragments.
+  VPS/SPS/PPS are now prepended as separate packets on IDR (majestic-style).
+- `HevcRtpStats` loses `ap_packets` / `ap_nals`; the `[pktzr]` verbose line
+  is now `nals N | rtp N | fill N B | single N | fu N` on both backends.
+- `h26x_util_hevc_get_layer_id()` / `h26x_util_hevc_get_tid_plus1()` removed —
+  their only consumer was the deleted AP-header builder.
+- `test_hevc_rtp` and `test_star6e_hevc_rtp` rewritten to assert that **no
+  type-48 packet is ever emitted** (VPS+SPS+PPS+IDR now arrive as four
+  separate datagrams), plus the existing single/FU-A/marker-bit coverage.
+
+## [0.16.0] - 2026-06-06
+
+Sensor-level image orientation — `image.flip` and `image.mirror` now work
+correctly on both backends.
+
+**`image.flip` / `image.mirror` are applied at the sensor, once at bring-up.**
+Previously orientation rode the VPE digital flip (`MI_VPE_SetChannelParam`
+`mirror`/`flip`), which is unreliable on several sensor combos — on IMX335
+(Star6E) `flip` stalled the encoder outright. Orientation now programs the
+sensor's own register via `MI_SNR_SetOrien`, applied **once** at bring-up
+(`sensor_select` before `MI_SNR_Enable`, and `start_vpe`/`maruko_start_vpe`
+before the VPE channel starts); the VPE digital flip stays disabled. The
+sensor driver only rewrites orientation when we set it, so a single apply
+holds for the life of the stream — device-verified on IMX335 (Star6E) and
+IMX415 (Maruko), `flip` + `mirror` both correct and stable.
+
+A one-shot re-apply follows the discrete `MI_SNR_SetFps` events that can
+reprogram sensor timing (Star6E live ISP-bin reload; Maruko cold-boot fps
+kick). There is **no** per-frame re-apply loop and **no** use of
+`MI_SNR_GetOrien` (it reads stale values under AE I2C load on IMX335).
+
+## [0.15.0] - 2026-06-06
+
+Unified stabilization control law — `stab` and `stab-fill` now behave
+identically, and the feel knobs were replaced with the Kalman Q/R.
+
+**`stab` adopts the `stab-fill` Kalman trajectory smoother.**  Previously the two
+presets ran different control laws — `stab` used an EMA + gated return-to-centre
+(driven by `stabSmoothPct`/`StillFrames`/`EdgePct`/`MotionThresh`), `stab-fill`
+used a Kalman trajectory filter — so identical settings produced different
+return-to-centre behaviour.  The detector now runs ONE law (the Kalman) for both;
+the only per-preset difference is the emit step (HW crop reprogram vs software
+compose).  Same settings → same feel.
+
+**Feel knobs replaced by the Kalman tuning.**  The four inert-after-unification
+knobs (`stabSmoothPct`, `stabStillFrames`, `stabEdgePct`, `stabMotionThresh`)
+were removed and replaced with the two knobs the Kalman law actually exposes,
+shared by both presets:
+- `stabKalmanQ` (FT_DOUBLE, default 0.03, range `0.001..1.0`) — pan response
+  (process noise): higher = follows pans sooner / weaker hold.
+- `stabKalmanR` (FT_DOUBLE, default 2.0, range `0.1..50.0`) — smoothness
+  (measurement noise): higher = smoother but laggier.
+
+`stabRecenterSpeed` is retained but now only sets the `pauseStab` glide-home
+rate (the Kalman recentres during normal operation).  Schema migration is
+graceful: old `stab*` keys in a saved config are ignored on load; absent
+`stabKalman*` keys take the preset defaults.  Both new fields render in the
+data-driven Stabilization WebUI section.
+
+## [0.14.0] - 2026-06-06
+
+Live stab pause for the HW-crop `stab` preset + a fully data-driven
+**Stabilization** WebUI section.
+
+**`pauseStab` now works on `framing=stab`, not just `stab-fill`.**  The D13
+software-ramp pause was previously gated to the fill path (its `set_live` hook
+was wired only on the `stab-fill` module; toggling it under `framing=stab`
+returned `-1` → a WebUI error toast).  The pause branch is now mode-agnostic in
+the detector: when paused it undoes the tick's measurement and decays the
+trajectory toward centre, so HW-crop glides the crop window home (via the smooth
+low-pass → `apply_port_crop`) and fill glides the floating image home — same
+software ramp, no HW rebind on either.  `set_live` is wired on both stab
+vtables; `star6e_stab_set_paused` now guards on `g_stab_running` (any stab
+detector) instead of `g_stab_fill_mode`.
+
+**Stabilization section is now data-driven.**  The six persisted stab knobs
+(`stabCropPct`, `stabRecenterSpeed`, `stabSmoothPct`, `stabStillFrames`,
+`stabEdgePct`, `stabMotionThresh`) carry `FIELD_UI` metadata and were removed
+from the static Video section; together with the runtime-only `pauseStab` they
+render as one collapsible **Stabilization** group from `/api/v1/capabilities`
+— no per-field `dashboard.html` edit or webui-blob rebuild.  The four advanced
+feel knobs (smooth/still/edge/motion), previously API-only, now have WebUI
+controls.  Ranges mirror the API validators; `0 = preset default` where noted.
+
+## [0.13.0] - 2026-06-06
+
+Framing-module refactor + the `stab-fill` floating-image stabilization preset
+(PR #136 reworked onto master), plus a data-driven field schema so module
+fields reach the WebUI without a dashboard rebuild.
+
+**Stabilization is now a registered `FramingModule` (Star6E).**  All `stab`
+code moved out of `star6e_pipeline.c` into `src/star6e_framing_stab.c` behind a
+`FramingModule` vtable, gated by a `STAB` build flag (default 1; `make build
+STAB=0` excludes the module entirely — no stab code linked, `framing` falls to
+`off`).  The legacy single-thread manual-drain fallback is gone; on port1-tap
+failure the HW-crop path degrades to a bound static centre crop.  Behavior of
+`framing="stab"` is unchanged (bench-verified on imx335).
+
+**New preset `framing="stab-fill"` — floating image on a black border.**  A
+second registered module sharing the IVE detector/geometry/Kalman with `stab`.
+Instead of HW-cropping, it SCL-downscales the full sensor frame to the encode
+size (no shrink) and the manual-drain compose shifts a window inside it,
+black-filling the exposed edge (`BufFillPa` strips + `BufBlitPa` content) on a
+threaded blit worker decoupled from IVE via a 2-slot ring.  `stabCropPct` sets
+the max shift / black-border budget.  A Kalman trajectory smoother (folded
+preset constants) replaces the `stab` EMA.  Device-verified 60 fps on imx335.
+
+**Live `video0.pauseStab` (stab-fill only).**  Software ramp: glides the
+applied offset back to centre via the recenter decay — no `MI_VENC_StopRecvPic`
+/ `BindChnPort2` live rebind (the maneuver that wedged the SoC), no thread
+teardown.  `MUT_LIVE`, not persisted; routed module-side through the
+`FramingModule` set_live hook.
+
+**`stabCropPct` hardened to [60,100]** for stab presets (API validator floor
+50→60, plus load-time + module clamp).  Self-heals a stale `stabCropPct=0`
+(saved while `framing=off`, then framing re-set via a string-only edit) that
+previously overrode the preset default and silently disabled stabilization.
+
+**Data-driven field schema.**  `FieldDesc` gains an optional `ui` descriptor
+(group/label/control/range/options/tooltip); `/api/v1/capabilities` emits a
+per-field `ui` block when present, and the dashboard renders those fields
+generically — a module field is WebUI-visible with no `dashboard.html` edit or
+webui-blob rebuild.  `pauseStab` ships via this path; `stab-fill` added to the
+framing dropdown.  Core fields keep the static dashboard schema unchanged.
+
+**OSD note (Star6E).**  The venc debug OSD composites on VPE port0 (pre-stab),
+so under stab-fill it rides the content — a known cosmetic limit of this
+vehicle-local dev overlay (off by default).  For a screen-fixed OSD on the
+stabilized stream use waybeam_hub's `osd_render` (composites at the SCL stage,
+post-shift).  The two share the single global `MI_RGN` device and are mutually
+exclusive — run one or the other.
+
+**Tooling.**  `tools/build_webui.py` now pins the gzip OS header byte so the
+embedded blob is byte-identical regardless of the builder's Python version
+(CPython 3.11+ changed it from 0x03 to 0xff), fixing `make webui-check` /
+`make verify` on modern Python.
+
+## [0.12.0] - 2026-05-20
+
+Digital image stabilization (DIS) on the Star6E VPE pipeline, re-grafted
+cleanly on top of the 0.11.0 zoom work (#120) rather than the original
+stabilization branch (#118), which forked before the pan-ramp/AE-meter
+changes landed and could no longer cherry-pick clean.
+
+**Framing mode — one knob for stabilization and zoom.**  A single
+`video0.framing` preset is the sole user-facing knob for what the VPE crop
+does (resilience-style): `off`, the stabilization presets `low`|`medium`|
+`high` (Star6E only), and the digital-zoom presets `zoom-1.25x`|`zoom-1.50x`|
+`zoom-1.75x`|`zoom-2x` (both backends).  It expands into the derived
+stab crop/recenter or zoom crop fraction — mutually exclusive — and replaces
+the old standalone `stab` and continuous `zoomPct` fields, neither of which
+is part of the JSON schema or HTTP API anymore.  Zoom presets shrink the
+crop + encoded output together (1:1, no SCL upscale; e.g. `zoom-2x` of
+1920×1080 → 960×528).  `zoomX`/`zoomY` remain live and pan the crop in every
+mode.  `video0.framing` is `MUT_RESTART`.
+
+**Stabilization data path (Star6E).**  Preferred path (HW-crop): VPE port0 hardware-crops the stab
+window — `MI_VPE_SetPortCrop` per detection — straight into a VENC **bind**
+(zero-copy, no per-frame blit), while a tiny 256×256 port1 tap feeds
+`MI_IVE_Shift_Detector` for motion estimation.  Decoupling the detector
+from the stream lets ch0 run at full sensor rate (90/120 fps at 1080p
+confirmed).  The original single-port manual-drain + `MI_SYS_BufBlitPa`
+path is retained as an **automatic fallback** if a BSP rejects the
+simultaneous port1.  Binding port0→VENC also fixes the long-standing
+teardown wedge (the legacy un-drained full-res port0 queue that wedged
+`[vpe0_P0_MAIN]` into D-state on restart).  Return-to-center decays the
+offset *vector* in a float accumulator → a straight diagonal back to
+center with no per-axis rounding tail.  When enabled the source is clamped
+to ≤1920×1080 (preserve aspect) to avoid the high-res fps regression; the
+encoded resolution then shrinks to the crop fraction of the (clamped)
+source, reported in SPS/PPS.  Only the live ch0 stream is stabilized; JPEG
+snapshots and the debug OSD see the unstabilized frame.  Dual recording
+(`record.mode` dual/dual-stream) is downgraded to single-channel while
+stab is active (both would consume VPE port0) — it records the stabilized
+ch0 at its bitrate, with a warning.  `video0.stab` is `MUT_RESTART`.
+
+**Interplay with 0.11.0 zoom.**  Stabilization and zoom are now mutually
+exclusive *by construction* — a `framing` preset is either one or the other,
+so the old "zoomPct ignored while stab on" warning is gone.  `zoomX`/`zoomY`
+are honoured in both modes: under a stab preset they pan the stabilized crop
+via `star6e_stab_set_pan()`; under a zoom preset they drive the 0.11.0
+pan-ramp path.  `apply_zoom` short-circuits to the stab pan when the stab
+thread is running.
+
+**Size-change reboot fixed (cold-init VIF/VPE on respawn).**  A
+`video0.size` change crosses a sensor-mode boundary; the fork+exec respawn
+keeps `/dev/mi_*` fds open (the PR#117/#120 deadlock fix), so the inherited
+VIF/VPE fds pinned the *old* mode and the fresh process wedged
+`vpe0_P0_MAIN` re-initing to the new mode.  The runtime now detects a
+size change (the only field that changes the sensor mode) and the fd-scrub
+additionally closes `/dev/mi_vif` + `/dev/mi_vpe` so they re-init cold —
+gated so it never runs on same-mode respawns (resilience/framing), which
+stay deadlock-safe.  Device-verified clean in both directions
+(1920↔2560) on a non-degraded device; closing those two fds does not
+deadlock.  (Heavy back-to-back respawn cycling can still hit the
+pre-existing cumulative SoC-state degradation that needs a power cycle —
+that is independent of this fix.)
+
+**Cold-boot fps re-kick (legacy AE).**  On a cold boot the init-time
+`MI_SNR_SetFps` can fire before the ISP bin's AE settles and leave the
+sensor timing register below the configured fps.  The CUS3A path already
+re-kicks at frame 15; legacy AE now gets an equivalent one-shot re-kick
+~1.5s into the run loop.  The CUS3A frame-15 kick was also decoupled from
+the shutter-above-cap gate so it fires reliably.
+
+**AE meter follows the crop in both modes.**  The zoom-aware AE meter
+(`MI_ISP_CUS3A_SetAECropSize`) now also tracks the stabilized crop window,
+so exposure is metered on the framed view rather than the full sensor —
+the only intended runtime difference between the two modes is the pan ramp
+(smooth under zoom, direct under stab) plus the stab loop's small per-frame
+correction.  The SDK emit/readiness/dedup/disable machinery is shared
+(`star6e_emit_ae_crop`); the stab window is sized as the crop fraction of
+the VPE output (`g_stab_enc / g_stab_src`), not `image_width / precrop` as
+the zoom path uses, because stab crops the VPE output rather than precrop.
+
+**Debug OSD under stabilization.**  The OSD attaches at the full source
+dim (port0 is never cropped on the stab path) and its stats panel offset
+tracks the live crop window per-frame via
+`star6e_pipeline_stab_panel_anchor()`, so the panel stays put in the
+encoded view as corrections shift the crop.
+
+**IMU-gyro readiness.**  The motion estimate is purely optical today, but
+the design leaves a clean seam for gyro fusion: the existing BMI270 driver
+now routes its frame-synced samples into a shared `ImuRing` (replacing the
+discard stub), and the per-frame estimate lives in
+`star6e_stab_estimate_shift()` with `star6e_stab_gyro_window()` supplying
+the frame-aligned angular rates for the interval.  Adding gyro-assisted
+stabilization is then just the math: integrate yaw/pitch to pixels via the
+lens focal length and fuse with the optical shift.  The gyro window is read
+and surfaced in the periodic stab diagnostic so the plumbing and
+frame-sync are live, not speculative.
+
+## [0.11.0] - 2026-05-19
+
+Star6E zoom improvements lifted from the DIVP/stabilization branch
+work — no DIVP pipeline swap, no stabilization, just two additive
+features that make the existing `zoom_pct` + live `zoomX`/`zoomY`
+controls feel better — plus a respawn-handler bug fix that makes
+the `zoom_pct` MUT_RESTART path safe to use at runtime.
+
+**Pan ramping (hardcoded 150 ms).**  Live pan is now smoothed via
+exponential decay: setting `zoomX`/`zoomY` records a *target*, and a
+dedicated ramp thread tweens the current crop position toward it
+(Star6E ~60 Hz on `MI_VPE_SetPortCrop`, Maruko ~30 Hz on
+`MI_SCL_SetPortConfig`).  Time constant is hardcoded — `zoomRampMs`
+was briefly a config field but the surface didn't earn its keep.
+
+**Zoom-aware AE meter.**  Whenever zoom is active, the ISP's AE
+statistics window (`MI_ISP_CUS3A_SetAECropSize`, 0..1023 normalized)
+is constrained to the zoom rect.  Sky-into-the-frame and
+bright-light-source-near-edge no longer crush the zoomed subject;
+pan across light↔dark regions and exposure follows.  Silent no-op
+if the SDK lacks the symbol; gated on CUS3A readiness so the
+boot-time WARNING from calling before the ISP channel is up no
+longer fires.
+
+**Respawn fd-scrub fix (root cause for SoC hang on MUT_RESTART).**
+The `venc_respawn` post-fork fd scrub loop unconditionally closed
+every non-stdio file descriptor before `execv`.  On Star6E this
+included `/dev/mi_sys` (and other `/dev/mi_*` SDK fds), whose
+release handler in the SigmaStar driver hangs uninterruptibly
+when called after `MI_SYS_Exit` returned cleanly — which is the
+normal state after a zoom_pct (or any MUT_RESTART) reinit.
+Userspace hang → watchdog 3s SIGKILL → sysrq-b emergency reboot.
+
+The fix: detect /dev/mi_* targets via readlink and skip closing
+them.  Reintroduces the slow 1-fd-per-respawn leak the scrub was
+originally written to plug, but bounded by RLIMIT_NOFILE (~1024
+respawns) — vastly preferable to wedging the device.  Bench-
+validated: 4 back-to-back zoom_pct toggles complete cleanly with
+no watchdog escalation.  This fixes a class of bug shared by
+zoom_pct, resilience preset, sensor mode, and any other
+MUT_RESTART field; resilience and sensor-mode just happened not to
+trip it as reliably (their teardown timing left mi_sys in a
+slightly different state).
+
+Star6E only.  Maruko `apply_zoom` accepts the new `ramp_ms` argument
+for API parity but ignores it; no Maruko pipeline changes.
+
+## [0.10.16] - 2026-05-15
+
+Two new OSD-safe resilience presets for ultra-low recovery latency:
+
+- `rescue` — 0.25 s GOP, no intra-refresh, no SVC-T.  Pure IDR-spam
+  fallback.  ~35–40 % of the bitstream is IDR data, but the recovery
+  floor is the lowest of any preset (next IDR is never more than
+  250 ms away).  Useful as a spec-compliant baseline when
+  A/B-debugging whether an intra-refresh preset is misbehaving in
+  the field.
+- `sprint` — 0.5 s GOP + `fast` (150 ms) intra-refresh, no SVC-T.
+  Combines the stripe-recovery of `racing` with a guaranteed IDR
+  floor every 500 ms.  ~20–25 % IDR overhead.  Pick over `racing`
+  when you have bitrate headroom and want belt-and-suspenders
+  recovery on close-range / line-of-sight links.
+
+Both join the OSD-safe column (no green smear).  No code-path
+changes — just two new entries in the resilience preset table.
+
+## [0.10.15] - 2026-05-15
+
+Both backends: resilience SETs now persist their new value to
+`/etc/waybeam.json` and return `{"reboot_required": true}` rather than
+reinitialising the encoder in-place.
+
+Empirically confirmed on Maruko (192.168.2.12) that in-process pipeline
+reinit also crashes the SDK kernel module — not always, but reliably
+within a small number of transitions.  A controlled 7-transition sweep
+on the Feb 22 (pre-gate) binary worked for 6 transitions, then on the
+7th (range→fpv) the daemon zombied with a kernel page fault inside
+`MI_SYS_IMPL_FlushInputPortTasks` in the `mi` module:
+
+    do_task_dead ← do_exit ← die ← __do_kernel_fault ← do_page_fault
+        ← do_DataAbort ← __dabt_svc ← CamOsTimerModify
+        ← MI_SYS_IMPL_FlushInputPortTasks [mi]
+
+System stayed alive (ICMP OK) but waybeam process became State=Z and
+did not respawn (no init supervisor).  SIGHUP did not recover; reboot
+was required.
+
+**Why.**  The SigmaStar VENC SDK does not cleanly release kernel
+encoder driver state across live reinit cycles when intra-refresh or
+refPred toggles, even with fork+exec respawn and a 500 ms post-exit
+settle.  Bench testing (Star6E, 192.168.1.13) reproduced two failure
+modes:
+
+- **Cross-group transitions** (refPred on↔off, intra-refresh on↔off)
+  crash on the first transition.  The original gate in 0.10.14b
+  caught these.
+- **In-group transitions** (e.g. `endurance` → `patrol`, both
+  `ref_base = 0`, intra-refresh active) succeed once or twice then
+  crash.  The second sweep wedged the device after racing → endurance
+  (success) → patrol (SoC panic, ICMP dies, power cycle required).
+  No combination of settle delay or partial state reset prevented the
+  cumulative kernel state corruption.
+
+Cold-boot into any preset is 100 % reliable.  Shipping the reboot
+model is the conservative, no-surprises choice — users edit config or
+issue a SET, the daemon writes the change, the user reboots, and the
+new preset takes effect.
+
+**Implementation.**
+
+- `src/venc_api.c`: extended the `resilience_change` detector in
+  `process_restart_set_query()` to fire on changes to any of
+  `resilience`, `intra_refresh_mode/lines/qp`, or
+  `ref_base/enhance/pred`.  When a change matches, the new config is
+  persisted to disk, `venc_api_request_reinit()` is **not** called,
+  and the response carries `reboot_required: true`.  `gop_size` is
+  intentionally NOT gated — it has always been live-changeable as a
+  plain MUT_RESTART field and preset switches are caught by the
+  `resilience` name change already.
+- README documents the reboot-required behaviour next to the field
+  table.
+
+## [0.10.14] - 2026-05-15
+
+Three new resilience presets — `endurance`, `patrol`, `rally` — and a
+revised classification along an OSD-safe / OSD-unsafe axis after
+bench-isolating why `range`/`fpv` leave persistent green smear on the
+OSD panel.
+
+**Root cause (two layers):**
+
+1. **SVC-T TRAIL_N effective wavefront math.**  The temporal-layering
+   rewrite marks `ref_enhance` of every `(ref_enhance + 1)` frames as
+   TRAIL_N (display-only, dropped from the decoder's DPB), so the
+   effective wavefront in the DPB is
+       effective_wavefront_ms = nominal_wavefront_ms × (ref_enhance + 1)
+   `range` = 2500 ms and `fpv` = 5000 ms both exceed the 2.0 s GOP,
+   so the picture never reaches stripe-only recovery — only an IDR
+   completes it.
+
+2. **OSD-specific chroma artefact.**  For static high-contrast overlay
+   content (OSD text, near-neutral chroma everywhere), the R-D loop
+   picks chroma skip-mode in every MB because chroma residual is
+   essentially zero.  Once chroma drifts in a TRAIL_N frame, no
+   amount of intra-refresh recovers it — the stripe MBs land in
+   display-only frames and never reach the DPB.  Bench-confirmed via
+   JPEG snapshot from the same VPE port: the encoder *input* is
+   clean (sharp OSD, correct chroma), the H.265 bitstream is what
+   produces the green smear.  ROI delta-QP doesn't help because
+   skip-mode bypasses QP for zero-residual blocks, and the SigmaStar
+   i6c VENC API exposes no force-intra-MB knob.
+
+**Conclusion baked into the preset table:**
+
+Any preset with `ref_enhance > 0` is OSD-unsafe.  The fix is to
+classify presets along this axis and let users pick:
+
+| preset      | intra-refresh   | ref_enhance | GOP   | OSD-safe?         | role                                       |
+|-------------|-----------------|-------------|-------|-------------------|--------------------------------------------|
+| `off`       | off             | 0           | user  | yes (no refresh)  | manual control                              |
+| `quality`   | off             | 0           | 4.0 s | yes (IDR-based)   | best image, slow recovery                   |
+| `racing`    | fast (150 ms)   | 0           | 2.0 s | yes               | close-range LOS, fast stripe recovery       |
+| `endurance` | balanced (500ms)| **0** (was 2) | 2.0 s | yes               | less bitrate on stripes, slower wavefront   |
+| `patrol`    | balanced (500ms)| **0** (was 1) | 4.0 s | yes               | long stable flight, 4 s GOP for bandwidth   |
+| `rally`     | fast (150 ms)   | 1           | 2.0 s | no                | light refPred, motion-heavy scenes (no OSD) |
+| `range`     | balanced (500ms)| 4           | 2.0 s | no                | long-range FPV, heavy refPred (no OSD)      |
+| `fpv`       | robust (1000ms) | 4           | 2.0 s | no                | drone FPV, heaviest refPred (no OSD)        |
+
+`endurance` and `patrol` lose their original 1:2 / 1:1 SVC-T pyramid —
+they're now racing-class OSD-safe presets distinguished by slower
+wavefront (less stripe bitrate) and longer GOP respectively.  `rally`
+keeps its 1:1 SVC-T as the lightest refPred option for OSD-off
+scenarios.  `range` and `fpv` remain the heavy-refPred presets,
+unchanged.
+
+Existing config files that set `resilience=racing`, `range`, or `fpv`
+load with identical behaviour.  Users explicitly on `endurance` or
+`patrol` from intermediate 0.10.14 dev binaries lose SVC-T but gain
+OSD-safe recovery — a behavioural change documented in README.md.
+
+WebUI dashboard enum, API test suite (1588 unit tests), and preset
+expansion test cases all updated.  Bench-validated on Star6E
+192.168.1.13: racing/endurance/patrol clean up the OSD area within
+~10 wavefront cycles; rally/range/fpv leave persistent green smear
+that only an IDR can clear.
+
+## [0.10.13] - 2026-05-15
+
+Config-surface simplification: drop dormant `sensor.unlock_*` fields
+and merge per-backend AE selectors into one knob.
+
+- **`isp.aeEngine` replaces `isp.legacyAe` (Star6E) + `isp.aeMode`
+  (Maruko).**  Two values: `"sdk"` (default) — SDK firmware runs AE —
+  and `"custom"` — userspace cus3a takes over.  Mapping on load:
+
+  | `aeEngine` | Star6E | Maruko |
+  |---|---|---|
+  | `"sdk"` (default) | `legacy_ae=true`  | `ae_mode="native"`   |
+  | `"custom"`        | `legacy_ae=false` | `ae_mode="throttle"` |
+
+  Parser keeps the per-backend struct fields populated from the
+  unified field, so existing call sites in `star6e_runtime.c`,
+  `star6e_pipeline.c`, and `maruko_pipeline.c` need no change.
+  Unknown values fall back to `"sdk"`.  Migration: existing
+  `/etc/waybeam.json` files containing `legacyAe` and/or `aeMode`
+  load cleanly — the parser silently drops both keys and the
+  `aeEngine` default (`"sdk"`) drives behaviour, which is the same
+  as the historical defaults (`legacyAe=true` + `aeMode="native"`).
+  Bench-confirmed on 192.168.1.13: setting `legacyAe=false` cycled
+  in custom-AE mode (`[cus3a]` supervisory thread + 15 Hz limits
+  enforcement) before the unification commit.
+
+- **H.265 dead-branch cleanup follow-up to 0.10.12.**
+  `rtp_session_payload_type()` is now an unconditional `97`,
+  `maruko_video.c` drops the defensive non-PT_H265 guard, and
+  `star6e_scene_is_idr()` drops the codec parameter (always 1 since
+  the H.264 retirement).  Three stale H.264/H.265 comments updated.
+  Encoder rate-control union branches (`H264CBR`/`H264VBR`/`H264AVBR`
+  in `*_controls.c`) remain in place as documented dead code — they
+  follow the SDK enum and ripping them out is more churn than it's
+  worth.
+
+
+
+- **`sensor.unlockEnabled` / `unlockCmd` / `unlockReg` / `unlockValue` /
+  `unlockDir` retired from the user surface; unlock now fires
+  unconditionally on every cold boot.**  The
+  `MI_SNR_CustFunction(pad, cmd=0x23, reg=0x300a, value=0x80, dir=0)`
+  hook is required on IMX415 and IMX335 before `MI_SNR_SetRes`/
+  `MI_SNR_SetFps(120)` will accept the high-FPS modes — without it
+  the SDK returns -1608835041 and the sensor clamps to 30 fps.
+  Initial hot-state bench testing on 192.168.1.13 suggested the hook
+  was redundant, but a cold reboot proved that was kernel-driver
+  sticky state from earlier unlocked frames; the hook is genuinely
+  needed.
+
+  Removing the user-facing knob (rather than reverting the
+  simplification) keeps the rule out of the config surface where
+  flipping it off accidentally would brick high-FPS sensors.
+
+- **Migration:** existing `/etc/waybeam.json` files containing any of
+  the five legacy `unlock*` keys load cleanly — the parser silently
+  drops them.  Default JSON ships without the keys.  A user config
+  with `"unlockEnabled": false` (which used to be valid) is silently
+  ignored; the always-on default takes over.
+
+- **Code path preserved.**  `VencConfigSensor::unlock_{enabled,cmd,
+  reg,value,dir}` remain in the struct (defaults: enabled=true plus
+  the IMX415/IMX335 register values), and `sensor_unlock_strategy()`
+  + `MI_SNR_CustFunction` call sites in `star6e_pipeline.c` and
+  `maruko_config.c` stay intact.
+
+
+
+refPred (SVC-T temporal hierarchical reference) lands as a real feature
+behind a single user-facing knob: `video0.resilience`.
+
+- **`video0.resilience` is the sole knob for intra-refresh + SVC-T +
+  GOP.**  Five values pick a 2x2 matrix of trade-offs:
+
+  |                          | Low resilience (best image) | High resilience (more overhead) |
+  |--------------------------|-----------------------------|---------------------------------|
+  | **Fast recovery needed** | `racing` (intra=fast)       | `fpv` (intra=robust + refPred)  |
+  | **Slow recovery OK**     | `quality` (no extras)       | `range` (intra=balanced + refPred) |
+
+  `off` (default) disables both intra-refresh and refPred and honours
+  the user's `gopSize`.  Named presets always set `gopSize` (4.0s for
+  `quality`, 2.0s for the rest) — the previous "gop=0 means
+  intra-refresh picks" auto-mode is gone.  Removed from the user
+  surface: `intraRefreshMode`, `intraRefreshLines`, `intraRefreshQp`,
+  `refBase`, `refEnhance`, `refPred` (granular fields are still
+  populated internally by the preset).
+
+- **refPred (SVC-T) TRAIL_N rewrite.**  The encoder produces a real
+  base/enhance pyramid (`MI_VENC_SetRefParam(base=1, enhance=4)` for
+  `range`/`fpv`) and the runtime patches NAL byte 0 from `TRAIL_R`
+  (type 1) to `TRAIL_N` (type 0) for frames the SDK marked
+  `ENHANCE_P_NOTFORREF`.  Without the rewrite the firmware emits every
+  NAL as TRAIL_R regardless of its actual eRefType — generic HEVC
+  decoders DPB-thrash and visibly warp.  H.265 only.  Mirrored on both
+  Star6E (`src/star6e_runtime.c:79-150`) and Maruko
+  (`src/maruko_pipeline.c:2904-2965`).
+
+- **`GET /api/v1/resilience/status`** — combined view.  Returns
+  `preset`, `intra.{mode,active,mi_supported,apply_ok,effective_lines,
+  effective_qp}`, `refPred.{active,mi_supported,apply_ok,base,enhance,
+  pred}`, `gop.{effective_sec,auto}`.  GOP value comes from
+  `g_cfg->video0.gop_size` (post-preset expansion), so it stays
+  accurate even when intra-refresh is off and the existing
+  `/api/v1/intra/status` reports zero.
+
+- **Debug OSD: resilience banner.**  When `resilience != "off"`, an
+  extra row renders above the existing `intra`/`gop` lines —
+  `res fpv rp=1/4` when refPred is active, `res quality` otherwise.
+
+- **Migration:** existing `/etc/waybeam.json` files containing the old
+  `intraRefreshMode` / `refBase` / `refEnhance` / `refPred` keys load
+  cleanly — the parser ignores them and `resilience` (defaulting to
+  `off`) drives behaviour.  Devices upgrading from 0.10.11 keep their
+  `gopSize`, `outgoing.server`, and all operational state intact.
+
+- **Bench validation:** Star6E 192.168.1.13 cycled through all five
+  presets via REST + restart + log inspection.  Maruko 192.168.2.12
+  surgically patched (old granular keys removed, `resilience: "off"`
+  added, every other field preserved) and exercised through `quality`,
+  `racing`, `range`, `fpv`.  Decoder picture clean at 192.168.2.20 with
+  refPred on; OSD garbling on first apply resolves on next IDR (not a
+  refPred corruption bug — documented in agent memory).
+
+- **H.265 hardcoded — `video0.codec` retired.**  The video codec is now
+  unconditionally HEVC across both backends; the user-facing field is
+  gone from the schema, default JSON, and pretty-print/JSON-export.
+  This removes the H.264 + refPred footgun (the SVC-T + TRAIL_N rewrite
+  is HEVC-only) and collapses several rcMode / RTP / refType branches
+  into a single H.265 path.  Migration: existing configs with
+  `"codec": "h264"` load cleanly — the key is silently dropped and the
+  daemon emits HEVC.  Legacy clients setting `video0.codec=h264` via
+  `/api/v1/set` receive a 404 `unknown config field` rather than silent
+  acceptance.  Resilience preset table is no longer codec-conditional.
+
+## Investigation - 2026-05-14 — **SOLVED**: IMX415 driver regression is a single missing register write
+
+**Root cause**: `drivers/sensor_imx415_maruko.c` does not write
+**`0x3032 = 0x01`** in any of its four init tables.  The stock OpenIPC
+`sensor_imx415_mipi.ko` does.  That is the entire dark-image regression.
+
+**Proof**: After a full 0x3000–0x4FFF (8192 reg) i2ctransfer sweep in both
+dark-venc and bright-venc states, exactly one register differs:
+
+```
+0x3032   dark=0x00   bright=0x01
+```
+
+**Smoking-gun experiment**: With venc running on the custom driver
+producing a dark image, executed `i2ctransfer -y 1 w3@0x1a 0x30 0x32 0x01`
+on the bench at 192.168.2.12.  User confirmed the image **immediately
+became bright** on the ground-station receiver.
+
+**Register identity**: `drivers/sensor_imx335_maruko.c:232` documents
+`0x3032` as `VMAX` (vertical period — controls frame timing).  On IMX415
+the same address appears to also be part of the VMAX/timing block.  The
+IMX415 init tables in `drivers/sensor_imx415_maruko.c` set `0x3031` (ADBIT)
+and `0x3033` (SYS_MODE) but leave `0x3032` unwritten, so it retains the
+sensor's power-on default of `0x00` — which causes the frame-period /
+exposure window to be wrong, producing the dark image.
+
+**Workaround the user has confirmed working** (boot stock first, then
+custom + venc) works because the stock driver writes `0x3032 = 0x01` and
+that value survives the soft reboot.
+
+**Fix applied** (one line per init table, four tables total):
+
+```c
+{ 0x3031, 0x00 }, // ADBIT (10bit)
+{ 0x3032, 0x01 }, // VMAX MSB — must be 0x01, default 0x00 produces dark image
+{ 0x3033, 0x05 }, // SYS_MODE (891Mbps)
+```
+
+Applied to all four `Sensor_*_init_table_*[]` arrays in
+`drivers/sensor_imx415_maruko.c`.  Rebuilt via
+`make drivers-maruko KSRC_MARUKO=<...>`:
+
+- New `sensors/maruko/sensor_imx415_maruko.ko` — md5 `bd582d87...` (was `c236ac34...`)
+- 4× `{ 0x3032, 0x01 }` patterns confirmed in the binary
+
+**Followup (IMX335) — resolved 2026-05-14**: user swapped to an IMX335
+sensor on the bench and confirmed bright image on firstboot with the
+unpatched custom `sensor_imx335_maruko.ko`.  As static analysis
+predicted, the IMX415 single-bit bug does not apply to IMX335 —
+`0x3032` on IMX335 is genuinely the VMAX high nibble and our driver
+already writes it correctly as `0x00` in all 5 init tables.  No action
+required.
+
+Captures + diffs: `bench_logs/manual_sensor_diff_20260514T093447Z/`
+
+## Investigation - 2026-05-14 — Maruko firstboot dark image is a custom-driver regression
+
+Manual session on bench 192.168.2.12 narrowed the long-standing "venc on
+firstboot is dark, majestic-first warms it up" symptom to a regression in
+our **custom-built `sensor_imx{335,415}_maruko.ko` kernel modules** (in
+`sensors/maruko/`).
+
+Findings, in order:
+
+- Stock `/rom` driver (25K, md5 `a33cfa52...`) + majestic = bright.
+- Custom overlay `_maruko.ko` (167K, md5 `c236ac34...`) + venc = dark.
+- Custom overlay `_maruko.ko` + majestic = **also dark** — confirmed by
+  the user.  This rules out the original "venc-vs-majestic init"
+  hypothesis: the bad actor is the .ko, not the streamer.
+- Restoring the stock driver via `rm /overlay/root/lib/modules/.../sensor_imx*_mipi.ko`
+  and rebooting brings the image back to normal — overlayfs reveals the
+  stock `/rom` copy.
+
+Register deltas (regscan curated 254 entries, banks 0x30–0x40) between
+dark-custom and bright-stock states: HMAX (`0x3024/0x3025`), BIN_MODE
+(`0x3050/0x3051`), and `0x3090` (IMX415 analog).  The custom .ko leaves
+all of these at firstboot defaults; the stock .ko writes them.
+
+Workaround the user has confirmed working:
+
+  stock .ko + majestic → soft reboot → custom .ko + venc → bright
+
+That last step is the surprise: with custom .ko in place, `venc` on a
+soft reboot still produces a bright image — yet only **one** scanned
+register (`0x3032`: 0x00 → 0x01) survived the reboot from the stock
+session.  All five HMAX/BIN_MODE/0x3090 registers reverted to dark-state
+values.  So the state that actually distinguishes dark-vs-bright lives
+**outside regscan's 254-entry range** — likely 0x4100+ (SHR), 0x5000+
+(calibration), 0x6000+ (VOUT/MIPI), or ISP-side state.
+
+See `documentation/MARUKO_FIRSTBOOT_DARK_IMAGE_TEST.md` (Findings
+section) for the full table and Phase-2 brute-force-sweep plan.
+
+Captures: `bench_logs/manual_sensor_diff_20260514T093447Z/`
+
+## [0.10.11] - 2026-05-14
+
+Maruko snapshot follow-up: SIGHUP reinit hardening, MJPG quality
+actually applied, live-update `snapshot.quality`, and the
+Maruko-specific default config finally reaches the release tarball.
+
+- **`snapshot.quality` is MUT_LIVE.**  POST/GET `/api/v1/set?snapshot.quality=N`
+  applies instantly with no pipeline reinit — Get→modify→Set on
+  `MI_VENC_ChnAttr_t.rate.mjpgQp.quality` on the parked MJPG channel.
+  Frontend (`src/venc_jpeg.c`) serializes the live-set call under the
+  same module mutex as `venc_jpeg_capture`, so an in-flight snapshot
+  request cannot race the SDK Get/Set sequence.  Backend hooks added:
+  `venc_jpeg_backend_set_quality(uint32_t)` in both `star6e_jpeg.c`
+  and `maruko_jpeg.c`; weak `-ENOSYS` fallback in the common layer
+  keeps the host-test build link-clean.  Schema field flips from
+  `MUT_RESTART` to `MUT_LIVE` in `g_fields[]`; full LIVE-group wiring
+  through `venc_api.c` (key→group, name, supported, copy, apply) +
+  `apply_snapshot_quality` callback on `VencApplyCallbacks`.
+  Range validator: `[1, 99]` (SDK ceiling) at `validate_field_cfg`.
+  Front-end `venc_jpeg_init` clamp aligned to ≤99 (was 100) for
+  symmetric behaviour with live-set.
+  - Bench (Maruko 192.168.2.12 firstboot): q=20→118 KB, q=50→257 KB,
+    q=80→464 KB, q=99→2.03 MB across same pid, zero reinits.
+  - Bench (Star6E 192.168.1.13): q=20→51 KB, q=50→78 KB, q=80→154 KB,
+    q=99→261 KB across same pid, reinit count unchanged.
+
+- **MJPG quality actually wires through on Maruko** (was silently
+  ignored in 0.10.10).  Root cause: `attr.rate.mode` was set to
+  `I6C_VENC_RATEMODE_MJPGQP` (= 8), which Maruko firmware interprets
+  as `MJPEGVBR` in its UBR-shifted enum — the channel built fine but
+  `attr.rate.mjpgQp.quality` was discarded since VBR mode has no
+  quality field.  Fixed by adding `MARUKO_VENC_RC_MJPG_{CBR,VBR,FIXQP}`
+  = {7,8,9} to `include/maruko_bindings.h` (the firmware-accepted enum
+  values, distinct from the I6C SDK header's shifted layout) and
+  pointing `maruko_jpeg.c` at `MARUKO_VENC_RC_MJPG_FIXQP` (= 9).
+  DQT tables now scale correctly: q=99 → all-1's quantization,
+  q=20 → coarse quantization, byte sizes track expected.
+
+- **Maruko SIGHUP reinit no longer crashes on consecutive `kill -1`.**
+  Root cause: `maruko_load_isp_bin` calls
+  `MI_ISP_DisableUserspace3A` + post-load `CUS3A_Enable` hooks that
+  are "once per process lifetime" — re-entering them on the second
+  reinit segfaults inside the SDK with `Mutex is not initialized
+  before lock` from `libcam_os_wrapper.so`.  Fixed by splitting the
+  load path: cold boot keeps the full `maruko_load_isp_bin`; reinit
+  uses a new minimal variant that skips both CUS3A hooks (sufficient
+  because the kernel ISP module's state survives the in-process
+  teardown).  10 consecutive `killall -1 venc` cycles verified clean
+  on 192.168.2.12; pid 1894 stable, no SDK reset, no zombie state.
+
+- **Maruko default config reaches the release tarball.**  Two-part
+  fix.  First, `config/venc.default.maruko.json` gains the `snapshot`
+  block (was missing entirely — Maruko users had snapshot disabled
+  until they hand-edited the JSON, even though the schema and runtime
+  defaults were already in place).  Second, `.github/workflows/release.yml`
+  was copying `config/venc.default.json` for *both* backends when
+  staging the release archives, so the Maruko tarball's bundled
+  `venc.json` carried Star6E defaults (`sensor.unlockEnabled=true`,
+  no `snapshot` block).  Now picks the Maruko-specific template when
+  staging `venc-maruko.tar.gz`, falls back to the shared default for
+  Star6E.  Firstboot Maruko devices installed from the release tarball
+  now ship with `snapshot.enabled=true` and the right unlock policy.
+
+- **Firstboot deployment verified end-to-end on Maruko.**  Wiped
+  device (no `/usr/bin/venc`, no `/usr/lib/libmi_*.so`, no
+  `/etc/venc.json`); pushed binary + 14 MI libs + 10 sensor `.ko` +
+  3 ISP `.bin` + `json_cli` + the bundled `venc.json` in a single
+  bulk-push via `scripts/maruko_direct_deploy.sh full
+  --push-config config/venc.default.maruko.json`; rebooted; venc
+  came up clean at pid 720, IMX335 sensor module loaded, pipeline
+  configured at 1920×1080@60, `/api/v1/snapshot.jpg` worked first
+  request without manual config edits.
+
+## [0.10.10] - 2026-05-14
+
+Maruko snapshot backend — closes the deferred follow-up from 0.10.9.
+`GET /api/v1/snapshot.jpg` now serves a real JPEG on Maruko (was
+`503 snapshot_disabled` in 0.10.9).  Star6E unchanged.
+
+- **Architecture** — dedicated MJPG VENC device 8 (`I6C_VENC_DEV_MJPG_0`)
+  channel 0, bound to a second SCL output port (SCL dev 0 chn 0 port 1)
+  via `MI_SYS_BindChnPort2` in `I6_SYS_LINK_FRAMEBASE` mode at 5 fps
+  destination rate.  Channel stays parked (`StopRecvPic`) between
+  requests; capture flips `StartRecvPic` on, polls `Query` for ready
+  packs, drains via `GetStream`, then parks again.  Same idle pattern
+  as Star6E (`src/star6e_jpeg.c`) — no encoder CPU when no snapshot
+  is in flight.
+- **Why a second SCL port** — Maruko's SCL output port 0 is held by
+  the main H.265 channel in `LINK_RING` mode (1:1, `0xA0092012` if
+  re-bound).  Port 1 is a fresh tap from the same SCL channel, so
+  no contention with the main stream.  Avoids the kthread-leak path
+  the earlier HW_RING fan-out attempt hit — `dev 8` only sees SCL,
+  never has any relationship to main `dev 0`, so failed-init teardown
+  is clean (no `[venc8_P0_MAIN]` orphan).
+- **Pipeline wiring** — `src/maruko_pipeline.c::configure_maruko_scl()`
+  configures + enables SCL port 1 (YUV420SP, no IFC compress, same
+  crop + output dims as port 0).  `bind_maruko_pipeline()` calls
+  `venc_jpeg_set_source(&ctx->scl_port1)` before `venc_jpeg_init`.
+  `maruko_pipeline_teardown_graph()` disables port 1 after
+  `venc_jpeg_shutdown()`.  Port-1 setup failures are non-fatal:
+  warning logged, snapshot returns `503` cleanly via the
+  `g_have_scl_port=0` path in `venc_jpeg_backend_init`.
+- **Bench verification (192.168.2.12, IMX415, 1920×1080@60)** — 10
+  rapid snapshots in 679 ms (~14 req/s sustained, all `HTTP 200`);
+  size 120–184 KB; mean Y ≈ 124 (bright, post-firstboot-fix); main
+  RTP stream to 192.168.2.20 unaffected during snapshot bursts; no
+  `[venc8_P0_MAIN]` kthread in `ps`.
+
+Snapshot config schema fields are now part of the on-disk JSON,
+fully wired through the standard 7-touch-point machinery:
+
+- **`venc.json` → `snapshot.{enabled,quality,channel,width,height}`**
+  with sensible defaults (`enabled=true`, `quality=80`, `channel=7`,
+  `width=0`/`height=0` = inherit main stream).  Read on pipeline init
+  via `MarukoBackendConfig::snapshot` (Maruko) and `VencConfig::snapshot`
+  directly (Star6E).
+- `/api/v1/get?snapshot.<field>` and `/api/v1/set?snapshot.<field>=<v>`
+  resolve through `g_fields[]` (all MUT_RESTART since the SDK channel
+  attrs are baked at `CreateChn` time).
+- `config/venc.default.json`, `pretty_print`, `cJSON` serializer, and
+  `MarukoBackendConfig` mirror all carry the new section — the
+  `layout_size_equal` round-trip test in `tests/test_venc_config.c`
+  protects against future drift.
+
+Star6E hardware bench validation is still deferred (no Star6E bench
+currently online).
+
+Caveat (pre-existing, not introduced here): rapid back-to-back
+`/api/v1/set?<MUT_RESTART_field>=...` requests within the reinit
+window can crash venc — same SIGHUP reinit race already tracked in
+`roadmaps/waybeam_venc.md` ("SIGHUP reinit stabilization — partial
+teardown works, ISP race outstanding").  A single quality / dims
+change settles cleanly; users should wait for `reinit_pending=true`
+to resolve before issuing another restart-tier `set`.
+
+## [0.10.9] - 2026-05-14
+
+JPEG snapshot HTTP endpoint on both backends.
+
+- **`GET /api/v1/snapshot.jpg`** — dedicated MJPEG VENC channel taps
+  the same VPE/SCL output port the main H.264/H.265 stream consumes.
+  Channel is created at pipeline-start, kept idle (StartRecvPic off)
+  between requests; each request flips StartRecvPic on, polls Query
+  for a ready pack, drains one JPEG frame via GetStream, then turns
+  StartRecvPic back off.  Captures are serialized through a module
+  mutex so concurrent HTTP clients queue rather than collide.
+  Response is `Content-Type: image/jpeg`; failure modes are
+  `503 snapshot_disabled` (subsystem not initialised),
+  `504 snapshot_timeout` (no frame within 1.5 s), or
+  `500 snapshot_failed` (SDK / alloc error).  Default quality 80.
+- **Star6E backend** (`src/star6e_jpeg.c`) — `I6_VENC_CODEC_MJPG` on
+  ch7, `I6_SYS_LINK_FRAMEBASE` bind to the pipeline's VPE port.
+  Star6E supports 1:N from a VPE output port, so the snapshot channel
+  binds alongside the main H.265 channel without contention.
+- **Maruko backend** (`src/maruko_jpeg.c`) — **deferred**.  Bench
+  investigation on 192.168.2.12 found two blockers:
+  (a) the Maruko SCL output port is 1:1 — binding it to the MJPG
+  channel after the main H.265 channel already holds it returns
+  `0xA0092012` ("SYS busy", same code documented in `maruko_pipeline.c`
+  line 2097 for the dual-stream path);
+  (b) an attempted workaround using cross-device VENC HW_RING fan-out
+  hit the SDK's teardown bug — failed init left an orphaned
+  `[venc8_P0_MAIN]` kernel thread that blocked the next `MI_SYS_Init`
+  indefinitely (HISTORY "venc_teardown_regression" pattern; recovered
+  via sysrq-b).  Two viable paths forward (out of scope for this PR):
+  configure a second SCL output port at pipeline init, or probe the
+  cross-device VENC bind before `CreateChn` so failure paths don't
+  leak kernel state.  Until then `src/maruko_jpeg.c` is a clean
+  `-ENOSYS` stub so `/api/v1/snapshot.jpg` serves 503 cleanly without
+  ever touching the SDK.
+- **HTTP plumbing** — new `httpd_send_binary()` helper in
+  `include/venc_httpd.h` for raw byte payloads with caller-supplied
+  `Content-Type`.  Used by the snapshot handler; reusable for any
+  future binary endpoint (PNG OSD overlay, IQ blob dumps, etc.).
+- **Tests** — `tests/test_venc_jpeg.c` (13 assertions): pre-init
+  capture refusal, NULL-arg rejection, `enabled=false` no-op init,
+  failed-backend → clean -ENODEV degradation, idempotent shutdown,
+  re-init after shutdown.  All run on the host test_runner because
+  the common layer's weak-symbol backend stubs make the module
+  exercisable without an SDK present.
+- **Pipeline lifecycle** — pipeline init calls
+  `venc_jpeg_set_source(vpe_port)` + `venc_jpeg_init(&cfg)` right
+  after the main VPE/SCL→VENC bind; pipeline teardown calls
+  `venc_jpeg_shutdown()` before the matching unbind (idempotent).
+  Failure of the snapshot init is non-fatal — the main stream still
+  comes up, the snapshot endpoint just serves 503.
+
+Defaults are hardcoded for this release: `quality=80`, `channel=7`
+(mapped to ch 0 on Maruko's MJPG_DEV), width/height inherited from
+the main stream.  A future release will surface `snapshot.{enabled,
+quality,width,height,channel}` in `venc.json`.
+
+## [0.10.8] - 2026-05-14
+
+Release tarball completeness — fixed three gaps that left a fresh
+device install incomplete after extracting `venc-maruko.tar.gz`:
+
+- **Sensor drivers shipped (Maruko).**  `sensors/maruko/sensor_imx{335,415}_maruko.ko`
+  are now vendored in the repo (source-built via `make drivers-maruko`,
+  ~320 KB total).  `make stage SOC_BUILD=maruko` renames them to
+  `_mipi.ko` for drop-in compatibility with stock OpenIPC kernel
+  module naming, and the release tarball ships them under
+  `drivers/`.  Previously the release was sensor-driver-free, so a
+  fresh-device install ended up running stock OpenIPC drivers
+  regardless of the modifications in `drivers/sensor_*.c`.  See
+  `sensors/maruko/README.md` for provenance.
+- **ISP tuning blobs shipped (Maruko).**  `iq-profiles/maruko-bin/imx{335,415,415_fpv_api}.bin`
+  are now vendored (~420 KB total), pulled from the verified bench
+  at 192.168.2.12.  Release tarball ships them under `isp-bins/` so
+  fresh devices have IQ tuning available without a manual
+  `/etc/sensors/` pull.  See `iq-profiles/maruko-bin/README.md`.
+- **regscan shipped (both backends).**  IMX335/IMX415 i2c register
+  dumper (vendored from `tipoman9/star6c_sensor`) now builds in CI
+  for both Star6E and Maruko and ships in both tarballs.  Read-only
+  diagnostic; used by `scripts/maruko_sensor_init_diff.sh` for
+  sensor-init investigations.
+
+CI verification step now hard-checks the new artifacts exist before
+upload, so a regression that drops them from the tarball will fail
+the build instead of silently shipping an incomplete release.
+
+Release-notes install snippet expanded to cover the new payloads
+(`cp drivers/*.ko /lib/modules/.../sigmastar/`, `cp isp-bins/*.bin
+/etc/sensors/`, `cp regscan /usr/bin/regscan`).
+
+## [0.10.7] - 2026-05-11
+
+Maruko deploy pipeline polish — fix four PR-review gaps and one
+build-cycle ergonomics issue surfaced during bench testing.
+
+- **Per-source object files + `-MMD -MP` dep tracking.**  The
+  top-level Makefile used a single monolithic CC invocation that
+  compiled and linked all 47 source files in one shot, so every
+  iteration of `make build SOC_BUILD=maruko` rebuilt everything from
+  scratch even for a one-line edit.  Split into `$(OBJ_DIR)/%.o`
+  pattern rules with auto-generated `.d` dep files.  Cold build
+  unchanged at ~3.3 s; touching one `.c` is now ~0.13 s (1 compile +
+  relink); a header change only rebuilds dependent objects.
+- **`push-drivers` no longer non-deterministic.**  When
+  `sensors/maruko/` contains both a source-built `sensor_imxNNN_maruko.ko`
+  (renamed to `_mipi.ko` on push) and a pulled-from-device blob
+  `sensor_imxNNN_mipi.ko`, the alphabetical glob ordering let the
+  pulled blob clobber the source-built rename.  `push_drivers` now
+  skips the pulled `_mipi.ko` when a `_maruko.ko` sibling exists, and
+  logs the skip count.
+- **uClibc compat symlinks pushed automatically.**  Stock OpenIPC
+  musl firmware ships `/lib/libc.so` only, but the vendor blob
+  `libcam_os_wrapper.so` has hardcoded NEEDED tags `ld-uClibc.so.1`
+  and `libc.so.0` in its `.dynamic` section (cannot be relinked — it
+  is a binary drop).  `push-libs` (and `cycle`/`full` when libs are
+  requested) now creates `ln -sf libc.so /lib/ld-uClibc.so.1` and
+  `ln -sf libc.so /lib/libc.so.0` after the library push.  Idempotent;
+  pristine firstboot devices no longer segfault on first `venc`
+  start.  `vendor-libs/maruko/README.md` updated — the previous claim
+  that `ld-uClibc.so.1` was "dead since v0.7.0" was wrong (only the
+  shim binary is dead; the NEEDED tag inside the wrapper is not).
+- **`json_cli` vendored from `waybeam-hub`.**  `scripts/maruko_direct_deploy.sh`'s
+  `config-get` / `config-set` / `status` paths all require
+  `/usr/bin/json_cli` on the target.  Previously the deploy script
+  assumed someone else had pushed it, which broke on firstboot.  Now
+  `tools/json_cli/{json_cli.c,jsmn.h}` ship in the repo (re-synced
+  from `../waybeam-hub/tools/`); `make json_cli SOC_BUILD=maruko`
+  builds `out/maruko/json_cli`; `scripts/maruko_direct_deploy.sh
+  push-json-cli` (and `cycle --with-json-cli` / `full`) installs it
+  to `/usr/bin/json_cli`.
+
+## [0.10.6] - 2026-05-07
+
+`isp.sensor_bin` is now a live mutable field on both backends.
+
+Previously, swapping the ISP tuning bin via `/api/v1/set?isp.sensorBin=...`
+fell into the `MUT_RESTART` path, which on Star6E means `g_running=0` →
+clean teardown → fork+exec a successor venc → MI_SYS_Init → reselect sensor
+→ rebuild VIF/VPE/VENC.  End-to-end downtime measured ~15 s on the
+192.168.1.13 bench — far longer than the ~80 ms the actual
+`MI_ISP_*CmdLoadBinFile` call needs.  The fork+exec path is the right call
+for sensor mode / size / codec changes (in-process MI_SYS_Init is broken on
+Star6E), but it is overkill for an ISP IQ refresh that does not touch the
+graph at all.
+
+- New `apply_isp_bin(const char *path)` callback on `VencApplyCallbacks`.
+- `FIELD(isp, sensor_bin, ..., MUT_LIVE)` plus a `LIVE_GROUP_ISP_BIN`
+  dispatch entry, so single-set and multi-set go through the same live
+  apply path that already drives bitrate / fps / awb_mode.
+- Star6E (`star6e_pipeline_load_isp_bin_live`):
+  resolve via `pipeline_common_resolve_isp_bin` (configured path → sensor
+  fallback → none), short-circuit when the resolved path matches the
+  last-loaded one, otherwise call the existing `*_load_isp_bin` path.
+  Reapplies `MI_ISP_AE_SetExposureLimit` (bin can reset AE limits) and,
+  in `legacyAe` mode, kicks `MI_SNR_SetFps` so the sensor's physical
+  shutter register isn't left at the bin's cold-boot value — without
+  this, swapping to a darker bin locks the sensor at ~12 fps until reinit
+  (cold_boot_fps_lock).
+- Maruko (`maruko_pipeline_load_isp_bin_live`): same resolve+dedup
+  shape, but uses a stripped-down `maruko_load_isp_bin_minimal` that
+  intentionally **skips** the `MI_ISP_DisableUserspace3A` and post-load
+  `MI_ISP_CUS3A_Enable` hooks the cold-boot path uses.  Re-entering
+  CUS3A_Enable on the still-active channel trips the same kernel-mutex
+  regression noted in `maruko_stop_vpe_channels` ("Skip DestroyChannel
+  — kernel ISP retains CUS3A mutex state") and segfaults venc on the
+  second swap.  3A_Proc_0 stays running across the load and picks up
+  the new IQ tables on its next tick.  `g_last_isp_bin_path` is
+  updated so the next reinit-time gate stays consistent, and cleared
+  in `maruko_pipeline_teardown_graph` so the SIGHUP in-process reinit
+  runs the cold-boot bin load unconditionally (Star6E gets that for
+  free via fork+exec).
+- New per-field validator: a non-empty `isp.sensor_bin` must point at a
+  readable file or the set is rejected with `409 validation_failed`.
+  Empty string still opts into the auto-detect fallback.
+
+Verified on 192.168.1.13 (Star6E, imx415, legacyAe):
+- 6 back-to-back swaps complete with end-to-end ~250 ms each (≈80 ms
+  reload + ssh round-trip), down from ~15 s.
+- Streaming holds at 59-60 fps through and after the swap sequence;
+  earlier prototype without the SetFps kick locked at 12 fps.
+- `/api/v1/set?isp.sensorBin=/no/such/bin` returns
+  `{"code":"validation_failed","message":"isp.sensor_bin path is not
+  readable"}` with HTTP 409 and leaves config unchanged.
+- `/api/v1/set?isp.sensorBin=` (empty) accepted.
+- Reloading the same bin twice short-circuits with
+  `> ISP bin reload: <path> already loaded, skipping`.
+
+Verified on 192.168.2.12 (Maruko, imx415):
+- 5 back-to-back swaps complete cleanly; venc still up after, 3A_Proc_0
+  ticks through the load.  End-to-end ~5.2 s/swap (the Maruko SDK's
+  `MI_ISP_API_CmdLoadBinFile` itself takes ~5 s on this BSP — visible
+  as a ~75 cus3a-tick gap in the log).  Same order of magnitude as the
+  in-process reinit it replaces, but no pipeline graph teardown and
+  no HTTP hang under load.
+- First minimal-hooks prototype that mirrored the cold-boot
+  disable/enable hooks crashed with "WARNING: Mutex is not initialized
+  before lock" → segfault on the second swap; that prompted the
+  cold-boot-vs-live hook split documented above.
+- Validator + empty path + idempotent re-set behave identically to
+  Star6E.
+
+Two new unit tests cover the live dispatch, the validator, and the 501
+fallback when a backend doesn't supply `apply_isp_bin`.
+
+## [0.10.5] - 2026-05-05
+
+Maruko-specific default config template (`config/venc.default.maruko.json`).
+
+The shipped `config/venc.default.json` defaults `sensor.unlockEnabled` to
+`true` because that flag is required on Star6E to unlock IMX415/IMX335
+high-FPS modes from cold boot (see
+`documentation/SENSOR_UNLOCK_IMX415_IMX335.md`).  The unlock command
+(`MI_SNR_CustFunction` cmd `0x23`, reg `0x300a`, value `0x80`) targets a
+driver internal latch present in the Star6E `sensor_imx*_mipi.ko`
+modules.  On Maruko the sensor driver layout is different and that latch
+does not exist — the call is at best a no-op + warning, at worst it
+prints a confusing failure on every boot.
+
+A new Maruko user starting from `venc.default.json` would inherit the
+unlock-on flag and see those warnings even though their pipeline is
+fine.  `config/venc.default.maruko.json` is identical to the Star6E
+default except for `sensor.unlockEnabled: false`, so packagers and
+first-time Maruko users have a clean starting point.  The runtime is
+unchanged — `/etc/venc.json` is still the only path the binary reads.
+
+## [0.10.4] - 2026-05-05
+
+`/api/v1/dual/status` reachable on both backends.
+
+Two related issues fixed:
+
+- **Maruko never registered the dual VENC handle with the HTTP API.**
+  `maruko_pipeline_start_dual` brought up chn 1, started the drain
+  thread, and set `ctx->dual`, but it never called
+  `venc_api_dual_register()`.  Result: `/api/v1/dual/status`,
+  `/api/v1/dual/set`, and `/api/v1/dual/idr` all returned 404 even
+  with `record.mode = "dual"` or `"dual-stream"` — a regression vs.
+  Star6E parity claimed in HTTP_API_CONTRACT §"Dual VENC".
+  `maruko_pipeline_stop_dual` now mirrors Star6E by calling
+  `venc_api_dual_unregister()` before tearing down chn 1.
+- **`/api/v1/dual/status` now always returns 200 with `active`.**
+  Previously the handler returned 404 with `not_active` when dual
+  was disabled, which made the endpoint indistinguishable from a
+  routing miss.  Aligned with the `/api/v1/record/status` shape:
+  `{"ok":true,"data":{"active":false}}` when off,
+  `{"ok":true,"data":{"active":true,"channel":1,"bitrate":...,
+  "fps":...,"gop":...}}` when on.  Write endpoints `/dual/set` and
+  `/dual/idr` keep the 404+`not_active` semantics — those still need
+  a live channel to operate on.
+- **`/api/v1/dual/set` is Star6E-only** (returns 501 on Maruko).
+  The previous handler dereferenced `MI_VENC_ChnAttr_t` (i.e.
+  `i6_venc_chn`), but Maruko's venc library expects `i6c_venc_chn`
+  with a different layout — calling it through the wrong typedef
+  corrupted the attr struct.  The latent bug went undetected until
+  this version because Maruko never registered the dual handle, so
+  `/dual/set` always short-circuited to 404 on Maruko before the
+  bad call.  `/dual/idr` is single-arg and works on both.
+
+Verified on 192.168.1.13 (Star6E) with `record.mode` in `{off, dual}`
+— `/dual/status` returns `active:false` and `active:true` respectively;
+`/dual/set?bitrate=8000` and `/dual/idr` both return 200 in dual mode.
+Verified on 192.168.2.12 (Maruko) with `record.mode` in `{off,
+dual-stream}` — same status shape, `/dual/idr` returns 200, `/dual/set`
+returns 501.  `dual` mode (TS file write) was not exercised on Maruko
+because `record.dir=/tmp` is tmpfs there and fills RAM under load;
+`dual-stream` exercises the same `venc_api_dual_register` path.
+
+## [0.10.3] - 2026-05-05
+
+HTTP dispatch pause/resume across pipeline reinit and teardown.
+
+Closes a long-standing HTTP↔runner thread race: the httpd worker
+dereferences SDK handles (VENC/ISP/SCL/VPE channels, audio capture,
+output socket) that the runner thread destroys and recreates during
+reinit or shutdown.  Symptoms ranged from `MI_*` errors against a
+destroyed channel to outright segfaults under heavy WebUI traffic
+during a SIGHUP reinit on Star6E, and visible HTTP hangs across the
+in-process reinit window on Maruko.
+
+Fix: a single chokepoint at the httpd worker's dispatch call.
+
+- `venc_httpd_pause()` sets a flag and drains the in-flight handler
+  (it takes the same mutex the worker holds across `dispatch()`).
+  After pause returns, every new request is answered with 503
+  immediately, so SDK state is safe to tear down.
+- `venc_httpd_resume()` clears the flag.
+
+Call sites:
+
+- `maruko_runtime.c` brackets `teardown_graph` + `reinit_pipeline` with
+  `pause` / `resume` (the in-process reinit window).
+- `maruko_pipeline.c` pauses before final teardown (no resume — the
+  process is exiting).
+- `star6e_runtime.c` pauses across the SDK shutdown teardown until
+  `venc_httpd_stop()` returns (no resume — fork+exec parent or normal
+  exit).
+
+Hardware verification on 192.168.1.13 (Star6E IMX335 @ 60 fps fork+exec
+respawn) and 192.168.2.12 (Maruko in-process reinit): under sustained
+mixed `apply_*` / `query_*` traffic, the pause window emits fast
+sub-4 ms 503s for clients that hit it, no requests hang, no daemon
+crashes, and the encoder keeps streaming throughout the Maruko reinit.
+
+## [0.10.2] - 2026-05-05
+
+Maruko: HTTP record control + raw HEVC recording (Star6E parity).
+
+**HTTP record control** — `/api/v1/record/start` and `/stop` previously
+returned 501 "HTTP record control not available on this backend" so
+the WebUI dashboard record buttons were dead.  The HTTP request
+flags are now drained in the chn 0 drain loop, gated by the same
+`!ctx->dual` guard that protects the chn 0 write (the dual chn 1
+drain thread owns the recorder when active).  Back-to-back `/start`
+calls rotate the segment cleanly and request an IDR so the new
+segment begins on a keyframe.
+
+**Raw HEVC recording** — `record.format = "hevc"` is now accepted on
+Maruko, matching Star6E.  The pipeline holds parallel `ts_recorder`
+and `recorder` (Star6eRecorderState) state; format dispatch happens
+at start and selects which one consumes the chn 0 / chn 1 stream.
+A new `src/maruko_recorder.c` adapter walks `i6c_venc_strm` with the
+same iovec-collected `writev` pattern as `star6e_recorder.c`,
+reusing all the disk-space / sync_file_range plumbing.
+
+Both modes verified on 192.168.2.12 via WebUI: 3760×2116 HEVC Main
+in `.hevc`, HEVC + Opus in `.ts`.
+
+## [0.10.1] - 2026-05-05
+
+TS recorder: universally-decodable audio in `.ts` files.
+
+The recorder previously muxed audio as private-data with an "LPCM"
+registration descriptor that no standard player recognised — VLC,
+ffmpeg, and mpv treated it as `bin_data` and either dropped it or
+played white noise.  Recordings now carry audio in one of two forms,
+selected by `audio.codec`:
+
+- `audio.codec = "pcm"` → SMPTE 302M (BSSD).  Broadcast standard for
+  16-bit PCM in MPEG-TS.  Mono inputs are upmixed to stereo per the
+  302M requirement.  Universally decoded.
+- `audio.codec = "opus"` → Opus-in-MPEG-TS provisional mapping.
+  Re-uses the same Opus encoder feeding the RTP path, so no extra CPU
+  cost.  Each PES carries one Opus access unit prefixed by the
+  `0x7FE0` control header.  Recommended — about 30× smaller audio than
+  PCM at the same intelligibility.
+- `audio.codec = "g711a"` / `"g711u"` → audio is not muxed into the
+  recording (no in-band TS framing that VLC/ffmpeg decode without
+  hints).  Video-only file.
+
+Filenames now carry a `_opus` or `_pcm` suffix so the codec is visible
+without ffprobe (e.g. `rec_02h23m07s_c9e2_opus.ts`).
+
+ts_mux additions:
+- `ts_mux_init` gains an `audio_codec` argument
+  (`TS_AUDIO_CODEC_PCM_S302M` / `TS_AUDIO_CODEC_OPUS`)
+- PMT writer emits the matching registration descriptor (BSSD or Opus)
+  plus the Opus extension descriptor with `channel_config_code`
+- `ts_mux_write_audio` dispatches: SMPTE 302M packs raw s16le with
+  bit-reversal per the AES3 16-bit layout; Opus path wraps each
+  pre-encoded packet in the 11-bit prefix + au_size control header
+- `star6e_ts_recorder_init` gains an `audio_codec` argument plumbed
+  through from `audio.codec`
+
+The Star6E and Maruko audio threads now route the encoded buffer
+(rather than raw PCM) into the recording ring when codec is Opus.
+
+Verification:
+- Host: 1520 unit tests pass; offline sine encode round-trips
+  bit-exact through ffmpeg's SMPTE 302M and Opus parsers.
+- Hardware: Star6E bench (`192.168.1.13`, IMX335).  HEVC + audio
+  recordings in both modes play directly in VLC, mpv, and ffmpeg.
+
+## [0.10.0] - 2026-05-03
+
+`video0` digital zoom (Approach C) — Star6E + Maruko parity.
+
+Adds three new `video0` fields driving a 1:1 SCL crop (output dim = crop
+dim, no upscale, no bandwidth pressure).  Receivers see the smaller dim
+in SPS/PPS; receivers that pin to first SPS render deeper zoom invisibly,
+which is why `zoom_pct` is clamped at a 0.25 floor in the parser.
+
+Schema:
+- `video0.zoomPct` — `0.0` = zoom OFF (full image); `0.25..1.0` = crop
+  fraction (smaller = deeper zoom).  MUT_RESTART (encoder dim change).
+- `video0.zoomX`, `video0.zoomY` — crop centre, `0..1` (0 = top/left,
+  1 = bottom/right).  MUT_LIVE (no respawn — joystick / head-tracker
+  friendly).
+
+Implementation:
+- **Star6E**: `MI_VPE_SetPortCrop(0, 0, ...)` on the existing VPE port —
+  no new SCL channel, no extra mem.  SCL clock bumped 384 → 432 MHz to
+  unblock crop+resize at full sensor input.  Debug OSD canvas stays 1:1
+  with the encoded frame (RGN attaches at the post-SCL VPE port output,
+  not at VPE input — no per-zoom offset needed).
+- **Maruko**: `MI_SCL_SetPortConfig(0,0,0)` carrying both crop and
+  output dim atomically.  Output dimensions stay 16-px aligned and crop
+  offsets stay 2-px aligned; the smaller dimension drives the crop to
+  keep the encoded AR matching the sensor.
+
+Verification:
+- Live sweep on both devices: pct ∈ {1.0, 0.7, 0.5, 0.3, 0.25} × pan ∈
+  {(0.5,0.5), (0,0), (1,0), (0,1), (1,1), (0.5,0.5)}.  Star6E sustains
+  60 fps, Maruko sustains 30 fps across all combinations.  Pan
+  confirmed visually on the live RTP stream for both backends.
+
+## [0.9.16] - 2026-05-03
+
+IntraRefresh: single-knob `intraRefreshMode` enum.
+
+Replaces the boolean `intraRefresh` + two zero-sentinel fields from PR #92
+with one human-readable mode picker (`off` | `fast` | `balanced` | `robust`).
+Each mode targets a self-heal window (150 ms / 500 ms / 1000 ms) and derives
+lines, GOP, and QP from it; per-field overrides remain available.
+
+**Breaking change** (no backward compat): `video0.intraRefresh` boolean is
+removed. Configs from 0.9.15 and earlier carrying `intraRefresh: true` will
+fall through to `intraRefreshMode: "off"` (default) — re-enable explicitly
+via the mode field or `POST /api/v1/intra/mode?mode=balanced`.
+
+Highlights:
+- New `src/intra_refresh.{c,h}` shared helper (used by both backends)
+  computes lines, auto-GOP (one IDR per full GDR pass), and codec-default
+  QP (48 H.265 / 45 H.264 — `u32ReqIQp` is never passed as 0).
+- New `POST /api/v1/intra/mode?mode=<name>` endpoint: sets mode, clears
+  per-field overrides, persists, reinits. One call to switch presets.
+- Extended `/api/v1/intra/status` response: returns mode, target_ms,
+  total_rows, and per-field requested-vs-effective for lines/qp/gop.
+- Both Star6E and Maruko backends share the helper — drift between
+  parallel implementations is no longer possible.
+- Schema field `video0.intra_refresh_mode` registered (FT_STRING,
+  MUT_RESTART) with `intraRefreshMode` camelCase alias.
+- Auto-GOP overrides `gopSize` only when user did not pin a value;
+  explicit `gopSize > 0` is honored and logged at boot.
+- Contract bump 0.8.4 → 0.9.0 (breaking config field rename).
+- 44 new unit tests covering parse, compute, override, clamp, edge cases.
+
+## [0.9.15] - 2026-05-02
+
+Maruko parity Phase 5 — audio capture (Opus / G.711 / raw PCM).
+
+Closes the last big standalone parity gap: Maruko now captures PCM via the
+i6c MI_AI ABI, encodes via the shared codec helpers, and ships the result
+as RTP (or compact UDP) on `outgoing.audioPort`.  The Phase 6 TS recorder
+automatically picks up audio when capture is active — PMT advertises an
+audio PID and PCM frames are interleaved by the existing `ts_mux_write_audio`
+path that Star6E was already wired to.
+
+What ships:
+- `vendor-libs/maruko/libmi_ai.so` (110 KB) and `libmi_ao.so` (85 KB),
+  pulled from the SDK uClibc bundle.  AO is reserved for a future Phase 5b
+  playback path.  MD5SUMS + README updated.
+- New `include/maruko_ai_types.h` carrying the small set of MI_AI types
+  used at runtime (Attr / Data / Format / SoundMode / SampleRate / If),
+  copied verbatim from the SDK headers so the build stays SDK-header-free.
+- New `maruko_ai_impl` shim in `include/maruko_mi.h` + `src/maruko_mi.c`.
+  Symbol set: `MI_AI_InitDev` / `DeInitDev` / `Open` / `Close` /
+  `AttachIf` / `EnableChnGroup` / `DisableChnGroup` / `Read` /
+  `ReleaseData` / `SetMute` / `SetGain` / `SetIfGain`.  Loaded with
+  `RTLD_LAZY|RTLD_GLOBAL` and tolerates absence — no `libmi_ai.so` →
+  audio disabled but the rest of the pipeline runs unchanged.
+- New `src/maruko_audio.c` (~510 LOC) — full capture state machine:
+  `Open(dev=0)` + `AttachIf(ADC_AB)` + `SetGain` + `SetMute` +
+  `SetChnOutputPortDepth` + `EnableChnGroup`; capture thread on
+  `SCHED_FIFO` doing `MI_AI_Read(0, 0, &mic, &echo, 50)` → push
+  PCM into the shared `audio_ring`; encode thread does Opus / G.711 /
+  L16 byte-swap and ships via RTP packetizer or compact UDP.
+- New shared helper `src/audio_codec.{c,h}` — extracted Opus / G.711
+  encoders + stdout filter (singleton, refcounted) from
+  `src/star6e_audio.c`, ~250 LOC moved.  Star6E side switched to the
+  shared helpers; `Star6eAudioState.opus_lib` / `opus_enc` replaced
+  by the new `AudioCodecOpus opus`.  No behavioural change on Star6E.
+- `MarukoBackendConfig` mirrors `vcfg->audio` + `vcfg->outgoing.audio_port`
+  + `outgoing.max_payload_size` so the pipeline can call
+  `maruko_audio_init` without taking a `VencConfig` dependency.
+- `MarukoBackendContext` gains `audio` (state) + `audio_recorder_ring`
+  (bridge from audio encode thread to TS recorder).  Init in
+  `maruko_pipeline_configure_graph` after `bind_maruko_pipeline`,
+  teardown in `maruko_pipeline_teardown_graph` after `stop_dual` and
+  `ts_recorder_stop` so no consumer can race the ring teardown.
+- `apply_mute = maruko_audio_apply_mute` in `maruko_controls.c`,
+  closing the trivial-after-audio-lands gap from the parity matrix.
+- Replaced the `maruko_runtime.c:58-60` "audio output is not supported"
+  warning with the live init call.
+
+Verify gate:
+- `make verify` passes both backends.
+- Bench (192.168.2.12, IMX415): `audio.enabled=true`,
+  `audio.codec=opus|g711a|pcm` → `[audio] Initialized` + RTP arrives on
+  the configured destination port.  Mute toggle via
+  `/api/v1/set?audio.mute=true` cuts audio cleanly.
+
+Caveats:
+- The SSC378QE bench's analog mic wiring is unverified.  `MI_AI_Open`
+  succeeds and `MI_AI_Read` returns frames, but the actual codec on this
+  board may not be wired to a microphone — capture may yield silence.
+  The init path still completes successfully so the userspace pipeline
+  itself is exercised; an analog mic is a separate hardware fix-up.
+- AO (playback) is intentionally not exposed yet — reserved for a
+  future Phase 5b once a use case appears.
+
+## [0.9.14] - 2026-05-02
+
+Maruko parity Phase 6 — TS recording (`record.mode="mirror"` / `"dual"`).
+
+Lights up on-device TS-mux recording on Maruko by reusing the Star6E
+TS recorder state machine.  Two modes wired:
+
+- **mirror**: chn 0 frames are written to the .ts file alongside the
+  RTP stream.  Single encoder, simplest case.
+- **dual**: chn 1 (created via Phase 7's `start_dual()`) drains into
+  the .ts file while chn 0 keeps streaming RTP to the configured
+  destination.  The chn 1 drain thread feeds the recorder; the chn 0
+  loop is guarded so it never co-writes.
+
+Audio is video-only for now (no audio backend on Maruko — Phase 5).
+Raw `.hevc` format is rejected with a warning; only `format="ts"` is
+implemented.
+
+Implementation notes:
+- Promoted `src/star6e_recorder.c`, `src/star6e_ts_recorder.c`,
+  `src/ts_mux.c` from `STAR6E_ONLY_SRC` to a new `RECORDER_SRC` list
+  built by both backends.  No `#ifdef PLATFORM_*` was needed — the
+  files only depend on type names from `star6e.h`, which Maruko
+  already pulls in for `MI_SYS_ChnPort_t`.
+- Added a small adapter `src/maruko_ts_recorder.c` that pulls NAL
+  units out of `i6c_venc_strm` (Maruko) and feeds the shared
+  `star6e_ts_recorder_write_video()` primitive.  Mirrors
+  `star6e_ts_recorder_write_stream()` 1:1.
+- `MarukoBackendConfigRecord` extended with `dir`, `format`,
+  `max_seconds`, `max_mb` (already present on the generic
+  `VencConfigRecord`).
+- New `Star6eTsRecorderState ts_recorder` field on
+  `MarukoBackendContext`; opened in `configure_graph` after
+  `start_dual` so the drain thread sees it ready.  Closed in
+  `teardown_graph` after `stop_dual` (no race window).
+
+Verified on 192.168.2.12 (OpenIPC SSC378QE / IMX415, no SD card —
+written to `/tmp` tmpfs).  Live test pending in the next session.
+
+Out of scope for this PR (deferred):
+- Raw `.hevc` recorder on Maruko (the `_write_frame` adapter still
+  takes Star6E's `MI_VENC_Stream_t`; will land alongside Phase 5
+  audio if anyone wants it).
+- HTTP `/api/v1/record/start|stop` for Maruko (daemon-config-driven
+  only for now).
+- Audio mux into the TS container (Phase 5).
+
+## [0.9.13] - 2026-05-02
+
+Maruko parity Phase 3 — BMI270 IMU port (opt-in via `imu.enabled`).
+
+Wires the existing platform-agnostic `src/imu_bmi270.c` into the
+Maruko pipeline so `imu.enabled=true` reads gyro + accel from a
+BMI270 over I2C (frame-synced FIFO mode, 200 Hz default ODR).  The
+push callback is currently a stub — samples are read and discarded —
+so this lands the lifecycle but no consumer yet.  Future telemetry /
+sidecar export plugs into the existing callback slot without touching
+init/teardown.
+
+Verified on 192.168.2.12 (OpenIPC SSC378QE / IMX415 1472x816@120,
+H.265 25 Mbps RTP):
+- BMI270 detected at `0x68` on `/dev/i2c-1` (chip_id=`0x24`).
+- 400-sample auto-bias (~2 s) completes cleanly; gyro bias ≈
+  (0.005, -0.006, -0.001) rad/s on bench.
+- 200 Hz FIFO drain runs every video frame; 1963 samples / 9 s of
+  streaming at 118 fps, 0 read errors.
+
+- **Maruko-specific ordering constraint.**  IMU init must run BEFORE
+  `MI_VENC_StartRecvPic` (i.e. before `bind_maruko_pipeline()`)
+  because the auto-bias loop blocks the main thread for ~2 s
+  (400 samples @ 200 Hz).  Empirically on Maruko, blocking the main
+  thread for 2 s after StartRecvPic leaves the VENC fd in a state
+  where `poll()` never returns POLLIN and the stream loop never
+  progresses.  Star6E does not exhibit this — IMU init can stay
+  post-VENC there.  The constraint is captured inline in
+  `maruko_pipeline_configure_graph()` so future re-orders don't
+  regress.
+- `src/imu_bmi270.c` moved from `STAR6E_ONLY_SRC` to `HELPER_SRC`
+  (already platform-agnostic; no `#ifdef PLATFORM_*` in the file).
+- New `imu` field on `MarukoBackendContext` (`ImuState *`, NULL when
+  disabled).  `MarukoBackendConfig` carries `VencConfigImu imu`
+  embedded from `vcfg->imu` so the pipeline does not reach into
+  `VencConfig` directly (consistent with the `show_osd` /
+  `keep_aspect` bridge fields).
+- Per-frame `imu_drain()` runs in `maruko_pipeline_process_stream()`
+  before `MI_VENC_GetStream` (Star6E parity at
+  `star6e_runtime.c:727`).  No-op when `ctx->imu == NULL`.
+- Stop/destroy in `maruko_pipeline_teardown_graph()` ahead of any
+  unbind/stop, mirroring Star6E.
+- No config-schema change.  `imu.enabled` default remains `false`,
+  so existing setups are untouched.
+
+## [0.9.12] - 2026-05-02
+
+Maruko parity Phase 9 — opt-in 3A CPU throttle (`isp.aeMode`).
+
+The 1080p120 H.265 25 Mbps profile burned ~62% of a single Cortex-A7
+core on Maruko (SSC378QE).  Per-thread sampling pinned ~17.5% to
+libcus3a.so's `3A_Proc_0` worker (spawned by `MI_ISP_EnableUserspace3A`,
+runs at sensor frame sync) plus matching kernel ISP/VENC kthread time.
+The host pipeline was already lean (~3% main thread) so the ceiling
+was the per-frame 3A loop — not anything we packetize or send.
+
+The cut: keep `MI_ISP_EnableUserspace3A` so the IQ→HW pump (the same
+`3A_Proc_0` thread) keeps writing saturation/sharpness/brightness to
+silicon, but swap the SDK's NATIVE AE algorithm for a no-op stub via
+`MI_ISP_CUS3A_RegInterfaceEX(ADAPTOR_1)`.  AWB stays NATIVE so white
+balance still tracks the scene (the 4096/1024/1024 R/G/B gains in the
+SDK demo turned out to be smoke-test values, not calibrated daylight
+gains — letting the bin drive AWB gives a usable picture).  AE is
+then driven by a 15 Hz supervisory thread (`src/maruko_cus3a.c`) that
+reads the 128x90 luminance grid via `MI_ISP_AE_GetAeHwAvgStats` and
+applies a three-stage cascade (shutter → sensor gain → ISP digital
+gain) via `MI_ISP_CUS3A_SetAeParam`.
+
+- New config field **`isp.aeMode`** (`"native"` default,
+  `"throttle"` opt-in).  Default preserves existing behaviour and
+  gives a safety hatch if a different sensor / firmware breaks the
+  no-op adaptor.  Live mode change requires restart (the adaptor swap
+  and `CUS3A_Enable` flags are init-only); SIGHUP at runtime is a
+  documented limitation.
+- New module **`src/maruko_cus3a.c` + `include/maruko_cus3a.h`**
+  (≈700 lines).  `_install_noop_adaptor()` registers the AE stub;
+  `_start()` launches the 15 Hz controller thread; `_stop()` joins
+  on teardown.  `MarukoCus3aConfig.throttle_mode` gates the
+  AE-control law — when 0 the thread still runs cap-enforcement +
+  stats reads (Star6E-equivalent behaviour).
+- **Pipeline integration** (`src/maruko_pipeline.c`): adaptor install
+  is gated on `cfg.ae_mode == "throttle"` after `MI_SNR_SetFps`;
+  thread starts when `ae_fps > 0` regardless of mode.  Default-on bin
+  gain ceiling switched to `bin_max_sensor_gain` (8192 on IMX415)
+  when user sets `gainMax=0`, fixing the previous over-bright bias
+  (the old default capped at a 32× synthetic ceiling).
+- **Config / fixture**: `config/venc.default.json` adds
+  `"aeMode": "native"` so the round-trip layout test passes.
+
+Verified on 192.168.2.12 (SSC378QE / IMX415 1472x816@120fps,
+H.265 25 Mbps RTP):
+- `aeMode=native` (default): unchanged behaviour, ~50% sys CPU.
+- `aeMode=throttle`: ~36% sys CPU (≈24 percentage-point drop on a
+  single-core SoC), `3A_Proc_0` ticks 89→36 per 3 s sample, AE
+  responds visibly to scene changes at 15 Hz, IQ knobs
+  (saturation / sharpness / brightness) still hot-apply.
+
+## [0.9.11] - 2026-05-02
+
+Maruko parity Phase 2b — debug OSD now functional (kernel-oops cured).
+
+Verified on 192.168.2.12 (OpenIPC SSC378QE, kernel 5.10.61): with
+`debug.showOsd=true`, RGN init/create/attach/getcanvas all succeed,
+encode loop runs at ~117 fps, no kernel taint, OSD canvas mapped at
+1472x816 stride 736.
+
+- **Root cause was a build-time conditional bug, not a kernel/lib
+  mismatch.**  The Maruko build defines BOTH `-DPLATFORM_STAR6E` and
+  `-DPLATFORM_MARUKO` (the Star6E backend's MI shim headers are reused
+  for type compatibility; see `Makefile:39`).  In Phase 2,
+  `src/debug_osd.c` started with `#ifdef PLATFORM_STAR6E`, so the
+  Star6E branch was compiled into the Maruko binary too — and the
+  Star6E ABI (1-arg `MI_RGN_Init(palette*)`, mod_id 0 = VPE, 3-arg
+  `AttachToChn`) ran against the Maruko kernel/lib pair.  That
+  ABI mismatch produced the `MI_DEVICE_Ioctl → kfree → compound_head`
+  oops with a userspace-shaped pointer (`r0=0x0f9c0900`) reaching
+  kfree.  Fixed by changing the first conditional to
+  `#if defined(PLATFORM_STAR6E) && !defined(PLATFORM_MARUKO)` so
+  Maruko binaries enter the proper Maruko branch.
+- **`debug_osd`: Maruko ABI branch (now active).**  Targets the
+  OpenIPC libmi_rgn.so v3 API as documented in the SigmaStar
+  Infinity6C BSP headers (`mi_rgn.h`) and used by the vendor's
+  official IPC demo (`common/osd/osd.cpp`):
+  `MI_RGN_Init(soc_id, palette*)` (palette as direct arg, not wrapped),
+  3-arg `MI_RGN_Create(soc_id, handle, attr*)`, 4-arg
+  `MI_RGN_AttachToChn(soc_id, handle, chnport*, param*)`, 64-bit
+  `MI_PHY` / pointer-width `MI_VIRT` in `MI_RGN_CanvasInfo_t`,
+  module ID 34 (`E_MI_MODULE_ID_SCL` — RGN is attached to SCL/0/0/0).
+- **`maruko_mi`: pre-load `libmi_rgn.so`.**  Added to the existing
+  RTLD_GLOBAL dep chain in `maruko_mi_init()` (alongside
+  `libcam_os_wrapper`, `libmi_common`, `libispalgo`, `libcus3a`) so the
+  later `dlopen` from `debug_osd.c` finds the dependency graph fully
+  resolved.  (`src/maruko_mi.c`)
+- **`maruko_pipeline`: init-before-kthread ordering.**  Moved
+  `debug_osd_create()` ahead of `bind_maruko_pipeline()` so it runs
+  after the SCL channel exists (`maruko_start_vpe`) but BEFORE
+  `MI_VENC_StartRecvPic` spawns the encoder kthread.  The v5.10
+  OpenIPC kernel mi_rgn driver requires the singlethread workqueue
+  to be created from the main task.  Dropped the Phase 2 safety-gate
+  WARN-and-skip — the runtime is now real.  (`src/maruko_pipeline.c`)
+
+Recipe cross-referenced with `waybeam-hub/src/rgn_backend_maruko.c`,
+which had already verified the dep preload + module-ID-34 pattern
+against the same kernel/lib pair (different `MI_RGN_OsdChnPortParam_t`
+trailing field — the current SigmaStar Infinity6C BSP `mi_rgn_datatype.h`
+omits `stColorInvertAttr` that the hub's older vendored header
+includes; both work because the kernel reads only the union prefix).
+
+## [0.9.10] - 2026-05-02
+
+Maruko parity Phase 2 — debug OSD overlay wired to both backends.
+
+- **`maruko_pipeline`: debug OSD plumbed.**  Mirrors Star6E
+  (`star6e_runtime.c:825-849`):
+  `debug_osd_create()` runs at the end of
+  `maruko_pipeline_configure_graph()` after VENC bind+start (gated on
+  the new `cfg.show_osd`, sourced from `debug.showOsd`),
+  `debug_osd_begin_frame / sample_cpu / text / end_frame` runs
+  per frame inside `maruko_pipeline_process_stream()` showing fps + cpu,
+  and `debug_osd_destroy()` runs at the top of
+  `maruko_pipeline_teardown_graph()` before any unbind/stop.  Both
+  backends now share `src/debug_osd.c` + `src/debug_osd_draw.c`
+  (moved from `STAR6E_ONLY_SRC` to `HELPER_SRC`).  When
+  `debug.showOsd=false` (default) no OSD code runs on either backend.
+- **Maruko runtime path safety-gated.**  On the test target
+  (192.168.2.12, OpenIPC SSC378QE), invoking `MI_RGN_Init` triggers a
+  kernel Oops in `MI_DEVICE_Ioctl` (kfree path) and wedges the encode
+  loop — the same lib/kernel SDK vintage mismatch documented in
+  `memory/maruko_osd_render_bringup.md`.  Until Phase 2b ships the cure
+  (RTLD_GLOBAL dep preload, `MI_MODULE_ID_SCL`=34, init-before-worker-
+  thread; tracked in `documentation/MARUKO_PARITY_PLAN.md`),
+  `debug.showOsd=true` on Maruko emits a one-time warning and skips the
+  attach so a stale config never hangs venc.  Star6E behaviour is
+  unchanged.  (`src/maruko_pipeline.c`, `src/maruko_config.c`,
+  `include/maruko_config.h`, `include/maruko_pipeline.h`, `Makefile`)
+
+## [0.9.9] - 2026-05-02
+
+Maruko parity Phase 1 — aspect-ratio precrop on the SCL stage.
+
+- **`maruko_pipeline`: SCL precrop wired up.**  `configure_maruko_scl()`
+  now writes a centered crop rect into `scl_port.crop` instead of zero
+  when `isp.keepAspect=true` and the encode aspect ratio differs from the
+  sensor's effective output.  The rect is computed via the existing
+  `pipeline_common_compute_precrop()` helper (Star6E parity) against the
+  post-binning effective input (`sensor.plane.capt` clamped by
+  `mode.output`), so it always matches the surface that actually feeds
+  the SCL stage.  Falls back to zero crop (full source area, downstream
+  stretch) when `isp.keepAspect=false`.  `venc_api_set_active_precrop()`
+  is called on success for `/api/v1/config` visibility, and
+  `venc_api_clear_active_precrop()` runs in
+  `maruko_pipeline_teardown_graph()` for symmetry with Star6E.  Verified
+  on bench (192.168.2.12, IMX415): 960x720 (4:3) on 1920x1080 sensor
+  mode → `Precrop: 1920x1080 -> 1440x1080 (offset 240,0)`, encoding
+  89 fps @ 25 Mbps without stretching; 1280x720 (16:9) and
+  `keepAspect=false` paths both produce the legacy zero-crop output.
+  (`src/maruko_pipeline.c`, `src/maruko_config.c`,
+  `include/maruko_config.h`, `include/venc_config.h`,
+  `documentation/PRECROP_ASPECT_RATIO.md`)
+
+## [0.9.8] - 2026-05-02
+
+Frame-drop fix: relax the SDK FrameLost rate-control threshold from 120% to
+150% of target bitrate.  Affects both Star6E and Maruko (shared
+`pipeline_common_frame_lost_threshold`).
+
+On Maruko at 5 Mbps / 60 fps, hand-wave motion routinely caused the
+encoder's measured output to spike to ~6.0–6.4 Mbps — past the old 120%
+floor (6.144 Mbps).  `MI_VENC_SetFrameLostStrategy(NORMAL)` then dropped
+whole frames as a safety net, costing 5–10 fps under motion even though
+CBR rate control would have absorbed the overshoot in the next few frames
+via QP feedback.
+
+Confirmed via per-frame timing on device: user-space loop work stayed
+≤230 µs avg / ≤365 µs max (well under the 16.67 ms 60-fps budget) in both
+modes; the missing frames were skipped at the SDK encoder layer, not by
+FIFO eviction.  Disabling `frameLost` entirely on test eliminated the
+drop; raising the threshold to 150% restores the safety net for genuine
+sustained network overload (>50% over target) while letting motion bursts
+through.
+
+- **`pipeline_common.c::pipeline_common_frame_lost_threshold`**: change
+  margin from `bits / 5U` (20%) to `bits / 2U` (50%).  Floor of 524288
+  bits (~512 kbps headroom) preserved for low-bitrate streams.
+- No config-schema change.  `frameLost` default remains `true`.
+
+Verified on 192.168.2.12 (SSC378QE / IMX415 @1920x1080 / 60 fps,
+H.265 5 Mbps RTP): under continuous hand-wave motion, app-observed FPS
+stays at 59 (vs 54–55 before); on-device VENC frame-arrival jitter goes
+from 33.3 ms (one-frame skip) to a flat 16.7 ms.
+
+## [0.9.7] - 2026-05-02
+
+May 2026 code-review follow-up bundle (PRs P1+P2+P3+P4+P5 squashed).
+
+- **P2 — `httpd`: Content-Length parser anchored.**  The HTTP request
+  parser previously located `Content-Length:` via an unanchored
+  case-insensitive substring search across the entire header block,
+  which would latch onto the literal substring inside an arbitrary
+  header value (e.g. `X-Forwarded: content-length:99`).  Fix walks
+  the header block line by line and only matches at the start of a
+  line.  Eliminates a request-smuggling vector against the live
+  config / set endpoints; also drops the now-unused
+  `httpd_strcasestr` helper.  (`src/venc_httpd.c`)
+
+- **P4 — Move orphaned `snr_*` harnesses to `tools/`.**
+  `snr_sequence_probe.c` and `snr_toggle_test.c` were never wired
+  into the build (orphaned since 0.6.2).  Relocated under `tools/`
+  to match the rest of the standalone diagnostic harnesses; updated
+  the path reference in `documentation/REFACTORING_PLAN.md`.  No
+  Makefile changes required.
+
+- **P3 — `main`: pidfile + flock single-instance gate.**  The legacy
+  guard scanned `/proc/*/comm` for a process named `venc`, which is
+  inherently racy: two near-simultaneous launches each see no peer
+  and both proceed to grab the SHM ring.  New `acquire_pidfile_lock()`
+  takes an exclusive non-blocking `flock(LOCK_EX | LOCK_NB)` on
+  `/var/run/venc.pid` (falling back to `/tmp/venc.pid`) before the
+  legacy `/proc` scan; `EWOULDBLOCK` exits cleanly with rc=1.  The
+  fd is held with `O_CLOEXEC` and intentionally leaked so the kernel
+  releases the lock at process exit even on SIGKILL.  Old `/proc`
+  fallback retained as defence-in-depth for the case where pidfile
+  lock acquisition itself fails (e.g. read-only fs).  Updated comment
+  in `src/venc_ring.c` to reference the new mechanism.
+  (`src/main.c`, `src/venc_ring.c`)
+
+- **P1 — `venc_api`: shrink `g_cfg_mutex` hold time.**  The live-set
+  apply path held `g_cfg_mutex` across `stage_params_into_cfg` and
+  `preflight_live_group_callbacks` even though both operate purely
+  on stack-local config copies and do not read or mutate the shared
+  `g_cfg` pointer.  Moved both calls outside the mutex region; the
+  mutex is now only held during `apply_live_group_sequence_locked`,
+  which is the irreducible window where backend `apply_*` callbacks
+  read additional vcfg fields beyond their parameters via the
+  registered `&ctx->vcfg`.  No behavior change; reduces serialization
+  in the rapid-fire `/api/v1/set` path used by the link_controller.
+  Documented the irreducible hold-time contract in the mutex
+  declaration's doc comment.  (`src/venc_api.c`)
+
+  Note on scope: the original CR claim of "torn-string reads at
+  120 fps" did not match any reachable code path — backend reads
+  of `vcfg->...` strings happen only at init/teardown or inside
+  the `apply_*` callbacks (under the mutex).  The deeper deferred
+  work-queue rework deferred until the apply-callback contract is
+  changed.
+
+- **P5 — `maruko_pipeline_run()` split.**  Reduced from 301 lines
+  to ~50 by extracting `maruko_pipeline_init_streaming`,
+  `maruko_pipeline_cleanup_streaming`,
+  `maruko_pipeline_check_idle_abort`,
+  `maruko_pipeline_await_frame`,
+  `maruko_pipeline_process_stream`, and
+  `maruko_pipeline_log_verbose_frame` into `MarukoStreamRuntime`
+  helpers.  Outer loop now mirrors the Star6E shape
+  (`star6e_runner_run` + `star6e_runtime_process_stream`).
+  Behavior preserved: idle-abort timer (`MARUKO_IDLE_ABORT_US`),
+  idle-warn timer (`MARUKO_IDLE_WARN_US`), FPS-kick, pressure-gating,
+  verbose-cadence (`MARUKO_PKTZR_VERBOSE_ACTIVE`), cached pack
+  reuse, POLLERR fallback.  (`src/maruko_pipeline.c`)
+
+- **Tests.**  `tests/test_venc_httpd.c` gains coverage of the new
+  Content-Length walker (anchored match, case-insensitive,
+  multi-header, header-value-confused-with-body, missing/oversized,
+  negative).  `scripts/test_pidfile_lock.sh` exercises the flock
+  gate by launching two short-lived test processes and asserting
+  the second exits with `EWOULDBLOCK`.  Existing `test_multi_set_*`
+  cases continue to cover the now-mutex-free stage/preflight path
+  in `apply_live_set_query`.
+
+## [0.9.2] - 2026-04-28
+
+Transport-pressure observability (the prior "Level 2 — local FPS skip"
+plan was rolled back; see the post-encode-skip note at the end of this
+section).
+
+- **Universal fill source.** Producer-local backpressure now works
+  uniformly for every output transport with a queue model:
+    `shm://`   `(write_idx - read_idx) / slot_count`
+    `unix://`  `SIOCOUTQ / SO_SNDBUF`
+    `udp://`   `SIOCOUTQ / SO_SNDBUF`
+  For UDP-over-WiFi the kernel send queue rarely fills (NIC drains
+  fast) so the gate is a no-op in practice and the radio-link layer
+  (`waybeam_wfb_ng/link_controller`) does the actual adaptive control.
+  For local UDP and unix:// (e.g. gstreamer consumer) a slow consumer
+  fills the kernel queue and the gate trips correctly — empirically
+  validated on Linux 6.x by sending raw datagrams to a non-reading
+  receiver and watching SIOCOUTQ rise to SO_SNDBUF cap.
+- **Level 1 — observability.** New `GET /api/v1/transport/status`
+  endpoint returns the active output transport (`"shm"` / `"udp"` /
+  `"unix"` discriminator), queue fill, lifetime delivery counters
+  (SHM only — `packetsSent`, `transportDrops`, `oversizeDrops`),
+  live watermark config, current hysteresis state (`inPressure`),
+  and the producer-local `pressureDrops` counter (all transports).
+  Also new `query_transport_status` callback in `VencApplyCallbacks`
+  (Star6E + Maruko both implement).  For unix:// / udp:// the
+  socket-side lifetime counters are not yet tracked — `transportDrops`
+  and `packetsSent` are absent from the JSON for those transports;
+  the sidecar trailer carries 0s.  Future work: count
+  sendmsg(EAGAIN/ENOBUFS) and successful sends in `output_socket_send_parts`.
+- **Sidecar trailer.** `RTP_SIDECAR_FLAG_TRANSPORT_INFO` (0x04) +
+  `RtpSidecarTransportInfoWire` (16 bytes).  Appended after the
+  optional ENC_INFO trailer when any non-zero transport is active.
+  Forward-compat: probes that don't recognise the flag read just the
+  base frame (and ENC_INFO if present) and ignore the trailing bytes
+  — no protocol version bump.
+- **Hysteresis-driven pressure flag (telemetry only).**  Hardcoded
+  watermarks `VENC_PRESSURE_HIGH_WATER_PCT=75` /
+  `VENC_PRESSURE_LOW_WATER_PCT=50` in `venc_ring.h` — no live config
+  surface.  Enter pressure when fill_pct ≥ HIGH, exit when fill_pct
+  < LOW.  The flag flows out through the sidecar trailer
+  (`in_pressure`) and through `/api/v1/transport/status`.  The
+  `pressureDrops` counter increments while the flag is asserted and
+  serves as a "frames-spent-in-pressure" metric for adaptive
+  consumers.  **The producer never skips a frame on the basis of
+  this flag** — see the rollback note below.
+- **Auto-gated observation.** `*_observe_pressure` is only called
+  per-frame when a sidecar probe is subscribed
+  (`rtp_sidecar_is_subscribed`); when nobody is listening, the SIOCOUTQ
+  ioctl / ring-fill load is skipped entirely.  Observation caches its
+  fill_pct + lifetime stats into the output struct so the sidecar emit
+  in the same frame reads the cache instead of re-querying — one
+  query per frame on the producer hot path instead of two.  No live
+  config surface for backpressure: prior `outgoing.backpressure /
+  highWaterPct / lowWaterPct` knobs were dropped (the value never
+  affected anything outside the trailer once frame-skip was rolled
+  back, and exposing tuning knobs for a passive telemetry signal was
+  noise).
+- **Architecture note.** The hysteresis state machine sits on a
+  pre-computed `fill_pct` (`venc_observe_pressure` in `venc_ring.h`)
+  so each backend's `*_observe_pressure` is a transport-dispatch
+  helper: pick the fill source, hand it to the shared state machine,
+  cache the result.  Adding a new transport is one branch in
+  `observe_pressure` + one branch in `query_transport_status`.
+- **Internal/wire renames.**  Identifiers were scoped from "shm_*" to
+  "transport_*" / "backpressure_*" before any consumer shipped, on
+  the basis that the model is equally meaningful for any transport
+  with a queue.  No deprecated aliases retained — PR isn't merged
+  yet so churn cost is zero.
+- **Post-encode frame-skip rolled back.** The original PR also shipped
+  a producer-side skip path: when the hysteresis flag was asserted,
+  `star6e_runtime` and `maruko_pipeline` would bypass
+  `*_video_send_frame` entirely, advance the RTP timestamp, and emit
+  a sidecar message with `seq_count=0`.  Hardware testing showed the
+  approach was fundamentally broken for inter-frame-coded video:
+  H.264 / H.265 P-frames reference the previous frame in the GOP, so
+  dropping one P-frame leaves every following P-frame in that GOP
+  undecodable at the receiver.  With `gopSize=5` at 120 fps, a
+  pressure storm that "looked clean" on producer-side counters
+  (`packetsSent` and `transport_drops` matched `bp=ON` baseline)
+  produced unreconstructable garbage at the decoder.  The skip path
+  has been removed.  Adaptation under link saturation belongs
+  upstream of encode — either lowering `video0.bitrate` (which
+  link_controller already does from radio stats and the trailer
+  signal) or lowering encoder fps (sensor-side / `MI_SYS_BindChnPort2`
+  divider).  The trailer / status endpoint / hysteresis state machine
+  remain valuable as a fast pressure signal for adaptive consumers;
+  they just no longer pretend to act on it locally.
+- **Tests added / kept:**
+  - Star6E hysteresis state machine — telemetry assertions only
+    (`test_star6e_output_backpressure_hysteresis`)
+  - UNIX datagram pressure observation with a non-reading receiver
+    (`test_star6e_output_unix_backpressure`)
+  - Always-send invariant under pressure
+    (`test_star6e_output_always_sends_under_pressure`)
+  - Wire-layout for {enc, transport} combinations
+    (`test_star6e_video_sidecar_transport_layouts`)
+- **Stale-ring hardening.** `venc_ring_create()` now `shm_unlink()`s
+  the name before `O_EXCL`-creating a fresh inode, instead of
+  `O_CREAT|O_TRUNC` reusing the existing one. After a SIGKILL'd venc
+  is restarted while the old wfb_tx still has the ring mmapped, the
+  old consumer keeps reading the orphaned inode (no SIGBUS, no race
+  through magic=0/init_complete=0) until its watchdog detaches and
+  re-attaches by name to the new inode. Pairs with the consumer-side
+  per-iter epoch guard in `waybeam_wfb_ng/poc/shm-input.patch`. New
+  regression test: `test_producer_restart_orphans_old_inode`.
+
+## [0.9.1] - 2026-04-28
+
+Live `outgoing.max_payload_size` (`/api/v1/set?outgoing.maxPayloadSize=...`):
+
+- **Promoted from `MUT_RESTART` to `MUT_LIVE`.** The new size takes effect
+  on the next encoded frame; the in-flight frame finishes packetizing at
+  the old size, so a switch can never tear a single frame's FU/AP
+  fragmentation. Composes with other live fields in a single multi-set
+  request, e.g. `?video0.bitrate=8000&outgoing.maxPayloadSize=4000`.
+- **Range validated to `[576, 4000]`** in `validate_field_cfg()`. Same
+  validation now also gates boot via `venc_api_validate_loaded_config()`,
+  so a bad on-disk config refuses to start instead of crashing later.
+  4000 is sized for jumbo-frame links such as Realtek's 3993-byte MTU
+  (4000 + 12 RTP + 8 UDP + 20 IP = 4040, fits comfortably).
+- **Per-slot scratch bumped from 1616 → 4096 bytes** in both backends
+  (`STAR6E_OUTPUT_BATCH_SLOT_SCRATCH`, `MARUKO_OUTPUT_BATCH_SLOT_SCRATCH`).
+  Required so the sendmmsg() batch can hold an AP packet up to the new
+  4000-byte limit. ~159 KiB extra per backend (64 slots × 2.4 KiB delta).
+- **SHM parity with UDP/Unix.** SHM rings are sized at startup to fit
+  the validated ceiling (`VENC_OUTPUT_PAYLOAD_CEILING_BYTES + 12` =
+  4012 bytes per slot, 8-byte aligned), so `shm://` accepts the full
+  live range without a restart-to-grow caveat. Costs ~1.3 MiB extra SHM
+  per ring vs. the previous "size to configured starting value" scheme,
+  but this is paid only when SHM output is actually configured. UDP and
+  Unix datagram transports have no transport-level cap — only the
+  validated range and scratch ceiling apply.
+- **wfb_tx (or any SHM consumer) compatibility note.** The published
+  `slot_data_size` in the ring header changes from
+  `startup_max_payload + 12` (typically 1412) to a fixed 4012 after this
+  release. Well-behaved consumers using `venc_ring_attach()` already
+  read `slot_data_size` from the header and compute slot stride from
+  it, so they handle the change automatically. A consumer that hard-
+  codes a 1412-byte slot stride or uses a fixed-size read buffer below
+  4012 will need to be updated.
+- **Audio path tracks live updates too.** `Star6eAudioOutput.max_payload_size`
+  is now updated in the live apply alongside the video state, so audio
+  compact-mode chunking uses the new value on the next audio frame
+  (RTP audio doesn't fragment, so the field is unused there but kept in
+  sync for future-proofing).
+- New optional callback `VencApplyCallbacks.apply_max_payload_size`,
+  implemented in `star6e_controls.c` (covers dual-stream second channel)
+  and `maruko_controls.c`.
+- Cleanups while in the area:
+  - `Star6eOutputSetup.max_frame_size` field and the
+    `max_payload` parameter to `maruko_output_init_shm` were both
+    rendered dead by sizing SHM rings to the ceiling; removed along
+    with the now-redundant `*_output_max_payload_cap` helpers and
+    SHM cap checks (validation is the single gate).
+  - Removed a stale `outgoing.max_payload_size` paragraph in
+    `HTTP_API_CONTRACT.md` that described an "adaptive algorithm" no
+    longer in the codebase.
+
+## [0.9.0] - 2026-04-26
+
+Two themes shipped together:
+
+### SIGHUP / `/api/v1/restart` cold restart via fork+exec (Star6E)
+
+SIGHUP / `/api/v1/restart` rebuild the full pipeline including a
+sensor-mode change, via process-level fork+exec respawn (Star6E).
+
+- **Single reinit path.**  `SIGHUP`, `GET /api/v1/restart`,
+  `GET /api/v1/defaults`, and `MUT_RESTART` `/api/v1/set` all enqueue
+  the same request: clean teardown of the running venc, fork a child
+  that execv's `/proc/self/exe`, parent exits.  The child inherits
+  zero MI/ISP/sensor state from the kernel driver — it's a true cold
+  boot at the SDK level, identical to a `killall venc; venc &` cycle.
+- **`venc_api_request_reinit()` collapsed** from `int mode` (0/1/2
+  priority queueing) to bool.  Every call site — SIGHUP handler,
+  `/api/v1/restart`, `/api/v1/defaults`, `MUT_RESTART` set — enqueues
+  the same request.
+- **Removed:** `star6e_pipeline_reinit()` and
+  `star6e_pipeline_stop_venc_level()` (partial-reinit codepath
+  replaced by process-level respawn).  See git history for the
+  abandoned escape hatch.
+- **New helpers:**
+  - `star6e_runtime_respawn_pending()` — `main()` checks this after
+    backend teardown.
+  - `star6e_runtime_respawn_after_exit()` — fork+execv successor.
+  - `prctl(PR_SET_NAME, "venc-wd")` in the watchdog fork so the new
+    venc's `is_another_venc_running()` skips it.
+- **Audio `g_ai_persist` hack kept** — pipeline_stop's
+  MI_AI_Disable cycle deadlocks `CamOsMutexLock` and would hang the
+  parent's teardown past the watchdog window.  Kernel cleans up AI
+  state on process exit anyway.
+- **Watchdog timeouts** (process exit only): `alarm()` 5 → 2 s,
+  watchdog poll 8 × 1 s → 6 × 500 ms, post-`SIGKILL` grace 3 → 1 s,
+  VENC drain 500 → 150 ms.  ISP channel wait kept at 2000 ms (bench
+  testing showed cuts cause "ISP channel readiness timeout" warnings).
+- Maruko backend untouched (the rcvalue-vs-bool ripple from the
+  reinit signature change is the only edit; the Maruko in-process
+  reinit path stays).
+- Docs: `documentation/SIGHUP_REINIT.md` rewritten with the
+  fork+exec design and full bench evidence;
+  `documentation/LIVE_FPS_CONTROL.md` "Mode Switching Limitation"
+  section removed; `documentation/CRASH_LOG.md` added with the
+  sysrq-b remote-recovery trick.
+
+**Bench validation (2026-04-26, imx335 @ 192.168.1.13):** 24/24
+consecutive cross-mode SIGHUPs (modes 0→1→2→3, 6 rounds) with no
+degradation, no zombies, no dmesg faults.  Cycle time 393–795 ms to
+respawn marker; ~13 s to new venc HTTP up (cold start dominates).
+Phase 1 plan's in-process `MI_SYS_Exit` + `MI_SYS_Init` approach was
+empirically disproven (PID-tied "already_inited" flags trip
+`MI_DEVICE_Open` hangs); partial-reinit-without-MI_SYS-Exit survives
+~4 cycles before VIF bindmode sync errors.  Process-level respawn is
+the only path that scales.
+
+### Hand-rolled config pretty printer (stable disk layout for `/etc/venc.json`)
+
+- **Replace `cJSON_Print` in `venc_config_save`** with a hand-rolled
+  emitter (`config_render_pretty` in `src/venc_config.c`). Every WebUI
+  `/api/v1/set` save and every `record.path` save now produces the same
+  canonical layout: 2-space indent, one key per line, `": "` separator,
+  no blank lines between sections, single trailing newline. cJSON's
+  tab-indented "shattered" pretty print is gone from the disk path.
+  Parsing and HTTP API responses still use cJSON unchanged.
+- **Unified layout for `config/venc.default.json`.** The hand-authored
+  irregular layout (some sections one-line, others multi-line, mixed
+  per-section indent rules) is replaced by the same canonical layout the
+  printer emits, so the default file matches what venc actually writes
+  on first save.
+- **Self-policing round-trip test** (`test_save_layout_byte_equal` in
+  `tests/test_venc_config.c`): loads `config/venc.default.json`, saves
+  via `venc_config_save`, asserts the saved bytes are byte-equal to the
+  original. Any future config field added to the struct/parser/serializer
+  but missing from the printer (or the default file) trips the test.
+- **`AGENTS.md` sync rules updated**: the per-section `render_*` helper
+  in `src/venc_config.c` is now an explicit sync point alongside the
+  struct, parser/serializer, API field+alias tables, WebUI `SECTIONS[]`,
+  and `config/venc.default.json`.
+## [0.8.1] - 2026-04-25
+
+SD-card recording browser (dashboard tab + JSON API):
+
+- **New `Recordings` tab on the dashboard** (`web/dashboard.html`).
+  Fourth tab next to `Settings | API Reference | Image Quality`; the
+  REC indicator in the top bar is now clickable and switches to it.
+  Lists `.ts`/`.hevc` files in the configured `record.dir`, shows
+  free/total bytes, current `record.mode`, live `recording:` state
+  with frames + bytes + segment counter, start/stop buttons, per-file
+  download + delete.  A 2 s poll of `/api/v1/recordings` +
+  `/api/v1/record/status` runs while the tab is visible so the active
+  recording's counters tick live; interval is cleared on tab switch.
+- **Mode-aware start/stop gating.**  When `record.mode` is `dual` or
+  `dual-stream` and `record.enabled` is true, the dedicated recording
+  thread owns the recorder and the runtime silently skips the HTTP
+  `/api/v1/record/start|stop` poll (`star6e_runtime.c`'s `if (!ps->dual)`
+  guard).  The tab now reads `record.mode` from `/api/v1/config` and
+  disables the Start/Stop buttons with a reason note in those cases,
+  instead of letting clicks succeed but produce nothing.  Full truth
+  table in `README.md`.
+- **New JSON endpoints** (documented in `HTTP_API_CONTRACT.md`):
+  - `GET /api/v1/recordings` — list files with `name`, `size`, `mtime`
+    plus `free_bytes` / `total_bytes`.  Built in a growing heap buffer
+    with proper JSON escaping (no silent truncation, no corruption of
+    filenames containing `"` or `\`).  Capped at 512 entries; the
+    response includes a `truncated` flag that the UI surfaces as a
+    warning so the user doesn't assume old files vanished.
+  - `GET /api/v1/recordings/download?file=<name>` — streams the file
+    via the new shared `httpd_send_file()` helper (`send(MSG_NOSIGNAL)`
+    so a mid-download client disconnect can't kill the server; RFC 5987
+    `filename*=UTF-8''…` header).
+  - `GET /api/v1/recordings/delete?file=<name>` — `unlink()`.  Refuses
+    the currently-recording file by comparing inodes via `(dev, ino)`
+    (a path-string compare would be defeated by trailing slashes or
+    symlinks); returns 409 `record_active` in that case.
+- **Shared httpd plumbing**, reusable by future endpoints:
+  - `httpd_query_param()` — URL-decoding (percent + `+`) query parser
+    in `venc_httpd.c`.
+  - `httpd_send_file()` — streams a file with proper `Content-Length`
+    and `Content-Disposition`; shares socket helpers already used by
+    the rest of the server.
+  - `venc_api_get_record_dir()` + `venc_api_fill_record_status()` —
+    mutex-safe accessors exposing the active config directory + live
+    recorder state (used to safely read config from the httpd thread).
+- **Safety.**  Filenames validated (no path separators, no leading `.`,
+  no control bytes); all JSON output properly escaped; no large stack
+  frames on the httpd thread (entries buffer is `calloc`'d).
+- **HTTP API contract** bumped `0.6.2` → `0.6.3` (non-breaking: three
+  new endpoints, one new error code `record_active`).
+- **Tests.**  `tests/test_venc_httpd.c` +11 cases for
+  `httpd_query_param` covering percent-decoding, `+` → space, UTF-8,
+  prefix collisions, empty values, trailing / invalid `%`, and buffer
+  truncation safety.
+- **Build.**  `tools/build_webui.py` and Makefile updated: dashboard
+  blob re-regenerated from `web/dashboard.html`; new `src/venc_recordings.c`
+  added to `CONFIG_SRC` and `TEST_LIB_SRCS`.
+
+Implements the intent of PR #48 (PaddyP90) while fixing the safety
+bugs flagged in that review: filename validation including `..`, JSON
+escaping, heap buffer sizing, disconnect handling, and mutex-safe
+config access.  Star6E only; Maruko lacks the `MI_VENC_TS_RECORDER`
+plumbing so `/api/v1/record/status` reports `active: false`
+there — but the list/download/delete endpoints still work for files
+placed in `record.dir` by other means.
+
+Originally drafted as a 0.7.12 fork-only release before the v0.8.0
+upstream catch-up; rebased onto v0.8.0 and re-released as 0.8.1.
+
+## [0.8.0] - 2026-04-25
+
+Drop the EIS module and migrate the Star6E debug OSD from
+`MI_RGN_PIXFMT_ARGB4444` (16 bpp) to `MI_RGN_PIXFMT_I4` (4 bpp,
+two pixels per byte).  Major bump because `eis.*` config fields and
+the EIS internal headers are removed; nothing else in the public HTTP
+API or config schema breaks.
+
+### EIS removal
+
+An empirical sensor-mode sweep on Star6E IMX335 established that EIS
+only worked in one validated config (sensor mode 3 native 1920x1080
++ real IMU + ≤90 fps); every other combination silently stalled the
+encoder via `MI_VPE_SetPortCrop` interactions with VPE scaling,
+VIF-side crop, or pixel-rate ceilings.  Increasingly elaborate guards
+were added to refuse EIS in the broken cases, but the surface area
+isn't worth maintaining for a single-config feature, and a future
+LDC-warp rewrite (Phase C in `documentation/EIS_INTEGRATION_PLAN.md`)
+would replace this code anyway.
+
+- **Removed:** `src/eis.c`, `src/eis_gyroglide.c`, `include/eis.h`,
+  `include/eis_gyroglide.h`, `include/eis_ring.h`,
+  `tests/test_eis_gyroglide.c` (~1100 LoC).
+- **Pipeline init:** EIS init/teardown blocks deleted from
+  `bind_and_finalize_pipeline()` and `pipeline_stop()` /
+  `pipeline_stop_venc_level()`.  All VPE-scaling / VIF-crop / testMode /
+  pixel-rate refusal guards are gone with them — they only existed to
+  make EIS misconfiguration loud.
+- **Per-frame:** `eis_update()` removed from
+  `star6e_runtime_process_stream()`.  `imu_drain()` still runs
+  per-frame so a future telemetry consumer slots in cheaply.
+- **OSD:** EIS visualization (1/3-scale crop miniature in
+  bottom-right + crop/off/margin text rows) removed from
+  `star6e_runtime.c`.  Debug OSD now shows only fps and CPU.
+- **Config:** `eis.*` fields dropped from `VencConfig`,
+  `venc.default.json`, the `/api/v1/set` snake-case alias map,
+  and the WebUI dashboard (tab + tooltips + enum).
+- **IMU module retained.**  `src/imu_bmi270.c` + `include/imu_bmi270.h`
+  stay in the build; `imu.enabled` defaults to `false` so the BMI270
+  is never opened unless explicitly enabled.  The push callback
+  `star6e_pipeline_imu_push()` is now a stub — samples are discarded
+  unless a future consumer (telemetry export, gcsv-style file logging
+  for Gyroflow post-process) is wired in.
+
+### Debug OSD: ARGB4444 → I4 format migration
+
+Two-step migration delivered in one release.  First the rasterizer is
+extracted into a pure host-testable module, then the MI_RGN backing
+format is dropped from 16 bpp ARGB4444 → 8 bpp I8 → 4 bpp I4
+palette-indexed.  Canvas footprint at 1920x1080 goes from 4.0 MB to
+1.0 MB; OSD-on CPU drops by 74 % on Star6E IMX335.  Encoder hot path
+is unchanged — the win is entirely in the OSD-on cost.
+
+- **Pure rasterizer extracted.**  New `src/debug_osd_draw.{c,h}` holds
+  the font, palette, dirty-rect logic, and drawing primitives.  The
+  MI_RGN glue in `src/debug_osd.c` is now a thin wrapper.  The pure
+  module compiles on the host and is exercised by
+  `tests/test_debug_osd.c` (76 assertions covering every primitive,
+  clipping, dirty-rect expansion, glyph rendering, and hashed
+  composite-scene goldens).
+- **OsdCanvas API.**  `stride_px` renamed to `stride_bytes` (now bytes
+  per row regardless of pixel format).  `width` is still logical
+  pixels.  `osd_fill_pixels(canvas, x, y, count, color)` handles I4
+  nibble alignment internally:
+    - Unaligned start (odd x): RMW the high nibble of byte (x/2).
+    - Byte-aligned middle: `memset` the doubled-nibble byte
+      `(color << 4) | color` over `(end - x) / 2` bytes.
+    - Unaligned tail (end odd): RMW the low nibble of the last byte.
+  Drawing primitives (`osd_draw_rect`, `osd_draw_char`) call this in
+  place of their old byte-pointer inline math.  `osd_get_pixel` reads
+  back the unpacked nibble through the same code path the rasterizer
+  uses; production drawing never reads back.
+- **Palette: 16 entries** (was 256 in I8, ARGB4444 in 16 bpp).
+  Entries 1..8 map to `DEBUG_OSD_*` color constants; semi-transparent
+  entries reuse the 4-bit ARGB4444 codes (0x4 → 68, 0xA → 170) so
+  visual output is unchanged vs. the ARGB4444 implementation.  Entries
+  9..15 are zeroed reserved.
+- **MI_RGN region pixfmt:** `MI_RGN_PIXFMT_I4`.  Wire stride at
+  1920x1080 is 960 bytes (was 1920 for I8; 3840 for ARGB4444).
+- **Track-points use case** (filled small rects from upstream PR #23,
+  motion-vector markers): supported unchanged via existing
+  `debug_osd_rect` API; dirty-rect tracking gives sub-canvas clear,
+  more efficient than the upstream's full-canvas `memset(0xFF)`.
+- **Public API source-compatible.**  `debug_osd_rect/point/line/text`
+  signatures unchanged; `DEBUG_OSD_*` constants are still palette
+  indices (now 0..15 max).
+
+Hardware comparison (Star6E IMX335 @ 90 fps, 30 s samples):
+
+| Format          | Actual fps | CPU/core   | OSD-on cost vs baseline |
+|-----------------|-----------:|-----------:|------------------------:|
+| ARGB4444 (pre)  |      87.00 |    26.80 % |              +20.53 pp |
+| I8 (intermediate) |    90.00 |    17.43 % |              +11.30 pp |
+| **I4 (this)**   |  **90.00** | **11.70 %** |          **+5.43 pp** |
+
+I4 cuts OSD CPU −74 % vs the original ARGB4444 path, and hits 2.36×
+the fps-per-CPU% of ARGB4444 (7.69 vs 3.25).
+
+### Bundles fork-only history
+
+This release subsumes fork-only intermediate tags 0.7.12 (OSD I8
+extraction), 0.7.13 (OSD I8 → I4), and 0.7.14 (EIS removal).  Bundled
+because they share a hardware test footprint and were never released
+upstream as separate tags.
+
+## [0.7.11] - 2026-04-19
+
+Pre-merge review fixes prior to upstream sync.  Two functional bugs
+plus four polish items, all verified end-to-end on Star6E (IMX335 at
+192.168.1.13) and Maruko (IMX415 at 192.168.2.12).
+
+- **B1 — Maruko: split ISP-bin gate from CUS3A gate.**  v0.7.10's
+  auto-detect fallback was silently a no-op on Maruko reinit because
+  both `pipeline_common_resolve_isp_bin` and `maruko_load_isp_bin`
+  were gated under `g_mi_isp_initialized`, which is set once and never
+  cleared.  Resolve+load now runs every configure with a Star6E-style
+  `g_last_isp_bin_path` cache; CUS3A enable + cold-boot exposure cap
+  stay one-shot under the deadlock-protection gate.  Verified: 3
+  successive `/api/v1/restart` cycles transitioned configured ->
+  auto-detect fallback -> new configured -> restored.
+- **B2 — IDR rate limiter: CAS loop for thread-safe spacing.**  The
+  load-then-store pattern on `last_us` left a race where two
+  concurrent producers could both pass the spacing check on the same
+  `last` value and both honor an IDR inside the window — the exact
+  storm-coalescing guarantee the gate was added for.  Replaced with
+  `__atomic_compare_exchange_n` so exactly one caller wins each
+  window.  ACQ_REL on the winning store synchronizes with the next
+  caller's ACQUIRE load.  Verified: 100 concurrent `/request/idr` ->
+  9 honored / 91 dropped (~10 honored/s, matches 100 ms spacing over
+  the ~1 s curl burst).  All 18 idr_rate_limit unit tests still pass.
+- **M1 — `venc_config_save`: preserve symlinks + mode bits.**  Resolve
+  `path` via `readlink()` before writing the temp file so a symlinked
+  `/etc/venc.json` is replaced in-place rather than being replaced by
+  a regular file.  Preserve the existing target's mode bits via
+  `stat()`+`fchmod()` so saves no longer silently widen 0600/0640 to
+  0644.  Open the directory with `O_DIRECTORY`, propagate dir-fsync
+  errors, retry trailing-newline write on EINTR.  Verified live:
+  symlink intact, target mode 0640 preserved.
+- **M2 — `/api/v1/defaults`: pick reinit mode based on save success.**
+  The handler unconditionally requested reinit mode 1
+  (reload-from-disk).  On disk-save failure (`EROFS` / `ENOSPC` /
+  perm), the reload silently overlaid the stale on-disk config onto
+  the in-memory defaults and reverted most of them.  Use mode 2
+  (apply in-memory) when `save_rc != 0` so the operator at least gets
+  the defaults they asked for at runtime.
+- **M3 / L1 / L3 — Star6E hygiene.**
+  - `prepare_pipeline_config`: stale comment about isp_bin_path
+    resolution location refreshed (v0.7.10 moved it from
+    `select_and_configure_sensor` to `bind_and_finalize_pipeline`).
+  - `stop_venc_level`: stop and join `dual_rec_thread` BEFORE
+    `star6e_output_teardown(&dual->output)`.  The thread calls
+    `star6e_video_send_frame(&dual->output, ...)` inside its loop;
+    tearing down output first left a use-after-close window.
+  - `dual_rec_thread_fn`: always `usleep` after Query-empty (100 us on
+    the fd path, 1 ms on the fallback) to prevent a runaway spin if
+    the kernel ever signals POLLIN spuriously without a matching
+    packet.
+
+## [0.7.10] - 2026-04-19
+
+Discoverable defaults + automatic ISP-bin selection:
+
+- **`config/venc.default.json` lists `video0.size`.**  The field defaulted
+  to `"auto"` in the parser but wasn't in the reference JSON, so users
+  copying the file as a template never saw it.  Added with the same
+  `"auto"` value.
+- **Automatic ISP-bin fallback (both backends).**  New
+  `pipeline_common_resolve_isp_bin()` runs after `sensor_select` and:
+  1. Uses `isp.sensorBin` if non-empty and readable.
+  2. Otherwise tries `/etc/sensors/<lowercase prefix>.bin` keyed off the
+     live sensor name (`IMX335_MIPI` → `imx335`).
+  3. Falls back to "no bin" (driver defaults).
+
+  Stock devices that already ship `/etc/sensors/imx335.bin`,
+  `/etc/sensors/imx415.bin`, etc. now run without per-host config.  A
+  configured-but-missing path logs a warning and uses the fallback so
+  typos and renamed bin files no longer cripple AE/AWB.  Logs the
+  resolution decision once per pipeline start: `> ISP bin: %s
+  (configured | auto-detected for sensor 'imx335') | none (no fallback…)`.
+- **Star6E `Star6ePipelineConfig.isp_bin_path`** changed from
+  `const char *` to `char[256]` to hold the resolved path.  Maruko
+  `MarukoBackendConfig.isp_bin_path` got the same treatment.
+- **Tests.**  10 new cases in `test_pipeline_common`: configured +
+  readable, configured + missing, NULL/empty sensor name, no-alnum-prefix
+  sensor name, NULL/zero output buffer (1190 tests, was 1180).
+
+## [0.7.9] - 2026-04-19
+
+Aspect-ratio crop is now opt-out (Star6E):
+
+- **`isp.keepAspect` config (default `true`).** When `false`, VIF
+  captures the full sensor area and VPE stretches it to the encode
+  dimensions instead of center-cropping to preserve geometry. New
+  parameter on `pipeline_common_compute_precrop()` keeps both call sites
+  branch-free. Maruko parses but ignores the field until SCL crop port
+  lands.
+- **Reinit path now tracks the precrop currently programmed in VIF**
+  (`state->active_precrop`) and compares against the freshly computed
+  rect. A `keepAspect` toggle that doesn't change image dimensions now
+  correctly triggers a VIF+VPE reconfigure. The previous code only
+  re-armed precrop when `image_width`/`height` differed from the prior
+  config.
+- **Reinit branch reorganized.** `if (precrop_changed)` runs the full
+  VIF+VPE rebuild; `else if (dims_changed)` falls through to the
+  VPE-port-only resize. Equal-on-both-counts skips the block. The prior
+  shape (outer `if (dims_changed)` then inner precrop check) couldn't
+  express the keepAspect-toggle case, and the obvious patch-style fix
+  would have re-fired the VPE-port resize on no-change reinits.
+- **Reinit log shows precrop.** `> Reinit: VIF+VPE reconfigure %ux%u
+  -> %ux%u (precrop %ux%u+%u+%u)` so an operator can tell whether the
+  trigger was a resolution change, an AR change, or a keepAspect toggle.
+- **HTTP API contract bumped to 0.6.2.** `isp.keepAspect` field added to
+  `/api/v1/config`, `/api/v1/set` accepts both snake_case and the
+  Majestic-style camelCase alias.
+- **WebUI dashboard exposes the toggle** under the ISP section; embedded
+  gzip regenerated via `make webui`.  Also drops the stale `isp.exposure`
+  entry that lingered after the field was removed in 0.7.0.
+- **Active precrop visible via API.** New
+  `venc_api_set_active_precrop()` / `venc_api_get_active_precrop()` are
+  called from the Star6E pipeline whenever VIF is (re)programmed.
+  `/api/v1/config` gains a `runtime.active_precrop` block alongside the
+  config; Star6E `/api/v1/ae` includes the same rect under
+  `data.runtime.active_precrop`.  Maruko reports nothing until it gains
+  precrop support.  Useful for confirming a `keepAspect` toggle landed
+  without grepping the log.
+- **Unit tests.** New `compute_precrop` cases cover both `keep_aspect`
+  values plus the 2-pixel alignment guarantee, and a new
+  `test_active_precrop_setter` exercises the venc_api setter/getter
+  including the cleared-store, overwrite, and NULL-out-pointer paths
+  (1180 tests, was 1139).
+
+## [0.7.8] - 2026-04-18
+
+Pre-merge review fixes folded in (see PR-47 review notes):
+
+- **Atomic config write.** `venc_config_save()` now writes to `<path>.tmp`,
+  fsyncs the file, renames over the target, and fsyncs the containing
+  directory.  Power cut mid-write (a real failure mode on FPV hardware)
+  no longer truncates `/etc/venc.json` — you always get either the old
+  or the new copy, never a partial.
+- **Flash-write guard.** `venc_api_save_config_to_disk()` caches the
+  last successfully-saved VencConfig and skips the write when the
+  candidate is byte-identical.  Hot loops (adaptive-link re-asserting
+  the same kbps, WebUI sliders landing on their current value) no
+  longer wear flash.
+- **Save errors surface.** `venc_config_save()` return value is now
+  honored.  `/api/v1/defaults` response gains `"saved":bool`.  LIVE /
+  RESTART `/api/v1/set` paths log a `WARNING: config save to X failed
+  — in-memory change committed but on-disk copy is stale` to stderr so
+  operators catch disk-full / readonly-FS conditions from the venc log.
+- **SDK call return values logged.** `MI_SNR_SetOrien`,
+  `MI_VPE_SetChannelParam` (reinit), and `MI_SNR_SetFps` (reinit) now
+  log non-zero returns so BSP regressions surface instead of silently
+  leaving the image upside-down or the sensor stuck at the wrong FPS.
+- **Dashboard source tracked.** HTML authored in `web/dashboard.html`;
+  `tools/build_webui.py` regenerates the embedded gzip deterministically
+  (mtime=0, compresslevel=9).  New `make webui` and `make webui-check`
+  targets; `make verify` runs `webui-check` to catch drift.
+
+- **WebUI reinit + IDR fixes.** Four related bugs in the reinit/save
+  path and one missing IDR-on-bitrate behaviour.
+- **Fix #1 — FPS kick on live reinit.** `star6e_pipeline_reinit`
+  (`src/star6e_pipeline.c`) now re-kicks `MI_SNR_SetFps` at the end so
+  a live FPS change actually reconfigures sensor timing.  Previously
+  the kick only fired during the initial `star6e_pipeline_start_vpe`
+  legacyAe branch and the once-per-process CUS3A `fps_kick_done`
+  gate — neither re-armed on reinit, so the sensor stayed stuck at
+  its cold-boot timing (e.g. 100 fps when 120 was requested).
+- **Fix #2 — Save & Restart actually saves.** Added
+  `venc_api_set_config_path()` (called by star6e_runtime and
+  maruko_runtime with `VENC_CONFIG_DEFAULT_PATH`).  Both LIVE
+  (`apply_live_set_query`) and RESTART (`process_restart_set_query`)
+  set paths now call `venc_config_save()` before returning, so every
+  `/api/v1/set` round-trip persists to `/etc/venc.json`.  `handle_restart`
+  is intentionally left pure (reload-from-disk only, matching SIGHUP);
+  the per-set save takes care of persistence so the WebUI "Save &
+  Restart" flow ends with the on-disk copy already matching memory.
+  Bonus: manual file swaps (e.g. scp of a config backup) followed by
+  `/api/v1/restart` reload exactly what was written.
+- **Fix #3 — Restore Defaults actually restores.** New
+  `GET /api/v1/defaults` endpoint (`handle_defaults`) writes
+  compiled-in defaults to disk and triggers reinit.  WebUI JS
+  `restoreDefaults()` rewired from `/api/v1/restart` to the new
+  endpoint (embedded gzip regenerated).  Previously the button just
+  reloaded the on-disk config — misleading, and did nothing if the
+  file already matched in-memory state.
+- **Fix #5 — IDR on bitrate change.** `apply_bitrate` in both
+  `src/star6e_controls.c` and `src/maruko_controls.c` now issues
+  `MI_VENC_RequestIdr` after `MI_VENC_SetChnAttr`, gated through the
+  existing `idr_rate_limit_allow` so storm callers stay coalesced.
+  The decoder now gets a fresh keyframe to resync against the new
+  rate-control state instead of drifting on stale P-frames.
+- **Fix #4 — image.mirror / image.flip** now re-apply on reinit.
+  `MI_VPE_SetChannelParam` is only invoked during VPE creation inside
+  `star6e_pipeline_start_vpe`; the non-aspect-ratio reinit path skipped
+  VPE rebuild, so a mirror/flip toggle would persist to disk and log
+  "Pipeline reinit complete" but never actually change the output.
+  Added an unconditional `MI_VPE_SetChannelParam(0, ...)` at the end
+  of `star6e_pipeline_reinit` carrying the current mirror/flip/3DNR
+  params.  Config round-trip verified on 192.168.1.13; visual flip
+  verification requires a live decoder (operator check).
+
+## [0.7.7] - 2026-04-18
+
+- **Perf-series PR-C.1 — port MI_VENC_GetFd + poll() blocking wait to
+  the Maruko main encoder loop.** Follow-up to PR-C (Star6E dual_rec
+  only).  Maruko's main encoder loop in `maruko_pipeline_run`
+  (`src/maruko_pipeline.c:1291`) was spinning on `maruko_mi_venc_query
+  + usleep(500)` — ~2000 syscalls/s during idle gaps.  Replaced with
+  `poll(MI_VENC_GetFd, 1000 ms)` and a wall-clock idle-abort timer
+  (20 s of no frames → abort, preserved from the original
+  `idle_counter * 500us` logic).
+- **Fallback preserved:** if `MI_VENC_GetFd` returns < 0 on an unknown
+  BSP variant, the loop falls back to the original Query+usleep(500)
+  spin.  POLLERR/POLLHUP/POLLNVAL on the fd path drops into the
+  fallback for the rest of the run.
+- **Lifecycle:** `MI_VENC_CloseFd` called at cleanup when the fd was
+  acquired.  The fd function pointers were already loaded by
+  `maruko_mi.c` (dlsym'd but unused before this PR).
+- **New bindings** (`include/maruko_bindings.h`): `maruko_mi_venc_get_fd`
+  and `maruko_mi_venc_close_fd` macros alongside the existing
+  MI_VENC_* wrappers.
+- **Wall-clock idle timeout** consolidates the old dual idle paths
+  (500us-keyed counter) into a single `wb_monotonic_us()`-based
+  deadline that works identically on both the fd path (rare wakeups)
+  and the fallback spin path (frequent wakeups).
+
+## [0.7.6] - 2026-04-18
+
+- **Perf-series PR-C — dual_rec_thread blocking wait via MI_VENC_GetFd.**
+  Third of the 2026-04-18 perf series.  Replaces the 1-ms `usleep` spin
+  in the dual-recorder thread with a `poll()` on the VENC channel's
+  kernel fd (`MI_VENC_GetFd`).  The fd signals `POLLIN` when a frame is
+  ready, so the thread wakes once per frame (~120/s at 120 fps) instead
+  of ~1000/s from the old 1 ms spin — ~88 % fewer syscalls during
+  recording.
+- **Fallback preserved:** if `MI_VENC_GetFd` returns < 0 on an unknown
+  BSP variant, the thread falls back to the original
+  `MI_VENC_Query + usleep(1000)` loop — zero behaviour change on SDKs
+  that don't expose the fd.
+- **Lifecycle:** `MI_VENC_CloseFd` is called on thread exit when the fd
+  was acquired.  The fd function pointers were already loaded by
+  `star6e_mi.c` / `maruko_mi.c` (dlsym'd but unused before this PR).
+
+## [0.7.5] - 2026-04-18
+
+- **Perf-series PR-B — IDR request rate-limit gate.** Second of the
+  2026-04-18 perf series.  Addresses the latent stability hazard where
+  five independent IDR producers (scene detector, HTTP `/request/idr`
+  and `/api/v1/dual/idr`, controls-apply, recorder-start) could storm
+  `MI_VENC_RequestIdr` without coordination — a bug-driven burst
+  (mis-tuned scene threshold during a camera pan) can crater per-frame
+  bitrate by chaining forced keyframes.
+- **New module (`include/idr_rate_limit.h`, `src/idr_rate_limit.c`):**
+  per-channel (up to 8) last-honored timestamp + honored/dropped
+  counters.  `idr_rate_limit_allow(chn)` enforces a compile-time
+  `IDR_RATE_LIMIT_MIN_SPACING_US` of 100 ms — at 120 fps that is 12
+  frames between honored forced IDRs, well below the GOP period
+  (~83 ms at GOP=10, which auto-inserts an IDR without RequestIdr).
+  State is lock-free (`__atomic_` load/store on `uint64_t`/`uint32_t`).
+- **Wired through the 5 producer sites:**
+  - `src/star6e_runtime.c` — `star6e_scene_request_idr`,
+    `runtime_request_idr`
+  - `src/star6e_controls.c` — `request_idr` (backend callback for HTTP
+    `/request/idr`)
+  - `src/venc_api.c` — `handle_dual_idr` (HTTP `/api/v1/dual/idr`);
+    coalesced response returns `{"coalesced":true}`
+  - `src/maruko_pipeline.c` — `maruko_scene_request_idr`
+  - `src/maruko_controls.c` — `apply_qp_delta` IDR reissue
+- **New endpoint `GET /api/v1/idr/stats`** returns per-channel honored
+  and dropped counts plus the configured `min_spacing_us`.  Used by
+  `tools/idr_storm.sh` to validate the gate.
+- **Unit tests (`tests/test_idr_rate_limit.c`, 20 cases):** first-call
+  honored, burst coalescing, per-channel independence, out-of-range
+  bypass, post-spacing honored, reset semantics.  1139 tests pass
+  (up from 1119).
+
+## [0.7.4] - 2026-04-18
+
+- **Perf-series PR-A — clock wrapper + dual_rec Query dedup + bench infra.**
+  First of a five-PR series landing the post-review performance findings
+  from 2026-04-18 (see `bench/perf-series/README.md`).
+- **Clock reads via vDSO (`include/timing.h`, `src/timing.c`):** New
+  `wb_monotonic_us()` helper using `CLOCK_MONOTONIC` (vDSO fast path on
+  ARMv7, ~100 ns/call) instead of `CLOCK_MONOTONIC_RAW` (real syscall,
+  ~1500 ns/call on A7).  Replaces three duplicated local wrappers —
+  `monotonic_us` in `star6e_video.c` and `maruko_pipeline.c`, and
+  `now_us` in `rtp_sidecar.c`.  NTP slew is <500 ppm → <4 us drift over
+  a 60 s bench window, well inside frame-timing measurement error.
+- **dual_rec backpressure signal (`src/star6e_runtime.c`):** Replaced the
+  post-`MI_VENC_ReleaseStream` peek `MI_VENC_Query` with an inspection of
+  the pre-`GetStream` `stat.curPacks >= 2` condition.  Equivalent
+  semantics (queue had a backlog before we consumed) at one fewer syscall
+  per recorded frame (~120/s at 120 fps).
+- **Perf-series bench harness (`bench/perf-series/`):** New
+  `run_bench.sh` drives the Tier A/B/C bench recipe end-to-end (deploy,
+  probe, collect); `compare.py` emits a markdown Delta table between two
+  labels with a 1.5×sigma regression flag.  Baseline tag
+  `perf-series-baseline` pinned at master `40b8435`.
+- **Host microbench (`tools/clock_bench.c`):** 1 M-iteration loop over
+  `CLOCK_MONOTONIC_RAW`, `CLOCK_MONOTONIC`, `CLOCK_MONOTONIC_COARSE` to
+  validate the vDSO assumption on A7 before deploying the PR.
+- **IDR-storm stress (`tools/idr_storm.sh`):** Infrastructure for PR-B
+  validation; fires N `POST /api/v1/dual/idr` back-to-back and reports
+  the honored:fired ratio.
+
+## [0.7.3] - 2026-04-14
+
+- **Star6E sidecar gate (parity with Maruko PR #37):** Gated the per-frame
+  `rtp_sidecar_poll` / `monotonic_us` / `rtp_sidecar_send_frame` work in
+  `star6e_video_send_frame` on `state->sidecar.fd >= 0`.  When the
+  sidecar feature is disabled (port 0), these calls are now skipped
+  entirely rather than relying on each callee's early return.
+- **SHM write: iovec-style 3-segment ring put (`venc_ring.h`, both backends):**
+  Added `venc_ring_write3(hdr, p1, p2)` so the producer no longer has to
+  pre-flatten `payload1 + payload2` into an 8 KB `flat[]` stack buffer
+  before calling `venc_ring_write`.  Drops one memcpy per fragmented RTP
+  packet (H.265 FU), removes the 8 KB stack allocation, and eliminates
+  the `RTP_BUFFER_MAX` size clamp on the SHM write path.
+  Applied to `src/star6e_output.c::star6e_output_send_rtp_parts` and
+  `src/maruko_video.c::maruko_video_send_rtp_parts`.
+  `venc_ring_write` is preserved as a thin wrapper for existing callers
+  (C and C++, including the wfb_tx patched consumer).
+
+## [0.7.1] - 2026-04-12
+
+- **Phase 5 — Maruko HEVC RTP parity (PR #32):** Extracted the HEVC RTP
+  output stage into a shared `hevc_rtp` module (`include/hevc_rtp.h` +
+  `src/hevc_rtp.c`). Both Star6E and Maruko now go through the same
+  Aggregation Packet (type 48) builder, FU-A fragmentation, VPS/SPS/PPS
+  prepend-on-IDR, and per-frame `HevcRtpStats`. `star6e_hevc_rtp.c` is
+  now a thin stream-iteration wrapper (227 lines → 111 lines);
+  `Star6eHevcRtpStats` becomes a typedef alias of `HevcRtpStats` so
+  existing call sites are unchanged. Maruko's RTP output gets standards-
+  compliant AP aggregation for the first time: hardware-validated on
+  SSC378QE at H.265 CBR 118 fps / 8 Mbps — IDR frames pack
+  VPS+SPS+PPS+IDR as a single AP packet (`ap 1/6` in `[pktzr]` verbose
+  line) instead of 4 separate RTP datagrams.
+- **`[pktzr]` verbose line on Maruko:** Matches Star6E's exact format
+  (`nals N | rtp N | fill N B | single N | ap N/N | fu N`) so log
+  tooling works across both backends.
+- **H.264 RTP output removed from Maruko:** Maruko ships H.265-only on
+  the RTP wire path. The H.264 path was never hardware-verified and
+  Maruko's FPV use case is H.265 exclusive. Channel creation still
+  accepts `codec=h264` for forward compatibility, but the frame sender
+  emits a warning and drops output. Net -~130 lines in `maruko_video.c`.
+- **New `test_hevc_rtp` suite** (3 tests, 16 assertions): AP packing of
+  small NALs, AP→FU-A fallback on oversized NALs, VPS/SPS/PPS prepend
+  behavior — uses a capture-callback harness (no sockets) so tests run
+  in <1 ms. Existing Star6E AP/FU-A test still passes unchanged as
+  regression guard.
+
+## [0.7.0] - 2026-04-11
+
+- **dlopen migration (both backends):** Both Star6E and Maruko now load all
+  MI vendor libraries (SYS, VIF, VPE, VENC, ISP, SCL, SNR) at runtime via
+  dlopen/dlsym instead of direct linking. Function pointers are dispatched
+  through `_impl` structs (`g_mi_sys`, `g_mi_vif`, etc.) with macro wrappers
+  so call sites are unchanged. Three-way preprocessor guards
+  (`PLATFORM_STAR6E` / `PLATFORM_MARUKO` / test stubs) keep all paths clean.
+  - Star6E: dependency-ordered loading (cam_os_wrapper → SYS → ISP/CUS3A
+    with RTLD_LAZY for circular deps → VIF/VPE/SNR/VENC with RTLD_NOW).
+  - Maruko: eliminated uClibc shim and 3+ MB of redundant libs on device.
+  - New files: `star6e_mi.h/.c`, `maruko_mi.h/.c`.
+  - Removed: `-lmi_*` link flags, `MARUKO_UCLIBC_DIR`, shim build rules.
+- **Maruko IQ parameter system:** Full 60-parameter ISP image quality API
+  for Maruko (Phase 2), matching Star6E's existing IQ support. Includes
+  multi-field struct params (colortrans, r2y, OBC, etc.), dot-notation
+  set, and export/import. New files: `maruko_iq.h/.c`.
+- **Maruko sensor mode diagnostics:** Auto-cap exposure to sensor FPS
+  for reliable 120fps cold-boot. Fix SCL clock configuration. Gain
+  control and exposure callback improvements.
+- **Disable AF in CUS3A:** Fixed-focus cameras (IMX415) no longer trigger
+  AF motor init errors. All CUS3A enable sequences changed from
+  `{1,1,1}` (AE+AWB+AF) to `{1,1,0}` (AE+AWB only). Post-override
+  after EnableUserspace3A which internally re-enables AF.
+- **Star6E VPE exit(127) fix:** Under dlopen, vendor MI_VPE_DisablePort
+  calls exit(127) on non-existent channel. Fixed by probing channel
+  with MI_VPE_GetChannelAttr before VPE teardown.
+- **Bool cast safety:** MI_SNR_GetPlaneMode vendor function writes 4 bytes
+  through a `_Bool*` pointer. Fixed with temp-int wrappers on both backends.
+- **Known issues documented:** Maruko encoder stall after output
+  disable/re-enable (`documentation/KNOWN_ISSUES.md`).
+- **Build cleanup:** Removed dead `snr_toggle_test` and `snr_sequence_probe`
+  build recipes (unbuildable without direct MI linking). Removed stale
+  uClibc references from deploy scripts and docs.
+- Added `sensors-src` submodule pointing to OpenIPC/sensors for sensor
+  driver source reference.
+- Added IMX335 IQ profile (`iq-profiles/imx335_greg_fpvVII-gpt200.json`).
+
+## [0.6.1] - 2026-04-03
+
+- Fix cold-boot 54fps lock with legacyAe: call MI_SNR_SetFps during
+  pipeline startup to force sensor timing compliance when CUS3A is not
+  active.
+- Fix sidecar telemetry NULL pointer: enriched encoder feedback was
+  never sent (enc_ptr was NULL instead of &enc_info).
+- Scene detector: saturate frame_count to prevent EMA warmup re-entry
+  after ~13h; cache frame_size/type to avoid redundant packet walks;
+  skip spike logic entirely when disabled (threshold=0).
+- Change video0.scene_threshold and scene_holdoff to MUT_RESTART
+  (no live-apply pathway exists).
+- Remove all enc_ctrl/encCtrl references from code and documentation.
+
+## [0.6.0] - 2026-04-02
+
+- Add inline scene detector in star6e_runtime.c (~150 lines) behind
+  `video0.scene_threshold` config field.
+  - Tracks frame size EMA, computes complexity (0-255).
+  - Detects spikes above configurable threshold for holdoff consecutive frames.
+  - Waits for spike to subside before requesting IDR (when threshold>0).
+  - Two config fields: `video0.scene_threshold` (uint16, 0=off, 150=1.5x EMA
+    spike detection), `video0.scene_holdoff` (uint8, default 2).
+  - Default off (`scene_threshold=0`): no IDR injection — zero-risk default.
+- Enrich RTP timing sidecar with per-frame encoder telemetry:
+  `frame_type`, `complexity`, `scene_change`, `idr_inserted`,
+  `frames_since_idr`.
+- Add multi-field set to HTTP API: `GET /api/v1/set?a=1&b=2` applies
+  multiple live fields atomically in one request.
+- Add field capabilities endpoint with backend-specific support filtering:
+  `GET /api/v1/capabilities` reports mutability and per-backend support.
+- API improvements: camelCase alias table for Majestic-compatible clients,
+  duplicate-field rejection in multi-set, mixed live/restart rejection.
+
+## [0.5.0] - 2026-04-01
+
+- Add debug OSD overlay for encoder diagnostics and EIS crop visualization.
+  Disabled by default (`debug.showOsd`), zero runtime cost when off.
+  - MI_RGN canvas overlay via dlopen — ARGB4444 pixel format, full-frame canvas
+    with dirty-rect tracking (only clears/draws changed areas per frame).
+  - Stats panel (top-left): fps counter, CPU% from /proc/stat, 3x scaled 8x8
+    bitmap font with semi-transparent background.
+  - EIS crop visualization (bottom-right): 1/3 scale miniature showing sensor
+    area (white), margin boundary (yellow), and moving crop window (green fill).
+  - NEON-accelerated row fill (vst1q_u16, 8 pixels per store, 2.4x vs naive).
+  - Mutually exclusive with waybeam-hub `mod_osd_render` — both use MI_RGN
+    global state on VPE channel 0.
+  - Config: `"debug": { "showOsd": true }`, API: `debug.show_osd` (MUT_RESTART).
+  - New files: `include/debug_osd.h`, `src/debug_osd.c`.
+
+## [0.4.1] - 2026-03-27
+
+- Fix IMU webui fields invisible: rename config keys `sampleRate` →
+  `sampleRateHz`, `gyroRange` → `gyroRangeDps` to match dashboard SECTIONS.
+- Add 5 missing default config keys: `eis.mode`, `record.bitrate`,
+  `record.fps`, `record.gopSize`, `record.server`.
+- Fix camelCase capabilities lookup for `swapXY` and `maxMB` in webui.
+- Remove legacy `sendFeedback` outgoing config alias.
+- Document config/webui/API four-layer sync rules in AGENTS.md.
+- Fix cold-boot sensor framerate lock: poll ISP exposure limits up to 500 ms
+  instead of skipping the shutter cap when struct is all-zero. Apply synthetic
+  gain defaults as fallback so AE cannot converge on exposure > frame period.
+- Add IQ enable/disable toggle: virtual `.enabled` field for non-bool params
+  (e.g. `colortrans.enabled=0`). Import respects `enabled` JSON field.
+  Dashboard shows toggle switch in expanded form for applicable params.
+
+## [0.4.0] - 2026-03-22
+
+- Add built-in web dashboard at `/` with Settings, API Reference, and
+  Image Quality tabs. Served as pre-compressed gzip (14KB on the wire).
+- Add multi-field IQ parameter descriptors: colortrans (3 offsets + 3x3
+  matrix), r2y, obc, demosaic, false_color, crosstalk, wdr_curve_adv now
+  expose all sub-fields via dot-notation set API and `"fields"` JSON object.
+- Add IQ export/import: `GET /api/v1/iq` exports all 62 ISP params as JSON,
+  `POST /api/v1/iq/import` restores them. Partial imports supported.
+- Add all missing config sections to the API: record (including dual channel
+  bitrate/fps/gopSize/server), EIS (12 params), IMU (7 params), full audio
+  (6 params), and ISP extras (legacyAe, aeFps). Total: 75 controllable fields.
+- Add FT_FLOAT field type for EIS float params with `%.6g` precision to
+  prevent artifacts like `0.001` displaying as `0.0010000000474974513`.
+- Add FT_UINT8 field type for `imu.i2c_addr` — fixes memory corruption where
+  `FT_UINT` wrote 4 bytes to a 1-byte field.
+- Consolidate frame-loss threshold into shared function with minimum 512 kbit/s
+  absolute margin for low-bitrate streams and 200 Mbps overflow clamp.
+- Add `g_iq_mutex` for thread-safe IQ query/set operations.
+- Add `g_dual_mutex` for thread-safe dual channel HTTP handlers.
+- Fix `#ifdef` to `#if HAVE_BACKEND_STAR6E` in dual_apply_bitrate (Maruko
+  link error from upstream PR #18).
+- Fix stream_packs memory leak in SIGHUP reinit path.
+- Fix diagnostic JSON trailing comma when dlsym lookups partially resolve.
+- Add snprintf overflow protection (`JSON_CLAMP` macro) in IQ query output.
+- Add EINTR handling in httpd read loops.
+- Move dual channel settings from raw JSON file parsing to VencConfigRecord
+  struct fields, simplifying star6e_runtime.c.
+- Increase HTTPD_MAX_ROUTES to 64, HTTPD_MAX_BODY to 8192.
+
+## [0.3.4] - 2026-03-22
+
+- Refresh the Star6E frame-loss threshold on live bitrate changes so
+  `/api/v1/set?video0.bitrate=...` keeps frame dropping aligned with the
+  updated main-channel bitrate.
+- Refresh the Star6E dual-channel frame-loss threshold on
+  `/api/v1/dual/set?bitrate=...` so ch1 live bitrate changes keep the same
+  overflow protection policy as channel creation.
+
+## [0.3.3] - 2026-03-18
+
+- Add Opus audio codec via `libopus.so` (loaded at runtime; graceful fallback
+  to PCM if absent). RTP payload type PT=120, 48kHz nominal clock per RFC 7587.
+- Fix 48kHz audio on SSC338Q — three root causes:
+  - I2S clock misconfiguration: `i2s.clock` must be `0` (MCLK disabled; I2S
+    master generates clock from internal PLL). Setting clock=1 caused hardware
+    to deliver 16kHz data regardless of `rate` field. Source: SDK reference
+    `audio_all_test_case.c` which uses `eMclk=0, bSyncClock=TRUE`.
+  - Ring buffer too small: `AUDIO_RING_PCM_MAX` was 1280 (16kHz stereo
+    headroom). 48kHz mono frames are 1920 bytes; silent truncation produced
+    invalid Opus frame sizes → `OPUS_BAD_ARG`. Increased to 3840 (48kHz
+    stereo 20ms = 960×2×2).
+  - `bSyncClock` was 0; set to 1 per SDK reference.
+- Fix stdout filter not active on SIGHUP reinit: `stdout_filter_start()` was
+  inside `start_ai_capture()` which is skipped when AI device persists across
+  reinit. Moved to `star6e_audio_init()` to run on every init cycle.
+- Fix `stdout_filter_stop()` ordering: `close(pipe_read)` moved after
+  `pthread_join` to avoid closing the fd while the filter thread may still
+  be reading from it.
+- Add `stdout_filter_stop()` to fail path and libmi_ai unavailable early-return
+  to prevent filter leaks on audio init failure.
+- Remove dead `star6e_audio_clock_for_rate()` function.
+- Increase DMA ring: `frmNum` 8→20 (400ms), prevents data loss under ISP/AE
+  preemption bursts.
+- Reduce output port depth to `user=1, buf=2` (was 2,4), saving ~40ms latency.
+- Audio init survives SIGHUP reinit: AI device/channel state is persisted in
+  `g_ai_persist` across reinit cycles to avoid `CamOsMutexLock` deadlock after
+  2+ VPE create/destroy cycles.
+
+## [0.3.2] - 2026-03-17
+- Fix SIGHUP reinit D-state: switch from full pipeline_stop/start to partial
+  teardown that keeps sensor/VIF/VPE running. The SigmaStar MIPI PHY does not
+  recover from MI_SNR_Disable/Enable cycles — partial teardown avoids touching
+  it entirely. VENC, output, audio, IMU/EIS are torn down and rebuilt; the
+  VIF→VPE REALTIME bind stays active across reinit.
+- Live resolution switching: `video0.size` API change now reconfigures the
+  pipeline in-process without a process restart.
+  - Same-aspect-ratio changes (e.g. 1920x1080 → 1280x720): VPE output port
+    resize only — VIF and VIF→VPE bind are untouched.
+  - Aspect-ratio changes (e.g. 1920x1080 → 1920x1440): full VIF crop
+    reconfiguration + VPE destroy/recreate. VIF device stays running;
+    MIPI PHY is never touched.
+  - Overscan correction applied during reinit precrop: uses `mode.output`
+    (usable area) rather than `plane.capt` (raw MIPI frame) for sensors that
+    report overscan in the MIPI frame dimensions.
+- Guard VIF→VPE bind in `bind_and_finalize_pipeline` to prevent double-bind
+  on reinit. Without the guard, re-binding an already-live VIF→VPE port
+  caused continuous `IspApiGet channel not created` dmesg errors.
+- ISP channel readiness poll (`star6e_pipeline_wait_isp_channel`) called
+  immediately after every new VIF→VPE bind. The ISP channel initialises
+  asynchronously after `MI_VPE_CreateChannel`; the poll (up to 2000 ms,
+  1 ms intervals) ensures the ISP is ready before the bin load and exposure
+  cap APIs probe it, eliminating `IspApiGet` dmesg errors on both cold boot
+  and AR-change reinit.
+- `__attribute__((flatten))` on `star6e_pipeline_reinit`: forces GCC -Os to
+  inline all static callees, preserving the stack layout that the SigmaStar
+  ISP driver requires for `MI_VPE_CreateChannel` to succeed.
+- Error-path state consistency in VIF+VPE reconfiguration: on failure after
+  VPE is destroyed, `MI_VIF_DisableDev` is called to leave the pipeline in a
+  cleanly-stopped state rather than a partially-configured one.
+- Details: `documentation/SIGHUP_REINIT.md`
+
+## [0.3.1] - 2026-03-16
+- Reduce G.711 audio latency: scale frame size to `sample_rate/50` (~20ms)
+  instead of hardcoded 320. Reduce MI_AI ring (frmNum 16→8), output port
+  depth (4,16)→(2,4), fnGetFrame timeout 100→50ms.
+- Add dynamic RTP payload types: PT=112 (PCMU non-8kHz), PT=113 (PCMA
+  non-8kHz). Standard PTs (0, 8, 11) still used when rate matches RFC 3551.
+- Clamp audio sample_rate to 8000-48000 in config parser.
+- Default audio codec changed from `pcm` to `g711a` in venc.default.json.
+- Remove `slicesEnabled`/`sliceSize`/`lowDelay` config fields (no firmware support on I6E).
+- Add `frameLost` config field for frame-lost strategy (default: true).
+- Fix kbps verbose overflow on 32-bit ARM (displayed ~400 instead of ~13000 at high bitrates).
+
+## [0.3.0] - 2026-03-15
+- Custom 3A thread for Star6E — replaces ISP internal AE/AWB with a
+  dedicated 15 Hz thread (default, no config change needed):
+  - AE: proportional controller with shutter-first priority, configurable
+    target luma (100-140), convergence rate (10%), and gain ceiling (20x).
+  - AWB: grey-world algorithm with IIR smoothing (70/30) and 2% dead-band.
+  - Pauses ISP AE via `MI_ISP_AE_SetState(PAUSE)`, disables CUS3A AWB
+    callback via `MI_ISP_CUS3A_Enable(1,0,0)`.
+  - Periodic ISP AE state verification with automatic re-pause.
+  - Manual AWB (`ct_manual`) pauses custom AWB; `auto` resumes it.
+  - `isp.exposure` API syncs max shutter to the custom AE thread.
+  - Set `isp.legacyAe: true` to revert to old ISP AE + handoff behavior.
+- New config fields: `aeFps`, `legacyAe` in the `isp` section.
+  Gain/shutter limits now seeded from ISP bin (`MI_ISP_AE_GetExposureLimit`).
+- HW verified: all 4 imx335 sensor modes (30/60/90/120fps), cold-boot,
+  live FPS switching, gemini dual recording, manual AWB transitions.
+
+## [0.2.3] - 2026-03-14
+- Restored working Star6E AE across IMX335 modes `30`, `60`, `90`, and `120 fps`:
+  - Startup now primes CUS3A with `100 -> 110 -> 111`.
+  - Steady state no longer forces periodic `110` refreshes.
+  - A delayed one-shot `000` handoff returns the pipeline to a live AE state
+    while preserving the requested encoder rate.
+- Added Star6E AE diagnostics for live verification:
+  - `GET /api/v1/ae`
+  - `GET /metrics/isp`
+  - Existing `GET /api/v1/awb` remains available for AWB inspection.
+- Documented the verified AE recovery and updated the HTTP API contract for
+  the diagnostics endpoints.
+
+## [0.2.2] - 2026-03-11
+- Fixed GOP keyframe interval to be relative to FPS (seconds, not raw frames):
+  - `gopSize` is now a float representing seconds between keyframes.
+  - `1.0` = 1 keyframe/second (GOP = fps frames). `0.5` = every 0.5s. `0` = all-intra.
+  - Example: `gopSize: 0.33` at 90fps = keyframe every ~30 frames.
+  - Changing FPS now automatically recalculates GOP frame count.
+  - Default changed from `3` (frames) to `1.0` (seconds).
+- Fixed autoexposure not restoring via HTTP API:
+  - Setting `isp.exposure=0` via API now correctly restores auto-exposure
+    (caps max shutter to frame period). Previously it was a no-op due to
+    both args being zero in `cap_exposure_for_fps(0, 0)`.
+- Known issue: AWB (Auto White Balance) behavior unverified on device.
+  - CUS3A enables AWB (`params[1]=1`) but actual color correction depends on
+    ISP bin calibration data. Requires on-device testing. See
+    `documentation/AWB_INVESTIGATION.md`.
+- Known issue: ROI QP not yet wired to encoder backend.
+  - Config plumbing and HTTP API exist but `apply_roi_qp` callback is NULL.
+  - SDK supports overlapping ROI regions with delta QP via
+    `MI_VENC_SetRoiCfg`. Implemented as horizontal bands with signed QP
+    (1-4 steps). See `documentation/ROI_INVESTIGATION.md`.
+
+## [0.2.1] - 2026-03-10
+- Added audio output via UDP with configurable codec and port:
+  - Supported codecs: raw PCM, G.711 A-law, G.711 μ-law (software encoding).
+  - Audio captured via MI_AI SDK (dlopen at runtime, graceful degradation if unavailable).
+  - New `audio` config section: `enabled`, `sampleRate`, `channels`, `codec`, `volume`, `mute`.
+  - New `outgoing.audioPort` field: 0 = share video port, >0 = dedicated audio port (default 5601).
+  - Audio runs in a separate thread from the video streaming loop.
+  - Dual packetization: compact mode (0xAA magic header) and RTP mode (PT 110, distinct SSRC).
+  - Live mute/unmute via HTTP API (`audio.mute`, MUT_LIVE).
+  - Star6E backend: full implementation. Maruko backend: warning stub.
+- RTP mode now reads `maxPayloadSize` from config (was hardcoded to 1200):
+  - Both star6e and maruko backends respect `outgoing.maxPayloadSize` for
+    RTP FU-A/FU fragmentation threshold. Default 1400.
+  - Config values above 1400 are supported for jumbo-frame networks.
+- Added adaptive RTP payload sizing to reduce CPU churn from packet overhead:
+  - EWMA tracks average P-frame size; IDR-like spikes (>3x average) are
+    excluded to prevent distortion.
+  - Target payload = avg_frame * fps / targetPacketRate, aiming for ~850
+    packets/sec by default across all bitrates (adaptive bitrate up to 50 Mbit).
+  - `outgoing.targetPacketRate` config field (default 850, MUT_RESTART).
+    Set to 0 to disable adaptive sizing and use fixed maxPayloadSize.
+  - 15% hysteresis prevents oscillation on frame-to-frame jitter.
+  - Payload clamped to [1000, maxPayloadSize]. The 1000-byte floor keeps
+    packet rate under ~500 pkt/s on low-MCS WiFi links (MCS0 slot budget).
+
+## [0.2.0] - 2026-03-10
+- Added output enable/disable control (`outgoing.enabled`, MUT_LIVE):
+  - When disabled: FPS reduces to 5fps idle rate, frames encoded and discarded.
+  - When enabled: FPS restores to previous value, IDR keyframe issued.
+  - Default: `false` (no more implicit localhost:5000 fallback).
+- Added live destination redirect (`outgoing.server`, MUT_LIVE):
+  - Change UDP destination without pipeline restart.
+  - IDR keyframe issued on destination change for stream continuity.
+  - Re-connects UDP socket when `connectedUdp` is enabled.
+- Added stream mode config field (`outgoing.streamMode`, MUT_RESTART):
+  - Values: `"rtp"` (default) or `"compact"`.
+  - Replaces scheme-derived mode detection; URI scheme must be `udp://`.
+- Added connected UDP (`outgoing.connectedUdp`, MUT_RESTART):
+  - When true: `connect()` called on UDP socket, skips per-packet routing
+    lookup and enables kernel ICMP error feedback.
+- Added IDR request after live bitrate change for immediate quality update.
+- Updated HTTP API contract to v0.2.0.
+
+## [0.1.7] - 2026-02-26
+- Fixed ISP FIFO stall on overscan sensor modes (imx335 mode 2 @ 90fps):
+  - Added periodic CUS3A refresh (~15 Hz) in stream loop to keep ISP event
+    loop alive; runs in both idle and active paths so a stalled pipeline
+    can recover.
+  - Fixed overscan detection: removed 10% threshold that skipped correction
+    for single-axis overscan (imx335 mode 2: crop 2560x1440, output 2400x1350).
+    Changed to per-axis independent clamping.
+- Simplified ISP 3A management (Star6E + Maruko):
+  - Replaced per-frame AE cadence toggling and ISP3AHandle/ISP3AState machinery
+    with one-shot `enable_cus3a()` at pipeline init + periodic `cus3a_tick()`.
+  - Removed CLI flags: `--ae-on/off`, `--awb-on/off`, `--af-on/off`, `--ae-cadence`.
+- Added ISP/SCL clock boost (384 MHz) after pipeline setup.
+- Added `--oc-level` for hardware overclocking:
+  - Level 1: VENC clock boost to 480 MHz.
+  - Level 2: Level 1 + CPU pinned to 1200 MHz with performance governor.
+
+## [0.1.6] - 2026-02-25
+- Added AE cadence control (`--ae-cadence N`) for high-FPS throughput recovery:
+  - Toggles CUS3A processing on/off every N frames to reduce per-frame CPU overhead.
+  - Auto mode: when FPS >60, cadence defaults to fps/15 (e.g. cadence=8 at 120fps).
+  - Manual override via `--ae-cadence N` for fine-tuning.
+- Moved ISP bin load earlier in pipeline setup (after start_vpe, before streaming)
+  to ensure correct ae_init state before first frame.
+- Added overscan crop detection for sensor modes where mode.output < mode.crop:
+  - When overscan exceeds 10% on both axes, VIF center-crops to the usable output area.
+  - Fixes imx415 mode 1 hang (crop=2952x1656, output=2560x1440).
+  - Threshold prevents false positives from driver metadata quirks.
+- Enhanced `--list-sensor-modes` to show crop/output details when they differ.
+- Cleaned up pipeline summary prints: explicit MIPI frame vs cropped dimensions,
+  precrop line only shown for actual aspect-ratio cropping.
+
+## [0.1.5] - 2026-02-25
+- Improved agentic coding workflow in AGENTS.md:
+  - Added structured error recovery loop (observe → diagnose → repair → re-verify → document).
+  - Added incremental verification guidance: run `make lint` after each logical change.
+  - Added long-session guidance: progress checkpoints, decision stability, scope control.
+  - Added error diagnosis reference table for compiler, linker, runtime, and timeout failures.
+  - Added deployment test interpretation: exit codes, JSON summary, dmesg guidance, agent decision flow.
+  - Added "Mistakes to Avoid" entries for stacking unverified changes and mid-task approach switching.
+- Added `make lint` target: fast compile-only check with `-Wall -Wextra -Werror` for both backends.
+- Added lint step to CI workflow (runs before build).
+- Synced dual-agent infrastructure (Claude Code + OpenAI Codex):
+  - Updated all `.agents/skills/` and `.claude/commands/` with decision documentation,
+    error recovery loop, and incremental lint steps.
+  - Added `Bash(make lint*)` to Claude permissions; switched PostToolUse hook
+    from full build to fast lint for tighter feedback loop.
+  - Enhanced `.codex/config.toml` with `sandbox_mode = "workspace-write"`.
+- Improved `remote_test.sh`:
+  - Added SSH ControlMaster multiplexing for persistent connections.
+  - Removed runtime lib deployment (libs already in `/usr/lib` on target).
+  - Added `--json-summary`, `--skip-build`, `--skip-deploy` flags.
+  - Added strict exit codes (0=success, 1=failed, 2=unresponsive, 124=timeout).
+- Added `documentation/TARGET_AGENT_ARCHITECTURE.md` design doc (deferred implementation).
+
+## [0.1.4] - 2026-02-23
+- Added automatic precrop for Star6E: when encode resolution has a different aspect ratio
+  than the sensor mode, the VIF center-crops the sensor frame to match the target aspect
+  ratio before the VPE scales, eliminating non-uniform scaling distortion.
+- Precrop uses integer cross-multiplication (no floats) with 2-pixel alignment enforcement.
+- Informational log line printed when precrop is active (e.g. `Precrop: 1920x1080 -> 1440x1080 (offset 240,0)`).
+- Fixed high-FPS throttling when AE is disabled: caps exposure to frame period after ISP bin
+  load, preventing default 10ms shutter from limiting 120fps mode to ~99fps.
+
+## [0.1.3] - 2026-02-23
+- Added duplicate-process guard: venc now detects and exits if another instance is already running.
+- Added `--version` / `-v` flag to print version and backend name.
+- Added `--verbose` flag to gate per-frame stats output (previously always printed).
+- Removed obsolete HiSilicon/Goke `-v [Version]` hardware presets from Star6E backend and help text.
+- Simplified sensor mode selection: prioritize FPS match over resolution fit in both backends.
+- Fixed Star6E cleanup ordering: socket and ISP 3A handle now properly released on all exit paths.
+- Added informational prints for FPS mismatch, resolution clamping, and VPE scaling.
+- Embedded build-time version from VERSION file via Makefile (`VENC_VERSION`).
+- Updated help text branding from "HiSilicon/Goke" to "SigmaStar".
+- Added crash/hang tracking policy and initial crash log (`documentation/CRASH_LOG.md`).
+- Added SigmaStar Pudding SDK API reference link to proc reference and documentation index.
+
+## [0.1.2] - 2026-02-22
+- Added low-risk ISP CPU-control knobs in both standalone backends:
+  - `--ae-off/--ae-on`
+  - `--awb-off/--awb-on`
+  - `--af-off/--af-on` (default AF off)
+  - `--vpe-3dnr 0..7`
+- Updated ISP bin load/reapply behavior to honor requested AE/AWB/AF state.
+- Added documentation for CPU/latency tuning profiles and usage:
+  - `documentation/AE_AWB_CPU_TUNING.md`
+- Updated status/index docs to reflect implemented 3A/3DNR tuning controls.
+
+## [0.1.1] - 2026-02-22
+- Added formal HTTP API contract source-of-truth document:
+  - `documentation/HTTP_API_CONTRACT.md`
+- Added repository PR checklist template with explicit contract/version/doc gates:
+  - `.github/pull_request_template.md`
+- Added default JSON config template and planning artifacts for config/API migration:
+  - `config/venc.default.json`
+  - `documentation/CONFIG_HTTP_API_ROADMAP.md`
+- Updated documentation/plan/process files to enforce:
+  - Star6E-first rollout for SigmaStar API-touching features,
+  - contract sync on HTTP changes,
+  - SemVer + changelog workflow.
+
+## [0.1.0] - 2026-02-22
+- Baseline established for standalone-only repository scope.
+- Targeted dual-backend builds in place (`SOC_BUILD=star6e`, `SOC_BUILD=maruko`).
+- Runtime SoC autodetect removed from `venc`; backend is selected at build time.
+- Default stream behavior aligned to RTP + H.265 CBR.
+- Planning updates introduced for JSON config migration and HTTP control API roadmap.

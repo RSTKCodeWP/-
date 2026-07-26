@@ -1,0 +1,42 @@
+{
+  "name": "fpv-sim-mcp",
+  "version": "0.2.0",
+  "description": "MCP server exposing the fpv-sim force-on-force sUAS/cUAS engagement simulation as agent-callable tools. Notional data only.",
+  "type": "module",
+  "license": "SEE LICENSE IN LICENSE.md",
+  "author": "wasomma <wasomma@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/wasomma/fpv-sim-mcp.git"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "fpv-sim-mcp": "dist/src/server/index.js"
+  },
+  "exports": {
+    ".": "./dist/src/server/index.js",
+    "./engine": "./dist/src/engine/index.js"
+  },
+  "files": [
+    "dist/src",
+    "docs"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "tsc && node --test dist/test/*.test.js",
+    "demo": "tsc && node dist/examples/demo.js",
+    "goldens": "node scripts/generate-goldens.mjs",
+    "start": "node dist/src/server/index.js",
+    "start:http": "node dist/src/server/http.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.0",
+    "typescript": "^5.8.0"
+  }
+}

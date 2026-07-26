@@ -1,0 +1,9 @@
+# Ignore files
+.env
+
+# Ignore folders
+node_modules
+.venv
+.ruff_cache
+__pycache__
+data

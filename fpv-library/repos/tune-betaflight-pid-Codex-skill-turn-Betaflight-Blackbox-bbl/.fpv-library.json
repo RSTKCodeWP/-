@@ -1,0 +1,8 @@
+{
+  "source": "pokrc/tune-betaflight-pid",
+  "upstream_commit": "0bbfa1fa8117f08ec43cf964a49cd86969c5dbaa",
+  "upstream_updated": "2026-07-24T10:35:54Z",
+  "synced_at": "2026-07-26T23:20:58+00:00",
+  "discovered_via": "search:Fpv:p4",
+  "score": 11.0
+}

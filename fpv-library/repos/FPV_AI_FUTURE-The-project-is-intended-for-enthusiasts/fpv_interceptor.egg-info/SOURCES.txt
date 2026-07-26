@@ -1,0 +1,7 @@
+README.md
+pyproject.toml
+fpv_interceptor.egg-info/PKG-INFO
+fpv_interceptor.egg-info/SOURCES.txt
+fpv_interceptor.egg-info/dependency_links.txt
+fpv_interceptor.egg-info/requires.txt
+fpv_interceptor.egg-info/top_level.txt

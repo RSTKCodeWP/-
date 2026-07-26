@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "g2u.signed.v1",
+  "title": "G2U Signed Envelope v1",
+  "description": "Wraps any G2U event with an Ed25519 signature.",
+  "type": "object",
+  "required": ["schema", "node_id", "key_id", "payload", "signature"],
+  "additionalProperties": false,
+  "properties": {
+    "schema":   { "const": "g2u.signed.v1" },
+    "node_id":  { "type": "string" },
+    "key_id":   { "type": "string", "description": "Identifier for the public key that should verify this signature." },
+    "payload":  { "type": "object", "description": "One of g2u.track.v1 / g2u.cue.v1 / g2u.negative.v1 / g2u.coverage.v1 / g2u.health.v1" },
+    "signature": {
+      "type": "string",
+      "description": "Base64-urlsafe Ed25519 signature over canonical JSON of payload."
+    }
+  }
+}

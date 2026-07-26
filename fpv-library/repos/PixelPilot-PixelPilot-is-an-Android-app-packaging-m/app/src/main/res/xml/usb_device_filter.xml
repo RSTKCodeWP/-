@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <usb-device
+        product-id="8812"
+        vendor-id="0BDA" /> <!-- RTL8812AU -->
+    <usb-device
+        product-id="881A"
+        vendor-id="0BDA" /> <!-- RTL8812AU-VS -->
+    <usb-device
+        product-id="881B"
+        vendor-id="0BDA" /> <!-- RTL8812AU-VL -->
+    <usb-device
+        product-id="0101"
+        vendor-id="2357" /> <!-- Archer T4U -->
+    <usb-device
+        product-id="0103"
+        vendor-id="2357" /> <!-- Archer T4UH -->
+    <usb-device
+        product-id="010D"
+        vendor-id="2357" /> <!-- Archer T4U V2 -->
+    <usb-device
+        product-id="010E"
+        vendor-id="2357" /> <!-- Archer T4UH V2 -->
+    <usb-device
+        product-id="17D2"
+        vendor-id="0B05" /> <!-- Asus AC56 -->
+    <usb-device
+        product-id="0012"
+        vendor-id="2604" /> <!-- Tenda U12 -->
+    <usb-device
+        product-id="0408"
+        vendor-id="0409" /> <!-- NEC AtermWL900U -->
+    <usb-device
+        product-id="3426"
+        vendor-id="0586" /> <!-- ZyXel 6605 -->
+    <usb-device
+        product-id="A81A"
+        vendor-id="0BDA" /> <!-- RTL8812EU (e.g. LB-LINK BL-M8812EU2) -->
+    <usb-device
+        product-id="A82A"
+        vendor-id="0BDA" /> <!-- RTL8822EU -->
+    <usb-device
+        product-id="E822"
+        vendor-id="0BDA" /> <!-- RTL8822EU (multi-function) -->
+</resources>

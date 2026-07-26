@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="RotorHazard">
+    <meta name="google" content="notranslate">
+    <title>Brackets</title>
+
+    <!-- Icons -->
+    <link rel="apple-touch-icon" sizes="180x180" href="/static/image/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/image/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/static/image/favicon-16x16.png">
+    <link rel="manifest" href="/static/image/site.webmanifest">
+    <link rel="mask-icon" href="/static/image/safari-pinned-tab.svg" color="#ee7a28">
+    <link rel="shortcut icon" href="/static/image/favicon.ico">
+    <meta name="msapplication-TileColor" content="#ee7a28">
+    <meta name="msapplication-config" content="/static/image/browserconfig.xml">
+    <meta name="theme-color" content="#224873">
+
+    <!-- Scripts -->
+    <script type="text/javascript" src="/static/jquery-3.6.4/jquery-3.6.4.min.js"></script>
+    <script type="text/javascript" src="/static/articulate/articulate.min.js"></script>
+    <script type="text/javascript" src="/static/socket.io-4.6.1/socket.io.min.js"></script>
+    <script type="text/javascript" src="/static/smoothie/smoothie.js"></script>
+    <script type="text/javascript" src="/static/magnific-1.1.0/magnific-inline-min.js"></script>
+    <script type="text/javascript" src="/static/svgasset.js"></script>
+    <script type="text/javascript" src="/static/rotorhazard.js"></script>
+
+    <!-- CSS -->
+    <link rel="stylesheet" href="/static/magnific-1.1.0/magnific-popup.css"></link>
+    <link rel="stylesheet" href="/static/stream.css"></link>
+    <link rel="stylesheet" href="/ddr_overlays/static/fonts/teko/stylesheet.css"></link>
+    <link rel="stylesheet" href="/ddr_overlays/static/css/ddr_overlays.css"></link>
+    <!-- load a different CSS based on the number of pilots -->
+    <link rel="stylesheet" href="/ddr_overlays/static/css/brackets_{{ bracket_type }}.css"></link>
+
+    <!-- Child template head content -->
+
+</head>
+
+<body>
+
+<script type="text/javascript" charset="utf-8" src="/ddr_overlays/static/js/ddr_overlays.js"></script>
+
+<script type="text/javascript" charset="utf-8">
+
+    var data_dependencies = [
+        'all_languages',
+        'language',
+        'pilot_data',
+        'class_data',
+        'heat_data',
+    ];
+
+    rotorhazard.show_messages = false;
+
+    var ddr_pilot_data;
+    var ddr_class_data;
+    var ddr_heat_data;
+
+    function race_kickoff(msg) {
+        rotorhazard.timer.stopAll();
+
+        var staging_start_pi = (msg.pi_staging_at_s * 1000); // convert seconds (pi) to millis (JS)
+        var race_start_pi = (msg.pi_starts_at_s * 1000); // convert seconds (pi) to millis (JS)
+
+        rotorhazard.timer.race.hidden_staging = Boolean(msg.hide_stage_timer);
+        rotorhazard.timer.race.count_up = Boolean(msg.unlimited_time);
+        rotorhazard.timer.race.duration_tenths = msg.race_time_sec * 10;
+
+        rotorhazard.timer.race.start(race_start_pi, staging_start_pi);
+    }
+
+    $(document).ready(function () {
+        // get pi time
+        rotorhazard.pi_time_request = window.performance.now();
+        socket.emit('get_pi_time');
+
+        socket.on('language', default_handler['language']);
+
+        socket.on('race_scheduled', default_handler['race_scheduled']);
+
+        socket.on('pilot_data', function (msg) {
+            rotorhazard.event.pilot_attributes = msg.attributes;
+            rotorhazard.event.pilots = msg.pilots;
+            rotorhazard.options.pilotSort = msg.pilotSort;
+            ddr_pilot_data = msg.pilots;    
+        }); 
+
+        socket.on('class_data', function (msg) {
+            ddr_class_data = msg.classes;
+        });
+
+        socket.on('heat_data', function (msg) {
+            ddr_heat_data = msg.heats;
+            build_elimination_brackets('{{ bracket_type }}', '{{ class_id }}', ddr_pilot_data, ddr_heat_data, ddr_class_data);
+        });
+
+        socket.on('heartbeat', default_handler['heartbeat']);
+
+        socket.on('prestage_ready', default_handler['prestage_ready']);
+    });
+
+</script>
+
+<main class="page-stream">
+
+    <div id="fai_brackets">
+
+        <div id="brackets" class="brackets-viewer">
+
+            <div class="bracket_group">
+                <div class="bracket_group_title">
+                    Winner Bracket
+                </div>
+
+                <div id="winner_bracket_content" class="bracket_group_content">
+
+                    <!--
+                    <div class="bracket_race">
+                        <div class="bracket_race_title">Race 1</div>
+                        <div class="bracket_race_pilots">
+
+                            <div class="bracket_race_pilot">
+                                <div class="avatar">
+                                    <img src="/ddr/static/assets/imgs/no_avatar.png">
+                                </div>
+
+                                <div class="flag">
+                                    <img src="/fpvscores/static/assets/imgs/flags/us.jpg" alt="USA">
+                                </div>
+
+                                <div class="pilot_name">
+                                    Pilot 1
+                                </div>
+                            </div>
+
+                            <div class="bracket_race_pilot">
+                                Pilot 2
+                            </div>
+                            <div class="bracket_race_pilot">
+                                Pilot 3
+                            </div>
+                            <div class="bracket_race_pilot">
+                                Pilot 4
+                            </div>
+
+                        </div>
+                    </div>
+                    -->
+
+                </div>
+
+            </div>
+
+            <div class="bracket_group">
+                <div class="bracket_group_title">
+                    Lower Bracket
+                </div>
+
+                <div id="loser_bracket_content" class="bracket_group_content">
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+</main>
+
+</body>
+
+</html>

@@ -1,0 +1,57 @@
+[
+  {
+    "tag_name": "v1.0.1",
+    "draft": false,
+    "prerelease": false,
+    "created_at": "2013-03-01T19:35:32Z",
+    "published_at": "2013-03-01T19:35:32Z",
+    "assets": [
+      {
+        "name": "plugin.zip",
+        "browser_download_url": "https://example.com/releases/v1.0.1/plugin.zip",
+        "digest": "sha256:9a27e03cc6248fb656d2bb120bc8f0f75b9c6573c2bd8fa8700c55dc6f0d7a4a",
+        "size": 12345,
+        "download_count": 42
+      },
+      {
+        "name": "plugin-debug.zip",
+        "browser_download_url": "https://example.com/releases/v1.0.1/plugin-debug.zip",
+        "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+        "size": 15000,
+        "download_count": 5
+      }
+    ]
+  },
+  {
+    "tag_name": "v1.0.0",
+    "draft": false,
+    "prerelease": false,
+    "created_at": "2013-02-28T19:35:32Z",
+    "published_at": "2013-02-28T19:35:32Z",
+    "assets": [
+      {
+        "name": "plugin.zip",
+        "browser_download_url": "https://example.com/releases/v1.0.0/plugin.zip",
+        "digest": "sha256:992dbf17148559bcc2123b4bda3d97c634cd22560dad60957018d8e1913fbf68",
+        "size": 12000,
+        "download_count": 30
+      }
+    ]
+  },
+  {
+    "tag_name": "v1.0.0-beta",
+    "draft": false,
+    "prerelease": true,
+    "created_at": "2013-02-27T19:35:32Z",
+    "published_at": "2013-02-27T19:35:32Z",
+    "assets": [
+      {
+        "name": "plugin.zip",
+        "browser_download_url": "https://example.com/releases/v1.0.0-beta/plugin.zip",
+        "digest": "sha256:22620b25a23115258676ca8e831a755fb5ce73e1395cc12b16ac92ccb1636454",
+        "size": 11500,
+        "download_count": 15
+      }
+    ]
+  }
+]

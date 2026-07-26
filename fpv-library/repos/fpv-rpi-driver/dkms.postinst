@@ -1,0 +1,27 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# DKMS post-install: build the device tree overlay and install it to the
+# firmware overlays directory.
+
+set -e
+
+# Status line formatter (matches Makefile's PRINT)
+print() { printf '  %-7s %s\n' "$1" "$2"; }
+
+cd "$(dirname "$0")"
+make dtbo
+
+# Modern Raspberry Pi OS (Bookworm/Trixie) mounts the firmware partition
+# at /boot/firmware; older layouts used /boot directly.
+if [ -d /boot/firmware/overlays ]; then
+	OVERLAY_DIR=/boot/firmware/overlays
+elif [ -d /boot/overlays ]; then
+	OVERLAY_DIR=/boot/overlays
+else
+	echo "Error: no overlays directory found under /boot" >&2
+	exit 1
+fi
+
+print INSTALL "$OVERLAY_DIR/$(basename build/*.dtbo)"
+install -m 644 build/*.dtbo "$OVERLAY_DIR"/

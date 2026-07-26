@@ -1,0 +1,13 @@
+{
+  "class_label": "CLUTTER",
+  "sortie_id": "bench_5751",
+  "sensor": "FT640_CVBS_8bit",
+  "is_radiometric_y16": false,
+  "range_hint_m": null,
+  "aspect_deg": null,
+  "conditions": "",
+  "notes": "",
+  "n_frames": 26,
+  "width": 640,
+  "height": 512
+}

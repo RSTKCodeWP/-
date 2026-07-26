@@ -1,0 +1,155 @@
+defaults nosave
+
+
+# version
+# Betaflight / STM32F411 (S411) 4.4.3 Jun 25 2024 / 10:01:45 (738127e7e) MSP API: 1.45
+
+# config: YES
+
+# start the command batch
+batch start
+
+# reset configuration to default settings
+defaults nosave
+
+board_name BETAFPVF4SX1280
+manufacturer_id BEFH
+mcu_id 006e00413233510b34393532
+signature 
+
+# name: Meteor85
+
+# feature
+feature -RX_SERIAL
+feature -SOFTSERIAL
+feature -LED_STRIP
+
+# serial
+serial 1 131073 115200 57600 0 115200
+
+# beacon
+beacon RX_LOST
+beacon RX_SET
+
+# led
+led 0 0,0::A:0
+led 1 1,0::A:0
+
+# aux
+aux 0 0 0 900 1300 0 0
+aux 1 1 1 1700 2100 0 0
+aux 2 13 2 1700 2100 0 0
+aux 3 35 1 1300 1700 0 0
+
+# vtxtable
+vtxtable bands 6
+vtxtable channels 8
+vtxtable band 1 BOSCAM_A A CUSTOM     0    0    0    0    0    0    0    0
+vtxtable band 2 BOSCAM_B B CUSTOM     0    0    0    0    0    0    0    0
+vtxtable band 3 BOSCAM_E E CUSTOM  5705    0    0    0    0    0    0    0
+vtxtable band 4 FATSHARK F CUSTOM  5740 5760    0 5800    0    0    0    0
+vtxtable band 5 RACEBAND R CUSTOM  5658 5695 5732 5769 5806 5843 5880 5917
+vtxtable band 6 LOWBAND  L CUSTOM     0    0    0    0    0    0    0    0
+vtxtable powerlevels 3
+vtxtable powervalues 14 23 0
+vtxtable powerlabels 25 200 0
+
+# master
+set gyro_lpf1_static_hz = 0
+set dyn_notch_count = 1
+set dyn_notch_q = 500
+set dyn_notch_min_hz = 120
+set acc_calibration = -12,-62,-25,1
+set max_check = 2000
+set dshot_idle_value = 600
+set dshot_bidir = ON
+set dshot_bitbang = ON
+set motor_pwm_protocol = DSHOT300
+set motor_poles = 12
+set ibata_scale = 850
+set yaw_motors_reversed = ON
+set small_angle = 180
+set pid_process_denom = 1
+set osd_tim2 = 2563
+set osd_vbat_pos = 2401
+set osd_rssi_pos = 228
+set osd_link_quality_pos = 2101
+set osd_rssi_dbm_pos = 2109
+set osd_tim_1_pos = 3369
+set osd_tim_2_pos = 3433
+set osd_flymode_pos = 2579
+set osd_throttle_pos = 290
+set osd_vtx_channel_pos = 2080
+set osd_crosshairs_pos = 270
+set osd_current_pos = 374
+set osd_craft_name_pos = 3584
+set osd_pilot_name_pos = 2570
+set osd_warnings_pos = 14838
+set osd_avg_cell_voltage_pos = 2337
+set osd_core_temp_pos = 182
+set osd_displayport_device = MSP
+set osd_canvas_width = 50
+set osd_canvas_height = 18
+set vtx_band = 5
+set vtx_channel = 8
+set vtx_power = 1
+set vtx_freq = 5917
+set vcd_video_system = HD
+set expresslrs_uid = 7,48,91,69,202,173
+set expresslrs_rate_index = 1
+set craft_name = Meteor85
+set pilot_name = papfpv
+
+profile 0
+
+# profile 0
+set crash_recovery = ON
+set iterm_relax = RP_INC
+set p_pitch = 51
+set i_pitch = 82
+set d_pitch = 43
+set f_pitch = 151
+set p_roll = 47
+set i_roll = 75
+set d_roll = 38
+set f_roll = 138
+set p_yaw = 47
+set i_yaw = 75
+set f_yaw = 138
+set d_min_roll = 36
+set d_min_pitch = 41
+set feedforward_smooth_factor = 30
+set simplified_master_multiplier = 110
+set simplified_i_gain = 90
+set simplified_d_gain = 110
+set simplified_pi_gain = 95
+set simplified_dmax_gain = 15
+set simplified_feedforward_gain = 105
+set simplified_pitch_pi_gain = 105
+
+profile 1
+
+profile 2
+
+profile 3
+
+# restore original profile selection
+profile 0
+
+rateprofile 0
+
+# rateprofile 0
+set roll_srate = 65
+set pitch_srate = 65
+set yaw_srate = 65
+
+rateprofile 1
+
+rateprofile 2
+
+rateprofile 3
+
+# restore original rateprofile selection
+rateprofile 0
+
+# save configuration

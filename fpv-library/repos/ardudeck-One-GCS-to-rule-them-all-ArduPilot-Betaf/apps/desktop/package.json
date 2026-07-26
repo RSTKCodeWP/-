@@ -1,0 +1,188 @@
+{
+  "name": "@ardudeck/desktop",
+  "version": "0.1.0",
+  "description": "ArduDeck - Desktop Application",
+  "author": {
+    "name": "rubenCodeforges",
+    "email": "ruben@codeforges.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rubenCodeforges/ardudeck.git"
+  },
+  "main": "./out/main/index.js",
+  "type": "module",
+  "scripts": {
+    "build:sim-engine": "tsc -b ../sim-engine --force",
+    "predev": "pnpm build:sim-engine",
+    "dev": "electron-vite dev",
+    "dev:deeplink": "ARDUDECK_DEEPLINK=\"${ARDUDECK_DEEPLINK:-ardudeck://open?view=mission}\" electron-vite dev",
+    "prebuild": "pnpm build:sim-engine",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "stage:sim-engine": "node scripts/stage-sim-engine.mjs",
+    "fetch:engine": "node scripts/fetch-engine.mjs",
+    "package": "node scripts/fetch-engine.mjs && node scripts/fetch-sim-engine.mjs && electron-builder",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@ardudeck/comms": "workspace:*",
+    "@ardudeck/sim-engine": "workspace:*",
+    "@ardudeck/companion-types": "workspace:*",
+    "@ardudeck/dataflash-parser": "workspace:^",
+    "@ardudeck/mavlink-ts": "workspace:*",
+    "@ardudeck/module-sdk": "workspace:*",
+    "@ardudeck/msp-ts": "workspace:*",
+    "@ardudeck/stm32-dfu": "workspace:*",
+    "@reactour/tour": "^3.8.0",
+    "@tanstack/react-virtual": "^3.13.23",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/addon-web-links": "^0.12.0",
+    "@xterm/xterm": "^6.0.0",
+    "@xyflow/react": "^12.10.1",
+    "adm-zip": "^0.5.17",
+    "dockview": "^4.13.0",
+    "dockview-react": "^4.13.0",
+    "electron-store": "^11.0.2",
+    "electron-updater": "^6.7.3",
+    "leaflet": "^1.9.4",
+    "lucide-react": "^0.562.0",
+    "maplibre-gl": "^5.19.0",
+    "node-pty": "^1.0.0",
+    "react-leaflet": "4.2.1",
+    "serialport": "^12.0.0",
+    "three": "^0.170.0",
+    "uplot": "^1.6.32",
+    "usb": "^2.16.0",
+    "ws": "^8.18.0",
+    "zustand": "^4.5.0"
+  },
+  "devDependencies": {
+    "@electron-toolkit/utils": "^3.0.0",
+    "@modelcontextprotocol/sdk": "^1.27.1",
+    "@types/adm-zip": "^0.5.8",
+    "@types/leaflet": "^1.9.21",
+    "@types/node": "^20.10.5",
+    "@types/react": "^18.2.45",
+    "@types/react-dom": "^18.2.18",
+    "@types/three": "^0.170.0",
+    "@types/ws": "^8.5.0",
+    "@vitejs/plugin-react": "^4.2.1",
+    "@vitest/coverage-v8": "2.1.9",
+    "@xmldom/xmldom": "0.8.11",
+    "autoprefixer": "^10.4.16",
+    "electron": "28.3.3",
+    "electron-builder": "^26.7.0",
+    "electron-vite": "^2.0.0",
+    "jimp": "0.22.12",
+    "png2icons": "^2.0.1",
+    "postcss": "^8.4.32",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.11",
+    "vitest": "^2.1.9",
+    "zod": "^4.3.6"
+  },
+  "build": {
+    "appId": "com.ardudeck.desktop",
+    "productName": "ArduDeck",
+    "protocols": [
+      {
+        "name": "ArduDeck",
+        "schemes": [
+          "ardudeck"
+        ]
+      }
+    ],
+    "npmRebuild": false,
+    "electronVersion": "28.3.3",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "rubenCodeforges",
+        "repo": "ardudeck"
+      }
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "extraResources": [
+      {
+        "from": "engine",
+        "to": "orchestrator",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "sim-engine-bin",
+        "to": "sim-engine",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "files": [
+      "out/**/*",
+      "resources/**/*",
+      {
+        "from": "../../node_modules",
+        "to": "node_modules",
+        "filter": [
+          "@serialport/**",
+          "serialport/**",
+          "node-gyp-build/**",
+          "detect-libc/**",
+          "node-addon-api/**",
+          "debug/**",
+          "ms/**"
+        ]
+      }
+    ],
+    "asarUnpack": [
+      "resources/bin/**/*",
+      "resources/firmware/**/*",
+      "resources/sitl/**/*",
+      "**/*.node",
+      "node_modules/@ardudeck/sim-engine/**",
+      "node_modules/@ardudeck/sim-physics/**",
+      "node_modules/ws/**"
+    ],
+    "icon": "resources/icon",
+    "win": {
+      "icon": "resources/icon.ico",
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "mac": {
+      "icon": "resources/icon.icns",
+      "category": "public.app-category.developer-tools",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "codesign/entitlements.mac.plist",
+      "entitlementsInherit": "codesign/entitlements.mac.inherit.plist",
+      "notarize": true,
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+    "afterPack": "./afterPack.cjs",
+    "linux": {
+      "icon": "resources/icon.png",
+      "category": "Utility",
+      "target": [
+        "AppImage",
+        "deb"
+      ]
+    }
+  }
+}

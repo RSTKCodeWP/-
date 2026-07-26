@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "g2u.health.v1",
+  "title": "G2U Node Health Snapshot v1",
+  "type": "object",
+  "required": ["schema", "event_id", "ts_utc", "ts_source", "node_id", "status", "sensors"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": { "const": "g2u.health.v1" },
+    "event_id": { "type": "string" },
+    "ts_utc": { "type": "number" },
+    "ts_source": { "enum": ["ptp", "gps_pps", "ntp", "monotonic"] },
+    "node_id": { "type": "string" },
+    "status": { "enum": ["green", "amber", "red", "offline"] },
+    "sensors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["sensor_id", "modality", "status"],
+        "properties": {
+          "sensor_id":     { "type": "string" },
+          "modality":      { "enum": ["rgb", "thermal", "rf", "acoustic", "pcl", "lidar"] },
+          "status":        { "enum": ["green", "amber", "red", "offline"] },
+          "fps":           { "type": "number", "minimum": 0 },
+          "latency_p95_ms": { "type": "number", "minimum": 0 },
+          "snr_db":        { "type": "number" },
+          "last_event_ts": { "type": "number" }
+        }
+      }
+    }
+  }
+}
