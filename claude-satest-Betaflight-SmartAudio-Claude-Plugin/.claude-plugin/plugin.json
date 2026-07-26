@@ -1,0 +1,11 @@
+{
+  "name": "satest",
+  "description": "SmartAudio sanity test on a Betaflight FC. Reads MSP_VTX_CONFIG, inspects device_type + deviceIsReady, prints health + Band/Channel/Power, then performs a visible R1→R2→wait→R1 toggle so the operator can confirm video changed channel.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Paul Nurkkala",
+    "url": "https://github.com/paulnurkkala"
+  },
+  "homepage": "https://github.com/paulnurkkala/claude-satest",
+  "license": "MIT"
+}

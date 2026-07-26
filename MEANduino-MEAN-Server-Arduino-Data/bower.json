@@ -1,0 +1,27 @@
+{
+  "name": "meanduino",
+  "version": "0.0.1",
+  "homepage": "https://github.com/paulnurkkala/MEANduino",
+  "main": "app.js",
+  "moduleType": [
+    "node"
+  ],
+  "authors": [
+    "Paul Nurkkala <paulnurkkala@gmail.com>"
+  ],
+  "license": "MIT",
+  "private": true,
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ],
+  "dependencies": {
+    "angular": "~1.3.13",
+    "bootstrap": "~3.3.2",
+    "angular-routing": "~0.1.2",
+    "angular-route": "~1.3.13"
+  }
+}

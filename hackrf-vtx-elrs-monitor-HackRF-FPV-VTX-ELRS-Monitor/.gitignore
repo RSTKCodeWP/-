@@ -1,0 +1,26 @@
+# Vendored HackRF binaries — regenerate with `python bootstrap_vendor.py`
+vendor/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Runtime / captures
+*.iq
+*.png
+.monitor.pid
+.vtx_monitor.pid
+scratchpad/
+
+# PyInstaller build artifacts
+build/
+dist/
+*.spec
+packaging/hackrf_tools_macos/
+
+# OS
+Thumbs.db
+.DS_Store

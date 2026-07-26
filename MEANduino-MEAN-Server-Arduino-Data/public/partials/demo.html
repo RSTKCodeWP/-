@@ -1,0 +1,58 @@
+<div class="row">
+	<div class="col-md-12">
+		<h1>MEANduino Demo</h1>
+	</div>
+</div>
+
+<div class="row" style="text-align:center;" ng-show="loading">
+	<div class="col-md-12">
+		<p>Loading.. <img src="/static/images/ajax-loader.gif"></p>
+	</div>
+</div>
+
+<div class="row">
+	<div class="col-md-12">
+		<iframe width="100%" height="600" frameborder="0" seamless="seamless" scrolling="no" ng-src="{{trustSrc(plotly_url)}}" ></iframe>
+	</div>
+</div>
+
+<div class="row" style="margin-top: 50px;">
+	<div class="col-md-6" >
+		<h2>What is this? </h2>
+		<p>
+			One day, I decided that it would be interesting to take my Arduino and gather temperature information around my house, just to see what I could do with the data. I don't have particularly interesting ideas, but I thought that it would be worth attempting something that I had never done before and see if I can clearly present the data that I gather online using a MEAN stack. 
+		</p>
+
+		<p>
+			The first thing I did was build the Arduino board, and put it in a "protective" case, because I live in Indiana, and there's snow this time of the year, which doesn't get along with electronics very well.
+		</p>
+		<p>
+			Thai food takeout boxes work pretty well! 
+		</p>
+	</div>
+	<div class="col-md-6">
+		<img class="img-responsive" src="http://i.imgur.com/cWiIY8l.jpg"/>
+	</div>
+</div>
+<div class="row" style="margin-top: 50px;">
+	<div class="col-md-6">
+		<img class="img-responsive" src="http://i.imgur.com/mn3L92S.jpg"/>
+	</div>
+	<div class="col-md-6">
+		<h1></h1>
+		<p>
+			Next, I hung the package out the window to get a little bit of distance away from the warmth of the insisde, just in case that skews the data.
+		</p>
+		<p>
+			About once a minute, the Arduino takes a measurement and sends it off to the MEAN server. The MEAN server that is listening for this GET request takes the information, saves it, and then allows the user to come back and query the information at their lesiure. In this case, I have it using a website called <a href="https://plot.ly" target="_blank">plot.ly</a> to generate the information. 
+		</p>
+		<p>
+			All of the code necessary to make this service happen is included in the github account. You can push these onto a server for free, with very little effort. Soon, you'll have your Arduino creation running online. 
+		</p>
+	</div>
+</div>
+
+<div class="row">
+	
+</div>
+	

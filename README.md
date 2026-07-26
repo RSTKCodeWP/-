@@ -49,3 +49,31 @@ Repository for embedded and mobile control projects.
 | [`unbound-Lua-Universal-DPI-Bypass/`](unbound-Lua-Universal-DPI-Bypass/) | [bobberdolle1/unbound](https://github.com/bobberdolle1/unbound) | Universal packet-level DPI bypass (Windows, macOS, Linux, OpenWrt) |
 | [`slrr-macos-resolution-fix-SLRR-High-Res-macOS/`](slrr-macos-resolution-fix-SLRR-High-Res-macOS/) | [bobberdolle1/slrr-macos-resolution-fix](https://github.com/bobberdolle1/slrr-macos-resolution-fix) | High resolution fix for SLRR on macOS (CrossOver/Wine) |
 | [`bobberdolle1-GitHub-Profile-README/`](bobberdolle1-GitHub-Profile-README/) | [bobberdolle1/bobberdolle1](https://github.com/bobberdolle1/bobberdolle1) | GitHub profile README |
+
+## paulnurkkala ([github.com/paulnurkkala](https://github.com/paulnurkkala))
+
+| Folder | Source | Description |
+|--------|--------|-------------|
+| [`ardufleetcheck-Python-ArduPilot-Fleet-Check-Skills/`](ardufleetcheck-Python-ArduPilot-Fleet-Check-Skills/) | [paulnurkkala/ardufleetcheck](https://github.com/paulnurkkala/ardufleetcheck) | ArduPilot post-build fleet-check pipeline (Claude Code skills) |
+| [`hackrf-vtx-elrs-monitor-HackRF-FPV-VTX-ELRS-Monitor/`](hackrf-vtx-elrs-monitor-HackRF-FPV-VTX-ELRS-Monitor/) | [paulnurkkala/hackrf-vtx-elrs-monitor](https://github.com/paulnurkkala/hackrf-vtx-elrs-monitor) | HackRF multi-band FPV VTX + ELRS link monitor |
+| [`leoflight-dual-thrustmasters-Jetson-Dual-Thrustmaster-MAVLink/`](leoflight-dual-thrustmasters-Jetson-Dual-Thrustmaster-MAVLink/) | [paulnurkkala/leoflight-dual-thrustmasters](https://github.com/paulnurkkala/leoflight-dual-thrustmasters) | Dual Thrustmaster controllers on Jetson → MAVLink to FC |
+| [`RCGroupsScraper-Python-RCGroups-Search-Notifier/`](RCGroupsScraper-Python-RCGroups-Search-Notifier/) | [paulnurkkala/RCGroupsScraper](https://github.com/paulnurkkala/RCGroupsScraper) | Automated RC Groups forum search and notifications |
+| [`claude-mgrsosd-Betaflight-OSD-Layout-Claude-Plugin/`](claude-mgrsosd-Betaflight-OSD-Layout-Claude-Plugin/) | [paulnurkkala/claude-mgrsosd](https://github.com/paulnurkkala/claude-mgrsosd) | Claude plugin: push Betaflight OSD layout (.rtf) to FC |
+| [`claude-osdfont-Betaflight-OSD-Font-Claude-Plugin/`](claude-osdfont-Betaflight-OSD-Font-Claude-Plugin/) | [paulnurkkala/claude-osdfont](https://github.com/paulnurkkala/claude-osdfont) | Claude plugin: upload OSD .mcm font to Betaflight FC |
+| [`claude-rctest-Betaflight-RC-Test-Claude-Plugin/`](claude-rctest-Betaflight-RC-Test-Claude-Plugin/) | [paulnurkkala/claude-rctest](https://github.com/paulnurkkala/claude-rctest) | Claude plugin: verify live RC frames on Betaflight FC |
+| [`claude-satest-Betaflight-SmartAudio-Claude-Plugin/`](claude-satest-Betaflight-SmartAudio-Claude-Plugin/) | [paulnurkkala/claude-satest](https://github.com/paulnurkkala/claude-satest) | Claude plugin: SmartAudio sanity test on Betaflight FC |
+| [`dronewars2026-HTML-Drone-Wars-2026/`](dronewars2026-HTML-Drone-Wars-2026/) | [paulnurkkala/dronewars2026](https://github.com/paulnurkkala/dronewars2026) | Drone Wars 2026 web project |
+| [`MEANduino-MEAN-Server-Arduino-Data/`](MEANduino-MEAN-Server-Arduino-Data/) | [paulnurkkala/MEANduino](https://github.com/paulnurkkala/MEANduino) | MEAN stack server for Arduino sensor data |
+| [`comm-slackbot-Slack-COMMGamers-Bot/`](comm-slackbot-Slack-COMMGamers-Bot/) | [paulnurkkala/comm-slackbot](https://github.com/paulnurkkala/comm-slackbot) | Slack bot for COMMGamers.us |
+| [`commgamers-us-COMMGamers-Website/`](commgamers-us-COMMGamers-Website/) | [paulnurkkala/commgamers.us](https://github.com/paulnurkkala/commgamers.us) | Official COMMGamers.us website source |
+| [`django-password-reset-Django-Password-Reset-Views/`](django-password-reset-Django-Password-Reset-Views/) | [paulnurkkala/django-password-reset](https://github.com/paulnurkkala/django-password-reset) | Class-based Django password reset views |
+| [`Django-Pushbullet-Django-Pushbullet-Integration/`](Django-Pushbullet-Django-Pushbullet-Integration/) | [paulnurkkala/Django-Pushbullet](https://github.com/paulnurkkala/Django-Pushbullet) | Django Pushbullet integration |
+| [`django-templated-email-Django-Templated-Email/`](django-templated-email-Django-Templated-Email/) | [paulnurkkala/django-templated-email](https://github.com/paulnurkkala/django-templated-email) | Django templated email module |
+| [`sedona-trip-planner-Leaflet-Sedona-Trip-Map/`](sedona-trip-planner-Leaflet-Sedona-Trip-Map/) | [paulnurkkala/sedona-trip-planner](https://github.com/paulnurkkala/sedona-trip-planner) | Leaflet satellite map for Sedona trip planning |
+| [`stellar-js-Parallax-Scrolling-Library/`](stellar-js-Parallax-Scrolling-Library/) | [paulnurkkala/stellar.js](https://github.com/paulnurkkala/stellar.js) | Stellar.js parallax scrolling library |
+| [`TUCapstone12-TU-Orals-Quiz-Web-App/`](TUCapstone12-TU-Orals-Quiz-Web-App/) | [paulnurkkala/TUCapstone12](https://github.com/paulnurkkala/TUCapstone12) | TU orals finals quizzing web application |
+| [`uptimerobot-Python-UptimeRobot-API-Wrapper/`](uptimerobot-Python-UptimeRobot-API-Wrapper/) | [paulnurkkala/uptimerobot](https://github.com/paulnurkkala/uptimerobot) | Python wrapper for UptimeRobot API |
+| [`wordpress-s3-migration-script-WordPress-S3-Migration/`](wordpress-s3-migration-script-WordPress-S3-Migration/) | [paulnurkkala/wordpress-s3-migration-script](https://github.com/paulnurkkala/wordpress-s3-migration-script) | WordPress to Amazon S3 migration script |
+| [`wpcustposttype-WordPress-Custom-Post-Types/`](wpcustposttype-WordPress-Custom-Post-Types/) | [paulnurkkala/wpcustposttype](https://github.com/paulnurkkala/wpcustposttype) | WordPress custom post type helper class |
+| [`sausage-Java-Sausage-App/`](sausage-Java-Sausage-App/) | [paulnurkkala/sausage](https://github.com/paulnurkkala/sausage) | Say Sausage (Java) |
+| [`zyloweathergetter-JavaScript-Weather-Getter/`](zyloweathergetter-JavaScript-Weather-Getter/) | [paulnurkkala/zyloweathergetter](https://github.com/paulnurkkala/zyloweathergetter) | Weather getter utility |

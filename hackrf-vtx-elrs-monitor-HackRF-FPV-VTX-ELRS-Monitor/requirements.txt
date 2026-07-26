@@ -1,0 +1,4 @@
+# Python dependencies for hackrf_api + bootstrap_vendor.py
+numpy>=1.24
+matplotlib>=3.7    # live window + PNG waterfall (not needed for scan/info/webapp)
+zstandard>=0.21   # only needed by bootstrap_vendor.py to unpack conda packages

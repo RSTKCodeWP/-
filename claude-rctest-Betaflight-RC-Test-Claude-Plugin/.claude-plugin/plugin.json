@@ -1,0 +1,11 @@
+{
+  "name": "rctest",
+  "description": "Check whether a connected Betaflight FC is receiving live RC input from its receiver. Samples MSP_RC for ~3s, prints per-channel last/min/max/jitter (with switch position + throttle annotations), reads MSP_STATUS_EX arming-disable flags to surface FAILSAFE/RX_FAILSAFE/BOXFAILSAFE, and renders a verdict (LIVE vs no-input).",
+  "version": "1.0.0",
+  "author": {
+    "name": "Paul Nurkkala",
+    "url": "https://github.com/paulnurkkala"
+  },
+  "homepage": "https://github.com/paulnurkkala/claude-rctest",
+  "license": "MIT"
+}

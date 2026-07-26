@@ -1,0 +1,19 @@
+<?php 
+   include 'db_connect.php';
+
+   $query = "SELECT * FROM Question WHERE qid=5";
+
+   echo $query;
+
+   $result = mysql_query($query);
+   $error =  mysql_error();
+   if($error){
+	die('Error in query: ' . $error);
+   }
+   
+   while($row = mysql_fetch_row($result))
+   {  
+      echo $row[0];
+   }	
+
+?>

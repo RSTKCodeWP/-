@@ -1,0 +1,15 @@
+*.pyc
+*.zip
+*.swp
+*.swo
+env
+*.sqlite
+*.db
+*.db.old
+*~
+site-static
+/static
+robots.txt
+sitemap.xml
+.DS_Store
+media

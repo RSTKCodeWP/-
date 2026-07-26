@@ -1,0 +1,11 @@
+{
+  "name": "osdfont",
+  "description": "Upload an OSD .mcm font (Clarity, Bold, Default, Betaflight, Digital, Impact, Large, Vision, etc.) to a Betaflight FC over MSP. Pulls the .mcm from betaflight-configurator/resources/osd/ on GitHub, parses 256 chars × 54 bytes, writes one char per MSP_OSD_CHAR_WRITE. Analog SD (MAX7456) only.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Paul Nurkkala",
+    "url": "https://github.com/paulnurkkala"
+  },
+  "homepage": "https://github.com/paulnurkkala/claude-osdfont",
+  "license": "MIT"
+}

@@ -1,0 +1,10 @@
+media/*
+!media/000080560009.jpg
+!media/000080560024.jpg
+!media/000080530011.jpg
+!media/000080530022.jpg
+!media/000080530019.jpg
+!media/000080560030.jpg
+!media/000080560007.jpg
+.DS_Store
+assets/

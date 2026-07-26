@@ -1,0 +1,28 @@
+<?xml version='1.0' encoding='utf-8'?>
+<widget id="us.commgamers.sausage" version="0.0.1" xmlns="http://www.w3.org/ns/widgets" xmlns:cdv="http://cordova.apache.org/ns/1.0">
+    <name>Sausage</name>
+    <description>
+        Say Sausage.
+    </description>
+    <author email="bulbufet@gmail.com" href="http://commgamers.us">
+        Bulbufet
+    </author>
+    <content src="index.html" />
+    <access origin="*" />
+    <feature name="Media">
+        <param name="id" value="org.apache.cordova.media" />
+    </feature>
+
+    <!--
+      If you do not want any permissions to be added to your app, add the
+      following tag to your config.xml; you will still have the INTERNET
+      permission on your app, which PhoneGap requires.
+    -->
+    <preference name="permissions" value="none"/>
+        
+    <icon src="www/img/mipmap-hdpi/ic_launcher.png" platform="android" density="ldpi" />
+    <icon src="www/img/mipmap-mdpi/ic_launcher.png" platform="android" density="mdpi" />
+    <icon src="www/img/mipmap-xhdpi/ic_launcher.png" platform="android" density="hdpi" />
+    <icon src="www/img/mipmap-xxhdpi/ic_launcher.png" platform="android" density="xhdpi" />
+    <icon src="www/img/mipmap-xxxhdpi/ic_launcher.png" platform="android" density="xhdpi" />
+</widget>

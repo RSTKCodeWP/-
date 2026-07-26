@@ -1,0 +1,11 @@
+{
+  "name": "mgrsosd",
+  "description": "Push a Betaflight OSD layout .rtf to a connected FC. Enters CLI, ensures the OSD feature is on, pastes the file line-by-line until `save`. Minimal — no dump, no reset, no verify.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Paul Nurkkala",
+    "url": "https://github.com/paulnurkkala"
+  },
+  "homepage": "https://github.com/paulnurkkala/claude-mgrsosd",
+  "license": "MIT"
+}

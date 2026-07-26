@@ -1,0 +1,1 @@
+var chartFactories = angular.module('chartFactories', []);

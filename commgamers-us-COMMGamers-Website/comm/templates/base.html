@@ -1,0 +1,18 @@
+<html>
+  <head>
+    <title>{% block title %}comm-gamers | Home{% endblock %}</title>
+  </head>
+  <body>
+    <div id="header">
+      {% include 'header.html' %}
+    </div>
+
+    <div id="content">
+      {% block content %}{% endblock %}
+    </div>
+
+    <div id="footer">
+      {% include 'footer.html' %}
+    </div>
+  </body>
+</html>

@@ -1,0 +1,45 @@
+<style>
+	td{
+		padding: 2px 5px;
+	}
+</style>
+
+<div class="row" ng-show="!hc.coordsLoaded()">
+	<div class="col-md-12">
+		<h1>Loading Location and data.. <i class="fa fa-circle-o-notch fa-spin" aria-hidden="true"></i></h1>
+	</div>
+</div>
+
+<div ng-show="hc.coordsLoaded()">
+	<div class="row">
+		<div class="col-md-12">
+			<h1>Your Location: </h1>
+			<p>Latitude: {{hc.coordinates.latitude}}</p>
+			<p>Latitude: {{hc.coordinates.longitude}}</p>
+		</div>
+	</div>
+	
+	<div class="row">
+		<div class="col-md-12">
+			<button class="btn btn-lg btn-primary" ng-click="hc.get_weather()"><i class="fa fa-bolt" aria-hidden="true"></i> Fetch Weather Data</button>
+		</div>
+	</div>
+
+	<div class="row">
+		<div class="col-md-12">
+			<table>
+				<thead>
+					<th>Temp</th>
+					<th>Recorded At</th>
+				</thead>
+				<tbody>
+					<tr ng-repeat="row in hc.weather_rows">
+						<td>{{row.currently.temperature}}</td>
+						<td>{{row.created}}</td>
+					</tr>
+				</tbody>
+			</table>
+		</div>
+	</div>
+</div>
+

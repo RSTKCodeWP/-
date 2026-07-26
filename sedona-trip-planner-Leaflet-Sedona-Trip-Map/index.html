@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BoysTrip2026 — Sedona</title>
+  <meta name="description" content="A week in Sedona — mountain biking, electric dirt bikes, hiking, and dispersed vehicle camping. Interactive satellite map with trails, descriptions, and POV videos." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="masthead">
+  <div class="masthead__grain"></div>
+  <div class="masthead__inner">
+    <div class="masthead__eyebrow">
+      <span class="dot"></span>
+      <span>BOYSTRIP2026 · OCT 15 — OCT 25, 2026 · COCONINO NF · 7 NIGHTS</span>
+    </div>
+    <h1 class="masthead__title">
+      <span class="title-line title-line--1">SEDONA</span>
+      <span class="title-line title-line--2">RED ROCK</span>
+      <span class="title-line title-line--3"><em>operations</em></span>
+    </h1>
+    <p class="masthead__sub">
+      A week of mountain biking, electric dirt biking, and hiking out of a dispersed basecamp on Forest Road 525. Forty-five pins. Drive times from camp on every one. Satellite view. Click anything.
+    </p>
+    <div class="legend">
+      <div class="legend__item" data-cat="basecamp"><span class="legend__swatch" style="background:#d97706"></span>Basecamp</div>
+      <div class="legend__item" data-cat="mtb"><span class="legend__swatch" style="background:#dc2626"></span>Mountain Bike</div>
+      <div class="legend__item" data-cat="ohv"><span class="legend__swatch" style="background:#ea580c"></span>E-Dirt Bike</div>
+      <div class="legend__item" data-cat="hike"><span class="legend__swatch" style="background:#16a34a"></span>Hike</div>
+      <div class="legend__item" data-cat="shop"><span class="legend__swatch" style="background:#0891b2"></span>Shop</div>
+      <div class="legend__item" data-cat="suggested"><span class="legend__swatch" style="background:#eab308"></span>Friends & Family Picks ★</div>
+    </div>
+  </div>
+</header>
+
+<!-- MAP -->
+<main class="map-section">
+  <div class="map-frame">
+    <div id="map"></div>
+    <div class="map-corner">
+      <div class="map-corner__label">SATELLITE · GOOGLE</div>
+    </div>
+  </div>
+</main>
+
+<!-- WEATHER + LOGISTICS BAND -->
+<section class="band">
+  <div class="band__grid">
+    <div class="band__card">
+      <div class="band__icon">☀</div>
+      <div class="band__num">67°<span>/44°</span></div>
+      <div class="band__label">Avg Day/Night, October</div>
+    </div>
+    <div class="band__card">
+      <div class="band__icon">☂</div>
+      <div class="band__num">5<span>/mo</span></div>
+      <div class="band__label">Avg rain days, October</div>
+    </div>
+    <div class="band__card">
+      <div class="band__icon">⏱</div>
+      <div class="band__num">6:00<span>pm</span></div>
+      <div class="band__label">Sunset mid-October</div>
+    </div>
+    <div class="band__card">
+      <div class="band__icon">⛺</div>
+      <div class="band__num">14<span>days</span></div>
+      <div class="band__label">Max dispersed camping</div>
+    </div>
+  </div>
+</section>
+
+<!-- WHY THIS WINDOW -->
+<section class="content">
+  <div class="content__inner">
+    <div class="kicker">01 / TIMING</div>
+    <h2>Target October 15–25.</h2>
+    <p class="lede">Mid-to-late October is the sweet spot. Days in the upper 60s to upper 70s, nights drop to mid-40s, with monsoon season fully done and winter chill not yet arrived.</p>
+    <p>
+      October in Sedona averages a high of <strong>67.1°F</strong> and a low of <strong>44.6°F</strong>, with only about <strong>5 days of rain</strong> totaling roughly half an inch (<a href="https://www.weather-atlas.com/en/arizona-usa/sedona-weather-october" target="_blank" rel="noopener">weather-atlas data</a>). The first half of the month still runs slightly warmer (occasional 80s) — the back half cools off enough for solid sleep in the rigs without overheating.
+    </p>
+    <p>
+      Get to camp <strong>Sunday through Tuesday</strong>. Spring and fall are Sedona's busy seasons — sites on FR 525 fill by Friday afternoon. Trailheads should be hit at sunrise.
+    </p>
+  </div>
+</section>
+
+<!-- BASECAMP -->
+<section class="content content--alt">
+  <div class="content__inner">
+    <div class="kicker">02 / BASECAMP</div>
+    <h2>Forest Road 525.</h2>
+    <p class="lede">Free dispersed camping on Coconino National Forest land, 10 miles SW of Sedona, central to almost everything.</p>
+    <p>
+      Loy Butte Rd / FR 525 has <strong>five designated dispersed camping areas</strong>: Surprise, Windmill, Cockscomb, Greasy Spoon, and Nolan. <strong>Nolan is the largest at ~12 acres</strong> — aim for it with the Promaster and F250. Graded dirt road, accessible for both rigs without 4WD. <a href="https://www.fs.usda.gov/r03/coconino/alerts/west-sedona-camping-and-campfire-restrictions" target="_blank" rel="noopener">Coconino NF info →</a>
+    </p>
+    <p>
+      No water, no toilets, no services. Showers in Cottonwood (20 min SW). Cell service is spotty — <a href="https://www.trailforks.com/region/sedona/" target="_blank" rel="noopener">download Trailforks</a> and <a href="https://www.onxmaps.com/offroad" target="_blank" rel="noopener">onX Offroad</a> for offline use.
+    </p>
+  </div>
+</section>
+
+<!-- CREW -->
+<section class="content">
+  <div class="content__inner">
+    <div class="kicker">03 / THE CREW</div>
+    <h2>Three rigs, three rules of engagement.</h2>
+
+    <div class="crew">
+
+      <article class="participant">
+        <div class="participant__portrait">
+          <img src="images/paul.jpg" alt="Paul Nurkkala in an orange hardhat on a dock" loading="lazy" />
+        </div>
+        <div class="participant__body">
+          <h3 class="participant__name">Paul Nurkkala <span class="participant__handle">"Nurk"</span></h3>
+          <p class="participant__bio">2018 DRL Allianz World Drone Racing Champion and Emmy-winning FPV creator. Builds, races, and films drones for a living — the YouTube channel is a go-to for FPV racing, cinematic work, and DIY hardware projects.</p>
+          <div class="participant__socials">
+            <a href="https://youtube.com/@NurkFPV" target="_blank" rel="noopener">YouTube ↗</a>
+            <a href="https://instagram.com/nurkfpv" target="_blank" rel="noopener">Instagram ↗</a>
+            <a href="https://nurk.tv" target="_blank" rel="noopener">nurk.tv ↗</a>
+            <a href="https://x.com/nurkfpv" target="_blank" rel="noopener">X ↗</a>
+          </div>
+          <div class="participant__rig">
+            <img src="images/rig-paul.jpg" alt="Paul's van on a long dirt road in the desert" loading="lazy" />
+            <div class="participant__rig-meta">
+              <span class="participant__rig-label">RIG</span>
+              <strong>Ram Promaster camper van</strong>
+              <span>Self-contained sleep / kitchen / charging. Bikes on the back, kit on the roof.</span>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="participant">
+        <div class="participant__portrait">
+          <img src="images/winston.jpg" alt="Winston Garthwaite holding a camera on a remote road" loading="lazy" />
+        </div>
+        <div class="participant__body">
+          <h3 class="participant__name">Winston Garthwaite</h3>
+          <p class="participant__bio">Photographer, cinematographer, and FPV drone pilot — Part 107 since 2017, flying FPV since 2015. Shoots events, sports, and branded content as a one-man visual storytelling shop, equally at home on the ground or behind the sticks.</p>
+          <div class="participant__socials">
+            <a href="https://wingarth.com" target="_blank" rel="noopener">wingarth.com ↗</a>
+            <a href="https://instagram.com/wingarth" target="_blank" rel="noopener">Instagram ↗</a>
+            <a href="https://facebook.com/wingarth" target="_blank" rel="noopener">Facebook ↗</a>
+          </div>
+          <div class="participant__rig">
+            <img src="images/rig-winston.jpg" alt="Winston's Honda Pilot at a desert campsite with a rooftop tent" loading="lazy" />
+            <div class="participant__rig-meta">
+              <span class="participant__rig-label">RIG</span>
+              <strong>Honda Pilot + rooftop tent</strong>
+              <span>SUV-mobile, tent-on-top — quick to set up, easy to move basecamp if the wind kicks.</span>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="participant">
+        <div class="participant__portrait">
+          <img src="images/chris.jpg" alt="Chris Wells lifting a mountain bike over his head in red rock country" loading="lazy" />
+        </div>
+        <div class="participant__body">
+          <h3 class="participant__name">Chris Wells</h3>
+          <p class="participant__bio">Crew member who lifts bikes over his head on slickrock for the photo and means it. Lives for big desert days on the MTB.</p>
+          <div class="participant__socials">
+            <a href="https://instagram.com/philmore9" target="_blank" rel="noopener">Instagram ↗</a>
+          </div>
+          <div class="participant__rig">
+            <img src="images/rig-chris.jpg" alt="Chris on a vintage Caterpillar bulldozer in a red rock canyon" loading="lazy" />
+            <div class="participant__rig-meta">
+              <span class="participant__rig-label">RIG</span>
+              <strong>N/A</strong>
+              <span>Officially riding shotgun. Unofficially, anything yellow with tracks and a blade.</span>
+            </div>
+          </div>
+        </div>
+      </article>
+
+    </div>
+  </div>
+</section>
+
+<!-- MTB -->
+<section class="content content--alt">
+  <div class="content__inner">
+    <div class="kicker">04 / MOUNTAIN BIKING</div>
+    <h2>Twelve trails, beginner-friendly to bucket-list.</h2>
+    <p class="lede">Sedona is intermediate-to-expert country — the world's most photogenic slickrock with serious tech. Click any trail below to see it on the map.</p>
+    <ul class="ride-list" data-category-list="mtb"></ul>
+    <p>
+      Stop at <a href="https://www.thundermountainbikes.com/" target="_blank" rel="noopener">Thunder Mountain Bikes</a> on day 1 for current trail beta. Full Sedona MTB guide at <a href="https://www.twowheeledwanderer.com/posts/mountain-biking-sedona/" target="_blank" rel="noopener">Two Wheeled Wanderer</a> and the <a href="https://www.trailforks.com/region/sedona/" target="_blank" rel="noopener">Trailforks Sedona region</a>.
+    </p>
+  </div>
+</section>
+
+<!-- OHV -->
+<section class="content">
+  <div class="content__inner">
+    <div class="kicker">05 / E-DIRT BIKES</div>
+    <h2>Legal trails only. No singletrack.</h2>
+    <p class="lede warn"><strong>Important:</strong> Sur-Ron / Talaria-class e-dirt bikes are NOT classified as e-bikes in Coconino NF. They're treated as OHV / motorized vehicles.</p>
+    <p>
+      Per <a href="https://thundermountainbikes.com/pages/ebike-trails-in-sedona" target="_blank" rel="noopener">Thunder Mountain Bikes' official guidance</a>: <em>"eBikes are not permitted on ANY singletrack trails within the Coconino National Forest Red Rock District."</em> High-power throttle machines fall even more strictly into the OHV bucket. They are <strong>not street legal</strong> without registration — so you'll need to trailer them to OHV trailheads.
+    </p>
+    <ul class="ride-list" data-category-list="ohv"></ul>
+    <p>
+      Full route list at <a href="https://www.fs.usda.gov/r03/coconino/recreation/sedona-area-ohv-routes" target="_blank" rel="noopener">Coconino NF — Sedona OHV Routes</a>. 15 mph speed limit, helmets required.
+    </p>
+  </div>
+</section>
+
+<!-- HIKING -->
+<section class="content content--alt">
+  <div class="content__inner">
+    <div class="kicker">06 / HIKING</div>
+    <h2>Thirteen hikes, low to high commitment.</h2>
+    <p class="lede">Click any hike to see it on the map.</p>
+    <ul class="ride-list" data-category-list="hike"></ul>
+    <p>
+      A <a href="https://www.fs.usda.gov/r03/coconino/passes-permits/recreation/red-rock-pass" target="_blank" rel="noopener">Red Rock Pass</a> is required at most trailheads ($5/day, $15/week). America the Beautiful pass also works. Full hiking list at <a href="https://www.alltrails.com/us/arizona/sedona" target="_blank" rel="noopener">AllTrails Sedona</a>.
+    </p>
+  </div>
+</section>
+
+<!-- 7 DAY -->
+<section class="content">
+  <div class="content__inner">
+    <div class="kicker">07 / SAMPLE WEEK</div>
+    <h2>Suggested 7-day flow.</h2>
+    <div class="days">
+      <div class="day"><span class="day__num">01</span><div><strong>Sun</strong> · Drive in, set up at FR 525 Nolan, shakedown ride <em>Aerie/Cockscomb</em>, sunset stroll up <em>Bell Rock</em></div></div>
+      <div class="day"><span class="day__num">02</span><div><strong>Mon</strong> · MTB <em>Mescal + Chuckwagon</em> loop, afternoon hike <em>Fay Canyon</em></div></div>
+      <div class="day"><span class="day__num">03</span><div><strong>Tue</strong> · E-dirt bikes — trailer to <em>Broken Arrow OHV</em>, full loop including Devil's Staircase</div></div>
+      <div class="day"><span class="day__num">04</span><div><strong>Wed</strong> · Sunrise <em>Devil's Bridge</em>, afternoon <em>Boynton Canyon → Subway Cave</em></div></div>
+      <div class="day"><span class="day__num">05</span><div><strong>Thu</strong> · MTB expert day — <em>Hiline</em> loop (or <em>Hangover</em> if the crew is dialed)</div></div>
+      <div class="day"><span class="day__num">06</span><div><strong>Fri</strong> · E-dirt bikes — <em>Diamondback Gulch + Outlaw + Ranch Loop</em> from camp</div></div>
+      <div class="day"><span class="day__num">07</span><div><strong>Sat</strong> · Morning <em>Soldier Pass</em>, <em>Cathedral Rock</em> for sunset, drive out Sunday AM</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- CHECKLIST -->
+<section class="content content--alt">
+  <div class="content__inner">
+    <div class="kicker">08 / DON'T FORGET</div>
+    <h2>Logistics.</h2>
+    <ul class="checklist">
+      <li><strong>Red Rock Pass</strong> — required at trailheads. <a href="https://www.fs.usda.gov/r03/coconino/passes-permits/recreation/red-rock-pass" target="_blank" rel="noopener">Buy here →</a></li>
+      <li><strong>Soldier Pass OHV permit</strong> — 72hr advance via <a href="https://www.recreation.gov" target="_blank" rel="noopener">Recreation.gov</a></li>
+      <li><strong>Casner Mountain permit</strong> — free, limited, call 928-203-2900</li>
+      <li><strong>Offline maps</strong> — <a href="https://www.trailforks.com/region/sedona/" target="_blank" rel="noopener">Trailforks</a> (MTB), <a href="https://www.onxmaps.com/offroad" target="_blank" rel="noopener">onX Offroad</a> (OHV), <a href="https://www.alltrails.com/us/arizona/sedona" target="_blank" rel="noopener">AllTrails</a> (hiking)</li>
+      <li><strong>Water</strong> — Fill in Sedona or Cottonwood; none at camp</li>
+      <li><strong>Showers</strong> — Cottonwood, 20 min SW</li>
+      <li><strong>Sedona Shuttle</strong> — free, Thu-Sun; <a href="https://www.sedonaaz.gov/your-government/departments/sedona-shuttle" target="_blank" rel="noopener">schedule →</a></li>
+    </ul>
+  </div>
+</section>
+
+<!-- RESEARCH LOG -->
+<section class="content">
+  <div class="content__inner">
+    <div class="kicker">09 / RESEARCH LOG</div>
+    <h2>Questions asked. Answers found.</h2>
+    <p class="lede">A running record of things we've researched about the area. Newest entries at the top.</p>
+
+    <div class="qa-log">
+
+      <article class="qa">
+        <div class="qa__head">
+          <span class="qa__num">Q07</span>
+          <span class="qa__date">2026-05-24</span>
+        </div>
+        <h3 class="qa__q">Cross-check trip MTB list against Ron Sanderson's "Top 10 Intermediate" YouTube ranking?</h3>
+        <div class="qa__a">
+          <p><strong>Four already on the map</strong> are confirmed picks (now flagged with the gold ★ "Suggested by friends &amp; family" badge crediting <em>@ronsanderson99</em>): Mescal, Llama, Aerie, Chuck Wagon.</p>
+          <p><strong>Six new trails added</strong> from the rest of his list, each with a verified per-trail POV video and the same suggestion credit:</p>
+          <ul>
+            <li><strong>Scorpion</strong> (Carroll Canyon, 2.1 mi tech-flow descent)</li>
+            <li><strong>Outer Limits</strong> (Western Gateway, 6.3 mi — Sedona's longest sustained flow line)</li>
+            <li><strong>Adobe Jack</strong> (in-town, 1.9 mi, plays harder than Blue)</li>
+            <li><strong>Little Rock</strong> (Village of Oak Creek, ~2.5 mi, lower-elevation cold-day option)</li>
+            <li><strong>Rabbit Ears</strong> (VOC, 2.5 mi climb-then-descend, often paired with Little Rock)</li>
+            <li><strong>Axis</strong> (Western Gateway, 3.2 mi flowy connector with a sneaky-hard climb)</li>
+          </ul>
+          <p>Total MTB pins now: 20 (incl. shuttle routes). Map pin count: 45.</p>
+        </div>
+      </article>
+
+      <article class="qa">
+        <div class="qa__head">
+          <span class="qa__num">Q06</span>
+          <span class="qa__date">2026-05-24</span>
+        </div>
+        <h3 class="qa__q">Quiet slot-canyon scrambles to add as alternatives to the icons?</h3>
+        <div class="qa__a">
+          <p>Two strong picks, both now on the map as hike pins:</p>
+          <ul>
+            <li><strong>Loy Canyon Trail</strong> — literally next to basecamp (~8 min drive). Red-walled canyon floor, dry streambed, with a real Class 3 hand-and-foot scramble if you push the full 5.9 mi to the Secret Mountain saddle. Most parties turn around at 2.5-3.5 mi, still worth the trip. <strong>The closest hike on the map.</strong></li>
+            <li><strong>Secret Canyon + HS Canyon</strong> — the slottiest "trail" hike in the Dry Creek drainage. Permanent stream, pools, boulder-filled narrow channels with short scrambles to bypass dryfalls. HS Canyon branches off as an even quieter side option. ~30-40 min drive — but <strong>FR 152's last 3.4 mi needs high-clearance 4WD</strong>.</li>
+          </ul>
+          <p><strong>Skipped:</strong> Sterling Pass / Vultee Arch (forest grind, not slot character), Wilson Canyon (too flat), Munds Mountain (faint trail + needs HC vehicle to even get to it), <strong>Casner Mountain (~22-permit annual lottery, not realistically accessible)</strong>, full-length Long Canyon (duplicates existing flat hikes).</p>
+          <p><strong>Honest gap:</strong> "True" technical slots in the area (Sycamore, Robbers Roost, Soldier Pass tech route) are canyoneering with rope and swim sections — out of scope for a hiking trip without that gear and training.</p>
+        </div>
+      </article>
+
+      <article class="qa">
+        <div class="qa__head">
+          <span class="qa__num">Q05</span>
+          <span class="qa__date">2026-05-24</span>
+        </div>
+        <h3 class="qa__q">Anything else worth adding that fits "active, outdoor, non-touristy, cook-our-own-food" criteria?</h3>
+        <div class="qa__a">
+          <p>Five candidates that match the brief, in rough priority order:</p>
+          <ul>
+            <li><strong>Rock climbing &amp; bouldering.</strong> Sedona's red sandstone is world-class for trad — classic lines on Mace, The Cibola Mitten, Coyote Tower; quieter roadside bouldering near the Y. Non-touristy if you skip guided trips. Mountain Project / Mountaineering Project have full route lists. Could become its own pin category if anyone in the crew climbs.</li>
+            <li><strong>Astrophotography from basecamp.</strong> FR 525 is genuinely dark-sky. <strong>New moon falls Oct 20, 2026</strong> — the trip window hits it perfectly. No new pins needed — just a tip on basecamp.</li>
+            <li><strong>FPV / drone flying spots (with no-go zones mapped).</strong> Paul and Winston already know the FAA rules; the local wrinkle is Coconino NF + the new Sedona Wilderness restrictions. Mapping where you CAN fly (Verde Valley BLM, Hwy 89A pullouts west of Sedona) would save time.</li>
+            <li><strong>Page Springs / Cornville wine corridor.</strong> ~30 min drive (between Sedona and Cottonwood). Three walk-between tasting rooms (Page Springs Cellars, Oak Creek Vineyards, Javelina Leap). Buy-and-take-back-to-camp friendly. Low key, not bus-tour energy.</li>
+            <li><strong>Slot scrambles beyond Boynton's Subway Cave.</strong> Secret Canyon and Casner Mountain area have quieter slot-style hikes if the icons are crowded.</li>
+          </ul>
+          <p><strong>Things I'm not suggesting</strong> (they violate the brief): Pink Jeep tours, vortex tours, hot-air balloons, Slide Rock for actual swimming in Oct, and all the Ancestral Puebloan sites (Honanki, Palatki, Montezuma's Castle — interesting but they're history).</p>
+        </div>
+      </article>
+
+      <article class="qa">
+        <div class="qa__head">
+          <span class="qa__num">Q04</span>
+          <span class="qa__date">2026-05-24</span>
+        </div>
+        <h3 class="qa__q">What are bugs like in mid-to-late October?</h3>
+        <div class="qa__a">
+          <p><strong>Verdict: very low.</strong> October is one of the best months for bug avoidance in Sedona — dry climate, cool nights, monsoon long over. Most pressure is from the standard desert critters (scorpions, snakes) rather than biting insects.</p>
+          <ul>
+            <li><strong>Mosquitoes / biting flies / no-see-ums:</strong> minimal. Very little standing water, low humidity, cool overnights.</li>
+            <li><strong>Yellow jackets:</strong> still active early October, mostly gone by the 25th.</li>
+            <li><strong>Scorpions:</strong> present year-round (Arizona bark scorpion is the medically significant one), but less active in cool weather. Shake out boots, don't leave shoes on the ground overnight, headlamp at night, glance before grabbing rocks.</li>
+            <li><strong>Spiders:</strong> black widows present but rarely encountered.</li>
+            <li><strong>Rattlesnakes:</strong> often denning up by mid-October, but a warm afternoon can bring them out. Watch foot and hand placement on slickrock.</li>
+            <li><strong>Ticks:</strong> low risk in Sedona compared to most regions of the U.S.</li>
+          </ul>
+          <p>Net: bring DEET only as a precaution, not a daily ritual. Reflexive desert habits matter more than bug spray.</p>
+        </div>
+      </article>
+
+      <article class="qa">
+        <div class="qa__head">
+          <span class="qa__num">Q03</span>
+          <span class="qa__date">2026-05-24</span>
+        </div>
+        <h3 class="qa__q">Hot springs and swimming opportunities within reach?</h3>
+        <div class="qa__a">
+          <p>Four Oct-friendly options inside ~1.5 hr drive of basecamp:</p>
+          <ul>
+            <li><strong>Fossil Creek (Waterfall Trail):</strong> 70–72°F spring-fed travertine pools, 8 mi RT hike, ~90–100 min drive. <strong>Permit-free after Oct 1</strong> — the dates work without reservations. Agent's top pick.</li>
+            <li><strong>Verde Hot Springs:</strong> 98–104°F free natural soak with old resort ruins, clothing-optional. ~2 hr drive; last 6 mi is high-clearance dirt + a thigh-deep river ford. Hot water means it's perfect any season.</li>
+            <li><strong>The Crack at Wet Beaver Creek (Bell Trail):</strong> deep red-rock slot pool with cliff jumping, ~45–55 min drive, 7 mi RT hike. Water runs low 60s in October — quick dip only, but the hike is great regardless.</li>
+            <li><strong>Watson Lake (Prescott):</strong> granite-shore reservoir with kayak/SUP rentals through Oct 31, ~75–85 min drive. Paddle only — don't swim.</li>
+          </ul>
+          <p><strong>Already on the map:</strong> Slide Rock State Park. By Oct 15 Oak Creek is ~55–65°F — photo stop and wading only, not real swimming.</p>
+          <p><strong>Skip:</strong> Cibecue Falls (3+ hr, swimming prohibited), Salt River tubing (season closed), Lake Powell / Havasupai (out of range).</p>
+        </div>
+      </article>
+
+      <article class="qa">
+        <div class="qa__head">
+          <span class="qa__num">Q02</span>
+          <span class="qa__date">2026-05-24</span>
+        </div>
+        <h3 class="qa__q">Any Blue-grade "drop in and ride down" shuttle trails?</h3>
+        <div class="qa__a">
+          <p><strong>Honest answer: Sedona doesn't really have one.</strong> Every named shuttle line in town (Thunder Mountain Express, Highline) is Black/expert with cliff exposure. The closest Blue substitutes:</p>
+          <ul>
+            <li><strong>Llama → Slim Shady → Bell Rock Pathway</strong> (~6–7 mi, ~400–500 ft descent, all Blue, no exposure). Drop at Little Horse TH, pickup at Bell Rock Vista — both on paved Hwy 179, and the free Sedona Shuttle covers Little Horse Thu–Sun. Now on the map as "Shuttle Run: Llama → Slim Shady → Bell Rock".</li>
+            <li><strong>Templeton → HT</strong> (~3.5 mi mostly descending, one Black pitch near the finish most strong intermediates walk). Same Little Horse drop, pickup at Back O' Beyond TH. Now on the map as "Shuttle Run: Templeton → HT".</li>
+          </ul>
+          <p>Expect short pedaly bits between the descending sections — neither is a sustained gravity run. Aerie/Cockscomb from basecamp is the closest "cruise without consequences" option that's already adjacent to camp, but it's not a true shuttle.</p>
+        </div>
+      </article>
+
+      <article class="qa">
+        <div class="qa__head">
+          <span class="qa__num">Q01</span>
+          <span class="qa__date">2026-05-24</span>
+        </div>
+        <h3 class="qa__q">Why does every pin's POV video look like the same generic clip?</h3>
+        <div class="qa__a">
+          <p>Because they were — the original data reused four placeholder YouTube IDs across 25+ pins. Fixed by nulling all duplicated placeholders, then having a background agent find verified per-trail POV videos for every pin it could.</p>
+          <p><strong>Result:</strong> 30 of 35 pins now have a trail-specific video that's been confirmed to exist. Five pins have no video (Basecamp, Thunder Mountain Bikes, Western Civilization, Sycamore Pass, Last Frontier) — for the latter three, no trail-specific YouTube footage surfaced and we'd rather show nothing than something misleading.</p>
+        </div>
+      </article>
+
+    </div>
+  </div>
+</section>
+
+<footer class="footer">
+  <div class="footer__inner">
+    <div class="footer__line">CLICK ANY PIN · POV VIDEO · TRAIL DETAILS</div>
+    <div class="footer__line footer__line--small">Built for the trip. Coconino NF · Red Rock Country.</div>
+  </div>
+</footer>
+
+<!-- MODAL -->
+<div class="modal" id="modal" aria-hidden="true">
+  <div class="modal__backdrop"></div>
+  <div class="modal__inner" role="dialog" aria-modal="true">
+    <button class="modal__close" aria-label="Close">×</button>
+    <div class="modal__content" id="modal-content"></div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="data.js"></script>
+<script src="app.js"></script>
+
+</body>
+</html>
