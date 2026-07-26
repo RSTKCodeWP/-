@@ -23,8 +23,10 @@ fpv-library/
   repos/                # auto-synced mirrors (discovered repos)
   scripts/
     discover.py         # parse GitHub search + expand owners
+    discover_themes.py  # multi-query themed discovery (GCS, fiber, WFB, …)
     sync.py             # pull upstream updates when commit changes
     register_legacy.py  # register hand-copied example folders at repo root
+  THEMED.md             # curated highlights by category
 ```
 
 Legacy example copies (Steer, SkySweep32, wfb-ng, …) remain at the repository root and are listed in `catalog.json` with `"legacy": true`. New discoveries go under `fpv-library/repos/`.
