@@ -1,0 +1,767 @@
+#!/usr/bin/env python3
+"""FPV Flight Board for Raspberry Pi + Waveshare e-paper."""
+from __future__ import annotations
+
+import argparse
+import json
+import logging
+import math
+import os
+import random
+import smtplib
+import sys
+import time
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from logging.handlers import RotatingFileHandler
+from pathlib import Path
+from functools import lru_cache
+from typing import Any
+from zoneinfo import ZoneInfo
+
+import requests
+from PIL import Image, ImageDraw, ImageFont
+
+from fpv_board.logging.csv_logger import StatusCsvLogger
+from fpv_board.notify.smtp_email import SmtpEmailClient, load_dotenv
+from fpv_board.state.state_store import StateStore
+
+MS_PER_MPH = 0.44704
+DISPLAY_STATE_VERSION = 4
+STATUS_ICON_FILES = {
+    "GREAT": "great.png",
+    "OK": "ok.png",
+    "RISKY": "risky.png",
+    "NOPE": "nope.png",
+}
+NIGHT_IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp")
+LOCAL_TZ = ZoneInfo("Europe/London")
+
+
+@dataclass
+class HourlyPoint:
+    timestamp: datetime
+    wind_ms: float
+    gust_ms: float
+    rain_probability: float
+    cloud_cover: float
+    temp_c: float
+
+
+class WeatherClient:
+    def __init__(self, timeout_seconds: int, retry_attempts: int, retry_backoff_seconds: float) -> None:
+        self.timeout_seconds = timeout_seconds
+        self.retry_attempts = retry_attempts
+        self.retry_backoff_seconds = retry_backoff_seconds
+        self.session = requests.Session()
+
+    def fetch(self, latitude: float, longitude: float, timezone: str) -> dict[str, Any]:
+        params = {
+            "latitude": latitude,
+            "longitude": longitude,
+            "timezone": timezone,
+            "forecast_days": 2,
+            "hourly": "windspeed_10m,windgusts_10m,winddirection_10m,precipitation_probability,temperature_2m,cloud_cover",
+            "daily": "sunrise,sunset",
+            "wind_speed_unit": "ms",
+            "temperature_unit": "celsius",
+            "precipitation_unit": "mm",
+        }
+        url = "https://api.open-meteo.com/v1/forecast"
+
+        last_error: Exception | None = None
+        for attempt in range(1, self.retry_attempts + 1):
+            try:
+                response = self.session.get(url, params=params, timeout=self.timeout_seconds)
+                response.raise_for_status()
+                data = response.json()
+                self._validate_payload(data)
+                return data
+            except (requests.RequestException, ValueError, KeyError) as exc:
+                last_error = exc
+                logging.warning("Weather request attempt %s/%s failed: %s", attempt, self.retry_attempts, exc)
+                if attempt < self.retry_attempts:
+                    time.sleep(self.retry_backoff_seconds * attempt)
+        raise RuntimeError(f"Unable to fetch weather after retries: {last_error}")
+
+    @staticmethod
+    def _validate_payload(data: dict[str, Any]) -> None:
+        hourly = data["hourly"]
+        required_hourly = [
+            "time",
+            "windspeed_10m",
+            "windgusts_10m",
+            "winddirection_10m",
+            "precipitation_probability",
+            "temperature_2m",
+            "cloud_cover",
+        ]
+        for key in required_hourly:
+            if key not in hourly:
+                raise KeyError(f"Missing hourly field: {key}")
+        for key in ("sunrise", "sunset"):
+            if key not in data["daily"]:
+                raise KeyError(f"Missing daily field: {key}")
+
+
+def load_config(path: Path) -> dict[str, Any]:
+    with path.open("r", encoding="utf-8") as handle:
+        return json.load(handle)
+
+
+def setup_logging(log_path: Path) -> None:
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    handler = RotatingFileHandler(log_path, maxBytes=800_000, backupCount=5)
+    formatter = logging.Formatter("%(asctime)s | %(levelname)s | %(message)s")
+    handler.setFormatter(formatter)
+    root = logging.getLogger()
+    root.handlers.clear()
+    root.addHandler(handler)
+    root.addHandler(logging.StreamHandler(sys.stdout))
+    root.setLevel(logging.INFO)
+
+
+def parse_hourly(data: dict[str, Any]) -> tuple[list[HourlyPoint], list[datetime], list[datetime]]:
+    hourly = data["hourly"]
+    timestamps = [datetime.fromisoformat(t) for t in hourly["time"]]
+    points = [
+        HourlyPoint(
+            timestamp=timestamps[i],
+            wind_ms=float(hourly["windspeed_10m"][i]),
+            gust_ms=float(hourly["windgusts_10m"][i]),
+            rain_probability=float(hourly["precipitation_probability"][i]),
+            cloud_cover=float(hourly["cloud_cover"][i]),
+            temp_c=float(hourly["temperature_2m"][i]),
+        )
+        for i in range(len(timestamps))
+    ]
+    sunrise = [datetime.fromisoformat(t) for t in data["daily"]["sunrise"]]
+    sunset = [datetime.fromisoformat(t) for t in data["daily"]["sunset"]]
+    return points, sunrise, sunset
+
+
+def next_daylight_window(now: datetime, sunrise: list[datetime], sunset: list[datetime]) -> tuple[datetime, datetime] | None:
+    for rise, set_ in zip(sunrise, sunset):
+        if rise <= now <= set_:
+            return rise, set_
+    return None
+
+
+def select_eval_points(
+    points: list[HourlyPoint],
+    now: datetime,
+    daylight_window: tuple[datetime, datetime] | None,
+    daylight_only: bool,
+    hours_ahead: int,
+) -> list[HourlyPoint]:
+    end = now + timedelta(hours=hours_ahead)
+    selected = [p for p in points if now <= p.timestamp <= end]
+
+    if daylight_only and daylight_window is None:
+        return []
+
+    if daylight_only and daylight_window:
+        rise, set_ = daylight_window
+        selected = [p for p in selected if rise <= p.timestamp <= set_]
+    return selected
+
+
+def mph_to_ms(v: float) -> float:
+    return v * MS_PER_MPH
+
+
+def status_from_score(score: int) -> str:
+    if score <= 0:
+        return "GREAT"
+    if score == 1:
+        return "OK"
+    if score == 2:
+        return "RISKY"
+    return "NOPE"
+
+
+def _metric_level(actual: float, threshold: float, *, higher_is_worse: bool, severe_multiplier: float) -> int:
+    if higher_is_worse:
+        if actual > threshold * severe_multiplier:
+            return 3
+        if actual > threshold:
+            return 2
+        if actual > threshold * 0.85:
+            return 1
+        return 0
+
+    if actual < threshold:
+        return 2
+    if actual < threshold + 2:
+        return 1
+    return 0
+
+
+def evaluate(points: list[HourlyPoint], cfg: dict[str, Any]) -> dict[str, Any]:
+    thresholds = cfg["thresholds"]
+    mult = float(thresholds.get("marginal_multiplier", 1.25))
+    nope_mult = float(thresholds.get("nope_multiplier", mult * 1.25))
+
+    sustained_fly = mph_to_ms(float(thresholds["sustained_fly_max"]))
+    gust_fly = mph_to_ms(float(thresholds["gust_fly_max"]))
+    spread_fly = mph_to_ms(float(thresholds["gust_spread_fly_max"]))
+    rain_fly = float(thresholds["rain_probability_fly_max"])
+    temp_min = float(thresholds.get("temperature_min_c", -99))
+    cloud_warn = float(thresholds.get("cloud_cover_warn", 100))
+
+    if not points:
+        return {
+            "status": "NOPE",
+            "reason": "Night / No daylight forecast",
+            "worst": {},
+            "trend": "No daylight forecast window",
+            "score": 3,
+        }
+
+    aggregation = str(cfg.get("forecast", {}).get("window_aggregation", "worst")).lower()
+    if aggregation == "average":
+        count = len(points)
+        summary = {
+            "wind_ms": sum(p.wind_ms for p in points) / count,
+            "gust_ms": sum(p.gust_ms for p in points) / count,
+            "spread_ms": sum((p.gust_ms - p.wind_ms) for p in points) / count,
+            "rain": sum(p.rain_probability for p in points) / count,
+            "temp_min": sum(p.temp_c for p in points) / count,
+            "cloud": sum(p.cloud_cover for p in points) / count,
+        }
+    else:
+        summary = {
+            "wind_ms": max(p.wind_ms for p in points),
+            "gust_ms": max(p.gust_ms for p in points),
+            "spread_ms": max((p.gust_ms - p.wind_ms) for p in points),
+            "rain": max(p.rain_probability for p in points),
+            "temp_min": min(p.temp_c for p in points),
+            "cloud": max(p.cloud_cover for p in points),
+        }
+
+    checks: list[tuple[str, float, float, bool]] = [
+        ("wind", summary["wind_ms"], sustained_fly, True),
+        ("gusts", summary["gust_ms"], gust_fly, True),
+        ("spread", summary["spread_ms"], spread_fly, True),
+        ("rain", summary["rain"], rain_fly, True),
+        ("temperature", summary["temp_min"], temp_min, False),
+        ("cloud", summary["cloud"], cloud_warn, True),
+    ]
+
+    metric_levels: list[tuple[str, int]] = []
+    for metric, actual, threshold, higher_is_worse in checks:
+        if metric == "cloud" and threshold >= 100:
+            continue
+        level = _metric_level(actual, threshold, higher_is_worse=higher_is_worse, severe_multiplier=nope_mult)
+        metric_levels.append((metric, level))
+
+    score = max((level for _, level in metric_levels), default=0)
+    severe_count = sum(1 for _, level in metric_levels if level >= 3)
+    risky_count = sum(1 for _, level in metric_levels if level >= 2)
+
+    # A single severe outlier should usually be RISKY; reserve NOPE for broad bad conditions.
+    if score == 3 and severe_count == 1 and risky_count < 2:
+        score = 2
+
+    reason = "conditions stable"
+    reason_level = max(score, 1)
+    for metric, level in metric_levels:
+        if level < reason_level:
+            continue
+        if level >= 3:
+            reason = f"{metric} very high"
+        elif level == 2:
+            reason = "cold" if metric == "temperature" else f"{metric} high"
+        else:
+            reason = "cool" if metric == "temperature" else f"{metric} rising"
+        break
+
+    trend = build_trend(points, cfg["forecast"]["trend_window_hours"])
+    return {"status": status_from_score(score), "reason": reason, "worst": summary, "trend": trend, "score": score}
+
+
+def build_trend(points: list[HourlyPoint], window_hours: int) -> str:
+    if len(points) < 2:
+        return "No change forecasted"
+    early = points[: min(window_hours, len(points))]
+    later = points[min(window_hours, len(points)) :]
+    if not later:
+        return "No change forecasted"
+
+    early_risk = sum((p.wind_ms + p.gust_ms * 0.7 + p.rain_probability * 0.06) for p in early) / len(early)
+    later_risk = sum((p.wind_ms + p.gust_ms * 0.7 + p.rain_probability * 0.06) for p in later) / len(later)
+    delta = later_risk - early_risk
+
+    if delta > 1.2:
+        when = later[0].timestamp.strftime("%H:%M")
+        return f"Worsening after {when}"
+    if delta < -1.2:
+        return "Conditions improving later"
+    return "No change forecasted"
+
+
+def load_font(path: str, size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
+    try:
+        return ImageFont.truetype(path, size)
+    except OSError:
+        logging.warning("Font not found at %s, using default PIL font", path)
+        return ImageFont.load_default()
+
+
+
+@lru_cache(maxsize=16)
+def load_status_icon(status: str, diameter: int) -> Image.Image:
+    icon_name = STATUS_ICON_FILES.get(status)
+    if not icon_name:
+        raise ValueError(f"Unknown status icon: {status}")
+
+    icon_path = Path(__file__).resolve().parent / "assets" / "icons" / icon_name
+    icon = Image.open(icon_path).convert("L").resize((diameter, diameter), Image.Resampling.LANCZOS)
+    return icon
+
+
+def draw_status_icon(canvas: Image.Image, status: str, center: tuple[int, int], radius: int) -> None:
+    diameter = radius * 2
+    icon = load_status_icon(status, diameter)
+    cx, cy = center
+    x = cx - radius
+    y = cy - radius
+
+    # Create a mask from dark pixels so only icon strokes are pasted as black.
+    mask = icon.point(lambda p: 255 if p < 180 else 0, mode="1")
+    canvas.paste(0, (x, y), mask)
+
+
+def draw_colored_segments(
+    draw_black: ImageDraw.ImageDraw,
+    draw_red: ImageDraw.ImageDraw,
+    y: int,
+    segments: list[tuple[str, bool]],
+    font: ImageFont.FreeTypeFont | ImageFont.ImageFont,
+    width: int,
+) -> None:
+    text_widths = [draw_black.textbbox((0, 0), text, font=font)[2] for text, _ in segments]
+    x = max(8, (width - sum(text_widths)) // 2)
+    for (text, is_red), seg_width in zip(segments, text_widths):
+        target = draw_red if is_red else draw_black
+        target.text((x, y), text, font=font, fill=0)
+        x += seg_width
+
+
+def is_worsening_trend(trend_text: str) -> bool:
+    return trend_text.startswith("Worsening")
+
+
+def _night_seed_key(now: datetime) -> str:
+    # Keep the same image throughout the full overnight period.
+    seed_date = now.date() if now.hour >= 12 else (now.date() - timedelta(days=1))
+    return seed_date.isoformat()
+
+
+def pick_night_image(now: datetime, cfg: dict[str, Any]) -> Path | None:
+    image_dir_raw = cfg["display"].get("night_images_dir")
+    if not image_dir_raw:
+        return None
+
+    image_dir = Path(str(image_dir_raw)).expanduser()
+    if not image_dir.is_dir():
+        logging.warning("Night image directory not found: %s", image_dir)
+        return None
+
+    candidates = sorted(
+        p for p in image_dir.iterdir() if p.is_file() and p.suffix.lower() in NIGHT_IMAGE_EXTENSIONS
+    )
+    if not candidates:
+        logging.warning("No night images found in %s", image_dir)
+        return None
+
+    rng = random.Random(_night_seed_key(now))
+    return candidates[rng.randrange(len(candidates))]
+
+
+def render_night_image(path: Path, width: int, height: int) -> tuple[Image.Image, Image.Image]:
+    source = Image.open(path).convert("RGB").resize((width, height), Image.Resampling.LANCZOS)
+    black = Image.new("1", (width, height), 255)
+    red = Image.new("1", (width, height), 255)
+
+    black_pixels = black.load()
+    red_pixels = red.load()
+    source_pixels = source.load()
+    for y in range(height):
+        for x in range(width):
+            r, g, b = source_pixels[x, y]
+            brightness = (r + g + b) / 3
+            if brightness < 110:
+                black_pixels[x, y] = 0
+            elif r > 140 and r > g * 1.15 and r > b * 1.15:
+                red_pixels[x, y] = 0
+    return black, red
+        
+
+def render_image(result: dict[str, Any], now: datetime, cfg: dict[str, Any]) -> tuple[Image.Image, Image.Image]:
+    width = int(cfg["display"]["width"])
+    height = int(cfg["display"]["height"])
+
+    rotation = int(cfg.get("display", {}).get("rotation_degrees", 0)) % 360
+
+    if result.get("status") == "NOPE" and result.get("reason") == "Night / No daylight forecast":
+        night_image = pick_night_image(now, cfg)
+        if night_image:
+            black, red = render_night_image(night_image, width, height)
+            if rotation:
+                black = black.rotate(rotation, expand=False)
+                red = red.rotate(rotation, expand=False)
+            return black, red
+
+    black = Image.new("1", (width, height), 255)
+    red = Image.new("1", (width, height), 255)
+
+    draw_b = ImageDraw.Draw(black)
+    draw_r = ImageDraw.Draw(red)
+
+    status_font = load_font(cfg["display"]["font_bold"], 56)
+    metrics_font = load_font(cfg["display"]["font_bold"], 13)
+    trend_font = load_font(cfg["display"]["font_bold"], 18)
+
+    status = result["status"]
+    status_draw = draw_r if (status == "NOPE" and cfg["display"].get("use_red_for_nope", True)) else draw_b
+
+    icon_radius = 35
+    icon_center_x = width - 8 - icon_radius
+    icon_center_y = 42
+    icon_left_edge = icon_center_x - icon_radius
+    status_width = draw_b.textbbox((0, 0), status, font=status_font)[2]
+    status_max_right = icon_left_edge - 12
+    status_x = max(10, (status_max_right - status_width) // 2)
+
+    status_draw.text((status_x, 8), status, font=status_font, fill=0)
+    draw_status_icon(black, status, center=(icon_center_x, icon_center_y), radius=icon_radius)
+
+    w = result.get("worst", {})
+    wind_ms = float(w.get("wind_ms", 0.0))
+    gust_ms = float(w.get("gust_ms", 0.0))
+    rain = int(round(float(w.get("rain", 0.0))))
+    temp_c = float(w.get("temp_min", 0.0))
+
+    wind_red = wind_ms > 5.0
+    gust_red = gust_ms >= 7.5
+    rain_red = rain >= 90
+    temp_red = temp_c <= 0.0
+
+    draw_b.line((8, 90, width - 8, 90), fill=0, width=1)
+    draw_b.line((8, 118, width - 8, 118), fill=0, width=1)
+
+    metric_segments = [
+        (f"Wind {wind_ms:0.1f} m/s", wind_red),
+        (" | ", False),
+        (f"Gust {gust_ms:0.1f}", gust_red),
+        (" | ", False),
+        (f"Rain {rain}%", rain_red),
+        (" | ", False),
+        (f"{temp_c:0.0f}°C", temp_red),
+    ]
+    draw_colored_segments(draw_b, draw_r, 99, metric_segments, metrics_font, width)
+
+    trend_text = result["trend"]
+    trend_color = draw_r if is_worsening_trend(trend_text) else draw_b
+    trend_width = draw_b.textbbox((0, 0), trend_text, font=trend_font)[2]
+    trend_x = max(8, (width - trend_width) // 2)
+    trend_color.text((trend_x, 136), trend_text, font=trend_font, fill=0)
+    if rotation:
+        black = black.rotate(rotation, expand=False)
+        red = red.rotate(rotation, expand=False)
+    return black, red
+
+
+def rounded(value: float, step: float) -> float:
+    if step <= 0:
+        return value
+    return round(value / step) * step
+
+
+def build_display_state(result: dict[str, Any], cfg: dict[str, Any]) -> dict[str, Any]:
+    tol = cfg["update"]["change_tolerance"]
+    w = result.get("worst", {})
+    return {
+        "version": DISPLAY_STATE_VERSION,
+        "boot_id": current_boot_id(),
+        "status": result["status"],
+        "reason": result["reason"],
+        "trend": result["trend"],
+        "wind": rounded(float(w.get("wind_ms", 0.0)), float(tol["wind_ms"])),
+        "gust": rounded(float(w.get("gust_ms", 0.0)), float(tol["gust_ms"])),
+        "rain": rounded(float(w.get("rain", 0.0)), float(tol["rain_pct"])),
+        "temp": rounded(float(w.get("temp_min", 0.0)), float(tol["temp_c"])),
+        "cloud": rounded(float(w.get("cloud", 0.0)), float(tol["cloud_pct"])),
+        "rotation": int(cfg.get("display", {}).get("rotation_degrees", 0)) % 360,
+    }
+
+
+def current_boot_id() -> str:
+    try:
+        return Path("/proc/sys/kernel/random/boot_id").read_text(encoding="utf-8").strip()
+    except OSError:
+        # Fall back so we don't break on systems without procfs.
+        return "unknown"
+
+
+def system_boot_time() -> datetime | None:
+    try:
+        uptime_seconds = float(Path("/proc/uptime").read_text(encoding="utf-8").split()[0])
+        return datetime.now() - timedelta(seconds=uptime_seconds)
+    except (OSError, ValueError, IndexError):
+        return None
+
+
+def load_previous_state(cache_file: Path) -> dict[str, Any] | None:
+    if not cache_file.exists():
+        return None
+    try:
+        return json.loads(cache_file.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return None
+
+
+def save_state(cache_file: Path, state: dict[str, Any]) -> None:
+    cache_file.parent.mkdir(parents=True, exist_ok=True)
+    cache_file.write_text(json.dumps(state, indent=2), encoding="utf-8")
+
+
+def states_equal(a: dict[str, Any] | None, b: dict[str, Any]) -> bool:
+    return a == b
+
+
+def _waveshare_lib_candidates() -> list[Path]:
+    project_root = Path(__file__).resolve().parent.parent
+    repo_names = ("waveshare-lib", "e-Paper")
+    suffix = Path("RaspberryPi_JetsonNano") / "python" / "lib"
+    return [project_root / repo_name / suffix for repo_name in repo_names]
+
+
+def ensure_waveshare_path() -> list[str]:
+    added_paths: list[str] = []
+    for candidate in _waveshare_lib_candidates():
+        candidate_str = str(candidate)
+        if candidate.exists() and candidate_str not in sys.path:
+            sys.path.insert(0, candidate_str)
+            added_paths.append(candidate_str)
+    return added_paths
+
+
+def show_on_epaper(black: Image.Image, red: Image.Image, model_path: str) -> None:
+    ensure_waveshare_path()
+    mod_name, attr_name = model_path.rsplit(".", 1)
+    try:
+        module = __import__(mod_name, fromlist=[attr_name])
+    except ModuleNotFoundError as exc:
+        candidate_paths = ", ".join(str(path) for path in _waveshare_lib_candidates())
+        raise RuntimeError(
+            "Could not import Waveshare driver module. Ensure waveshare-lib is cloned at "
+            f"one of: {candidate_paths} or set PYTHONPATH to include "
+            "<waveshare-clone>/RaspberryPi_JetsonNano/python/lib."
+        ) from exc
+    epd_factory = getattr(module, attr_name)
+    epd = epd_factory() if callable(epd_factory) else getattr(epd_factory, "EPD")()
+
+    epd.init()
+    epd.Clear()
+    epd.display(epd.getbuffer(black), epd.getbuffer(red))
+    epd.sleep()
+
+
+def apply_preview_status(result: dict[str, Any], preview_status: str | None) -> dict[str, Any]:
+    if not preview_status:
+        return result
+    preview_result = dict(result)
+    preview_result["status"] = preview_status
+    preview_result["reason"] = f"Preview mode: forced {preview_status}"
+    preview_result["trend"] = "Preview render"
+    return preview_result
+
+
+def _local_timestamps(now: datetime) -> tuple[str, str]:
+    now_local = now.astimezone(LOCAL_TZ)
+    ts_local = now_local.strftime("%Y-%m-%d %H:%M:%S")
+    hour_start_local = now_local.replace(minute=0, second=0, microsecond=0).strftime("%Y-%m-%d %H:%M:%S")
+    return ts_local, hour_start_local
+
+
+def _is_daylight_heuristic(now: datetime) -> bool:
+    hour = now.astimezone(LOCAL_TZ).hour
+    return 6 <= hour <= 21
+
+
+def _send_warning_email(config_path: Path, message: str) -> None:
+    root = config_path.resolve().parent.parent
+    load_dotenv(root / ".env")
+    SmtpEmailClient().send("[WARNING] Drone Dashboard Weekly Update & Forecast", message)
+
+
+def _update_failure_escalation(state_store: StateStore, daylight_failure: bool, config_path: Path) -> None:
+    state = state_store.load()
+    failure_state = state.setdefault("api_failure", {"consecutive_daylight_failures": 0, "last_warning_count": 0})
+
+    if not daylight_failure:
+        failure_state["consecutive_daylight_failures"] = 0
+        failure_state["last_warning_count"] = 0
+        state_store.save(state)
+        return
+
+    failure_state["consecutive_daylight_failures"] = int(failure_state.get("consecutive_daylight_failures", 0)) + 1
+    current = failure_state["consecutive_daylight_failures"]
+    last_warning_count = int(failure_state.get("last_warning_count", 0))
+    send_warning = current in {6, 18, 30, 42} and current != last_warning_count
+
+    if send_warning:
+        try:
+            _send_warning_email(
+                config_path,
+                f"Consecutive daylight API failures reached {current}. Please check connectivity/Open-Meteo availability.",
+            )
+            failure_state["last_warning_count"] = current
+        except (RuntimeError, smtplib.SMTPException, OSError) as exc:
+            logging.warning("Warning email send failed: %s", exc)
+
+    state_store.save(state)
+
+
+def run(config_path: Path, dry_run: bool, preview_status: str | None, force_refresh: bool) -> int:
+    cfg = load_config(config_path)
+    setup_logging(Path(cfg["state"]["log_file"]))
+
+    root = config_path.resolve().parent.parent
+    data_dir = root / "data"
+    csv_logger = StatusCsvLogger(data_dir / "status_log.csv", data_dir / "index.json")
+    state_store = StateStore(data_dir / "state.json")
+
+    weather_client = WeatherClient(
+        timeout_seconds=int(cfg["update"]["request_timeout_seconds"]),
+        retry_attempts=int(cfg["update"]["retry_attempts"]),
+        retry_backoff_seconds=float(cfg["update"]["retry_backoff_seconds"]),
+    )
+
+    loc = cfg["location"]
+    now = datetime.now(LOCAL_TZ)
+    ts_local, hour_start_local = _local_timestamps(now)
+
+    try:
+        raw = weather_client.fetch(float(loc["latitude"]), float(loc["longitude"]), str(loc["timezone"]))
+        points, sunrise, sunset = parse_hourly(raw)
+    except Exception as exc:  # noqa: BLE001
+        daylight_failure = _is_daylight_heuristic(now)
+        if daylight_failure:
+            csv_logger.append_if_new_hour(
+                {
+                    "ts_local": ts_local,
+                    "hour_start_local": hour_start_local,
+                    "row_type": "ERROR",
+                    "status": "ERROR",
+                    "wind_ms": "",
+                    "gust_ms": "",
+                    "spread_ms": "",
+                    "rain_probability": "",
+                    "temp_c": "",
+                    "cloud_cover": "",
+                    "is_daylight": 1,
+                    "reason": f"API_FAIL:{exc}",
+                    "score": "",
+                    "trend": "",
+                }
+            )
+        _update_failure_escalation(state_store, daylight_failure=daylight_failure, config_path=config_path)
+        raise
+
+    now_naive = now.replace(tzinfo=None)
+    daylight_window = next_daylight_window(now_naive, sunrise, sunset)
+    selected = select_eval_points(
+        points,
+        now_naive,
+        daylight_window,
+        bool(cfg["forecast"].get("daylight_only", True)),
+        int(cfg["forecast"]["hours_ahead"]),
+    )
+
+    result = evaluate(selected, cfg)
+    result["trend"] = result.get("trend") or "No change forecasted"
+    result = apply_preview_status(result, preview_status)
+
+    if daylight_window is not None:
+        w = result.get("worst", {})
+        csv_logger.append_if_new_hour(
+            {
+                "ts_local": ts_local,
+                "hour_start_local": hour_start_local,
+                "row_type": "HOURLY",
+                "status": result["status"],
+                "wind_ms": w.get("wind_ms", ""),
+                "gust_ms": w.get("gust_ms", ""),
+                "spread_ms": w.get("spread_ms", ""),
+                "rain_probability": w.get("rain", ""),
+                "temp_c": w.get("temp_min", ""),
+                "cloud_cover": w.get("cloud", ""),
+                "is_daylight": 1,
+                "reason": result.get("reason", ""),
+                "score": result.get("score", ""),
+                "trend": result.get("trend", "No change forecasted"),
+            }
+        )
+
+    _update_failure_escalation(state_store, daylight_failure=False, config_path=config_path)
+
+    display_state = build_display_state(result, cfg)
+
+    cache_file = Path(cfg["state"]["cache_file"])
+    previous_state = load_previous_state(cache_file)
+    boot_time = system_boot_time()
+    cache_stale = False
+    if boot_time and cache_file.exists():
+        try:
+            cache_stale = datetime.fromtimestamp(cache_file.stat().st_mtime) < boot_time
+        except OSError:
+            cache_stale = True
+
+    changed = force_refresh or bool(preview_status) or cache_stale or (not states_equal(previous_state, display_state))
+
+    black, red = render_image(result, now_naive, cfg)
+
+    if dry_run:
+        print(json.dumps({"display_state": display_state, "changed": changed, "result": result}, indent=2, default=str))
+        logging.info("Dry-run mode: display update skipped")
+    else:
+        if changed:
+            show_on_epaper(black, red, str(cfg["display"]["model"]))
+            logging.info("Display updated: %s (%s)", result["status"], result["reason"])
+        else:
+            logging.info("No meaningful change; skipped refresh")
+
+    if not dry_run:
+        save_state(cache_file, display_state)
+    else:
+        logging.info("Dry-run mode: state cache write skipped")
+    return 0
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="FPV Flight Board updater")
+    parser.add_argument("--config", default="/opt/fpv-board/fpv_board/config.json", help="Path to config file")
+    parser.add_argument("--dry-run", action="store_true", help="Print computed output without touching display")
+    parser.add_argument(
+        "--preview-status",
+        choices=["GREAT", "OK", "RISKY", "NOPE"],
+        help="Force a rendered status so you can preview alternate board images immediately",
+    )
+    parser.add_argument(
+        "--force-refresh",
+        action="store_true",
+        help="Refresh display even when change detection says nothing meaningful changed",
+    )
+    return parser.parse_args()
+
+
+if __name__ == "__main__":
+    args = parse_args()
+    try:
+        raise SystemExit(run(Path(args.config), args.dry_run, args.preview_status, args.force_refresh))
+    except Exception as exc:  # deliberate top-level guard for service reliability
+        logging.exception("Fatal error: %s", exc)
+        raise

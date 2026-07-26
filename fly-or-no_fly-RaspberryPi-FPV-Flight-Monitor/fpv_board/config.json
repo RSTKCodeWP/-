@@ -1,0 +1,62 @@
+{
+  "location": {
+    "name": "Alexandra Park Manchester",
+    "latitude": 53.450159661589744,
+    "longitude": -2.26825634973363,
+    "timezone": "auto"
+  },
+  "display": {
+    "model": "waveshare_epd.epd2in15b.EPD",
+    "width": 296,
+    "height": 160,
+    "use_red_for_nope": true,
+    "font_regular": "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    "font_bold": "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+    "layout": "status",
+    "icon_set": "faces",
+    "night_images_dir": "/opt/fpv-board/fpv_board/assets/night",
+    "rotation_degrees": 180
+  },
+  "units": {
+    "wind_display": [
+      "m/s",
+      "km/h"
+    ],
+    "temperature": "C",
+    "wind_eval": "m/s"
+  },
+  "thresholds": {
+    "source_unit": "mph",
+    "sustained_fly_max": 18,
+    "gust_fly_max": 28,
+    "gust_spread_fly_max": 12,
+    "rain_probability_fly_max": 85,
+    "temperature_min_c": 2,
+    "cloud_cover_warn": 100,
+    "marginal_multiplier": 1.5,
+    "nope_multiplier": 1.8
+  },
+  "forecast": {
+    "daylight_only": true,
+    "hours_ahead": 1,
+    "window_aggregation": "average",
+    "trend_window_hours": 6,
+    "night_mode": "show_night"
+  },
+  "update": {
+    "request_timeout_seconds": 12,
+    "retry_attempts": 3,
+    "retry_backoff_seconds": 1.5,
+    "change_tolerance": {
+      "wind_ms": 0.8,
+      "gust_ms": 1.0,
+      "rain_pct": 10,
+      "temp_c": 1.0,
+      "cloud_pct": 15
+    }
+  },
+  "state": {
+    "cache_file": "/opt/fpv-board/state/last_state.json",
+    "log_file": "/opt/fpv-board/logs/fpv-board.log"
+  }
+}
