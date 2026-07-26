@@ -1,0 +1,921 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>FPV Boat Viewer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  body { margin:0; overflow:hidden; background:#000; }
+  #enterVR {
+    position:absolute; bottom:20px; left:50%; transform:translateX(-50%);
+    z-index:10; padding:14px 28px; font-family:sans-serif; font-size:16px;
+    background:#111; color:#00e5ff; border:1px solid #00e5ff; border-radius:6px;
+  }
+  #debug {
+    position:absolute; top:10px; left:10px; z-index:10;
+    color:#00e5ff; font-family:monospace; font-size:12px;
+    background:rgba(0,0,0,0.6); padding:8px; max-width:80vw;
+  }
+</style>
+</head>
+<body>
+<button id="enterVR">Enter VR</button>
+<div id="debug">status: loaded</div>
+<video id="stream" autoplay playsinline muted style="position:absolute; width:1px; height:1px; opacity:0; pointer-events:none;"></video>
+<canvas id="frameCanvas" width="1280" height="720" style="position:absolute; width:1px; height:1px; opacity:0; pointer-events:none;"></canvas>
+<canvas id="hudCanvas" width="1280" height="720" style="position:absolute; width:1px; height:1px; opacity:0; pointer-events:none;"></canvas>
+<script type="module">
+import * as THREE from '/three.module.js';
+
+const debugEl = document.getElementById('debug');
+function log(msg) { debugEl.textContent = 'status: ' + msg; console.log(msg); }
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 100);
+
+const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.xr.enabled = true;
+renderer.xr.setReferenceSpaceType('local');
+document.body.appendChild(renderer.domElement);
+
+const videoEl = document.getElementById('stream');
+const canvasEl = document.getElementById('frameCanvas');
+const ctx = canvasEl.getContext('2d');
+const videoTexture = new THREE.CanvasTexture(canvasEl);
+videoTexture.minFilter = THREE.LinearFilter;
+
+const planeGeo = new THREE.PlaneGeometry(3.6, 2.6, 1, 1);
+const planeMat = new THREE.MeshBasicMaterial({ map: videoTexture, depthTest: false, depthWrite: false });
+const plane = new THREE.Mesh(planeGeo, planeMat);
+plane.position.set(0, 0, -1.8);
+plane.renderOrder = 0;
+
+const hudCanvasEl = document.getElementById('hudCanvas');
+const hctx = hudCanvasEl.getContext('2d');
+const hudTexture = new THREE.CanvasTexture(hudCanvasEl);
+hudTexture.minFilter = THREE.LinearFilter;
+
+const hudGeo = new THREE.PlaneGeometry(3.6, 2.6, 1, 1);
+const hudMat = new THREE.MeshBasicMaterial({ map: hudTexture, transparent: true, depthTest: false, depthWrite: false });
+const hudPlane = new THREE.Mesh(hudGeo, hudMat);
+hudPlane.position.set(0, 0, -1.7);
+hudPlane.renderOrder = 1;
+
+const headLockGroup = new THREE.Group();
+headLockGroup.add(plane);
+headLockGroup.add(hudPlane);
+scene.add(headLockGroup);
+
+// ---- WebRTC connection to the Pi ----
+async function startWebRTC() {
+  const pc = new RTCPeerConnection();
+
+  pc.addTransceiver('video', { direction: 'recvonly' });
+
+  pc.ontrack = (event) => {
+    log('video track received');
+    videoEl.srcObject = event.streams[0];
+  };
+
+  pc.onconnectionstatechange = () => {
+    log('webrtc: ' + pc.connectionState);
+  };
+
+  const offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+
+  const res = await fetch('/offer', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sdp: pc.localDescription.sdp, type: pc.localDescription.type })
+  });
+  const answer = await res.json();
+  await pc.setRemoteDescription(answer);
+}
+startWebRTC().catch(err => log('WebRTC ERROR: ' + err.message));
+
+function updateVideoTexture() {
+  try {
+    if (videoEl.readyState >= 2 && videoEl.videoWidth > 0) {
+      ctx.drawImage(videoEl, 0, 0, canvasEl.width, canvasEl.height);
+      videoTexture.needsUpdate = true;
+    }
+  } catch (e) { /* skip a bad frame */ }
+}
+
+let telemetry = { recording: false, file: null, storage_free_gb: null, storage_total_gb: null };
+let linkState = 'good';
+let lastPingMs = null;
+
+// Measure the actual received video framerate via requestVideoFrameCallback
+// (fires once per presented frame). Falls back to -- if unsupported.
+let videoFps = 0;
+let _vfCount = 0, _vfLastMs = performance.now();
+function onVideoFrame(now) {
+  _vfCount++;
+  const dt = now - _vfLastMs;
+  if (dt >= 1000) { videoFps = Math.round(_vfCount * 1000 / dt); _vfCount = 0; _vfLastMs = now; }
+  if (videoEl.requestVideoFrameCallback) videoEl.requestVideoFrameCallback(onVideoFrame);
+}
+if (videoEl.requestVideoFrameCallback) videoEl.requestVideoFrameCallback(onVideoFrame);
+
+// ---- controller state ----
+// steer: -1 (full left) .. +1 (full right), from the RIGHT thumbstick X
+// throttle: 0 (idle) .. 1 (full) effective output; normally the LEFT trigger,
+//           or the held cruiseSpeed while cruise is engaged
+// reverse: toggled by tapping X; inverts throttle direction on the wire
+// cruise: throttle-hold mode (Y double-tap); cruiseSpeed is the held set-speed
+const control = { throttle: 0, steer: 0, reverse: false, connected: false,
+                  cruise: false, cruiseSpeed: 0 };
+
+async function pollTelemetry() {
+  const t0 = performance.now();
+  try {
+    const res = await fetch('/telemetry', { cache: 'no-store' });
+    const data = await res.json();
+    const rtt = performance.now() - t0;
+    lastPingMs = Math.round(rtt);
+    linkState = rtt < 300 ? 'good' : 'degraded';
+    telemetry = data;
+  } catch (err) {
+    linkState = 'lost';
+  }
+  drawHud();
+}
+setInterval(pollTelemetry, 1000);
+pollTelemetry();
+
+// ---- control link (throttle/steer/reverse -> Pi) ----
+let controlWs = null;
+function connectControlWs() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  try {
+    controlWs = new WebSocket(`${proto}://${location.host}/ws/control`);
+  } catch (e) { setTimeout(connectControlWs, 1000); return; }
+  controlWs.onclose = () => { controlWs = null; ctrlLatency = null; setTimeout(connectControlWs, 1000); };
+  controlWs.onerror = () => { try { controlWs.close(); } catch (e) {} };
+  // server echoes {ack: ts} -> round-trip = control-loop latency (J.9)
+  controlWs.onmessage = (e) => {
+    try {
+      const m = JSON.parse(e.data);
+      if (m.ack != null) {
+        const rtt = performance.now() - m.ack;
+        ctrlLatency = ctrlLatency == null ? rtt : ctrlLatency * 0.7 + rtt * 0.3;
+      }
+    } catch (_) {}
+  };
+}
+connectControlWs();
+
+let ctrlLatency = null;   // smoothed control round-trip (ms)
+let lastSendMs = 0;
+function sendControl(nowMs) {
+  if (!controlWs || controlWs.readyState !== WebSocket.OPEN) return;
+  if (nowMs - lastSendMs < 50) return;   // cap at ~20 Hz
+  lastSendMs = nowMs;
+  // apply reverse on the wire so the Pi stays dumb: forward stick + reverse = astern
+  const effThrottle = control.reverse ? -control.throttle : control.throttle;
+  try {
+    const msg = {
+      throttle: effThrottle,
+      steer: control.steer,
+      reverse: control.reverse,
+      ts: nowMs
+    };
+    // Head data ONLY while presenting: a flat desktop/monitoring tab must never
+    // stream head angles, or it fights the headset for the camera (two writers
+    // alternating = servo oscillation).
+    if (renderer.xr.isPresenting) {
+      msg.yaw = head.yaw;         // -> camera pan/tilt (degrees, 0 = neutral)
+      msg.pitch = head.pitch;
+      if (pendingRecenter) msg.recenter = true;   // one-shot: freeze current aim as neutral
+    }
+    controlWs.send(JSON.stringify(msg));
+    pendingRecenter = false;
+  } catch (e) {}
+}
+
+// ---- head-tracking (camera pan/tilt) ----
+// The camera on the boat follows where the pilot looks. We read the XR head
+// orientation each frame, take yaw/pitch relative to wherever they were looking
+// when they entered VR (captured once as an offset so "forward" = entry heading),
+// and stream degrees to the Pi, which maps them to servo angles.
+const head = { yaw: 0, pitch: 0 };
+let headCentered = false;               // false until the neutral offset is captured
+let headYawOffset = 0, headPitchOffset = 0;
+let headRawYaw = 0, headRawPitch = 0;   // latest absolute head angles (pre-offset)
+let recenterFlashUntil = 0;             // brief "CENTERED" HUD confirmation
+let gripRecenterPrev = false;           // both-grips edge for the recenter combo
+let pendingRecenter = false;            // tell the server to freeze current aim as neutral
+const _headEuler = new THREE.Euler();
+const HEAD_SMOOTH = 0.25;   // EMA factor per frame — enough to kill IMU noise, still responsive
+function updateHead(xrCamera) {
+  _headEuler.setFromQuaternion(xrCamera.quaternion, 'YXZ');  // Y=yaw, X=pitch
+  headRawYaw = THREE.MathUtils.radToDeg(_headEuler.y);
+  headRawPitch = THREE.MathUtils.radToDeg(_headEuler.x);
+  if (!headCentered) { headYawOffset = headRawYaw; headPitchOffset = headRawPitch; headCentered = true; }
+  // Exponential smoothing: raw headset angles carry ~±0.5° sensor noise which,
+  // sent straight to the servos, makes them oscillate around the target.
+  const targetYaw = headRawYaw - headYawOffset;
+  const targetPitch = headRawPitch - headPitchOffset;
+  head.yaw += (targetYaw - head.yaw) * HEAD_SMOOTH;
+  head.pitch += (targetPitch - head.pitch) * HEAD_SMOOTH;
+}
+// Recenter: make wherever the pilot is looking right now the new neutral. The
+// client zeroes its head offset AND flags the server to freeze the camera's
+// *current* aim as neutral (pendingRecenter) — so the camera holds where you've
+// pointed it instead of snapping to a fixed angle. Bound to both grips.
+function recenterHead() {
+  headYawOffset = headRawYaw;
+  headPitchOffset = headRawPitch;
+  head.yaw = 0; head.pitch = 0;
+  pendingRecenter = true;
+  recenterFlashUntil = performance.now() + 1200;
+}
+
+// ---- recording + lights control ----
+function startRecording() { fetch('/record/start').catch(() => {}); }
+function stopRecording()  { fetch('/record/stop').catch(() => {}); }
+function toggleLights()    { fetch('/lights/toggle').catch(() => {}); }
+
+// ---- controller reading ----
+// Mapping (Quest / xr-standard):
+//   LEFT  trigger (buttons[0].value) -> throttle (0..1; reverse flips its sign)
+//   RIGHT thumbstick X (axes[2]) -> steer
+//   RIGHT button[4] = A -> double-tap start record / single-tap stop record
+//   LEFT  button[4] = X -> double-tap toggles cruise; while cruising, hold = speed DOWN
+//   LEFT  button[5] = Y -> single-tap toggles lights / double-tap toggles reverse;
+//                          while cruising, hold = speed UP
+//   BOTH grips (button[1]) -> recenter head-tracking to the current head pose
+//   BOTH grips + B (right[5]) -> open the shutdown confirm popup
+//   HEAD orientation (yaw/pitch) -> camera pan/tilt servos (see updateHead)
+//   Reserved (ignored): RIGHT trigger, LEFT thumbstick
+// Rear "reverse lights" (future hardware) come on automatically in reverse — the
+// server drives them off the reverse flag, no button of their own.
+const DEADZONE = 0.08;
+const DOUBLE_TAP_MS = 300;
+const TAP_MAX_MS = 250;        // a Y press shorter than this is a tap (vs a hold-to-adjust)
+const CRUISE_RATE = 0.6;       // set-speed change per second while holding X/Y
+const CRUISE_HOLD_MS = 320;    // must hold past this before it ramps (vs a tap/double-tap)
+let aPrev = false, aStopTimer = null;
+let xPrev = false, xLastRise = -1e9, xDownSince = 0;   // X now drives cruise (old Y role)
+let yPrev = false, yDownSince = 0, yLightsTimer = null; // Y now drives lights (tap) / reverse (double)
+let trigHighPrev = false;
+let lastPollTs = 0;
+
+// ---- in-VR graceful shutdown (both grips + B -> confirm popup) ----
+// The combo is deliberately awkward (three buttons across both controllers) so
+// it can't fire mid-flight by accident. It opens a confirm popup that defaults
+// to "No"; the right stick moves the highlight, A selects, and the popup
+// auto-cancels after 5 s of no input. Timing is driven off the animation loop's
+// nowMs (no setTimeout) so it stays in the single render loop.
+const SHUTDOWN_TIMEOUT_MS = 5000;
+let shutdownOpen = false;        // confirm popup visible
+let shutdownSel = 'no';          // highlighted option ('yes' | 'no')
+let shutdownLastInput = 0;       // for the 5 s inactivity auto-cancel
+let shutComboLatch = false;      // require the combo to release before it re-arms
+let shutNavPrev = false;         // right-stick nav edge
+let shutdownInProgress = false;  // true once Yes is confirmed -> shows the "shutting down" overlay
+
+function triggerShutdown() {
+  // LIVE — hits the server, which stops motors/lights, closes any recording,
+  // then `sudo shutdown`. The link drops as the Pi powers off mid-response, so a
+  // failed fetch here is expected, not an error. The overlay stays up until the
+  // page dies with the Pi.
+  shutdownInProgress = true;
+  fetch('/system/shutdown').catch(() => {});
+}
+
+function updateShutdown(pad, nowMs) {
+  // Open on both grips + B, edge-latched so holding the combo can't reopen it.
+  const combo = pad.lg && pad.rg && pad.b;
+  if (combo && !shutComboLatch && !shutdownOpen) {
+    shutdownOpen = true;
+    shutdownSel = 'no';                 // safety default
+    shutdownLastInput = nowMs;
+    shutComboLatch = true;
+  }
+  if (!combo) shutComboLatch = false;
+
+  if (!shutdownOpen) return;
+
+  // Right stick X moves the highlight: left = Yes, right = No (rising edge).
+  if (Math.abs(pad.steer) > 0.5) {
+    if (!shutNavPrev) { shutdownSel = pad.steer < 0 ? 'yes' : 'no'; shutdownLastInput = nowMs; }
+    shutNavPrev = true;
+  } else {
+    shutNavPrev = false;
+  }
+
+  // A selects the highlighted option, then the popup closes either way.
+  if (pad.a && !aPrev) {
+    shutdownLastInput = nowMs;
+    if (shutdownSel === 'yes') triggerShutdown();
+    shutdownOpen = false;
+  }
+
+  if (nowMs - shutdownLastInput > SHUTDOWN_TIMEOUT_MS) shutdownOpen = false;
+}
+
+function dz(v) { return Math.abs(v) < DEADZONE ? 0 : v; }
+
+function readPads() {
+  // Prefer WebXR input sources while presenting; fall back to the Gamepad API on desktop.
+  const session = renderer.xr.getSession && renderer.xr.getSession();
+  if (session) {
+    let left = null, right = null;
+    for (const src of session.inputSources) {
+      if (!src.gamepad) continue;
+      if (src.handedness === 'left') left = src.gamepad;
+      else if (src.handedness === 'right') right = src.gamepad;
+    }
+    if (!left && !right) return null;
+    return {
+      steer:    right && right.axes.length > 2 ? dz(right.axes[2]) : 0,
+      throttle: left && left.buttons[0] ? dz(left.buttons[0].value) : 0,
+      a: !!(right && right.buttons[4] && right.buttons[4].pressed),
+      x: !!(left  && left.buttons[4]  && left.buttons[4].pressed),
+      y: !!(left  && left.buttons[5]  && left.buttons[5].pressed),
+      b:  !!(right && right.buttons[5] && right.buttons[5].pressed),
+      lg: !!(left  && left.buttons[1]  && left.buttons[1].pressed),   // left grip (squeeze)
+      rg: !!(right && right.buttons[1] && right.buttons[1].pressed),  // right grip (squeeze)
+    };
+  }
+  // Desktop fallback: standard gamepad (right stick axis2 = steer, left trigger
+  // button6 = throttle, A=0, X=2, Y=3)
+  const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+  const gp = pads && [...pads].find(p => p);
+  if (!gp) return null;
+  return {
+    steer:    dz(gp.axes[2] || 0),
+    throttle: dz(gp.buttons[6] ? gp.buttons[6].value : 0),
+    a: !!(gp.buttons[0] && gp.buttons[0].pressed),
+    x: !!(gp.buttons[2] && gp.buttons[2].pressed),
+    y: !!(gp.buttons[3] && gp.buttons[3].pressed),
+    // grips/B have no standard desktop-gamepad equivalent, so the shutdown
+    // combo is VR-only (it needs both grips simultaneously anyway).
+    b: false, lg: false, rg: false,
+  };
+}
+
+function pollControllers(nowMs) {
+  const dt = lastPollTs ? Math.min(0.1, (nowMs - lastPollTs) / 1000) : 0;
+  lastPollTs = nowMs;
+
+  const pad = readPads();
+  if (!pad) {
+    control.connected = false; control.throttle = 0; control.steer = 0;
+    aPrev = xPrev = yPrev = false; trigHighPrev = false;
+    return;
+  }
+  control.connected = true;
+  control.steer = pad.steer;
+  const trig = pad.throttle;
+
+  // The in-VR shutdown popup takes over input while open. Swallow this frame's
+  // buttons (freeze drive, keep edge state fresh) both while it's open and on
+  // the frame it closes, so the confirming A press can't leak into the record
+  // toggle below.
+  const popupWasOpen = shutdownOpen;
+  updateShutdown(pad, nowMs);
+  if (shutdownOpen || popupWasOpen) {
+    control.throttle = 0; control.steer = 0;
+    aPrev = pad.a; xPrev = pad.x; yPrev = pad.y; trigHighPrev = trig > 0.5;
+    return;
+  }
+
+  // Both grips (without B) -> recenter head-tracking so where you're looking now
+  // becomes straight-ahead. Both grips + B is the shutdown combo (handled above).
+  const bothGrips = pad.lg && pad.rg && !pad.b;
+  if (bothGrips && !gripRecenterPrev) recenterHead();
+  gripRecenterPrev = bothGrips;
+
+  // A: rising edge. Double-tap within window -> start; a lone tap -> stop.
+  if (pad.a && !aPrev) {
+    if (aStopTimer !== null) {
+      clearTimeout(aStopTimer);
+      aStopTimer = null;
+      startRecording();
+    } else {
+      aStopTimer = setTimeout(() => { aStopTimer = null; stopRecording(); }, DOUBLE_TAP_MS);
+    }
+  }
+  aPrev = pad.a;
+
+  // X: double-tap toggles cruise. On engage, capture the current throttle.
+  if (pad.x && !xPrev) {
+    xDownSince = nowMs;
+    if (nowMs - xLastRise < DOUBLE_TAP_MS) {
+      control.cruise = !control.cruise;
+      if (control.cruise) { control.cruiseSpeed = trig; control.reverse = false; }
+      xLastRise = -1e9;           // consumed; this press won't ramp
+    } else {
+      xLastRise = nowMs;
+    }
+  }
+
+  // Y: taps are resolved on release so a hold (speed-down while cruising) never
+  // fires an action. A lone tap -> lights toggle; a second tap within the window
+  // -> reverse toggle (locked out while cruising).
+  if (!pad.y && yPrev) {                       // falling edge (release)
+    const held = nowMs - yDownSince;
+    if (held < TAP_MAX_MS) {
+      if (yLightsTimer !== null) {             // this is the 2nd quick tap -> double-tap
+        clearTimeout(yLightsTimer); yLightsTimer = null;
+        if (!control.cruise) control.reverse = !control.reverse;
+      } else {                                 // 1st tap -> lights, unless a 2nd tap arrives
+        yLightsTimer = setTimeout(() => { yLightsTimer = null; toggleLights(); }, DOUBLE_TAP_MS);
+      }
+    }
+  }
+  if (pad.y && !yPrev) yDownSince = nowMs;     // rising edge
+
+  // Safety: a *fresh* trigger squeeze past 50% breaks cruise and hands back
+  // manual control. Rising-edge only, so engaging cruise while already holding
+  // the trigger (to lock the current speed) doesn't instantly disengage.
+  const trigHigh = trig > 0.5;
+  if (control.cruise && trigHigh && !trigHighPrev) control.cruise = false;
+  trigHighPrev = trigHigh;
+
+  if (control.cruise) {
+    // hold Y -> faster, hold X -> slower. Both must be held past CRUISE_HOLD_MS
+    // so a quick tap can't nudge the set-speed.
+    const xHeld = pad.x && xLastRise > 0 && (nowMs - xDownSince) > CRUISE_HOLD_MS;
+    const yHeld = pad.y && (nowMs - yDownSince) > CRUISE_HOLD_MS;
+    if (yHeld)  control.cruiseSpeed = Math.min(1, control.cruiseSpeed + CRUISE_RATE * dt);
+    if (xHeld)  control.cruiseSpeed = Math.max(0, control.cruiseSpeed - CRUISE_RATE * dt);
+    control.reverse = false;        // reverse locked out while cruising
+    control.throttle = control.cruiseSpeed;
+  } else {
+    control.throttle = trig;
+  }
+
+  xPrev = pad.x;
+  yPrev = pad.y;
+}
+
+const CYAN = '#00e5ff';
+const ORANGE = '#ff7a1a';
+const RED = '#ff2b2b';
+const GREEN = '#22e06b';
+const YELLOW = '#ffd23f';
+const WHITE = '#eef4f5';
+const GHOST = '#3a4650';
+const GHOST_LABEL = 'rgba(255,255,255,0.35)';
+const LABEL_COLOR = 'rgba(255,255,255,0.4)';
+
+// revState: undefined = no badge; 'off' = greyed REV; 'on' = neon-orange REV
+// showLR: true = draw L/R markers at the arc ends (steer gauge)
+// cruiseState: undefined = none; 'off' = greyed CRUISE; 'on' = green CRUISE
+function drawGauge(cx, cy, radius, value01, ghost, label, revState, showLR, cruiseState) {
+  hctx.beginPath();
+  hctx.arc(cx, cy, radius, Math.PI * 0.82, Math.PI * 0.18, false);
+  hctx.strokeStyle = 'rgba(255,255,255,0.1)';
+  hctx.lineWidth = 8;
+  hctx.lineCap = 'round';
+  hctx.stroke();
+
+  const startA = Math.PI * 0.82;
+  const endA = Math.PI * 0.18 + Math.PI * 2;
+  const sweep = (endA - startA) * (ghost ? 1 : value01);
+  hctx.beginPath();
+  hctx.arc(cx, cy, radius, startA, startA + sweep, false);
+  hctx.strokeStyle = ghost ? GHOST : CYAN;
+  hctx.lineWidth = 8;
+  hctx.stroke();
+
+  hctx.textAlign = 'center';
+  hctx.font = '700 26px Orbitron, sans-serif';
+  hctx.fillStyle = ghost ? GHOST : CYAN;
+  const pctText = ghost ? '--%' : Math.round(value01*100) + '%';
+  hctx.fillText(pctText, cx, cy - 6);
+
+  // CRUISE + REV badges, centered as a row between the % and the label so a
+  // widening % can't push them over the arc (throttle gauge only)
+  if (cruiseState || revState) {
+    hctx.font = '700 11px Orbitron, sans-serif';
+    hctx.textAlign = 'left';
+    const gap = 7;
+    const cW = cruiseState ? hctx.measureText('CRUISE').width : 0;
+    const rW = revState ? hctx.measureText('REV').width : 0;
+    const totalW = cW + rW + (cruiseState && revState ? gap : 0);
+    let x = cx - totalW / 2;
+    if (cruiseState) {
+      hctx.fillStyle = cruiseState === 'on' ? GREEN : GHOST;
+      hctx.fillText('CRUISE', x, cy + 14);
+      x += cW + gap;
+    }
+    if (revState) {
+      hctx.fillStyle = revState === 'on' ? ORANGE : GHOST;
+      hctx.fillText('REV', x, cy + 14);
+    }
+  }
+
+  hctx.textAlign = 'center';
+  hctx.font = '600 14px Rajdhani, sans-serif';
+  const labelY = cy + radius * 0.55;
+  const lw = hctx.measureText(label).width;
+  fillRoundRect(cx - lw / 2 - 10, labelY - 15, lw + 20, 22, 6, 'rgba(12,16,18,0.82)');
+  hctx.fillStyle = WHITE;
+  hctx.fillText(label, cx, labelY);
+
+  // L / R as capped badges sitting on the two arc ends, connected to the gauge
+  if (showLR) {
+    const endBadge = (x, y, letter) => {
+      hctx.beginPath();
+      hctx.arc(x, y, 11, 0, Math.PI * 2);
+      hctx.fillStyle = 'rgba(16,20,22,0.92)';
+      hctx.fill();
+      hctx.lineWidth = 2;
+      hctx.strokeStyle = ghost ? GHOST : CYAN;
+      hctx.stroke();
+      hctx.fillStyle = WHITE;
+      hctx.font = '700 13px Rajdhani, sans-serif';
+      hctx.textAlign = 'center';
+      hctx.textBaseline = 'middle';
+      hctx.fillText(letter, x, y + 0.5);
+      hctx.textBaseline = 'alphabetic';
+    };
+    endBadge(cx + radius * Math.cos(Math.PI * 0.82), cy + radius * Math.sin(Math.PI * 0.82), 'L');
+    endBadge(cx + radius * Math.cos(Math.PI * 0.18), cy + radius * Math.sin(Math.PI * 0.18), 'R');
+  }
+
+  hctx.textAlign = 'left';
+}
+
+function panel(x, y, w, h) {
+  hctx.fillStyle = 'rgba(30,30,30,0.65)';
+  hctx.fillRect(x, y, w, h);
+}
+
+function roundedPanel(x, y, w, h, r) {
+  hctx.fillStyle = 'rgba(20,24,26,0.72)';
+  hctx.strokeStyle = 'rgba(0,229,255,0.25)';
+  hctx.lineWidth = 1.5;
+  hctx.beginPath();
+  hctx.moveTo(x + r, y);
+  hctx.arcTo(x + w, y, x + w, y + h, r);
+  hctx.arcTo(x + w, y + h, x, y + h, r);
+  hctx.arcTo(x, y + h, x, y, r);
+  hctx.arcTo(x, y, x + w, y, r);
+  hctx.closePath();
+  hctx.fill();
+  hctx.stroke();
+}
+
+function roundRectPath(x, y, w, h, r) {
+  hctx.beginPath();
+  hctx.moveTo(x + r, y);
+  hctx.arcTo(x + w, y, x + w, y + h, r);
+  hctx.arcTo(x + w, y + h, x, y + h, r);
+  hctx.arcTo(x, y + h, x, y, r);
+  hctx.arcTo(x, y, x + w, y, r);
+  hctx.closePath();
+}
+
+function fillRoundRect(x, y, w, h, r, fill) {
+  hctx.fillStyle = fill;
+  roundRectPath(x, y, w, h, r);
+  hctx.fill();
+}
+
+// Car-style headlight telltale: the classic lamp-with-rays symbol, lit blue
+// when the running lights are on and dimmed to a ghost outline when off — same
+// idea as the headlight indicator on a car's dash.
+function drawLightTelltale(cx, cy, on) {
+  const col = on ? CYAN : 'rgba(255,255,255,0.16)';
+  hctx.fillStyle = col;
+  hctx.strokeStyle = col;
+  // lamp: a left-bulging half-oval with a flat right edge
+  hctx.beginPath();
+  hctx.ellipse(cx, cy, 9, 7, 0, Math.PI / 2, Math.PI * 1.5, false);
+  hctx.closePath();
+  hctx.fill();
+  // three light rays off the flat edge, angled slightly down (low-beam look)
+  hctx.lineWidth = 2.4;
+  hctx.lineCap = 'round';
+  for (let i = -1; i <= 1; i++) {
+    const y = cy + i * 5;
+    hctx.beginPath();
+    hctx.moveTo(cx + 3, y);
+    hctx.lineTo(cx + 15, y + 2);
+    hctx.stroke();
+  }
+  hctx.lineCap = 'butt';
+}
+
+function drawHud() {
+  hctx.clearRect(0, 0, hudCanvasEl.width, hudCanvasEl.height);
+  hctx.textBaseline = 'alphabetic';
+  const W = hudCanvasEl.width, H = hudCanvasEl.height;
+
+  // ---- ARMED / FAILSAFE (prominent, top-center) ----
+  // Driven by the server-side motor watchdog (telemetry.armed), not ping.
+  if (telemetry.armed === true || telemetry.armed === false) {
+    const armed = telemetry.armed === true;
+    const label = armed ? 'ARMED' : 'FAILSAFE';
+    hctx.font = '700 20px Orbitron, sans-serif';
+    // py within the ~9% top safe inset (720*0.09 ≈ 65) so it clears the Quest lens edge
+    const pw = hctx.measureText(label).width + 46, ph = 34, px = W/2 - pw/2, py = 66;
+    let bg, edge, fg;
+    if (armed) {
+      bg = 'rgba(6,40,46,0.72)'; edge = CYAN; fg = CYAN;
+    } else {
+      const flash = Math.floor(performance.now() / 350) % 2 === 0;
+      bg = flash ? 'rgba(255,43,43,0.92)' : 'rgba(90,15,15,0.72)';
+      edge = RED; fg = WHITE;
+    }
+    fillRoundRect(px, py, pw, ph, 9, bg);
+    hctx.lineWidth = 2; hctx.strokeStyle = edge;
+    roundRectPath(px, py, pw, ph, 9); hctx.stroke();
+    hctx.fillStyle = fg;
+    hctx.textAlign = 'center';
+    hctx.textBaseline = 'middle';
+    hctx.fillText(label, W/2, py + ph/2 + 1);
+    hctx.textBaseline = 'alphabetic';
+  }
+
+  // ---- unified top card: two full-width divided rows ----
+  const cardW = 480, cardH = 108;
+  const cardX = W/2 - cardW/2, cardY = 110;   // below the ARMED pill, within the top safe inset
+  roundedPanel(cardX, cardY, cardW, cardH, 12);
+
+  const padX = 22;
+  const iL = cardX + padX, iR = cardX + cardW - padX;
+  const midY = cardY + 54;
+  const r1Label = cardY + 22, r1Val = cardY + 44;
+  const r2Label = cardY + 76, r2Val = cardY + 94;
+
+  hctx.strokeStyle = 'rgba(255,255,255,0.14)';
+  hctx.lineWidth = 1;
+  hctx.beginPath(); hctx.moveTo(iL, midY); hctx.lineTo(iR, midY); hctx.stroke();
+
+  const vDiv = (x, y0, y1) => {
+    hctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    hctx.lineWidth = 1.5;
+    hctx.beginPath(); hctx.moveTo(x, y0); hctx.lineTo(x, y1); hctx.stroke();
+  };
+
+  // ===== ROW 1: LINK — label + one divided, space-filled readout row =====
+  hctx.textAlign = 'left';
+  hctx.font = '600 12px Rajdhani, sans-serif';
+  hctx.fillStyle = LABEL_COLOR;
+  hctx.fillText('LINK', iL, r1Label);
+
+  const drawBars = (x) => {
+    let ab = 0;
+    if (linkState === 'good') ab = lastPingMs !== null ? (lastPingMs < 60 ? 4 : lastPingMs < 120 ? 3 : 2) : 0;
+    else if (linkState === 'degraded') ab = 1;
+    for (let i = 0; i < 4; i++) {
+      const bh = 6 + i * 4;
+      hctx.fillStyle = i < ab ? (linkState === 'good' ? WHITE : ORANGE) : 'rgba(255,255,255,0.15)';
+      hctx.fillRect(x + i * 11, r1Val - bh, 5, bh);
+    }
+  };
+  const mkText = (s, color, font) => {
+    hctx.font = font;
+    return { w: hctx.measureText(s).width,
+             draw: (x) => { hctx.font = font; hctx.fillStyle = color; hctx.textAlign = 'left'; hctx.fillText(s, x, r1Val); } };
+  };
+  const rssi = telemetry.wifi_rssi_dbm;
+  const segs = [
+    { w: 3 * 11 + 5, draw: drawBars },
+    mkText(lastPingMs !== null ? lastPingMs + 'ms' : '--', WHITE, '600 13px Rajdhani, sans-serif'),
+    mkText((videoFps > 0 ? videoFps : '--') + 'fps', WHITE, '600 12px Rajdhani, sans-serif'),
+    mkText('ctl ' + (ctrlLatency == null ? '--' : Math.round(ctrlLatency) + 'ms'),
+           // white like the rest of the row; only turns red when the control loop is genuinely laggy
+           ctrlLatency != null && ctrlLatency >= 150 ? RED : WHITE,
+           '600 12px Rajdhani, sans-serif'),
+    mkText(rssi != null ? rssi + 'dBm' : '--dBm',
+           rssi == null ? LABEL_COLOR : rssi >= -60 ? WHITE : rssi >= -72 ? ORANGE : RED,
+           '600 12px Rajdhani, sans-serif'),
+  ];
+  const segTotal = segs.reduce((a, s) => a + s.w, 0);
+  const segGap = (iR - iL - segTotal) / (segs.length - 1);
+  let sx = iL;
+  segs.forEach((s, i) => {
+    s.draw(sx);
+    sx += s.w;
+    if (i < segs.length - 1) { vDiv(sx + segGap / 2, r1Val - 12, r1Val + 3); sx += segGap; }
+  });
+
+  // ===== ROW 2: BAT | REC | STOR | CPU (four equal columns) =====
+  const cols = 4;
+  const colW = (iR - iL) / cols;
+  for (let i = 1; i < cols; i++) vDiv(iL + i * colW, cardY + 60, cardY + cardH - 12);
+  const cx0 = (i) => iL + i * colW + 6;
+
+  hctx.textAlign = 'left';
+  const battPct = telemetry.battery_percent;
+  const battV = telemetry.battery_voltage;
+  const battWarn = telemetry.battery_warn_pct != null ? telemetry.battery_warn_pct : 25;
+  hctx.font = '600 11px Rajdhani, sans-serif'; hctx.fillStyle = LABEL_COLOR;
+  hctx.fillText(battV != null ? 'BAT ' + battV.toFixed(1) + 'V' : 'BAT', cx0(0), r2Label);
+  hctx.font = '600 15px Orbitron, sans-serif';
+  hctx.fillStyle = battPct == null ? GHOST : battPct <= 10 ? RED : battPct <= battWarn ? ORANGE : WHITE;
+  hctx.fillText(battPct != null ? battPct + '%' : '--%', cx0(0), r2Val);
+
+  hctx.fillStyle = telemetry.recording ? RED : 'rgba(255,255,255,0.2)';
+  hctx.beginPath(); hctx.arc(cx0(1) + 4, r2Label - 4, 4, 0, Math.PI * 2); hctx.fill();
+  hctx.font = '600 11px Rajdhani, sans-serif'; hctx.fillStyle = LABEL_COLOR;
+  hctx.fillText('REC', cx0(1) + 13, r2Label);
+  hctx.font = '700 14px Orbitron, sans-serif'; hctx.fillStyle = telemetry.recording ? RED : WHITE;
+  let recTxt = 'OFF';
+  if (telemetry.recording) {
+    const s = telemetry.rec_elapsed_s;
+    recTxt = s != null ? Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0') : 'ON';
+  }
+  hctx.fillText(recTxt, cx0(1), r2Val);
+
+  hctx.font = '600 11px Rajdhani, sans-serif'; hctx.fillStyle = LABEL_COLOR;
+  hctx.fillText('STORAGE', cx0(2), r2Label);
+  const usedGb = (telemetry.storage_free_gb !== null && telemetry.storage_total_gb)
+    ? Math.round(telemetry.storage_total_gb - telemetry.storage_free_gb) : '--';
+  const totalGb = telemetry.storage_total_gb !== null ? Math.round(telemetry.storage_total_gb) : 128;
+  hctx.font = '600 13px Rajdhani, sans-serif'; hctx.fillStyle = WHITE;
+  hctx.fillText(usedGb + '/' + totalGb + 'GB', cx0(2), r2Val);
+
+  hctx.font = '600 11px Rajdhani, sans-serif'; hctx.fillStyle = LABEL_COLOR;
+  hctx.fillText('CPU', cx0(3), r2Label);
+  const t = telemetry.cpu_temp_c;
+  hctx.font = '700 15px Orbitron, sans-serif';
+  hctx.fillStyle = (t == null) ? GHOST : (t < 70 ? WHITE : t < 80 ? YELLOW : RED);
+  hctx.fillText(t != null ? Math.round(t) + '°C' : '--°C', cx0(3), r2Val);
+
+  // ---- below-card alerts (flash; stack vertically when more than one is live) ----
+  const alerts = [];
+  if (battPct != null && battPct <= 10)
+    alerts.push({ label: 'BATTERY CRITICAL', bg: 'rgba(255,43,43,0.95)', fg: '#ffffff' });
+  else if (battPct != null && battPct <= battWarn)
+    alerts.push({ label: 'LOW BATTERY', bg: 'rgba(255,122,26,0.94)', fg: '#1a1204' });
+  const freeGb = telemetry.storage_free_gb, floorGb = telemetry.recordings_min_free_gb;
+  if (freeGb != null && floorGb != null && floorGb > 0 && freeGb < floorGb)
+    alerts.push({ label: 'LOW STORAGE', bg: 'rgba(255,122,26,0.94)', fg: '#1a1204' });
+  if (alerts.length && Math.floor(performance.now() / 450) % 2 === 0) {
+    hctx.font = '700 15px Orbitron, sans-serif';
+    hctx.textAlign = 'center';
+    hctx.textBaseline = 'middle';
+    alerts.forEach((a, i) => {
+      const pw = hctx.measureText(a.label).width + 30, ph = 26;
+      const px = W/2 - pw/2, py = cardY + cardH + 10 + i * 32;
+      fillRoundRect(px, py, pw, ph, 7, a.bg);
+      hctx.fillStyle = a.fg;
+      hctx.fillText(a.label, W/2, py + ph/2 + 1);
+    });
+    hctx.textBaseline = 'alphabetic';
+    hctx.textAlign = 'left';
+  }
+
+  const ghostCtl = !control.connected;
+  const gaugeY = H - 165;
+  // REV greys out while cruising (reverse is locked out); CRUISE lights green when engaged
+  drawGauge(W/2 - 120, gaugeY, 70, Math.min(1, Math.abs(control.throttle)), ghostCtl,
+            'THROTTLE', (control.reverse && !control.cruise) ? 'on' : 'off',
+            false, control.cruise ? 'on' : 'off');
+  drawGauge(W/2 + 120, gaugeY, 70, (Math.max(-1, Math.min(1, control.steer)) + 1) / 2, ghostCtl, 'STEER', undefined, true);
+
+  // headlight telltale inside the top of the throttle gauge (green when lit)
+  drawLightTelltale(W/2 - 120 - 8, gaugeY - 42, telemetry.lights_on === true);
+
+  // ---- shutdown confirm popup (both grips + B) ----
+  if (shutdownOpen) {
+    hctx.fillStyle = 'rgba(0,0,0,0.5)';        // scrim to focus the modal
+    hctx.fillRect(0, 0, W, H);
+    const pw = 540, ph = 210, px = W/2 - pw/2, py = H/2 - ph/2;
+    fillRoundRect(px, py, pw, ph, 16, 'rgba(16,20,22,0.96)');
+    hctx.lineWidth = 2; hctx.strokeStyle = RED; roundRectPath(px, py, pw, ph, 16); hctx.stroke();
+
+    hctx.textAlign = 'center';
+    hctx.fillStyle = WHITE;
+    hctx.font = '700 30px Orbitron, sans-serif';
+    hctx.fillText('SHUT DOWN BOAT?', W/2, py + 58);
+    hctx.fillStyle = LABEL_COLOR;
+    hctx.font = '600 15px Rajdhani, sans-serif';
+    hctx.fillText('Stick ← / → to choose · A to select', W/2, py + 88);
+
+    const bw = 180, bh = 54, gap = 28, by = py + ph - bh - 26;
+    const yesX = W/2 - bw - gap/2, noX = W/2 + gap/2;
+    const chip = (x, label, on, color) => {
+      fillRoundRect(x, by, bw, bh, 10, on ? color : 'rgba(255,255,255,0.06)');
+      hctx.lineWidth = 2;
+      hctx.strokeStyle = on ? color : 'rgba(255,255,255,0.25)';
+      roundRectPath(x, by, bw, bh, 10); hctx.stroke();
+      hctx.fillStyle = on ? '#0c1012' : WHITE;
+      hctx.font = '700 22px Orbitron, sans-serif';
+      hctx.textBaseline = 'middle';
+      hctx.fillText(label, x + bw/2, by + bh/2 + 1);
+      hctx.textBaseline = 'alphabetic';
+    };
+    chip(yesX, 'YES', shutdownSel === 'yes', RED);
+    chip(noX,  'NO',  shutdownSel === 'no',  GREEN);
+    hctx.textAlign = 'left';
+  } else if (shutdownInProgress) {
+    // Persistent overlay after Yes — stays up until the page dies with the Pi.
+    hctx.fillStyle = 'rgba(0,0,0,0.6)';
+    hctx.fillRect(0, 0, W, H);
+    hctx.textAlign = 'center';
+    hctx.fillStyle = RED;
+    hctx.font = '700 34px Orbitron, sans-serif';
+    hctx.fillText('SHUTTING DOWN…', W/2, H/2 - 6);
+    hctx.fillStyle = LABEL_COLOR;
+    hctx.font = '600 16px Rajdhani, sans-serif';
+    hctx.fillText('Safe to flip the master switch once the Pi is off.', W/2, H/2 + 28);
+    hctx.textAlign = 'left';
+  } else if (performance.now() < recenterFlashUntil) {
+    // brief confirmation that the both-grips recenter fired
+    const label = 'CAMERA CENTERED';
+    hctx.font = '700 20px Orbitron, sans-serif';
+    const bw = hctx.measureText(label).width + 40, bh = 40, bx = W/2 - bw/2, by = H/2 - bh/2;
+    fillRoundRect(bx, by, bw, bh, 9, 'rgba(0,229,255,0.92)');
+    hctx.fillStyle = '#04181c';
+    hctx.textAlign = 'center';
+    hctx.textBaseline = 'middle';
+    hctx.fillText(label, W/2, by + bh/2 + 1);
+    hctx.textBaseline = 'alphabetic';
+    hctx.textAlign = 'left';
+  }
+
+  hudTexture.needsUpdate = true;
+}
+
+if (document.fonts && document.fonts.ready) {
+  document.fonts.ready.then(() => drawHud());
+}
+drawHud();
+
+// Redraw the HUD only when something changed, so we're not re-uploading the
+// canvas texture every frame (that constant GPU churn was causing dropped
+// frames / black-flash reprojection in VR).
+let lastHudSig = '';
+// True when any below-card alert badge (low battery / low storage) should show —
+// used both to blink it (flash phase in the signature) and drive its dirty-check.
+function belowCardAlertActive() {
+  const bp = telemetry.battery_percent, bw = telemetry.battery_warn_pct;
+  const lowBatt = bp != null && bp <= (bw != null ? bw : 25);
+  const lowStore = telemetry.storage_free_gb != null && telemetry.recordings_min_free_gb > 0
+    && telemetry.storage_free_gb < telemetry.recordings_min_free_gb;
+  return lowBatt || lowStore;
+}
+function hudSignature() {
+  return [
+    control.throttle.toFixed(2), control.steer.toFixed(2),
+    control.reverse, control.connected, control.cruise,
+    telemetry.recording, telemetry.storage_free_gb, telemetry.storage_total_gb,
+    telemetry.cpu_temp_c, telemetry.cpu_load_frac,
+    telemetry.wifi_rssi_dbm, telemetry.rec_elapsed_s,
+    linkState, lastPingMs, videoFps, telemetry.armed, telemetry.recordings_min_free_gb,
+    ctrlLatency == null ? -1 : Math.round(ctrlLatency),
+    shutdownOpen, shutdownSel, shutdownInProgress,
+    performance.now() < recenterFlashUntil,
+    telemetry.lights_on, telemetry.reverse_lights_on,
+    telemetry.battery_percent, telemetry.battery_voltage, telemetry.battery_warn_pct,
+    // flash phases so the failsafe + below-card alert badges blink via the dirty-check
+    telemetry.armed === false ? Math.floor(performance.now() / 350) % 2 : 0,
+    (belowCardAlertActive() ? Math.floor(performance.now() / 450) % 2 : 0)
+  ].join('|');
+}
+
+renderer.setAnimationLoop(() => {
+  updateVideoTexture();
+  const nowMs = performance.now();
+  pollControllers(nowMs);
+  sendControl(nowMs);
+  const sig = hudSignature();
+  if (sig !== lastHudSig) { lastHudSig = sig; drawHud(); }
+  if (renderer.xr.isPresenting) {
+    const xrCamera = renderer.xr.getCamera(camera);
+    headLockGroup.position.copy(xrCamera.position);
+    headLockGroup.quaternion.copy(xrCamera.quaternion);
+    updateHead(xrCamera);
+  } else if (headCentered) {
+    head.yaw = 0; head.pitch = 0; headCentered = false;   // not in VR -> camera neutral
+  }
+  renderer.render(scene, camera);
+});
+
+document.getElementById('enterVR').addEventListener('click', async () => {
+  try {
+    if (!navigator.xr) { log('navigator.xr not available'); return; }
+    const supported = await navigator.xr.isSessionSupported('immersive-vr');
+    log('immersive-vr supported: ' + supported);
+    if (!supported) return;
+    const session = await navigator.xr.requestSession('immersive-vr');
+    log('session started');
+    session.addEventListener('end', () => { log('session ended'); headCentered = false; head.yaw = 0; head.pitch = 0; });
+    await renderer.xr.setSession(session);
+    log('in VR');
+  } catch (err) {
+    log('ERROR: ' + err.message);
+  }
+});
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+</body>
+</html>

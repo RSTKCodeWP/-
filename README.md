@@ -11,3 +11,4 @@ Repository for embedded and mobile control projects.
 | [`fly-or-no_fly-RaspberryPi-FPV-Flight-Monitor/`](fly-or-no_fly-RaspberryPi-FPV-Flight-Monitor/) | Raspberry Pi FPV flight go/no-go monitor with e-paper display and weather API |
 | [`fpv-inventory-Deno-FPV-Parts-Inventory/`](fpv-inventory-Deno-FPV-Parts-Inventory/) | Deno web app for tracking FPV quads, parts bins, assemblies, and gear history |
 | [`wfb-ng-WiFi-FPV-Long-Range-Radio-Link/`](wfb-ng-WiFi-FPV-Long-Range-Radio-Link/) | Long-range digital FPV radio link over raw WiFi (video + mavlink, FEC, encryption) |
+| [`fpv-boat-RaspberryPi-Quest-VR-RC-Boat/`](fpv-boat-RaspberryPi-Quest-VR-RC-Boat/) | FPV RC boat — Raspberry Pi WebRTC stream + Meta Quest WebXR piloting with motor/lights control |

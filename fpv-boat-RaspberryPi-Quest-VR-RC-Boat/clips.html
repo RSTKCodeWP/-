@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FPV Boat — Recordings</title>
+<style>
+  :root { color-scheme: dark; }
+  body {
+    margin: 0; background: #0b0f11; color: #eef4f5;
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  }
+  header {
+    padding: 16px 20px; border-bottom: 1px solid #1c2429;
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  }
+  h1 { font-size: 18px; margin: 0; color: #00e5ff; letter-spacing: .04em; }
+  .sub { color: #7c8b93; font-size: 13px; }
+  button {
+    font: inherit; border-radius: 6px; border: 1px solid #2a343a;
+    background: #141a1e; color: #eef4f5; padding: 8px 12px; cursor: pointer;
+  }
+  button:hover { border-color: #00e5ff; }
+  main { padding: 12px 16px 40px; max-width: 760px; margin: 0 auto; }
+  .clip {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 14px; border: 1px solid #1c2429; border-radius: 10px;
+    background: #10161a; margin-bottom: 10px;
+  }
+  .meta { flex: 1; min-width: 0; }
+  .name { font-weight: 600; word-break: break-all; }
+  .info { color: #7c8b93; font-size: 13px; margin-top: 2px; }
+  .actions { display: flex; gap: 8px; flex-shrink: 0; }
+  a.dl { text-decoration: none; }
+  .del { border-color: #5a2530; color: #ff7a86; }
+  .del:hover { border-color: #ff2b2b; }
+  .empty, .err { color: #7c8b93; text-align: center; padding: 40px 0; }
+  .err { color: #ff7a86; }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>BOAT RECORDINGS</h1>
+    <div class="sub" id="summary">loading…</div>
+  </div>
+  <button id="refresh">Refresh</button>
+</header>
+<main id="list"><div class="empty">loading…</div></main>
+<script>
+const listEl = document.getElementById('list');
+const summaryEl = document.getElementById('summary');
+
+function fmtBytes(b) {
+  if (b >= 1024 ** 3) return (b / 1024 ** 3).toFixed(2) + ' GB';
+  if (b >= 1024 ** 2) return (b / 1024 ** 2).toFixed(1) + ' MB';
+  return (b / 1024).toFixed(0) + ' KB';
+}
+
+async function load() {
+  listEl.innerHTML = '<div class="empty">loading…</div>';
+  let data;
+  try {
+    const res = await fetch('/recordings', { cache: 'no-store' });
+    data = await res.json();
+  } catch (e) {
+    listEl.innerHTML = '<div class="err">Could not reach the boat.</div>';
+    summaryEl.textContent = 'offline';
+    return;
+  }
+  const clips = data.recordings || [];
+  const total = clips.reduce((s, c) => s + c.size_bytes, 0);
+  summaryEl.textContent = `${data.count} clip${data.count === 1 ? '' : 's'} · ${fmtBytes(total)}`;
+  if (!clips.length) { listEl.innerHTML = '<div class="empty">No recordings yet.</div>'; return; }
+
+  listEl.innerHTML = '';
+  for (const c of clips) {
+    const row = document.createElement('div');
+    row.className = 'clip';
+
+    const meta = document.createElement('div');
+    meta.className = 'meta';
+    const name = document.createElement('div');
+    name.className = 'name';
+    name.textContent = c.name;
+    const info = document.createElement('div');
+    info.className = 'info';
+    info.textContent = `${fmtBytes(c.size_bytes)} · ${c.modified.replace('T', ' ')}`;
+    meta.append(name, info);
+
+    const actions = document.createElement('div');
+    actions.className = 'actions';
+    const dl = document.createElement('a');
+    dl.className = 'dl';
+    dl.href = '/recordings/download?file=' + encodeURIComponent(c.name);
+    dl.setAttribute('download', c.name);
+    const dlBtn = document.createElement('button');
+    dlBtn.textContent = 'Download';
+    dl.appendChild(dlBtn);
+
+    const del = document.createElement('button');
+    del.className = 'del';
+    del.textContent = 'Delete';
+    del.onclick = async () => {
+      if (!confirm('Delete ' + c.name + '?')) return;
+      del.disabled = true; del.textContent = '…';
+      try {
+        const res = await fetch('/recordings/delete?file=' + encodeURIComponent(c.name));
+        const r = await res.json();
+        if (r.status === 'deleted') { row.remove(); load(); }
+        else { alert(r.error || 'delete failed'); del.disabled = false; del.textContent = 'Delete'; }
+      } catch (e) {
+        alert('delete failed'); del.disabled = false; del.textContent = 'Delete';
+      }
+    };
+
+    actions.append(dl, del);
+    row.append(meta, actions);
+    listEl.appendChild(row);
+  }
+}
+
+document.getElementById('refresh').onclick = load;
+load();
+</script>
+</body>
+</html>

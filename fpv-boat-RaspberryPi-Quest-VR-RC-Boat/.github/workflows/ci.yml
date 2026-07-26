@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # Byte-compile only: checks syntax without importing the Pi-only libs
+      # (picamera2, aiortc, gpiozero, flask) that aren't installed in CI.
+      - name: Byte-compile Python
+        run: python -m py_compile *.py
+
+      # Unit tests for the motor math (pure logic, no GPIO needed).
+      - name: Run unit tests
+        run: python -m unittest discover -p 'test_*.py' -v
+
+      # Extract the viewer's ES module and syntax-check it with Node.
+      - name: Check viewer module JS
+        run: |
+          python - <<'PY'
+          import re, pathlib
+          html = pathlib.Path('webxr_viewer.html').read_text()
+          js = re.search(r'<script type="module">(.*?)</script>', html, re.S).group(1)
+          js = js.replace("import * as THREE from '/three.module.js';", "")
+          pathlib.Path('viewer.mjs').write_text(js)
+          PY
+          node --check viewer.mjs

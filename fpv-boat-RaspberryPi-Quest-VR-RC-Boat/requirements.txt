@@ -1,0 +1,15 @@
+# Python dependencies for the FPV boat server (install on the Pi).
+#
+# Bookworm's pip needs the --break-system-packages flag for a system-wide install:
+#     pip3 install --break-system-packages -r requirements.txt
+#
+# NOTE: picamera2 is NOT here — install it from apt (`python3-picamera2`), it's
+# tied to libcamera and shouldn't come from pip. See setup.sh for the full
+# provision (apt packages, I2C enable, cert, sudoers).
+
+aiohttp                              # web server / routes / websocket
+aiortc                               # WebRTC (pulls in PyAV / av)
+gpiozero                             # motors + lights GPIO (no-op if absent)
+lgpio                                # gpiozero pin factory on Bookworm (replaces pigpio)
+adafruit-circuitpython-servokit      # PCA9685 pan/tilt servos
+pi-ina219                            # INA219 battery voltage/current

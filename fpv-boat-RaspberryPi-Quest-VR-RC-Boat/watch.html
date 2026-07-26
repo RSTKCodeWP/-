@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>FPV Boat — Watch</title>
+<style>
+  :root { color-scheme: dark; }
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden;
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; color: #eef4f5; }
+  #video { position: fixed; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
+
+  /* ARMED / FAILSAFE — prominent, top-center */
+  #state { position: fixed; top: 14px; left: 50%; transform: translateX(-50%);
+    padding: 7px 20px; border-radius: 9px; font-weight: 700; letter-spacing: .08em;
+    font-size: 16px; border: 2px solid #3a4650; background: rgba(10,14,16,.6); }
+  #state.armed { color: #00e5ff; border-color: #00e5ff; background: rgba(6,40,46,.7); }
+  #state.failsafe { color: #fff; border-color: #ff2b2b; animation: flash .7s steps(1) infinite; }
+  @keyframes flash { 50% { background: rgba(255,43,43,.92); } }
+
+  /* telemetry strip — top-left */
+  #hud { position: fixed; top: 12px; left: 12px; display: flex; flex-direction: column; gap: 6px;
+    font-size: 13px; background: rgba(12,16,18,.55); padding: 10px 12px; border-radius: 10px;
+    border: 1px solid rgba(0,229,255,.2); min-width: 150px; }
+  .row { display: flex; justify-content: space-between; gap: 14px; }
+  .lbl { color: rgba(255,255,255,.45); }
+  .val { font-variant-numeric: tabular-nums; }
+  #recdot { display: inline-block; width: 9px; height: 9px; border-radius: 50%;
+    background: rgba(255,255,255,.2); margin-right: 5px; vertical-align: middle; }
+  #recdot.on { background: #ff2b2b; }
+  #status { position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%);
+    font-size: 12px; color: rgba(255,255,255,.5); }
+</style>
+</head>
+<body>
+<video id="video" autoplay playsinline muted></video>
+<div id="state">— — —</div>
+<div id="hud">
+  <div class="row"><span class="lbl">LINK</span><span class="val" id="link">--</span></div>
+  <div class="row"><span class="lbl">WIFI</span><span class="val" id="wifi">--</span></div>
+  <div class="row"><span class="lbl">CPU</span><span class="val" id="cpu">--</span></div>
+  <div class="row"><span class="lbl">RAM</span><span class="val" id="ram">--</span></div>
+  <div class="row"><span class="lbl">REC</span><span class="val"><span id="recdot"></span><span id="rec">OFF</span></span></div>
+  <div class="row"><span class="lbl">STORAGE</span><span class="val" id="storage">--</span></div>
+</div>
+<div id="status">connecting…</div>
+<script>
+const $ = id => document.getElementById(id);
+const videoEl = $('video');
+
+// ---- WebRTC (receive-only, same /offer flow as the VR viewer) ----
+async function startWebRTC() {
+  const pc = new RTCPeerConnection();
+  pc.addTransceiver('video', { direction: 'recvonly' });
+  pc.ontrack = e => { videoEl.srcObject = e.streams[0]; };
+  pc.onconnectionstatechange = () => {
+    $('status').textContent = 'stream: ' + pc.connectionState;
+    if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
+      try { pc.close(); } catch (e) {}
+      setTimeout(startWebRTC, 2000);
+    }
+  };
+  try {
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    const res = await fetch('/offer', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sdp: pc.localDescription.sdp, type: pc.localDescription.type })
+    });
+    await pc.setRemoteDescription(await res.json());
+  } catch (err) {
+    $('status').textContent = 'stream error, retrying…';
+    setTimeout(startWebRTC, 2000);
+  }
+}
+startWebRTC();
+
+// ---- measured video FPS ----
+let fps = 0, _n = 0, _t = performance.now();
+function onFrame(now) {
+  _n++;
+  if (now - _t >= 1000) { fps = Math.round(_n * 1000 / (now - _t)); _n = 0; _t = now; }
+  if (videoEl.requestVideoFrameCallback) videoEl.requestVideoFrameCallback(onFrame);
+}
+if (videoEl.requestVideoFrameCallback) videoEl.requestVideoFrameCallback(onFrame);
+
+// ---- telemetry ----
+async function poll() {
+  try {
+    const t0 = performance.now();
+    const t = await (await fetch('/telemetry', { cache: 'no-store' })).json();
+    const ping = Math.round(performance.now() - t0);
+
+    const st = $('state');
+    if (t.armed === true) { st.textContent = 'ARMED'; st.className = 'armed'; }
+    else if (t.armed === false) { st.textContent = 'FAILSAFE'; st.className = 'failsafe'; }
+    else { st.textContent = '— — —'; st.className = ''; }
+
+    $('link').textContent = ping + 'ms · ' + (fps > 0 ? fps + 'fps' : '--');
+
+    $('wifi').textContent = t.wifi_rssi_dbm != null ? t.wifi_rssi_dbm + ' dBm' : '--';
+    if (t.wifi_rssi_dbm != null)
+      $('wifi').style.color = t.wifi_rssi_dbm >= -60 ? '#eef4f5' : t.wifi_rssi_dbm >= -72 ? '#ffd23f' : '#ff2b2b';
+
+    const temp = t.cpu_temp_c;
+    $('cpu').textContent = temp != null ? Math.round(temp) + '°C' : '--';
+    $('cpu').style.color = temp == null ? '#eef4f5' : temp < 70 ? '#eef4f5' : temp < 80 ? '#ffd23f' : '#ff2b2b';
+
+    $('ram').textContent = t.mem_free_mb != null ? t.mem_free_mb + ' MB' : '--';
+
+    let recTxt = t.recording ? 'ON AIR' : 'OFF';
+    if (t.recording && t.rec_elapsed_s != null) {
+      const s = t.rec_elapsed_s;
+      recTxt = 'ON AIR ' + Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+    }
+    $('rec').textContent = recTxt;
+    $('recdot').className = t.recording ? 'on' : '';
+
+    if (t.storage_free_gb != null && t.storage_total_gb) {
+      const used = Math.round(t.storage_total_gb - t.storage_free_gb);
+      $('storage').textContent = used + '/' + Math.round(t.storage_total_gb) + 'GB';
+      const low = t.recordings_min_free_gb > 0 && t.storage_free_gb < t.recordings_min_free_gb;
+      $('storage').style.color = low ? '#ff7a1a' : '#eef4f5';
+    }
+  } catch (e) {
+    $('state').textContent = 'OFFLINE'; $('state').className = 'failsafe';
+  }
+}
+setInterval(poll, 1000);
+poll();
+</script>
+</body>
+</html>

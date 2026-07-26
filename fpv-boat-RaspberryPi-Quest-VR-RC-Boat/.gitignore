@@ -1,0 +1,17 @@
+.ssh/
+.bash_history
+.cache/
+.config/
+.local/
+.profile
+.bashrc
+.bash_logout
+.sudo_as_admin_successful
+.wget-hsts
+.xsession-errors*
+.Xauthority
+.state/
+recordings/
+test.jpg
+__pycache__/
+*.pyc
