@@ -1,0 +1,268 @@
+#include "meshtastic_client.h"
+
+#ifdef MODULE_LORA
+
+MeshtasticClient::MeshtasticClient() 
+    : isInitialized(false), lastTransmitTime(0), transmitInterval(LORA_TRANSMIT_INTERVAL), lora(nullptr) {
+    localNodeID = generateNodeID();
+}
+
+bool MeshtasticClient::begin(float frequency) {
+    Serial.println("[LoRa] Initializing LoRa module...");
+    
+    lora = new SX1276(new Module(PIN_LORA_CS, PIN_LORA_DIO0, PIN_LORA_RESET, PIN_LORA_DIO1));
+    
+    int state = lora->begin(frequency, LORA_BANDWIDTH, LORA_SPREADING_FACTOR, 
+                            LORA_CODING_RATE, LORA_SYNC_WORD, LORA_TX_POWER);
+    
+    if (state != RADIOLIB_ERR_NONE) {
+        Serial.printf("[LoRa] Init failed, code: %d\n", state);
+        isInitialized = false;
+        return false;
+    }
+    
+    lora->setDio0Action([]() {}, RISING);
+    
+    isInitialized = true;
+    Serial.printf("[LoRa] Initialized (Node: 0x%08X, Freq: %.1f MHz)\n", localNodeID, frequency);
+    Serial.printf("[LoRa] Pins — CS:%d DIO0:%d DIO1:%d RST:%d\n", 
+                  PIN_LORA_CS, PIN_LORA_DIO0, PIN_LORA_DIO1, PIN_LORA_RESET);
+    return true;
+}
+
+void MeshtasticClient::update() {
+    if (!isInitialized) return;
+    
+    uint8_t buffer[256];
+    int state = lora->receive(buffer, sizeof(buffer));
+    
+    if (state == RADIOLIB_ERR_NONE) {
+        int16_t rssi = lora->getRSSI();
+        float snr = lora->getSNR();
+        size_t length = lora->getPacketLength();
+        
+        processReceivedPacket(buffer, length, rssi, snr);
+    }
+}
+
+bool MeshtasticClient::sendRawPacket(const uint8_t* data, size_t length) {
+    if (!isInitialized) return false;
+    
+    if (millis() - lastTransmitTime < transmitInterval) {
+        return false;
+    }
+    
+    int state = lora->transmit(const_cast<uint8_t*>(data), length);
+    
+    if (state == RADIOLIB_ERR_NONE) {
+        lastTransmitTime = millis();
+        Serial.println("[LoRa] Packet transmitted");
+        return true;
+    }
+    
+    Serial.printf("[LoRa] Transmit failed, code: %d\n", state);
+    return false;
+}
+
+void MeshtasticClient::processReceivedPacket(const uint8_t* data, size_t length, int16_t rssi, float snr) {
+    if (length < 8) return;
+    
+    MeshPacket packet;
+    memcpy(&packet.nodeID, data, 4);
+    packet.hopLimit = data[4];
+    packet.hopCount = data[5];
+    
+    size_t payloadLength = length - 6;
+    if (payloadLength > sizeof(packet.payload) - 1) {
+        payloadLength = sizeof(packet.payload) - 1;
+    }
+    
+    memcpy(packet.payload, data + 6, payloadLength);
+    packet.payload[payloadLength] = '\0';
+    
+    packet.rssi = rssi;
+    packet.snr = snr;
+    packet.timestamp = millis();
+    
+    // Limit stored packets to prevent memory issues
+    if (receivedPackets.size() >= 50) {
+        receivedPackets.erase(receivedPackets.begin());
+    }
+    receivedPackets.push_back(packet);
+    
+    if (std::find(knownNodes.begin(), knownNodes.end(), packet.nodeID) == knownNodes.end()) {
+        knownNodes.push_back(packet.nodeID);
+        Serial.printf("[LoRa] New node discovered: 0x%08X\n", packet.nodeID);
+    }
+    
+    Serial.printf("[LoRa] Packet from 0x%08X (RSSI: %d dBm, SNR: %.2f dB)\n", 
+                 packet.nodeID, rssi, snr);
+}
+
+bool MeshtasticClient::broadcastDetectionAlert(const DetectionAlert& alert) {
+    if (!isInitialized) return false;
+    
+    uint8_t packet[256];
+    size_t offset = 0;
+    
+    memcpy(packet + offset, &localNodeID, 4);
+    offset += 4;
+    
+    packet[offset++] = 3; // hop limit
+    packet[offset++] = 0; // hop count
+    
+    memcpy(packet + offset, &alert, sizeof(DetectionAlert));
+    offset += sizeof(DetectionAlert);
+    
+    return sendRawPacket(packet, offset);
+}
+
+bool MeshtasticClient::sendDirectMessage(uint32_t targetNodeID, const char* message) {
+    if (!isInitialized) return false;
+    
+    uint8_t packet[256];
+    size_t offset = 0;
+    
+    memcpy(packet + offset, &localNodeID, 4);
+    offset += 4;
+    
+    packet[offset++] = 3;
+    packet[offset++] = 0;
+    
+    memcpy(packet + offset, &targetNodeID, 4);
+    offset += 4;
+    
+    size_t msgLen = strlen(message);
+    if (msgLen > 200) msgLen = 200;
+    
+    memcpy(packet + offset, message, msgLen);
+    offset += msgLen;
+    
+    return sendRawPacket(packet, offset);
+}
+
+uint8_t MeshtasticClient::getReceivedPacketCount() const {
+    return receivedPackets.size();
+}
+
+MeshPacket MeshtasticClient::getPacket(uint8_t index) const {
+    if (index < receivedPackets.size()) {
+        return receivedPackets[index];
+    }
+    return MeshPacket{};
+}
+
+void MeshtasticClient::clearPackets() {
+    receivedPackets.clear();
+}
+
+uint8_t MeshtasticClient::getKnownNodeCount() const {
+    return knownNodes.size();
+}
+
+uint32_t MeshtasticClient::getNodeID(uint8_t index) const {
+    if (index < knownNodes.size()) {
+        return knownNodes[index];
+    }
+    return 0;
+}
+
+void MeshtasticClient::setTransmitInterval(uint32_t intervalMs) {
+    transmitInterval = intervalMs;
+}
+
+int16_t MeshtasticClient::getLastRSSI() const {
+    if (receivedPackets.empty()) return 0;
+    return receivedPackets.back().rssi;
+}
+
+float MeshtasticClient::getLastSNR() const {
+    if (receivedPackets.empty()) return 0.0f;
+    return receivedPackets.back().snr;
+}
+
+uint32_t MeshtasticClient::generateNodeID() {
+    uint64_t mac = ESP.getEfuseMac();
+    return (uint32_t)(mac & 0xFFFFFFFF);
+}
+
+bool MeshtasticClient::triangulateThreat(const char* droneID, double& outLat, double& outLon) {
+    struct Report {
+        double lat;
+        double lon;
+        int rssi;
+    };
+    std::vector<Report> reports;
+
+    for (const auto& p : receivedPackets) {
+        if (p.timestamp == 0) continue;
+        
+        const DetectionAlert* alert = (const DetectionAlert*)p.payload;
+        if (strcmp(alert->droneID, droneID) == 0) {
+            bool duplicate = false;
+            for (const auto& r : reports) {
+                if (abs(r.lat - alert->latitude) < 0.00001 && abs(r.lon - alert->longitude) < 0.00001) {
+                    duplicate = true;
+                    break;
+                }
+            }
+            if (!duplicate) {
+                reports.push_back({alert->latitude, alert->longitude, alert->rssi});
+            }
+        }
+    }
+
+    if (reports.size() < 3) {
+        Serial.printf("[LoRa] Triangulation failed: only %d reports found for %s\n", (int)reports.size(), droneID);
+        return false;
+    }
+
+    double latRef = reports[0].lat;
+    double lonRef = reports[0].lon;
+
+    double cosLat = cos(latRef * 3.141592653589793 / 180.0);
+    std::vector<double> x(reports.size());
+    std::vector<double> y(reports.size());
+    std::vector<double> d(reports.size());
+
+    for (size_t i = 0; i < reports.size(); ++i) {
+        x[i] = (reports[i].lon - lonRef) * 111139.0 * cosLat;
+        y[i] = (reports[i].lat - latRef) * 111139.0;
+        
+        double powerDiff = -40.0 - (double)reports[i].rssi;
+        d[i] = pow(10.0, powerDiff / 30.0);
+        
+        if (d[i] < 1.0) d[i] = 1.0;
+        if (d[i] > 10000.0) d[i] = 10000.0;
+    }
+
+    double x1 = x[0], y1 = y[0], d1 = d[0];
+    double x2 = x[1], y2 = y[1], d2 = d[1];
+    double x3 = x[2], y3 = y[2], d3 = d[2];
+
+    double A = 2.0 * (x2 - x1);
+    double B = 2.0 * (y2 - y1);
+    double C = (x2*x2 - x1*x1) + (y2*y2 - y1*y1) - (d2*d2 - d1*d1);
+
+    double D = 2.0 * (x3 - x1);
+    double E = 2.0 * (y3 - y1);
+    double F = (x3*x3 - x1*x1) + (y3*y3 - y1*y1) - (d3*d3 - d1*d1);
+
+    double determinant = A * E - B * D;
+    if (abs(determinant) < 0.0001) {
+        Serial.println("[LoRa] Triangulation failed: nodes are collinear");
+        return false;
+    }
+
+    double outX = (C * E - B * F) / determinant;
+    double outY = (A * F - C * D) / determinant;
+
+    outLon = lonRef + outX / (111139.0 * cosLat);
+    outLat = latRef + outY / 111139.0;
+
+    Serial.printf("[LoRa] Operator %s localized at: %.6f, %.6f (using %d reports)\n", 
+                  droneID, outLat, outLon, (int)reports.size());
+    return true;
+}
+
+#endif // MODULE_LORA

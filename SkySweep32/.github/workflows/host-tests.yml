@@ -1,0 +1,42 @@
+name: Host Tests & Static Analysis
+
+on:
+  push:
+    branches: [ master, develop ]
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:
+
+jobs:
+  parser-tests:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    # The protocol parsers are pure logic and compile against a tiny Arduino.h
+    # stub, so they can be unit-tested with the runner's system g++ — no ESP32
+    # toolchain or PlatformIO registry needed. Built with ASan/UBSan so any
+    # out-of-bounds access on a malformed frame fails the job.
+    - name: Build & run parser tests (ASan/UBSan)
+      run: make -C test/host
+
+  static-analysis:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install cppcheck
+      run: sudo apt-get update && sudo apt-get install -y cppcheck
+
+    # Static analysis on the full feature set (all optional modules enabled) so
+    # every source file is analyzed. Warning-level checks only, to keep the gate
+    # about likely defects rather than style. Also runs on the runner's system
+    # tools — independent of the PlatformIO registry.
+    - name: Run cppcheck (warnings)
+      run: |
+        cppcheck --enable=warning --inline-suppr \
+          --suppress=missingInclude --suppress=missingIncludeSystem \
+          --std=c++11 \
+          -DTIER_PRO -DMODULE_ACOUSTIC -DMODULE_COMPASS -DMODULE_ATAK -DMODULE_ML -DENABLE_COUNTERMEASURES \
+          -I src -I src/drivers -I src/protocols \
+          --error-exitcode=1 src

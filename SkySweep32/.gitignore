@@ -1,0 +1,38 @@
+# PlatformIO
+.pio/
+.vscode/
+.clang_complete
+.gcc-flags.json
+
+# Build artifacts
+*.bin
+*.elf
+*.hex
+*.map
+build_artifacts/
+
+# Python (hardware/enclosure/model scripts)
+__pycache__/
+*.pyc
+
+# Host unit-test binary
+test/host/test_parsers
+
+# C/C++
+*.o
+*.a
+*.so
+*.obj
+*.exe
+*.out
+
+# OS
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# IDE
+*.code-workspace
+.idea/

@@ -1,0 +1,1924 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🛡️ SkySweep32 - Passive Drone Detection System</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <style>
+    /* Premium Tactical Dark Theme */
+    :root {
+      --bg-color: #030712; /* Deep space black background */
+      --card-bg: rgba(17, 24, 39, 0.6); /* Translucent slate-900 glass card */
+      --card-border: rgba(255, 255, 255, 0.06); /* Clean thin glass border */
+      --text-main: #f9fafb; /* Slate-50 main text */
+      --text-muted: #9ca3af; /* Slate-400 muted text */
+      
+      /* Refined solid accents - steel blue, emerald, amber, rose */
+      --neon-green: #34d399; /* Emerald 400 */
+      --neon-green-glow: rgba(52, 211, 153, 0.03); /* Extremely faint glow */
+      
+      --neon-cyan: #38bdf8; /* Sky 400 */
+      --neon-cyan-glow: rgba(56, 189, 248, 0.03); /* Extremely faint glow */
+      
+      --neon-amber: #fbbf24; /* Amber 400 */
+      --neon-amber-glow: rgba(251, 191, 36, 0.03); /* Extremely faint glow */
+      
+      --neon-red: #f43f5e; /* Rose 500 */
+      --neon-red-glow: rgba(244, 63, 94, 0.05); /* Extremely faint glow */
+      
+      --grid-gap: 24px;
+    }
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background-color: var(--bg-color);
+      background-image: 
+        linear-gradient(rgba(255, 255, 255, 0.012) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.012) 1px, transparent 1px);
+      background-size: 60px 60px;
+      background-position: center;
+      color: var(--text-main);
+      overflow-x: hidden;
+      line-height: 1.6;
+      position: relative;
+    }
+    
+    body::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 100%;
+      height: 800px;
+      background: radial-gradient(circle at top, rgba(56, 189, 248, 0.07) 0%, transparent 60%);
+      pointer-events: none;
+      z-index: 0;
+    }
+    
+    h1, h2, h3, h4, h5, h6 {
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 600;
+    }
+    
+    /* Navigation Bar */
+    nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 70px;
+      background: rgba(3, 7, 18, 0.6);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      z-index: 1000;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 40px;
+    }
+    
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 20px;
+      font-weight: 700;
+      color: #fff;
+      text-decoration: none;
+    }
+    
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 30px;
+    }
+    
+    .nav-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+      transition: color 0.3s;
+    }
+    
+    .nav-links a:hover {
+      color: #fff;
+    }
+    
+    .lang-switcher {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      color: var(--text-main);
+      padding: 5px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      transition: border-color 0.3s;
+    }
+    
+    .lang-switcher:hover {
+      border-color: var(--neon-cyan);
+    }
+    
+    /* Hero Section */
+    .hero {
+      position: relative;
+      padding: 160px 40px 100px;
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+    
+    /* Abstract Cyber Scanlines Background */
+    .hero-glow {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 600px;
+      height: 600px;
+      background: radial-gradient(circle, rgba(14, 165, 233, 0.15) 0%, rgba(8, 11, 17, 0) 70%);
+      pointer-events: none;
+      z-index: -1;
+    }
+    
+    .hero h1 {
+      font-size: 58px;
+      line-height: 1.15;
+      margin-bottom: 24px;
+      background: linear-gradient(135deg, #ffffff 30%, #38bdf8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      max-width: 950px;
+      letter-spacing: -0.02em;
+    }
+    
+    .hero p {
+      font-size: 18px;
+      color: var(--text-muted);
+      max-width: 680px;
+      margin-bottom: 40px;
+    }
+    
+    .hero-ctas {
+      display: flex;
+      gap: 20px;
+    }
+    
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 12px 28px;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      text-decoration: none;
+      cursor: pointer;
+      transition: all 0.3s;
+      font-family: inherit;
+    }
+    
+    .btn-primary {
+      background-color: var(--neon-cyan);
+      color: #0f172a;
+      box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    }
+    
+    .btn-primary:hover {
+      background-color: #7dd3fc;
+      transform: translateY(-2px);
+      box-shadow: 0 10px 15px -3px rgba(56, 189, 248, 0.2), 0 4px 6px -2px rgba(56, 189, 248, 0.1);
+    }
+    
+    .btn-secondary {
+      background-color: transparent;
+      border: 1px solid var(--card-border);
+      color: var(--text-main);
+    }
+    
+    .btn-secondary:hover {
+      border-color: var(--text-muted);
+      background: rgba(255,255,255,0.05);
+      transform: translateY(-2px);
+    }
+    
+    /* Bento Grid Section */
+    .section-title {
+      text-align: center;
+      margin-bottom: 50px;
+      padding: 0 20px;
+    }
+    
+    .section-title h2 {
+      font-size: 36px;
+      color: #fff;
+      margin-bottom: 12px;
+    }
+    
+    .section-title p {
+      color: var(--text-muted);
+      font-size: 16px;
+    }
+    
+    .bento-grid {
+      max-width: 1200px;
+      margin: 0 auto 100px;
+      padding: 0 20px;
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      grid-template-rows: 320px 320px;
+      gap: var(--grid-gap);
+    }
+    
+    .bento-card {
+      background-color: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      overflow: hidden;
+      position: relative;
+      padding: 28px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: border-color 0.3s, transform 0.3s, box-shadow 0.3s;
+      z-index: 10;
+    }
+    
+    .bento-card:hover {
+      border-color: rgba(56, 189, 248, 0.25);
+      transform: translateY(-4px);
+      box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.6);
+    }
+    
+    .bento-card-header h3 {
+      font-size: 20px;
+      color: #fff;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .bento-card-header p {
+      font-size: 14px;
+      color: var(--text-muted);
+      max-width: 320px;
+    }
+    
+    .bento-card-visual {
+      position: absolute;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      width: 50%;
+      height: 100%;
+      pointer-events: none;
+    }
+    
+    /* Specific bento grids layout details */
+    .card-rf {
+      grid-column: 1 / 2;
+      grid-row: 1 / 2;
+    }
+    
+    .card-rid {
+      grid-column: 2 / 3;
+      grid-row: 1 / 3;
+      justify-content: flex-start;
+      gap: 20px;
+    }
+    
+    .card-rid .bento-card-visual {
+      position: relative;
+      width: 100%;
+      height: 240px;
+      margin-top: auto;
+    }
+    
+    .card-mesh {
+      grid-column: 1 / 2;
+      grid-row: 2 / 3;
+    }
+    
+    .card-juggernaut {
+      grid-column: 1 / 3;
+      grid-row: 3 / 4;
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      height: 220px;
+    }
+    
+    .card-juggernaut .bento-card-header {
+      flex: 1;
+    }
+    
+    .card-juggernaut .bento-card-visual {
+      position: relative;
+      width: 40%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    /* Interactive Configurator Section */
+    .visualizer-section {
+      background: radial-gradient(100% 100% at 50% 0%, #111827 0%, var(--bg-color) 100%);
+      padding: 100px 0;
+      border-top: 1px solid var(--card-border);
+      border-bottom: 1px solid var(--card-border);
+    }
+    
+    .visualizer-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 20px;
+    }
+    
+    .configurator-tabs {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin-bottom: 40px;
+      flex-wrap: wrap;
+    }
+    
+    .tab-btn {
+      background-color: var(--card-bg);
+      border: 1px solid var(--card-border);
+      color: var(--text-muted);
+      padding: 10px 24px;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      font-family: inherit;
+    }
+    
+    .tab-btn:hover {
+      border-color: var(--text-muted);
+      color: #fff;
+    }
+    
+    .tab-btn.active {
+      background-color: var(--neon-cyan);
+      border-color: var(--neon-cyan);
+      color: #0f172a;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+    
+    .tab-btn.active.tier-juggernaut {
+      background-color: var(--neon-red);
+      border-color: var(--neon-red);
+      color: #fff;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+    
+    /* Board Graphic Visualizer Canvas/SVG overlay structure */
+    .wiring-stage {
+      background: #090d16;
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      height: 580px;
+      position: relative;
+      overflow: hidden;
+      margin-bottom: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 40px;
+    }
+    
+    .wiring-svg {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 10;
+    }
+    
+    /* Modules grid arrangement */
+    .modules-column {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      width: 280px;
+      z-index: 20;
+    }
+    
+    .hardware-module {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 16px;
+      position: relative;
+      opacity: 0.25;
+      transform: scale(0.96);
+      transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    
+    .hardware-module.active {
+      opacity: 1;
+      transform: scale(1);
+      border-color: rgba(255,255,255,0.15);
+      box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+    }
+    
+    .hardware-module h4 {
+      font-size: 15px;
+      color: #fff;
+      margin-bottom: 4px;
+    }
+    
+    .hardware-module p {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+    
+    /* Pin connector point dots */
+    .pin-connector {
+      width: 8px;
+      height: 8px;
+      background: var(--text-muted);
+      border-radius: 50%;
+      position: absolute;
+      transition: background 0.3s;
+    }
+    
+    .hardware-module.active .pin-connector {
+      background: var(--neon-cyan);
+      box-shadow: 0 0 8px var(--neon-cyan);
+    }
+    
+    /* ESP32 central node graphic */
+    .esp32-node {
+      background: #1e2538;
+      border: 2px solid #303e5c;
+      width: 180px;
+      height: 380px;
+      border-radius: 14px;
+      z-index: 20;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      padding: 30px 10px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+    }
+    
+    .esp32-node::before {
+      content: "";
+      position: absolute;
+      top: 15px;
+      width: 80px;
+      height: 90px;
+      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M20,10 H80 V30 H20 Z M30,30 V90 M40,30 V90 M50,30 V90 M60,30 V90 M70,30 V90' stroke='%2338bdf8' stroke-width='2' fill='none'/%3E%3C/svg%3E") no-repeat center;
+      opacity: 0.15;
+    }
+    
+    .esp32-chip {
+      background: #0c101a;
+      border: 1px solid #232d42;
+      width: 110px;
+      height: 110px;
+      border-radius: 6px;
+      margin-top: 110px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+    
+    .esp32-chip::after {
+      content: "ESP32-WROOM";
+      font-size: 9px;
+      font-family: monospace;
+      color: var(--text-muted);
+      text-align: center;
+    }
+    
+    .esp32-pins-left, .esp32-pins-right {
+      position: absolute;
+      top: 20px;
+      bottom: 20px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    
+    .esp32-pins-left { left: -6px; }
+    .esp32-pins-right { right: -6px; }
+    
+    .esp-pin {
+      width: 12px;
+      height: 6px;
+      background: #475569;
+      border-radius: 2px;
+      position: relative;
+    }
+    
+    .esp-pin-dot {
+      width: 6px;
+      height: 6px;
+      background: #94a3b8;
+      border-radius: 50%;
+      position: absolute;
+      top: 0;
+    }
+    
+    .esp32-pins-left .esp-pin-dot { left: -10px; }
+    .esp32-pins-right .esp-pin-dot { right: -10px; }
+    
+    /* Config details block */
+    .config-meta {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: var(--grid-gap);
+    }
+    
+    .meta-bom, .meta-pins {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 24px;
+    }
+    
+    .config-meta h3 {
+      font-size: 18px;
+      color: #fff;
+      margin-bottom: 16px;
+      border-bottom: 1px solid var(--card-border);
+      padding-bottom: 10px;
+    }
+    
+    .bom-table, .pin-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    
+    .bom-table th, .pin-table th {
+      text-align: left;
+      color: var(--text-muted);
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--card-border);
+    }
+    
+    .bom-table td, .pin-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(30, 38, 56, 0.5);
+    }
+    
+    .bom-link {
+      color: var(--neon-cyan);
+      text-decoration: none;
+      font-weight: 600;
+    }
+    
+    .bom-link:hover {
+      text-decoration: underline;
+    }
+    
+    /* Interactive Terminal Section */
+    .terminal-section {
+      max-width: 1200px;
+      margin: 100px auto;
+      padding: 0 20px;
+    }
+    
+    .terminal-window {
+      background: #090d16;
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.4);
+    }
+    
+    .terminal-header {
+      background: #111622;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      border-bottom: 1px solid var(--card-border);
+    }
+    
+    .terminal-dots {
+      display: flex;
+      gap: 6px;
+    }
+    
+    .terminal-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+    
+    .td-red { background: #ef4444; }
+    .td-yellow { background: #f59e0b; }
+    .td-green { background: #10b981; }
+    
+    .terminal-title {
+      font-size: 12px;
+      font-family: monospace;
+      color: var(--text-muted);
+    }
+    
+    .terminal-body {
+      padding: 24px;
+      font-family: monospace;
+      font-size: 14px;
+      line-height: 1.7;
+      color: #38bdf8;
+    }
+    
+    .terminal-line {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    
+    .terminal-prompt {
+      color: var(--neon-green);
+      user-select: none;
+    }
+    
+    .terminal-command {
+      color: #fff;
+    }
+    
+    .terminal-output {
+      color: var(--text-muted);
+      padding-left: 20px;
+    }
+    
+    /* Footer */
+    footer {
+      border-top: 1px solid var(--card-border);
+      padding: 60px 40px;
+      text-align: center;
+      background: #05070b;
+    }
+    
+    footer p {
+      color: var(--text-muted);
+      font-size: 14px;
+      margin-bottom: 16px;
+    }
+    
+    footer a {
+      color: var(--neon-cyan);
+      text-decoration: none;
+    }
+    
+    /* Utility class animations */
+    .wire-path {
+      filter: drop-shadow(0 0 2px var(--neon-cyan));
+    }
+    
+    /* Responsive layout tweaks */
+    @media (max-width: 1024px) {
+      .bento-grid {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto auto auto auto;
+      }
+      .card-rf, .card-rid, .card-mesh, .card-juggernaut {
+        grid-column: 1 / -1;
+        grid-row: auto;
+      }
+      .card-rid {
+        height: 380px;
+      }
+      .wiring-stage {
+        flex-direction: column;
+        height: auto;
+        gap: 40px;
+      }
+      .modules-column {
+        width: 100%;
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+      .hardware-module {
+        width: 45%;
+      }
+      .esp32-node {
+        order: -1;
+      }
+      .wiring-svg {
+        display: none; /* Hide svg wires on mobile layout to avoid messy alignment */
+      }
+      .config-meta {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav>
+    <a href="#" class="logo">🛡️ SkySweep32</a>
+    <div class="nav-links">
+      <a href="#features" data-i18n="navFeatures">Features</a>
+      <a href="#visualizer" data-i18n="navTiers">Tiers</a>
+      <a href="#flasher" data-i18n="navFlasher">Flash Guide</a>
+      <a href="https://github.com/bobberdolle1/SkySweep32" target="_blank">GitHub</a>
+      <select class="lang-switcher" onchange="switchLanguage(this.value)">
+        <option value="en">EN</option>
+        <option value="ru">RU</option>
+      </select>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="hero-glow"></div>
+    <h1 id="hero-title" data-i18n="heroTitle">Passive Drone Detection on ESP32</h1>
+    <p id="hero-subtitle" data-i18n="heroSubtitle">A modular, budget-friendly passive RF scanner covering 900MHz, 2.4GHz, and 5.8GHz bands. Detects FPV video signals, BLE Remote ID payloads, and protocol sweeps.</p>
+    <div class="hero-ctas">
+      <a href="#visualizer" class="btn btn-primary" data-i18n="ctaStart">Start Assembly</a>
+      <a href="https://github.com/bobberdolle1/SkySweep32/tree/master/hardware" target="_blank" class="btn btn-secondary" data-i18n="ctaHardware">PCB & 3D Case Files</a>
+      <a href="https://github.com/bobberdolle1/SkySweep32/releases" target="_blank" class="btn btn-secondary" data-i18n="ctaFirmware">Download Firmware</a>
+    </div>
+  </section>
+
+  <!-- Bento Grid Features -->
+  <section id="features" class="section-title">
+    <h2 data-i18n="featuresTitle">Tactical Capabilities</h2>
+    <p data-i18n="featuresSubtitle">Advanced passive spectrum scanner built for modularity and durability.</p>
+  </section>
+
+  <div class="bento-grid">
+    <!-- Spectrum Scanner -->
+    <div class="bento-card card-rf">
+      <div class="bento-card-header">
+        <h3 data-i18n="featRfTitle">📡 Multi-Band Spectrum Scanner</h3>
+        <p data-i18n="featRfDesc">Triple-band scanning (900MHz / 2.4GHz / 5.8GHz) to capture analog and digital control/video links.</p>
+      </div>
+      <div class="bento-card-visual">
+        <canvas id="rf-scan-canvas" style="position:absolute;top:0;right:0;width:100%;height:100%;"></canvas>
+      </div>
+    </div>
+    
+    <!-- Remote ID blinks -->
+    <div class="bento-card card-rid">
+      <div class="bento-card-header">
+        <h3 data-i18n="featRidTitle">🚁 Remote ID Tracking</h3>
+        <p data-i18n="featRidDesc">FAA/ANSI compliant BLE drone identification, plotting drone and operator positions on a live map.</p>
+      </div>
+      <div class="bento-card-visual">
+        <canvas id="radar-canvas" style="position:absolute;top:0;left:0;width:100%;height:100%;"></canvas>
+      </div>
+    </div>
+
+    <!-- Mesh network -->
+    <div class="bento-card card-mesh">
+      <div class="bento-card-header">
+        <h3 data-i18n="featMeshTitle">🕸️ ESP-NOW Mesh Network</h3>
+        <p data-i18n="featMeshDesc">Nodes share heartbeats, GPS telemetry, and threat alarms dynamically over kilometers without cellular coverage.</p>
+      </div>
+      <div class="bento-card-visual">
+        <canvas id="mesh-canvas" style="position:absolute;top:0;right:0;width:100%;height:100%;"></canvas>
+      </div>
+    </div>
+
+    <!-- ATAK & AI -->
+    <div class="bento-card">
+      <div class="bento-card-header">
+        <h3 data-i18n="featAiTitle">🧠 ATAK & TinyML AI</h3>
+        <p data-i18n="featAiDesc">Native Cursor on Target (CoT) tactical maps integration + TFLite Micro neural network inference for accurate drone signature classification.</p>
+      </div>
+      <div class="bento-card-visual" style="display:flex;align-items:center;justify-content:center;font-size:40px;opacity:0.8">
+        📱🤖
+      </div>
+    </div>
+
+    <!-- Juggernaut EW -->
+    <div class="bento-card card-juggernaut">
+      <div class="bento-card-header">
+        <h3 style="color:var(--neon-red)" data-i18n="featCounterTitle">⚡ Active Countermeasures</h3>
+        <p data-i18n="featCounterDesc">Juggernaut tier signal injection covers DJI, Walksnail, OpenIPC, ELRS control, and GPS denial. (Legal authorization required).</p>
+      </div>
+      <div class="bento-card-visual">
+        <div style="background:rgba(239,68,68,0.05);border:1px dashed var(--neon-red);color:var(--neon-red);font-size:12px;padding:20px;border-radius:10px;text-align:center;font-weight:bold;animation:pulse 2s infinite">
+          <span style="font-size:24px">⚠️</span><br>
+          <span data-i18n="counterWarning">LEGAL AUTH REQUIRED</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Configurator -->
+  <section id="visualizer" class="visualizer-section">
+    <div class="section-title">
+      <h2 data-i18n="configTitle">Interactive Tier Configurator</h2>
+      <p data-i18n="configSubtitle">Select a build tier to view its Bill of Materials (BOM) and interactive wiring connections.</p>
+    </div>
+
+    <div class="visualizer-container">
+      <div class="configurator-tabs">
+        <button class="tab-btn active" onclick="selectTier('starter')" data-i18n="tierStarter">Starter</button>
+        <button class="tab-btn" onclick="selectTier('hunter')" data-i18n="tierHunter">Hunter</button>
+        <button class="tab-btn" onclick="selectTier('sentinel')" data-i18n="tierSentinel">Sentinel</button>
+        <button class="tab-btn" onclick="selectTier('juggernaut')" data-i18n="tierJuggernaut">Juggernaut</button>
+      </div>
+
+      <div class="wiring-stage" id="visualizer-container">
+        <!-- SVG lines overlay -->
+        <svg class="wiring-svg" id="wires-svg"></svg>
+
+        <!-- Left Column Modules -->
+        <div class="modules-column">
+          <!-- OLED Display -->
+          <div class="hardware-module active" id="mod-oled">
+            <h4>📺 OLED Display 0.96"</h4>
+            <p data-i18n="modOledDesc">SSD1306 I2C Screen</p>
+            <div class="pin-connector" id="pin-oled-vcc" style="right:-4px;top:20%"></div>
+            <div class="pin-connector" id="pin-oled-gnd" style="right:-4px;top:40%"></div>
+            <div class="pin-connector" id="pin-oled-sda" style="right:-4px;top:60%"></div>
+            <div class="pin-connector" id="pin-oled-scl" style="right:-4px;top:80%"></div>
+          </div>
+          <!-- NRF24L01 -->
+          <div class="hardware-module active" id="mod-nrf">
+            <h4>📡 NRF24L01+ (2.4GHz)</h4>
+            <p data-i18n="modNrfDesc">2.4GHz RF Scanner</p>
+            <div class="pin-connector" id="pin-nrf-vcc" style="right:-4px;top:15%"></div>
+            <div class="pin-connector" id="pin-nrf-gnd" style="right:-4px;top:30%"></div>
+            <div class="pin-connector" id="pin-nrf-mosi" style="right:-4px;top:45%"></div>
+            <div class="pin-connector" id="pin-nrf-miso" style="right:-4px;top:60%"></div>
+            <div class="pin-connector" id="pin-nrf-sck" style="right:-4px;top:70%"></div>
+            <div class="pin-connector" id="pin-nrf-cs" style="right:-4px;top:80%"></div>
+            <div class="pin-connector" id="pin-nrf-ce" style="right:-4px;top:90%"></div>
+          </div>
+          <!-- CC1101 -->
+          <div class="hardware-module" id="mod-cc1101">
+            <h4>📡 CC1101 (900MHz)</h4>
+            <p data-i18n="modCcDesc">Sub-1GHz ISM Scanner</p>
+            <div class="pin-connector" id="pin-cc-vcc" style="right:-4px;top:20%"></div>
+            <div class="pin-connector" id="pin-cc-gnd" style="right:-4px;top:40%"></div>
+            <div class="pin-connector" id="pin-cc-cs" style="right:-4px;top:60%"></div>
+          </div>
+          <!-- RX5808 -->
+          <div class="hardware-module" id="mod-rx5808">
+            <h4>📺 RX5808 (5.8GHz)</h4>
+            <p data-i18n="modRxDesc">FPV Analog Detector</p>
+            <div class="pin-connector" id="pin-rx-vcc" style="right:-4px;top:20%"></div>
+            <div class="pin-connector" id="pin-rx-gnd" style="right:-4px;top:40%"></div>
+            <div class="pin-connector" id="pin-rx-cs" style="right:-4px;top:60%"></div>
+            <div class="pin-connector" id="pin-rx-rssi" style="right:-4px;top:80%"></div>
+          </div>
+        </div>
+
+        <!-- Center ESP32 DevKit -->
+        <div class="esp32-node">
+          <span style="font-size:12px;font-weight:700;color:#fff;font-family:monospace;">ESP32 DEVKIT V1</span>
+          
+          <div class="esp32-pins-left">
+            <div class="esp-pin"><div class="esp-pin-dot" id="pin-esp-3v3"></div></div>
+            <div class="esp-pin"><div class="esp-pin-dot" id="pin-esp-gnd"></div></div>
+            <div class="esp-pin"><div class="esp-pin-dot" id="pin-esp-d15"></div></div>
+            <div class="esp-pin"><div class="esp-pin-dot" id="pin-esp-d2"></div></div>
+            <div class="esp-pin"><div class="esp-pin-dot" id="pin-esp-d4"></div></div>
+            <div class="esp-pin"><div class="esp-pin-dot" id="pin-esp-d5"></div></div>
+            <div class="esp-pin"><div class="esp-pin-dot" id="pin-esp-d13"></div></div>
+            <div class="esp-pin"><div class="esp-pin-dot" id="pin-esp-d12"></div></div>
+            <div class="esp-pin"><div class="esp-pin-dot" id="pin-esp-d14"></div></div>
+            <div class="esp-pin"><div class="esp-pin-dot" id="pin-esp-d27"></div></div>
+          </div>
+
+          <div class="esp32-chip"></div>
+
+          <div class="esp32-pins-right">
+            <div class="esp-pin"><div class="esp-pin-dot" id="pin-esp-d23"></div></div>
+            <div class="esp-pin"><div class="esp-pin-dot" id="pin-esp-d19"></div></div>
+            <div class="esp-pin"><div class="esp-pin-dot" id="pin-esp-d18"></div></div>
+            <div class="esp-pin"><div class="esp-pin-dot" id="pin-esp-d21"></div></div>
+            <div class="esp-pin"><div class="esp-pin-dot" id="pin-esp-d22"></div></div>
+            <div class="esp-pin"><div class="esp-pin-dot" id="pin-esp-d16"></div></div>
+            <div class="esp-pin"><div class="esp-pin-dot" id="pin-esp-d17"></div></div>
+            <div class="esp-pin"><div class="esp-pin-dot" id="pin-esp-d25"></div></div>
+            <div class="esp-pin"><div class="esp-pin-dot" id="pin-esp-d26"></div></div>
+            <div class="esp-pin"><div class="esp-pin-dot" id="pin-esp-d34"></div></div>
+            <div class="esp-pin"><div class="esp-pin-dot" id="pin-esp-d36"></div></div>
+          </div>
+        </div>
+
+        <!-- Right Column Modules -->
+        <div class="modules-column">
+          <!-- GPS -->
+          <div class="hardware-module" id="mod-gps">
+            <h4>📍 GPS NEO-6M / 7M</h4>
+            <p data-i18n="modGpsDesc">Coordinates Tracking</p>
+            <div class="pin-connector" id="pin-gps-vcc" style="left:-4px;top:20%"></div>
+            <div class="pin-connector" id="pin-gps-gnd" style="left:-4px;top:40%"></div>
+            <div class="pin-connector" id="pin-gps-tx" style="left:-4px;top:60%"></div>
+            <div class="pin-connector" id="pin-gps-rx" style="left:-4px;top:80%"></div>
+          </div>
+          <!-- SD Card -->
+          <div class="hardware-module" id="mod-sd">
+            <h4>💾 MicroSD Card SPI</h4>
+            <p data-i18n="modSdDesc">Data Logging & Storage</p>
+            <div class="pin-connector" id="pin-sd-vcc" style="left:-4px;top:20%"></div>
+            <div class="pin-connector" id="pin-sd-gnd" style="left:-4px;top:40%"></div>
+            <div class="pin-connector" id="pin-sd-cs" style="left:-4px;top:60%"></div>
+          </div>
+          <!-- LoRa -->
+          <div class="hardware-module" id="mod-lora">
+            <h4>🕸️ SX1276 LoRa</h4>
+            <p data-i18n="modLoraDesc">Mesh Alerts Transmission</p>
+            <div class="pin-connector" id="pin-lora-vcc" style="left:-4px;top:15%"></div>
+            <div class="pin-connector" id="pin-lora-gnd" style="left:-4px;top:30%"></div>
+            <div class="pin-connector" id="pin-lora-cs" style="left:-4px;top:45%"></div>
+            <div class="pin-connector" id="pin-lora-rst" style="left:-4px;top:60%"></div>
+            <div class="pin-connector" id="pin-lora-d0" style="left:-4px;top:75%"></div>
+            <div class="pin-connector" id="pin-lora-d1" style="left:-4px;top:90%"></div>
+          </div>
+          <!-- VCO EW Jammer -->
+          <div class="hardware-module" id="mod-ew">
+            <h4>⚡ VCO RF Generators</h4>
+            <p data-i18n="modEwDesc">DAC Signal Sweeping</p>
+            <div class="pin-connector" id="pin-ew-dac1" style="left:-4px;top:30%"></div>
+            <div class="pin-connector" id="pin-ew-dac2" style="left:-4px;top:70%"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Config Meta BOM/PINS -->
+      <div class="config-meta">
+        <div class="meta-bom">
+          <h3 data-i18n="bomTitle">Bill of Materials (BOM)</h3>
+          <table class="bom-table" id="bom-table">
+            <thead>
+              <tr>
+                <th data-i18n="thItem">Item</th>
+                <th data-i18n="thPrice">Approx Price</th>
+                <th data-i18n="thSearch">Search Link</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- Injected by JS -->
+            </tbody>
+          </table>
+        </div>
+
+        <div class="meta-pins">
+          <h3 data-i18n="pinsTitle">Pin Assignment</h3>
+          <table class="pin-table" id="pin-table">
+            <thead>
+              <tr>
+                <th data-i18n="thSignal">Signal</th>
+                <th data-i18n="thPin">ESP32 Pin</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- Injected by JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- How to Flash -->
+  <section id="flasher" class="terminal-section">
+    <div class="section-title">
+      <h2 data-i18n="flasherTitle">Quick Flash Guide</h2>
+      <p data-i18n="flasherSubtitle">Flash pre-compiled firmware directly using scripts or Chrome browser.</p>
+    </div>
+
+    <div class="terminal-window">
+      <div class="terminal-header">
+        <div class="terminal-dots">
+          <div class="terminal-dot td-red"></div>
+          <div class="terminal-dot td-yellow"></div>
+          <div class="terminal-dot td-green"></div>
+        </div>
+        <div class="terminal-title">powershell - SkySweep32 Installer</div>
+        <div style="width:40px"></div>
+      </div>
+      <div class="terminal-body">
+        <div class="terminal-line">
+          <span class="terminal-prompt">PS C:\></span>
+          <span class="terminal-command">git clone https://github.com/bobberdolle1/SkySweep32.git</span>
+        </div>
+        <div class="terminal-output">Cloning into 'SkySweep32'... done.</div>
+        <div class="terminal-line">
+          <span class="terminal-prompt">PS C:\></span>
+          <span class="terminal-command">cd SkySweep32</span>
+        </div>
+        <div class="terminal-line">
+          <span class="terminal-prompt">PS C:\SkySweep32></span>
+          <span class="terminal-command">.\flash.bat</span>
+        </div>
+        <div class="terminal-output" style="color:var(--neon-green)">
+          ==========================================================<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;SKY SWEEP 32 - AUTOMATED FLASHING UTILITY<br>
+          ==========================================================<br>
+          [OK] Found ESP32 board on COM4.<br>
+          <br>
+          SELECT TIER TO FLASH:<br>
+          [1] Starter (OLED + NRF24)<br>
+          [2] Hunter (Starter + CC1101 + RX5808)<br>
+          [3] Sentinel (Hunter + GPS + SD + LoRa)<br>
+          <br>
+          Writing flash (100%). Done!
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <p>🛡️ SkySweep32. Licensed under the GNU General Public License v3.0.</p>
+    <p>Created by <a href="https://github.com/bobberdolle1" target="_blank">bobberdolle1</a>. Built with speed, modularity, and passive RF scanning.</p>
+  </footer>
+
+  <!-- Scripts -->
+  <script>
+    /* Multi-language Translation Database */
+    const i18n = {
+      en: {
+        navFeatures: "Features",
+        navTiers: "Tiers",
+        navFlasher: "Flash Guide",
+        heroTitle: "Passive Drone Detection on ESP32",
+        heroSubtitle: "A modular, budget-friendly passive RF scanner covering 900MHz, 2.4GHz, and 5.8GHz bands. Detects FPV video signals, BLE Remote ID payloads, and protocol sweeps.",
+        ctaStart: "Start Assembly",
+        ctaHardware: "PCB & 3D Case Files",
+        ctaFirmware: "Download Firmware",
+        featuresTitle: "Tactical Capabilities",
+        featuresSubtitle: "Advanced passive spectrum scanner built for modularity and durability.",
+        featRfTitle: "📡 Multi-Band Spectrum Scanner",
+        featRfDesc: "Triple-band scanning (900MHz / 2.4GHz / 5.8GHz) to capture analog and digital control/video links.",
+        featRidTitle: "🚁 Remote ID Tracking",
+        featRidDesc: "FAA/ANSI compliant BLE drone identification, plotting drone and operator positions on a live map.",
+        featMeshTitle: "🕸️ ESP-NOW Mesh Network",
+        featMeshDesc: "Nodes share heartbeats, GPS telemetry, and threat alarms dynamically over kilometers without cellular coverage.",
+        featCounterTitle: "⚡ Active Countermeasures",
+        featCounterDesc: "Juggernaut tier signal sweep to block DJI, Walksnail, OpenIPC, ELRS control, and GPS denial. (Legal authorization required).",
+        featAiTitle: "🧠 ATAK & TinyML AI",
+        featAiDesc: "Native Cursor on Target (CoT) tactical maps integration + TFLite Micro neural network inference for accurate drone signature classification.",
+        counterWarning: "LEGAL AUTH REQUIRED",
+        configTitle: "Interactive Tier Configurator",
+        configSubtitle: "Select a build tier to view its Bill of Materials (BOM) and interactive wiring connections.",
+        tierStarter: "Starter",
+        tierHunter: "Hunter",
+        tierSentinel: "Sentinel",
+        tierJuggernaut: "Juggernaut (EW)",
+        modOledDesc: "SSD1306 I2C Screen",
+        modNrfDesc: "2.4GHz RF Scanner",
+        modCcDesc: "Sub-1GHz ISM Scanner",
+        modRxDesc: "FPV Analog Detector",
+        modGpsDesc: "Coordinates Tracking",
+        modSdDesc: "Data Logging & Storage",
+        modLoraDesc: "Mesh Alerts Transmission",
+        modEwDesc: "DAC Signal Sweeping",
+        bomTitle: "Bill of Materials (BOM)",
+        thItem: "Item",
+        thPrice: "Approx Price",
+        thSearch: "Search Link",
+        pinsTitle: "Pin Assignment",
+        thSignal: "Signal",
+        thPin: "ESP32 Pin",
+        flasherTitle: "Quick Flash Guide",
+        flasherSubtitle: "Flash pre-compiled firmware directly using scripts or Chrome browser."
+      },
+      ru: {
+        navFeatures: "Функции",
+        navTiers: "Уровни",
+        navFlasher: "Прошивка",
+        heroTitle: "Пассивный радар обнаружения дронов на ESP32",
+        heroSubtitle: "Бюджетный модульный пассивный РЧ-сканер частот 900 МГц, 2.4 ГГц и 5.8 ГГц. Детекция FPV видео, BLE Remote ID пакетов и сканирование протоколов.",
+        ctaStart: "Начать сборку",
+        ctaHardware: "Платы и 3D Корпуса",
+        ctaFirmware: "Скачать прошивку",
+        featuresTitle: "Тактические возможности",
+        featuresSubtitle: "Продвинутый пассивный спектроанализатор для модульной и автономной работы.",
+        featRfTitle: "📡 Мультидиапазонный РЧ-сканер",
+        featRfDesc: "Сканирование в 3 диапазонах (900 МГц / 2.4 ГГц / 5.8 ГГц) аналоговых и цифровых каналов управления/видео.",
+        featRidTitle: "🚁 Трекинг Remote ID",
+        featRidDesc: "Детекция BLE-идентификаторов дронов по стандарту FAA/ANSI с выводом координат оператора и дрона на карту.",
+        featMeshTitle: "🕸️ Распределенная ESP-NOW сеть",
+        featMeshDesc: "Автономный обмен тревогами, статусом и GPS-телеметрией между детекторами на километры без сотовой связи.",
+        featCounterTitle: "⚡ Активное противодействие (РЭБ)",
+        featCounterDesc: "Уровень Juggernaut: подавление управления DJI, Walksnail, OpenIPC, ELRS и блокировка GPS. (Требуется лицензия).",
+        featAiTitle: "🧠 Интеграция ATAK и ИИ TinyML",
+        featAiDesc: "Нативная поддержка тактических карт Cursor on Target (CoT) + нейросетевой вывод TFLite Micro для точной классификации сигнатур.",
+        counterWarning: "ТРЕБУЕТСЯ ЛИЦЕНЗИЯ РЭБ",
+        configTitle: "Интерактивный конфигуратор уровней",
+        configSubtitle: "Выберите уровень сборки, чтобы посмотреть список необходимых деталей (BOM) и схему разводки контактов.",
+        tierStarter: "Starter (Базовый)",
+        tierHunter: "Hunter (Стандарт)",
+        tierSentinel: "Sentinel (Продвинутый)",
+        tierJuggernaut: "Juggernaut (РЭБ)",
+        modOledDesc: "SSD1306 I2C Экран",
+        modNrfDesc: "Сканер 2.4 ГГц",
+        modCcDesc: "Сканер суб-ГГц частот",
+        modRxDesc: "Детектор FPV видео 5.8 ГГц",
+        modGpsDesc: "Трекинг координат",
+        modSdDesc: "Логирование данных",
+        modLoraDesc: "Передача тревог в Mesh",
+        modEwDesc: "ЦАП-управление помехой",
+        bomTitle: "Список компонентов (BOM)",
+        thItem: "Деталь",
+        thPrice: "Примерная цена",
+        thSearch: "Где купить",
+        pinsTitle: "Распиновка платы",
+        thSignal: "Сигнал",
+        thPin: "Пин ESP32",
+        flasherTitle: "Инструкция по прошивке",
+        flasherSubtitle: "Прошивайте готовые бинарные файлы в один клик с помощью скрипта или в браузере Chrome."
+      }
+    };
+    
+    let activeLanguage = "en";
+    let activeTier = "starter";
+    
+    function switchLanguage(lang) {
+      activeLanguage = lang;
+      document.querySelectorAll("[data-i18n]").forEach(el => {
+        const key = el.getAttribute("data-i18n");
+        if (i18n[lang][key]) {
+          el.textContent = i18n[lang][key];
+        }
+      });
+      renderTables();
+    }
+    
+    /* Configurator Data Mapping */
+    const tierData = {
+      starter: {
+        activeModules: ["oled", "nrf"],
+        bom: [
+          { name: "ESP32 DevKit V1 (30P/38P)", price: "$5-10", search: "ESP32+DevKit+V1+30P" },
+          { name: "OLED Display 0.96\" I2C", price: "$3-5", search: "0.96+OLED+I2C+SSD1306" },
+          { name: "NRF24L01+ PA+LNA", price: "$2-4", search: "NRF24L01%2B+PA+LNA" },
+          { name: "Dupont wires (Female-Female)", price: "$2-3", search: "dupont+wire+female+to+female" }
+        ],
+        pins: [
+          { sig: "SPI MOSI", pin: "GPIO 23" },
+          { sig: "SPI MISO", pin: "GPIO 19" },
+          { sig: "SPI SCK", pin: "GPIO 18" },
+          { sig: "NRF24L01+ CSN", pin: "GPIO 15" },
+          { sig: "NRF24L01+ CE", pin: "GPIO 2" },
+          { sig: "OLED SDA", pin: "GPIO 21" },
+          { sig: "OLED SCL", pin: "GPIO 22" }
+        ],
+        wires: [
+          { from: "pin-esp-3v3", to: "pin-oled-vcc", color: "#38bdf8" },
+          { from: "pin-esp-gnd", to: "pin-oled-gnd", color: "#64748b" },
+          { from: "pin-esp-d21", to: "pin-oled-sda", color: "#10b981" },
+          { from: "pin-esp-d22", to: "pin-oled-scl", color: "#0ea5e9" },
+          
+          { from: "pin-esp-3v3", to: "pin-nrf-vcc", color: "#38bdf8" },
+          { from: "pin-esp-gnd", to: "pin-nrf-gnd", color: "#64748b" },
+          { from: "pin-esp-d23", to: "pin-nrf-mosi", color: "#f59e0b" },
+          { from: "pin-esp-d19", to: "pin-nrf-miso", color: "#ec4899" },
+          { from: "pin-esp-d18", to: "pin-nrf-sck", color: "#a855f7" },
+          { from: "pin-esp-d15", to: "pin-nrf-cs", color: "#ef4444" },
+          { from: "pin-esp-d2", to: "pin-nrf-ce", color: "#84cc16" }
+        ]
+      },
+      hunter: {
+        activeModules: ["oled", "nrf", "cc1101", "rx5808"],
+        bom: [
+          { name: "ESP32 DevKit V1 (30P/38P)", price: "$5-10", search: "ESP32+DevKit+V1+30P" },
+          { name: "OLED Display 0.96\" I2C", price: "$3-5", search: "0.96+OLED+I2C+SSD1306" },
+          { name: "NRF24L01+ PA+LNA", price: "$2-4", search: "NRF24L01%2B+PA+LNA" },
+          { name: "CC1101 8-pin SPI (868/915)", price: "$3-5", search: "CC1101+8pin+915mhz" },
+          { name: "RX5808 (5.8G FPV Receiver)", price: "$4-7", search: "RX5808+module" },
+          { name: "Dupont wires (Female-Female)", price: "$2-3", search: "dupont+wire+female+to+female" }
+        ],
+        pins: [
+          { sig: "SPI MOSI (Shared)", pin: "GPIO 23" },
+          { sig: "SPI MISO (Shared)", pin: "GPIO 19" },
+          { sig: "SPI SCK (Shared)", pin: "GPIO 18" },
+          { sig: "NRF24L01+ CSN", pin: "GPIO 15" },
+          { sig: "NRF24L01+ CE", pin: "GPIO 2" },
+          { sig: "CC1101 CSN", pin: "GPIO 5" },
+          { sig: "RX5808 CS", pin: "GPIO 13" },
+          { sig: "RX5808 RSSI (ADC)", pin: "GPIO 34" },
+          { sig: "OLED SDA", pin: "GPIO 21" },
+          { sig: "OLED SCL", pin: "GPIO 22" }
+        ],
+        wires: [
+          { from: "pin-esp-3v3", to: "pin-oled-vcc", color: "#38bdf8" },
+          { from: "pin-esp-gnd", to: "pin-oled-gnd", color: "#64748b" },
+          { from: "pin-esp-d21", to: "pin-oled-sda", color: "#10b981" },
+          { from: "pin-esp-d22", to: "pin-oled-scl", color: "#0ea5e9" },
+          
+          { from: "pin-esp-3v3", to: "pin-nrf-vcc", color: "#38bdf8" },
+          { from: "pin-esp-gnd", to: "pin-nrf-gnd", color: "#64748b" },
+          { from: "pin-esp-d23", to: "pin-nrf-mosi", color: "#f59e0b" },
+          { from: "pin-esp-d19", to: "pin-nrf-miso", color: "#ec4899" },
+          { from: "pin-esp-d18", to: "pin-nrf-sck", color: "#a855f7" },
+          { from: "pin-esp-d15", to: "pin-nrf-cs", color: "#ef4444" },
+          { from: "pin-esp-d2", to: "pin-nrf-ce", color: "#84cc16" },
+
+          { from: "pin-esp-3v3", to: "pin-cc-vcc", color: "#38bdf8" },
+          { from: "pin-esp-gnd", to: "pin-cc-gnd", color: "#64748b" },
+          { from: "pin-esp-d5", to: "pin-cc-cs", color: "#10b981" },
+
+          { from: "pin-esp-3v3", to: "pin-rx-vcc", color: "#38bdf8" },
+          { from: "pin-esp-gnd", to: "pin-rx-gnd", color: "#64748b" },
+          { from: "pin-esp-d13", to: "pin-rx-cs", color: "#0ea5e9" },
+          { from: "pin-esp-d34", to: "pin-rx-rssi", color: "#f59e0b" }
+        ]
+      },
+      sentinel: {
+        activeModules: ["oled", "nrf", "cc1101", "rx5808", "gps", "sd", "lora"],
+        bom: [
+          { name: "ESP32 DevKit V1 (30P/38P)", price: "$5-10", search: "ESP32+DevKit+V1+30P" },
+          { name: "OLED Display 0.96\" I2C", price: "$3-5", search: "0.96+OLED+I2C+SSD1306" },
+          { name: "NRF24L01+ PA+LNA", price: "$2-4", search: "NRF24L01%2B+PA+LNA" },
+          { name: "CC1101 8-pin SPI (868/915)", price: "$3-5", search: "CC1101+8pin+915mhz" },
+          { name: "RX5808 (5.8G FPV)", price: "$4-7", search: "RX5808+module" },
+          { name: "GPS NEO-6M / NEO-7M", price: "$8-12", search: "NEO-6M+GPS+module" },
+          { name: "MicroSD Card SPI Module", price: "$2-4", search: "MicroSD+card+module+SPI" },
+          { name: "SX1276 LoRa Module SPI", price: "$6-10", search: "SX1276+LoRa+module+915mhz" },
+          { name: "Dupont wires (Female-Female)", price: "$3-5", search: "dupont+wire+female+to+female" }
+        ],
+        pins: [
+          { sig: "SPI MOSI / MISO / SCK", pin: "GPIO 23 / 19 / 18" },
+          { sig: "NRF24L01+ CSN / CE", pin: "GPIO 15 / 2" },
+          { sig: "CC1101 CSN", pin: "GPIO 5" },
+          { sig: "RX5808 CS / RSSI", pin: "GPIO 13 / 34" },
+          { sig: "GPS RX / TX", pin: "GPIO 16 / 17" },
+          { sig: "MicroSD CS", pin: "GPIO 27" },
+          { sig: "LoRa CSN / RESET", pin: "GPIO 14 / 12" },
+          { sig: "LoRa DIO0 / DIO1", pin: "GPIO 33 / 32" },
+          { sig: "OLED SDA / SCL", pin: "GPIO 21 / 22" }
+        ],
+        wires: [
+          { from: "pin-esp-3v3", to: "pin-oled-vcc", color: "#38bdf8" },
+          { from: "pin-esp-gnd", to: "pin-oled-gnd", color: "#64748b" },
+          { from: "pin-esp-d21", to: "pin-oled-sda", color: "#10b981" },
+          { from: "pin-esp-d22", to: "pin-oled-scl", color: "#0ea5e9" },
+          
+          { from: "pin-esp-3v3", to: "pin-nrf-vcc", color: "#38bdf8" },
+          { from: "pin-esp-gnd", to: "pin-nrf-gnd", color: "#64748b" },
+          { from: "pin-esp-d23", to: "pin-nrf-mosi", color: "#f59e0b" },
+          { from: "pin-esp-d19", to: "pin-nrf-miso", color: "#ec4899" },
+          { from: "pin-esp-d18", to: "pin-nrf-sck", color: "#a855f7" },
+          { from: "pin-esp-d15", to: "pin-nrf-cs", color: "#ef4444" },
+          { from: "pin-esp-d2", to: "pin-nrf-ce", color: "#84cc16" },
+
+          { from: "pin-esp-3v3", to: "pin-cc-vcc", color: "#38bdf8" },
+          { from: "pin-esp-gnd", to: "pin-cc-gnd", color: "#64748b" },
+          { from: "pin-esp-d5", to: "pin-cc-cs", color: "#10b981" },
+
+          { from: "pin-esp-3v3", to: "pin-rx-vcc", color: "#38bdf8" },
+          { from: "pin-esp-gnd", to: "pin-rx-gnd", color: "#64748b" },
+          { from: "pin-esp-d13", to: "pin-rx-cs", color: "#0ea5e9" },
+          { from: "pin-esp-d34", to: "pin-rx-rssi", color: "#f59e0b" },
+
+          { from: "pin-esp-3v3", to: "pin-gps-vcc", color: "#38bdf8" },
+          { from: "pin-esp-gnd", to: "pin-gps-gnd", color: "#64748b" },
+          { from: "pin-esp-d16", to: "pin-gps-tx", color: "#a855f7" },
+          { from: "pin-esp-d17", to: "pin-gps-rx", color: "#ec4899" },
+
+          { from: "pin-esp-3v3", to: "pin-sd-vcc", color: "#38bdf8" },
+          { from: "pin-esp-gnd", to: "pin-sd-gnd", color: "#64748b" },
+          { from: "pin-esp-d27", to: "pin-sd-cs", color: "#ef4444" },
+
+          { from: "pin-esp-3v3", to: "pin-lora-vcc", color: "#38bdf8" },
+          { from: "pin-esp-gnd", to: "pin-lora-gnd", color: "#64748b" },
+          { from: "pin-esp-d14", to: "pin-lora-cs", color: "#84cc16" },
+          { from: "pin-esp-d12", to: "pin-lora-rst", color: "#ef4444" },
+          { from: "pin-esp-d33", to: "pin-lora-d0", color: "#10b981" },
+          { from: "pin-esp-d32", to: "pin-lora-d1", color: "#0ea5e9" }
+        ]
+      },
+      juggernaut: {
+        activeModules: ["oled", "nrf", "cc1101", "rx5808", "gps", "sd", "lora", "ew"],
+        bom: [
+          { name: "ESP32 DevKit V1 (30P/38P)", price: "$5-10", search: "ESP32+DevKit+V1+30P" },
+          { name: "OLED Display 0.96\" I2C", price: "$3-5", search: "0.96+OLED+I2C+SSD1306" },
+          { name: "NRF24L01+ PA+LNA", price: "$2-4", search: "NRF24L01%2B+PA+LNA" },
+          { name: "CC1101 8-pin SPI (868/915)", price: "$3-5", search: "CC1101+8pin+915mhz" },
+          { name: "RX5808 (5.8G FPV)", price: "$4-7", search: "RX5808+module" },
+          { name: "GPS NEO-6M / NEO-7M", price: "$8-12", search: "NEO-6M+GPS+module" },
+          { name: "MicroSD Card SPI Module", price: "$2-4", search: "MicroSD+card+module+SPI" },
+          { name: "SX1276 LoRa Module SPI", price: "$6-10", search: "SX1276+LoRa+module+915mhz" },
+          { name: "VCO Signal sweep modules x4", price: "$30-50", search: "VCO+RF+generator" },
+          { name: "RF Power Amplifiers (PA) x4", price: "$50-100", search: "RF+power+amplifier" },
+          { name: "4-Channel MOSFET module", price: "$3-6", search: "MOSFET+switch+module" },
+          { name: "Buzzer + Battery divider resistors", price: "$2-3", search: "passive+buzzer" }
+        ],
+        pins: [
+          { sig: "SPI MOSI / MISO / SCK", pin: "GPIO 23 / 19 / 18" },
+          { sig: "NRF24L01+ CSN / CE", pin: "GPIO 15 / 2" },
+          { sig: "CC1101 CSN", pin: "GPIO 5" },
+          { sig: "RX5808 CS / RSSI", pin: "GPIO 13 / 34" },
+          { sig: "GPS RX / TX", pin: "GPIO 16 / 17" },
+          { sig: "MicroSD CS", pin: "GPIO 27" },
+          { sig: "LoRa CSN / RESET", pin: "GPIO 14 / 12" },
+          { sig: "LoRa DIO0 / DIO1", pin: "GPIO 33 / 32" },
+          { sig: "VCO DAC 1 Control", pin: "GPIO 25" },
+          { sig: "VCO DAC 2 Control", pin: "GPIO 26" },
+          { sig: "Buzzer", pin: "GPIO 4" },
+          { sig: "Battery ADC", pin: "GPIO 36" }
+        ],
+        wires: [
+          { from: "pin-esp-3v3", to: "pin-oled-vcc", color: "#38bdf8" },
+          { from: "pin-esp-gnd", to: "pin-oled-gnd", color: "#64748b" },
+          { from: "pin-esp-d21", to: "pin-oled-sda", color: "#10b981" },
+          { from: "pin-esp-d22", to: "pin-oled-scl", color: "#0ea5e9" },
+          
+          { from: "pin-esp-3v3", to: "pin-nrf-vcc", color: "#38bdf8" },
+          { from: "pin-esp-gnd", to: "pin-nrf-gnd", color: "#64748b" },
+          { from: "pin-esp-d23", to: "pin-nrf-mosi", color: "#f59e0b" },
+          { from: "pin-esp-d19", to: "pin-nrf-miso", color: "#ec4899" },
+          { from: "pin-esp-d18", to: "pin-nrf-sck", color: "#a855f7" },
+          { from: "pin-esp-d15", to: "pin-nrf-cs", color: "#ef4444" },
+          { from: "pin-esp-d2", to: "pin-nrf-ce", color: "#84cc16" },
+
+          { from: "pin-esp-3v3", to: "pin-cc-vcc", color: "#38bdf8" },
+          { from: "pin-esp-gnd", to: "pin-cc-gnd", color: "#64748b" },
+          { from: "pin-esp-d5", to: "pin-cc-cs", color: "#10b981" },
+
+          { from: "pin-esp-3v3", to: "pin-rx-vcc", color: "#38bdf8" },
+          { from: "pin-esp-gnd", to: "pin-rx-gnd", color: "#64748b" },
+          { from: "pin-esp-d13", to: "pin-rx-cs", color: "#0ea5e9" },
+          { from: "pin-esp-d34", to: "pin-rx-rssi", color: "#f59e0b" },
+
+          { from: "pin-esp-3v3", to: "pin-gps-vcc", color: "#38bdf8" },
+          { from: "pin-esp-gnd", to: "pin-gps-gnd", color: "#64748b" },
+          { from: "pin-esp-d16", to: "pin-gps-tx", color: "#a855f7" },
+          { from: "pin-esp-d17", to: "pin-gps-rx", color: "#ec4899" },
+
+          { from: "pin-esp-3v3", to: "pin-sd-vcc", color: "#38bdf8" },
+          { from: "pin-esp-gnd", to: "pin-sd-gnd", color: "#64748b" },
+          { from: "pin-esp-d27", to: "pin-sd-cs", color: "#ef4444" },
+
+          { from: "pin-esp-3v3", to: "pin-lora-vcc", color: "#38bdf8" },
+          { from: "pin-esp-gnd", to: "pin-lora-gnd", color: "#64748b" },
+          { from: "pin-esp-d14", to: "pin-lora-cs", color: "#84cc16" },
+          { from: "pin-esp-d12", to: "pin-lora-rst", color: "#ef4444" },
+          { from: "pin-esp-d33", to: "pin-lora-d0", color: "#10b981" },
+          { from: "pin-esp-d32", to: "pin-lora-d1", color: "#0ea5e9" },
+
+          { from: "pin-esp-d25", to: "pin-ew-dac1", color: "#ef4444" },
+          { from: "pin-esp-d26", to: "pin-ew-dac2", color: "#f59e0b" }
+        ]
+      }
+    };
+    
+    function selectTier(tier) {
+      activeTier = tier;
+      
+      // Update Tab Button styles
+      document.querySelectorAll(".tab-btn").forEach(btn => {
+        btn.classList.remove("active");
+      });
+      const activeBtn = event ? event.target : document.querySelector(`.tab-btn[onclick="selectTier('${tier}')"]`);
+      if (activeBtn) activeBtn.classList.add("active");
+      
+      // Update hardware modules opacity (active state)
+      const activeMods = tierData[tier].activeModules;
+      document.querySelectorAll(".hardware-module").forEach(mod => {
+        const modId = mod.id.replace("mod-", "");
+        if (activeMods.includes(modId)) {
+          mod.classList.add("active");
+        } else {
+          mod.classList.remove("active");
+        }
+      });
+      
+      // Re-render Tables and Redraw Connections
+      renderTables();
+      setTimeout(redrawWires, 100);
+    }
+    
+    function renderTables() {
+      const bomBody = document.querySelector("#bom-table tbody");
+      const pinBody = document.querySelector("#pin-table tbody");
+      bomBody.innerHTML = "";
+      pinBody.innerHTML = "";
+      
+      const tData = tierData[activeTier];
+      
+      // Render BOM
+      tData.bom.forEach(item => {
+        const row = document.createElement("tr");
+        const searchUrl = `https://www.aliexpress.com/wholesale?SearchText=${item.search}`;
+        row.innerHTML = `
+          <td><strong>${item.name}</strong></td>
+          <td>${item.price}</td>
+          <td><a href="${searchUrl}" target="_blank" class="bom-link">Aliexpress</a></td>
+        `;
+        bomBody.appendChild(row);
+      });
+      
+      // Render Pins
+      tData.pins.forEach(pin => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td><strong>${pin.sig}</strong></td>
+          <td><code style="background:#1e2538;padding:2px 6px;border-radius:4px;color:var(--neon-cyan)">${pin.pin}</code></td>
+        `;
+        pinBody.appendChild(row);
+      });
+    }
+    
+    function redrawWires() {
+      const svg = document.getElementById("wires-svg");
+      svg.innerHTML = "";
+      
+      const container = document.getElementById("visualizer-container");
+      const containerRect = container.getBoundingClientRect();
+      
+      const tData = tierData[activeTier];
+      tData.wires.forEach(wire => {
+        const fromEl = document.getElementById(wire.from);
+        const toEl = document.getElementById(wire.to);
+        if (!fromEl || !toEl) return;
+        
+        const fromRect = fromEl.getBoundingClientRect();
+        const toRect = toEl.getBoundingClientRect();
+        
+        // Calculate coordinates relative to the visualization container stage
+        const x1 = fromRect.left + fromRect.width / 2 - containerRect.left;
+        const y1 = fromRect.top + fromRect.height / 2 - containerRect.top;
+        const x2 = toRect.left + toRect.width / 2 - containerRect.left;
+        const y2 = toRect.top + toRect.height / 2 - containerRect.top;
+        
+        // Cubic bezier path for smooth organic tactical routing
+        const dx = Math.abs(x2 - x1);
+        const cx1 = x1 + dx * 0.5 * (x2 > x1 ? 1 : -1);
+        const cy1 = y1;
+        const cx2 = x2 - dx * 0.5 * (x2 > x1 ? 1 : -1);
+        const cy2 = y2;
+        
+        const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        path.setAttribute("d", `M ${x1} ${y1} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${x2} ${y2}`);
+        path.setAttribute("stroke", wire.color);
+        path.setAttribute("stroke-width", "1.5");
+        path.setAttribute("fill", "none");
+        path.setAttribute("class", "wire-path");
+        path.style.strokeDasharray = "5, 5";
+        path.style.animation = "dash 15s linear infinite";
+        
+        svg.appendChild(path);
+      });
+    }
+    
+    // Listen to resize and recalculate responsive wire paths
+    window.addEventListener("resize", redrawWires);
+    
+    /* HTML5 Canvas Tactical HUD Simulations */
+    
+    // 1. RF Spectrum Scan Simulation
+    const rfCanvas = document.getElementById("rf-scan-canvas");
+    const rfCtx = rfCanvas.getContext("2d");
+    let rfScanX = 0;
+    let rfScanDir = 1;
+    let rfPeaks = [
+      { f: 0.15, label: "915 MHz ELRS", val: 0, target: 0.8 },
+      { f: 0.45, label: "2.4 GHz Wifi", val: 0, target: 0.45 },
+      { f: 0.82, label: "5.8 GHz Analog", val: 0, target: 0.75 }
+    ];
+    
+    function resizeCanvas() {
+      document.querySelectorAll("canvas").forEach(canvas => {
+        const rect = canvas.parentNode.getBoundingClientRect();
+        canvas.width = rect.width;
+        canvas.height = rect.height;
+      });
+    }
+    
+    function animateRF() {
+      const w = rfCanvas.width;
+      const h = rfCanvas.height;
+      if (w === 0 || h === 0) return;
+      
+      rfCtx.fillStyle = "rgba(8, 11, 17, 0.15)";
+      rfCtx.fillRect(0, 0, w, h);
+      
+      // Draw gridlines
+      rfCtx.strokeStyle = "rgba(30,38,56,0.15)";
+      rfCtx.lineWidth = 1;
+      for (let i = 0; i < w; i += w / 10) {
+        rfCtx.beginPath(); rfCtx.moveTo(i, 0); rfCtx.lineTo(i, h); rfCtx.stroke();
+      }
+      for (let i = 0; i < h; i += h / 5) {
+        rfCtx.beginPath(); rfCtx.moveTo(0, i); rfCtx.lineTo(w, i); rfCtx.stroke();
+      }
+      
+      // Draw simulated spectrum line
+      rfCtx.strokeStyle = "rgba(16, 185, 129, 0.6)";
+      rfCtx.lineWidth = 1.5;
+      rfCtx.beginPath();
+      rfCtx.moveTo(0, h - 30);
+      
+      for (let x = 0; x < w; x++) {
+        let baseNoise = Math.sin(x * 0.05 + Date.now() * 0.005) * 5 + Math.random() * 8;
+        let peakSum = 0;
+        
+        rfPeaks.forEach(peak => {
+          const center = peak.f * w;
+          const dist = Math.abs(x - center);
+          if (dist < 40) {
+            peakSum += Math.exp(-dist * dist / 300) * peak.val * (h * 0.6);
+          }
+        });
+        
+        const y = h - 30 - baseNoise - peakSum;
+        rfCtx.lineTo(x, y);
+      }
+      rfCtx.stroke();
+      
+      // Update Peaks animations
+      rfPeaks.forEach(p => {
+        p.val += (p.target - p.val) * 0.05;
+        if (Math.abs(p.val - p.target) < 0.01) {
+          p.target = Math.random() > 0.6 ? (Math.random() * 0.8 + 0.1) : 0;
+        }
+        
+        // Draw Text tags for active peaks
+        if (p.val > 0.3) {
+          rfCtx.fillStyle = "#fff";
+          rfCtx.font = "10px monospace";
+          rfCtx.fillText(p.label, p.f * w - 30, h - 30 - p.val * (h * 0.6) - 15);
+        }
+      });
+      
+      // Draw Sweeper Line
+      rfScanX += 2 * rfScanDir;
+      if (rfScanX > w || rfScanX < 0) rfScanDir *= -1;
+      
+      rfCtx.strokeStyle = "rgba(14, 165, 233, 0.4)";
+      rfCtx.lineWidth = 2;
+      rfCtx.beginPath();
+      rfCtx.moveTo(rfScanX, 0);
+      rfCtx.lineTo(rfScanX, h - 30);
+      rfCtx.stroke();
+      
+      // Frequency band labels
+      rfCtx.fillStyle = "var(--text-muted)";
+      rfCtx.font = "9px monospace";
+      rfCtx.fillText("900M", 10, h - 10);
+      rfCtx.fillText("2.4G", w / 2 - 12, h - 10);
+      rfCtx.fillText("5.8G", w - 40, h - 10);
+    }
+    
+    // 2. Radar Track map simulation
+    const radarCanvas = document.getElementById("radar-canvas");
+    const radarCtx = radarCanvas.getContext("2d");
+    let sweepAngle = 0;
+    
+    function animateRadar() {
+      const w = radarCanvas.width;
+      const h = radarCanvas.height;
+      if (w === 0 || h === 0) return;
+      
+      radarCtx.fillStyle = "rgba(8, 11, 17, 0.15)";
+      radarCtx.fillRect(0, 0, w, h);
+      
+      const cx = w / 2;
+      const cy = h / 2;
+      const r = Math.min(w, h) * 0.45;
+      
+      // Draw concentric rings
+      radarCtx.strokeStyle = "rgba(14, 165, 233, 0.1)";
+      radarCtx.lineWidth = 1;
+      for (let i = 1; i <= 3; i++) {
+        radarCtx.beginPath();
+        radarCtx.arc(cx, cy, r * (i / 3), 0, Math.PI * 2);
+        radarCtx.stroke();
+      }
+      
+      // Draw grid axes
+      radarCtx.beginPath();
+      radarCtx.moveTo(cx - r, cy); radarCtx.lineTo(cx + r, cy);
+      radarCtx.moveTo(cx, cy - r); radarCtx.lineTo(cx, cy + r);
+      radarCtx.stroke();
+      
+      // Draw Radar Sweep
+      sweepAngle += 0.015;
+      const sx = cx + Math.cos(sweepAngle) * r;
+      const sy = cy + Math.sin(sweepAngle) * r;
+      
+      const grad = radarCtx.createRadialGradient(cx, cy, 0, cx, cy, r);
+      grad.addColorStop(0, "rgba(14, 165, 233, 0)");
+      grad.addColorStop(1, "rgba(14, 165, 233, 0.1)");
+      
+      // Sweep trail arc
+      radarCtx.fillStyle = "rgba(14, 165, 233, 0.04)";
+      radarCtx.beginPath();
+      radarCtx.moveTo(cx, cy);
+      radarCtx.arc(cx, cy, r, sweepAngle - 0.4, sweepAngle);
+      radarCtx.closePath();
+      radarCtx.fill();
+      
+      radarCtx.strokeStyle = "rgba(14, 165, 233, 0.4)";
+      radarCtx.lineWidth = 1.5;
+      radarCtx.beginPath();
+      radarCtx.moveTo(cx, cy);
+      radarCtx.lineTo(sx, sy);
+      radarCtx.stroke();
+      
+      // Center dot (home)
+      radarCtx.fillStyle = "var(--neon-amber)";
+      radarCtx.beginPath();
+      radarCtx.arc(cx, cy, 4, 0, Math.PI*2);
+      radarCtx.fill();
+      
+      // Blinking targets (Drones)
+      const targets = [
+        { x: cx - r*0.4, y: cy - r*0.3, id: "DJI_MINI_4", dist: "520m", alt: "60m" },
+        { x: cx + r*0.5, y: cy - r*0.5, id: "ELRS_FPV", dist: "1050m", alt: "120m" }
+      ];
+      
+      targets.forEach(t => {
+        // Blinking calculation based on angle sweep
+        const targetAngle = Math.atan2(t.y - cy, t.x - cx);
+        let diff = sweepAngle % (Math.PI*2) - targetAngle;
+        if (diff < 0) diff += Math.PI*2;
+        
+        let alpha = 0;
+        if (diff < 0.5) {
+          alpha = 1 - (diff / 0.5);
+        }
+        
+        if (alpha > 0.05) {
+          radarCtx.fillStyle = `rgba(239, 68, 68, ${alpha})`;
+          radarCtx.shadowColor = "rgba(239, 68, 68, 0.8)";
+          radarCtx.shadowBlur = 10;
+          radarCtx.beginPath();
+          radarCtx.arc(t.x, t.y, 5, 0, Math.PI*2);
+          radarCtx.fill();
+          
+          radarCtx.shadowBlur = 0; // Reset shadow glow
+          
+          radarCtx.fillStyle = `rgba(255,255,255,${alpha * 0.8})`;
+          radarCtx.font = "9px monospace";
+          radarCtx.fillText(t.id, t.x + 8, t.y - 4);
+          radarCtx.fillText(`${t.dist} | Alt:${t.alt}`, t.x + 8, t.y + 6);
+        }
+      });
+    }
+    
+    // 3. Mesh node simulation
+    const meshCanvas = document.getElementById("mesh-canvas");
+    const meshCtx = meshCanvas.getContext("2d");
+    let meshNodes = [];
+    
+    function initMesh() {
+      const w = meshCanvas.width;
+      const h = meshCanvas.height;
+      if (w === 0) return;
+      meshNodes = [
+        { x: w * 0.25, y: h * 0.4, label: "Node A", state: "OK", pulseOffset: 0 },
+        { x: w * 0.75, y: h * 0.3, label: "Node B", state: "OK", pulseOffset: 0.2 },
+        { x: w * 0.5, y: h * 0.75, label: "Base", state: "ALERT", pulseOffset: 0.5 }
+      ];
+    }
+    
+    function animateMesh() {
+      const w = meshCanvas.width;
+      const h = meshCanvas.height;
+      if (w === 0 || h === 0) return;
+      if (meshNodes.length === 0) initMesh();
+      
+      meshCtx.fillStyle = "#111622";
+      meshCtx.fillRect(0, 0, w, h);
+      
+      // Draw mesh links
+      meshCtx.strokeStyle = "rgba(30, 38, 56, 0.5)";
+      meshCtx.lineWidth = 1;
+      meshCtx.beginPath();
+      meshCtx.moveTo(meshNodes[0].x, meshNodes[0].y);
+      meshCtx.lineTo(meshNodes[1].x, meshNodes[1].y);
+      meshCtx.lineTo(meshNodes[2].x, meshNodes[2].y);
+      meshCtx.lineTo(meshNodes[0].x, meshNodes[0].y);
+      meshCtx.stroke();
+      
+      // Draw nodes
+      meshNodes.forEach((node, idx) => {
+        // Draw transmission pulses
+        node.pulseOffset += 0.005;
+        if (node.pulseOffset > 1) node.pulseOffset = 0;
+        
+        const nextNode = meshNodes[(idx + 1) % meshNodes.length];
+        const px = node.x + (nextNode.x - node.x) * node.pulseOffset;
+        const py = node.y + (nextNode.y - node.y) * node.pulseOffset;
+        
+        meshCtx.fillStyle = node.state === "ALERT" ? "var(--neon-red)" : "var(--neon-cyan)";
+        meshCtx.beginPath();
+        meshCtx.arc(px, py, 3, 0, Math.PI*2);
+        meshCtx.fill();
+        
+        // Node circle outer glow
+        const glowRad = 15 + Math.sin(Date.now() * 0.003 + idx) * 3;
+        meshCtx.fillStyle = node.state === "ALERT" ? "rgba(239, 68, 68, 0.05)" : "rgba(14, 165, 233, 0.05)";
+        meshCtx.beginPath();
+        meshCtx.arc(node.x, node.y, glowRad, 0, Math.PI*2);
+        meshCtx.fill();
+        
+        // Core node circle
+        meshCtx.fillStyle = node.state === "ALERT" ? "var(--neon-red)" : "var(--neon-cyan)";
+        meshCtx.beginPath();
+        meshCtx.arc(node.x, node.y, 6, 0, Math.PI*2);
+        meshCtx.fill();
+        
+        meshCtx.fillStyle = "#fff";
+        meshCtx.font = "10px monospace";
+        meshCtx.fillText(node.label, node.x - 20, node.y - 12);
+      });
+    }
+    
+    // Global Loop
+    function runSimulationLoop() {
+      animateRF();
+      animateRadar();
+      animateMesh();
+      requestAnimationFrame(runSimulationLoop);
+    }
+    
+    /* Document Initialization */
+    document.addEventListener("DOMContentLoaded", () => {
+      // Set sizes
+      resizeCanvas();
+      
+      // Initial render configurator
+      selectTier("starter");
+      
+      // Bind language switch
+      switchLanguage("en");
+      
+      // Start loop
+      runSimulationLoop();
+    });
+    
+    window.addEventListener("resize", () => {
+      resizeCanvas();
+      redrawWires();
+    });
+
+    /* Konami Code Security Watermark / Easter Egg */
+    (function() {
+      const styles = `
+        #easter-egg-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100vw;
+          height: 100vh;
+          background: #000;
+          color: #0f0;
+          font-family: monospace;
+          z-index: 9999;
+          display: none;
+          align-items: center;
+          justify-content: center;
+          flex-direction: column;
+        }
+        #easter-egg-overlay canvas {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          z-index: -1;
+          opacity: 0.35;
+        }
+        .egg-terminal {
+          background: #050505;
+          border: 2px solid #0f0;
+          box-shadow: 0 0 30px rgba(0, 255, 0, 0.4);
+          padding: 30px;
+          border-radius: 8px;
+          text-align: center;
+          max-width: 600px;
+          width: 90%;
+          line-height: 1.6;
+          animation: crt-flicker 0.15s infinite;
+          z-index: 100;
+        }
+        @keyframes crt-flicker {
+          0% { opacity: 0.98; }
+          50% { opacity: 1; }
+          100% { opacity: 0.99; }
+        }
+      `;
+      
+      const styleSheet = document.createElement("style");
+      styleSheet.innerText = styles;
+      document.head.appendChild(styleSheet);
+      
+      const konamiCode = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a'];
+      let konamiIndex = 0;
+      let matrixInterval;
+      
+      document.addEventListener('keydown', (e) => {
+        if (e.key === konamiCode[konamiIndex]) {
+          konamiIndex++;
+          if (konamiIndex === konamiCode.length) {
+            triggerEasterEgg();
+            konamiIndex = 0;
+          }
+        } else {
+          konamiIndex = 0;
+        }
+        
+        if (e.key === 'Escape') {
+          const overlay = document.getElementById('easter-egg-overlay');
+          if (overlay) overlay.style.display = 'none';
+        }
+      });
+      
+      function triggerEasterEgg() {
+        let overlay = document.getElementById('easter-egg-overlay');
+        if (!overlay) {
+          overlay = document.createElement('div');
+          overlay.id = 'easter-egg-overlay';
+          overlay.innerHTML = `
+            <canvas id="matrix-canvas"></canvas>
+            <div class="egg-terminal">
+              <h2 style="color:#0f0;font-size:22px;margin-bottom:15px;font-family:monospace;">🛡️ SKYSWEEP32 SECURITY WATERMARK</h2>
+              <pre style="text-align:left;font-size:12px;white-space:pre-wrap;word-break:break-all;color:#0f0;">
+======================================================
+            *** SECURITY AUDIT PASSED ***
+======================================================
+Project: SkySweep32
+Original Author: bobberdolle1
+GitHub: https://github.com/bobberdolle1/SkySweep32
+
+WATERMARK ACTIVE: This is the original, authorized 
+distribution. If you paid money for this software 
+or pre-assembled device, you have been scammed. 
+
+SkySweep32 is 100% free and open-source under the 
+GNU General Public License v3.0. Build it yourself for free.
+======================================================
+Press ESC to return to page.
+              </pre>
+            </div>
+          `;
+          document.body.appendChild(overlay);
+          
+          const canvas = document.getElementById("matrix-canvas");
+          const ctx = canvas.getContext("2d");
+          canvas.width = window.innerWidth;
+          canvas.height = window.innerHeight;
+          const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789$+-*/%=<>!&|";
+          const fontSize = 16;
+          const columns = canvas.width / fontSize;
+          const rainDrops = Array(Math.floor(columns)).fill(1);
+          
+          function drawMatrix() {
+            ctx.fillStyle = "rgba(0, 0, 0, 0.05)";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = "#0f0";
+            ctx.font = fontSize + "px monospace";
+            for (let i = 0; i < rainDrops.length; i++) {
+              const text = alphabet.charAt(Math.floor(Math.random() * alphabet.length));
+              ctx.fillText(text, i * fontSize, rainDrops[i] * fontSize);
+              if (rainDrops[i] * fontSize > canvas.height && Math.random() > 0.975) {
+                rainDrops[i] = 0;
+              }
+              rainDrops[i]++;
+            }
+          }
+          window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+          });
+          matrixInterval = setInterval(drawMatrix, 30);
+        }
+        overlay.style.display = 'flex';
+      }
+    })();
+  </script>
+</body>
+</html>
