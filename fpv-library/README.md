@@ -92,6 +92,10 @@ python3 fpv-library/scripts/discover_keywords.py --no-rotate --pages 1-2 --expan
 
 Edit `keywords.txt` to add search terms.
 
+### Blocklist
+
+`blocklist.txt` — repos never added to catalog (Telegram bots, mail bots, games, etc.).
+
 ### Triage hooks
 
 When a search hit looks like a "hook", triage assigns:

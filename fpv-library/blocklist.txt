@@ -1,0 +1,17 @@
+# Never add to fpv-library catalog (owner/repo or owner/*)
+# Generic Telegram / mail bots, games, DPI tools — not FPV
+
+bobberdolle1/HolyBot
+bobberdolle1/MailPechkinBot
+bobberdolle1/holy-c-telegram-bot
+bobberdolle1/CoinFlow
+bobberdolle1/EFT-Helper
+bobberdolle1/PersonaForge
+bobberdolle1/Puppeteer
+bobberdolle1/Project-OLEG
+bobberdolle1/clearflow
+bobberdolle1/unbound
+bobberdolle1/BeamNG.WorldForge
+bobberdolle1/TerraForge-Studio
+bobberdolle1/slrr-macos-resolution-fix
+bobberdolle1/bobberdolle1

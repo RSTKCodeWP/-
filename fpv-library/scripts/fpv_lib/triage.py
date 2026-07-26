@@ -44,6 +44,12 @@ NOISE_PATTERNS: list[str] = [
     r"\be-?commerce\b",
     r"/\.github$",
     r"^[^/]+/\.github$",
+    r"\bmail\s*bot\b",
+    r"\btemporary\s+mail\b",
+    r"\buserbot\b",
+    r"\bcrypto\s+bot\b",
+    r"\btarkov\b",
+    r"\bpechkin\b",
 ]
 
 # Strong keep signals — project is clearly on-topic
@@ -111,6 +117,25 @@ def triage_entry(entry: dict[str, Any]) -> dict[str, Any]:
             "triage_reason": "noise:github-meta",
         }
 
+    fpv_core = bool(
+        re.search(
+            r"\bfpv\b|betaflight|\binav\b|openipc|wfb|wifibroadcast|openhd|"
+            r"dronebridge|expresslrs|\belrs\b|rotorhazard|wtfos|pixelpilot|"
+            r"ground\s*control|\bgcs\b|msp.*osd|fiber|blackbox|whoop|\bvtx\b|madflight",
+            text,
+            re.I,
+        )
+    )
+
+    # Generic Telegram/mail bots — skip unless clearly FPV/drone related
+    if re.search(r"\btelegram[\s-]?bot\b|\buserbot\b", text, re.I) and not fpv_core:
+        return {
+            "verdict": "skip",
+            "categories": classify_categories(text),
+            "interesting": False,
+            "triage_reason": "noise:telegram-bot",
+        }
+
     for pat in NOISE_PATTERNS:
         if re.search(pat, text, re.I):
             return {
@@ -123,17 +148,7 @@ def triage_entry(entry: dict[str, Any]) -> dict[str, Any]:
     categories = classify_categories(text)
     keep_hits = sum(1 for p in KEEP_PATTERNS if re.search(p, text, re.I))
 
-    # FPV-specific signals (exclude generic mavlink-only libs)
-    fpv_core = bool(
-        re.search(
-            r"\bfpv\b|betaflight|\binav\b|openipc|wfb|wifibroadcast|openhd|"
-            r"dronebridge|expresslrs|\belrs\b|rotorhazard|wtfos|pixelpilot|"
-            r"ground\s*control|\bgcs\b|msp.*osd|fiber|blackbox|whoop|\bvtx\b|madflight",
-            text,
-            re.I,
-        )
-    )
-
+    # fpv_core already computed above
     if legacy:
         verdict, reason, interesting = "keep", "legacy", True
     elif score >= 5.0 and fpv_core:

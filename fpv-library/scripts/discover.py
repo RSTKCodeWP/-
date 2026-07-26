@@ -17,6 +17,7 @@ from fpv_lib.catalog import (
 from fpv_lib.gh import GhError, list_owner_repos, search_repos
 from fpv_lib.scoring import is_candidate, score_repo
 from fpv_lib.triage import triage_entry
+from fpv_lib.blocklist import is_blocked
 
 
 def parse_pages(pages: list[int] | None, pages_range: str | None) -> list[int]:
@@ -44,6 +45,8 @@ def add_repo(
     dry_run: bool,
 ) -> str | None:
     source = repo["full_name"]
+    if is_blocked(source):
+        return None
     score = score_repo(repo)
     if score < min_score:
         return None
