@@ -1,0 +1,68 @@
+import ListItem from '@mui/material/ListItem';
+import ListItemButton from '@mui/material/ListItemButton';
+import ListItemText from '@mui/material/ListItemText';
+import PropTypes from 'prop-types';
+import { useTranslation } from 'react-i18next';
+import { connect } from 'react-redux';
+
+import { StatusLight } from '@skybrush/mui-components';
+
+import { Status } from '~/components/semantics';
+import { hasManualPreflightChecks } from '~/features/preflight/selectors';
+import { signOffOnManualPreflightChecks } from '~/features/show/actions';
+import { areManualPreflightChecksSignedOff } from '~/features/show/selectors';
+import {
+  clearManualPreflightChecks,
+  openManualPreflightChecksDialog,
+} from '~/features/show/slice';
+import { getSetupStageStatuses } from '~/features/show/stages';
+
+/**
+ * Component with a button that shows a dialog that allows the user to verify
+ * the fulfillment of the manual preflight criteria.
+ */
+const ManualPreflightChecksButton = ({
+  areChecksSignedOff,
+  hasManualChecks,
+  onApprove,
+  onRevoke,
+  status,
+  ...rest
+}) => {
+  const { t } = useTranslation();
+
+  return hasManualChecks ? (
+    <ListItem disablePadding>
+      <ListItemButton disabled={status === Status.OFF} {...rest}>
+        <StatusLight status={status} />
+        <ListItemText
+          primary={t('show.manualPreflightChecks', 'Manual preflight checks')}
+        />
+      </ListItemButton>
+    </ListItem>
+  ) : null;
+};
+
+ManualPreflightChecksButton.propTypes = {
+  areChecksSignedOff: PropTypes.bool,
+  hasManualChecks: PropTypes.bool,
+  onApprove: PropTypes.func,
+  onClick: PropTypes.func,
+  onRevoke: PropTypes.func,
+  status: PropTypes.oneOf(Object.values(Status)),
+};
+
+export default connect(
+  // mapStateToProps
+  (state) => ({
+    areChecksSignedOff: areManualPreflightChecksSignedOff(state),
+    hasManualChecks: hasManualPreflightChecks(state),
+    status: getSetupStageStatuses(state).performManualPreflightChecks,
+  }),
+  // mapDispatchToProps
+  {
+    onApprove: signOffOnManualPreflightChecks,
+    onClick: openManualPreflightChecksDialog,
+    onRevoke: clearManualPreflightChecks,
+  }
+)(ManualPreflightChecksButton);

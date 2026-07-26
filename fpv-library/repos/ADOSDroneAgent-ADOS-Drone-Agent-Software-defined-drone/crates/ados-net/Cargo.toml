@@ -1,0 +1,69 @@
+[package]
+name = "ados-net"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Ground-station uplink matrix: priority failover, cloud-reachability health probing, and the active-uplink sidecar that drives mesh gateway election."
+
+# lib + a daemon binary skeleton. The lib carries the failover policy, the
+# health probe, the event bus, the active-uplink sidecar, and the router FSM;
+# the hardware managers (wifi-client / ethernet / hostapd / modem) plus the
+# firewall and USB-gadget surfaces land in later chunks.
+[[bin]]
+name = "ados-net"
+path = "src/main.rs"
+
+[dependencies]
+# The producer-side log-shipping layer (feature-gated in ados-protocol) feeds
+# the logging daemon's ingest socket alongside journald; never on the hot path.
+ados-protocol = { path = "../ados-protocol", features = ["tracing-layer"] }
+ados-config = { path = "../ados-config" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+# YAML config reader (/etc/ados/config.yaml) for the share_uplink reconcile.
+# Same reader the sibling crates use so a config written by the Python agent
+# reads identically here.
+serde_norway = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow = { workspace = true }
+tokio = { workspace = true }
+# Async methods on the UplinkManager / Prober traits, kept object-safe behind
+# Arc<dyn ...> so the router FSM is generic over real and stub managers.
+async-trait = { workspace = true }
+# Bind the cloud-reachability TCP probe to a specific interface via
+# SO_BINDTODEVICE. socket2 is pure Rust (it links libc only, no C build, no
+# crypto), so it cross-compiles to aarch64-unknown-linux-musl cleanly. The
+# `all` feature unlocks `bind_device` (SO_BINDTODEVICE) on Linux. Crate-
+# specific (no other crate needs raw-socket options), declared here.
+socket2 = { version = "0.5", features = ["all"] }
+# AT-command serial transport for the modem fallback when ModemManager / D-Bus
+# is absent. tokio-serial wraps mio-serial / serialport over the tokio runtime;
+# the AT driver opens /dev/ttyUSB2 at 115200 8N1 and runs the connect sequence.
+# Same crate + version the sibling MAVLink router uses, so the serial backend is
+# shared in the lockfile.
+tokio-serial = "5.4"
+
+[dev-dependencies]
+tempfile = "3"
+
+# Linux-only edge: systemd readiness/watchdog notify + journald log layer for
+# the daemon, plus the advisory file lock that serializes the wlan0 AP/STA
+# handover. Confined to a target section so the pure-logic lib still builds and
+# tests on a non-Linux dev host (where the probe falls back to a plain connect).
+# nix gives `flock` (LOCK_EX|LOCK_NB) held in the manager struct across the
+# stop-hostapd → nmcli-connect window, released only on leave().
+[target.'cfg(target_os = "linux")'.dependencies]
+sd-notify = { workspace = true }
+tracing-journald = { workspace = true }
+nix = { workspace = true }
+# System D-Bus client for the ModemManager1 path. zbus is a from-scratch
+# pure-Rust D-Bus implementation: with default-features off + the `tokio`
+# feature it links NO C library (no dbus-sys / libdbus-sys), pulls no `ring`,
+# and reuses the tokio runtime instead of the async-io stack — so it
+# cross-compiles to aarch64-unknown-linux-musl as a clean static binary. D-Bus
+# is a Linux concept, so this is confined to the Linux target; off Linux the
+# modem manager compiles with the D-Bus path disabled (always-fallback).
+# Crate-specific (no other crate speaks D-Bus), declared here.
+zbus = { version = "5", default-features = false, features = ["tokio"] }

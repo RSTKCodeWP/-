@@ -1,0 +1,19 @@
+[Unit]
+Description=Kismet Wireless Monitor (Hydra RF Hunt)
+Before=hydra-detect.service
+After=network.target
+
+[Service]
+Type=simple
+User=root
+# Source definitions live in /etc/kismet/kismet_site.conf (source=...).
+# Do not pass -c on the command line — Kismet ignores kismet_site.conf
+# sources when -c is present.
+ExecStart=/usr/bin/kismet --no-ncurses
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

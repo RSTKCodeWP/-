@@ -1,0 +1,63 @@
+[Unit]
+Description=ADOS Logging and Telemetry Store
+After=ados-supervisor.service
+PartOf=ados-supervisor.service
+StartLimitInterval=60s
+StartLimitBurst=5
+
+[Service]
+# Join the shared accounting slice so MemoryCurrent/CPUUsage are
+# observable per unit (the slice sets MemoryAccounting=yes).
+Slice=ados.slice
+# The daemon notifies READY after the store opens and the ingest socket is
+# bound, and STOPPING on a clean shutdown, so systemd tracks its real
+# lifecycle rather than assuming readiness at fork.
+Type=notify
+ExecStart=/opt/ados/bin/ados-logd
+Restart=on-failure
+RestartSec=5
+# Headroom for the boot-path store check on a large store (the retention cap is
+# gigabytes). The daemon gates READY on a fast quick_check, but give ample slack
+# over the 90s default so a slow open on aged flash never trips a restart loop.
+TimeoutStartSec=300s
+# The daemon self-bounds its shutdown (a ~5s teardown join + a ~10s writer join),
+# so a clean stop lands well inside this. The explicit ceiling replaces the 90s
+# default so a wedged component can never sit in `deactivating` that long before
+# systemd SIGKILLs it.
+TimeoutStopSec=30s
+Environment=RUST_LOG=info
+EnvironmentFile=-/etc/ados/env
+
+# The store reads sysfs/proc for the hardware collector and writes only its
+# own database and sockets, and must never be able to touch the rest of the box.
+# The single capability it keeps is CAP_CHOWN, used once at bind to group-own the
+# query and ingest sockets to `ados` so a non-root operator in that group can
+# reach the trusted local plane; without it the in-process chgrp fails with EPERM
+# even as root and the sockets stay root-only.
+NoNewPrivileges=yes
+ProtectSystem=strict
+PrivateTmp=yes
+CapabilityBoundingSet=CAP_CHOWN
+# The single-writer store lives under /var/ados/logd; the ingest and query
+# sockets live under /run/ados. Both are the only writable paths.
+ReadWritePaths=/var/ados /run/ados
+
+# The store is a history cache, not flight state. Cap it so a producer flood
+# or a runaway query can never starve the box of memory.
+MemoryMax=256M
+
+# The daemon pings the watchdog from its run loop; a hung writer or accept
+# loop trips this and systemd restarts the unit. Matches the daemon's
+# sd_notify cadence.
+WatchdogSec=30s
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ados-logd
+
+[Install]
+# The log-view endpoints read the store, so it is on by default: the installer
+# enables it unless the fallback marker pins it off, and `ados rust enable logd`
+# re-enables it. Wanted by the supervisor (which it is PartOf) so the supervisor
+# pulls it up and a supervisor restart cycles it with the rest of the set.
+WantedBy=ados-supervisor.service

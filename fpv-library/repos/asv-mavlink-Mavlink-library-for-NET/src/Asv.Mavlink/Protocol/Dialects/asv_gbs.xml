@@ -1,0 +1,90 @@
+<?xml version="1.0"?>
+<mavlink>
+  <!-- Interface for interaction and configuration                -->
+  <!-- of ground base station with RTK mode support               -->
+  <!-- Asv Soft contact info: https://github.com/asvol            -->
+  <!-- company URL: https://github.com/asv-soft and asv.me        -->
+  <!-- email contact: me@asv.me                                   -->
+  <!-- mavlink MAV_TYPE: 250                                   -->
+  <!-- mavlink MAV_CMD range:  13000 - 13099                   -->
+  <!-- mavlink messages range: 13000 - 13099                   -->
+  <include>common.xml</include>
+   
+    
+  <enums>
+    <!-- Asv Gbs specific MAV_TYPE identity -->
+    <enum name="MAV_TYPE">
+      <entry value="250" name="MAV_TYPE_ASV_GBS">
+        <description>Used to identify RTK ground base station in HEARTBEAT packet.</description>
+      </entry>
+    </enum>
+    <!-- Asv Gbs specific MAV_CMD_* commands -->
+    <enum name="MAV_CMD">
+      <entry value="13001" name="MAV_CMD_ASV_GBS_RUN_AUTO_MODE">
+        <description>Run in observation mode to determine the current position of GBS and start sending RTK corrections.</description>
+        <param index="1">Minimum observation time (seconds).</param>
+        <param index="2">Minimum position accuracy (m).</param>
+        <param index="3">Empty.</param>
+        <param index="4">Empty.</param>
+        <param index="5">Empty.</param>
+        <param index="6">Empty.</param>
+        <param index="7">Empty.</param>
+      </entry>
+      <entry value="13002" name="MAV_CMD_ASV_GBS_RUN_FIXED_MODE">
+        <description>Run in fixed mode with well known GBS position and start sending RTK corrections.</description>
+        <param index="1">Latitude (int32_t,degE7).</param>
+        <param index="2">Longitude (int32_t,degE7).</param>
+        <param index="3">Altitude (int32_t, mm).</param>
+        <param index="4">Position accuracy (m).</param>
+        <param index="5">Empty.</param>
+        <param index="6">Empty.</param>
+        <param index="7">Empty.</param>
+      </entry>
+      <entry value="13003" name="MAV_CMD_ASV_GBS_RUN_IDLE_MODE">
+        <description>Cancel all modes and switch to default state. Used to cancel all other modes and disable RTK sending.</description>
+        <param index="1">Empty.</param>
+        <param index="2">Empty.</param>
+        <param index="3">Empty.</param>
+        <param index="4">Empty.</param>
+        <param index="5">Empty.</param>
+        <param index="6">Empty.</param>
+        <param index="7">Empty.</param>
+      </entry>
+    </enum>
+    <enum name="ASV_GBS_CUSTOM_MODE">
+      <description>A mapping of GBS modes for custom_mode field of heartbeat.</description>
+      <entry value="0" name="ASV_GBS_CUSTOM_MODE_LOADING"/>
+      <entry value="1" name="ASV_GBS_CUSTOM_MODE_IDLE"/>
+      <entry value="2" name="ASV_GBS_CUSTOM_MODE_ERROR"/>
+      <entry value="3" name="ASV_GBS_CUSTOM_MODE_AUTO_IN_PROGRESS"/>
+      <entry value="4" name="ASV_GBS_CUSTOM_MODE_AUTO"/>
+      <entry value="5" name="ASV_GBS_CUSTOM_MODE_FIXED_IN_PROGRESS"/>
+      <entry value="6" name="ASV_GBS_CUSTOM_MODE_FIXED"/>
+    </enum>
+    
+  </enums>
+  <messages>
+    <message id="13000" name="ASV_GBS_OUT_STATUS">
+      <description>Ground base station status message. Send with 1 Hz frequency.[!WRAP_TO_V2_EXTENSION_PACKET!]</description>
+      <!-- GBS location -->
+      <field type="int32_t" name="lat" units="degE7">Latitude of GBS (value / 10000000D).</field>
+      <field type="int32_t" name="lng" units="degE7">Longitude of GBS (value / 10000000D).</field>
+      <field type="int32_t" name="alt" units="mm">Altitude of GBS.</field>
+      <!-- Position info for ASV_GBS_CUSTOM_MODE_AUTO_IN_PROGRESS state -->
+      <field type="uint16_t" name="accuracy" units="cm">Current position accuracy (cm).</field>
+      <field type="uint16_t" name="observation" units="s">Observation time (seconds).</field>
+      <!-- RTK data statistic -->
+      <field type="uint16_t" name="dgps_rate" units="bytes\seconds">Rate of GPS_RTCM_DATA data.</field>
+      <!-- Satellite statistic -->
+      <field type="uint8_t" name="sat_all">All GNSS satellite count.</field>
+      <field type="uint8_t" name="sat_gps">GPS satellite count.</field>
+      <field type="uint8_t" name="sat_glo">GLONASS satellite count.</field>
+      <field type="uint8_t" name="sat_bdu">BeiDou satellite count.</field>
+      <field type="uint8_t" name="sat_gal">Galileo satellite count.</field>
+      <field type="uint8_t" name="sat_qzs">QZSS satellite count.</field>
+      <field type="uint8_t" name="sat_ime">IMES satellite count.</field>
+      <field type="uint8_t" name="sat_sbs">SBAS satellite count.</field>
+    </message>
+    
+  </messages>
+</mavlink>

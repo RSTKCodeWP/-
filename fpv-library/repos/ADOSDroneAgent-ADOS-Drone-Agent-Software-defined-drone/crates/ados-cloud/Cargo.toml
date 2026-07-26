@@ -1,0 +1,98 @@
+[package]
+name = "ados-cloud"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Cloud relay for the ADOS Drone Agent: heartbeat status push, command poll, MAVLink and WebRTC-signaling relays, and the update poller."
+
+# The crate is lib + the cloud relay daemon binary.
+[[bin]]
+name = "ados-cloud"
+path = "src/bin/ados-cloud.rs"
+
+[dependencies]
+# Wire primitives + the frozen plugin-supervisor contract the command
+# dispatcher will drive (path deps; the supervisor consumer wiring lands with
+# the command-dispatcher task).
+ados-protocol = { path = "../ados-protocol", features = ["tracing-layer"] }
+# The canonical perception-tier decision (pick_tier) so the cloud beacon reports
+# the same tier the drone runs on, not a second implementation.
+ados-offload = { path = "../ados-offload" }
+ados-config = { path = "../ados-config" }
+ados-plugin-host = { path = "../ados-plugin-host" }
+# The Atlas stream lane: this crate hosts the Cloud bearer (it owns the broker
+# connection) implementing the lane crate's AtlasBearer trait. Layering points
+# the heavy cloud crate at the lean lane crate, never the reverse.
+ados-atlas-transport = { path = "../ados-atlas-transport" }
+# The Atlas forwarder browses for a compute node over mDNS
+# (`ados_compute::mdns::resolve_compute`) to build the direct-LAN bearer. A
+# one-way edge: ados-compute never depends on ados-cloud.
+ados-compute = { path = "../ados-compute" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+# YAML config reader (/etc/ados/config.yaml), the same reader the other crates
+# use so a config written by the Python agent is read identically here.
+serde_norway = { workspace = true }
+# SHA256 verify of the downloaded update wheel.
+sha2 = { workspace = true }
+hex = { workspace = true }
+# Decode a `jsonl.zst` log window locally to count its rows for the cloud
+# window-list metadata. The decode streams through a fixed buffer (constant
+# memory) and runs only on the explicit, infrequent log-push path, never on the
+# hot telemetry path.
+zstd = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow = { workspace = true }
+tokio = { workspace = true }
+# Async methods on the transport trait, kept object-safe behind a Box<dyn>.
+async-trait = { workspace = true }
+
+# TLS stack: pure-Rust rustls with the RustCrypto crypto provider. This keeps
+# the cross-compile to aarch64-unknown-linux-musl free of any C toolchain
+# (no ring, no aws-lc, no OpenSSL) and produces a clean static binary. The
+# CryptoProvider seam keeps the backend swappable. These deps are specific to
+# this crate (no other crate links a TLS client), so they are declared here
+# rather than in the workspace table.
+rustls = { version = "0.23", default-features = false, features = [
+    "custom-provider",
+    "std",
+    "tls12",
+    "logging",
+] }
+# Pinned to the exact alpha: it is the canonical RustCrypto provider for rustls
+# and its dependencies are all mature RustCrypto crates already in the tree
+# (ed25519-dalek, x25519-dalek, sha2, aes-gcm, ...). Pin so a provider bump is a
+# deliberate change, not a silent float.
+rustls-rustcrypto = "=0.0.2-alpha"
+webpki-roots = "0.26"
+# Sync HTTP client for the oneshot update poll over HTTPS, on the no-provider
+# rustls path (no ring); the preconfigured rustls ClientConfig carries the
+# RustCrypto provider.
+reqwest = { version = "0.12", default-features = false, features = [
+    "rustls-tls-manual-roots-no-provider",
+    "blocking",
+    "json",
+] }
+# Async MQTT v5 client (the v5 line — the Python relay speaks MQTTv5). The
+# no-provider rustls path avoids ring; `websocket` carries the WSS transport.
+rumqttc = { package = "rumqttc-next", version = "0.33", default-features = false, features = [
+    "use-rustls-no-provider",
+    "websocket",
+] }
+
+# Linux-only edge: systemd readiness/watchdog notify + journald log layer for
+# the daemon. Confined to a target section so the pure-logic lib still builds
+# and tests on a non-Linux dev host.
+[target.'cfg(target_os = "linux")'.dependencies]
+sd-notify = { workspace = true }
+tracing-journald = { workspace = true }
+
+[dev-dependencies]
+# Temp dirs/files for the dispatch + seen-jobs + auto-pair-socket tests.
+tempfile = "3"
+# Build a signed-free `.adosplug` in the plugin-command dispatch tests so the
+# install path runs end-to-end against a real PluginSupervisor.
+zip = { workspace = true }

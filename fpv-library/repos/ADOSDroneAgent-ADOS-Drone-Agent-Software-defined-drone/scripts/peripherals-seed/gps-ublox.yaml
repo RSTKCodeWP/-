@@ -1,0 +1,11 @@
+id: ados.gps-ublox
+display_name: "u-blox GPS receiver"
+transport: usb
+match:
+  vid: "0x1546"
+capabilities:
+  - gps
+  - gnss
+extra:
+  description: "u-blox 8/9/10 series GNSS via USB or UART."
+  category: gps

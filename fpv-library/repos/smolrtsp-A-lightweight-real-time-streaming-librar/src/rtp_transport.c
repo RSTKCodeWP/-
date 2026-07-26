@@ -1,0 +1,159 @@
+#include <smolrtsp/rtp_transport.h>
+
+#include <smolrtsp/types/rtp.h>
+
+#include <assert.h>
+#include <stdlib.h>
+
+#include <alloca.h>
+#include <arpa/inet.h>
+
+struct SmolRTSP_RtpTransport {
+    uint16_t seq_num;
+    uint32_t ssrc;
+    uint32_t pkt_count;
+    uint32_t octet_count;
+    uint32_t last_rtp_ts;
+    uint8_t payload_ty;
+    uint32_t clock_rate;
+    SmolRTSP_Transport transport;
+};
+
+static uint32_t
+compute_timestamp(SmolRTSP_RtpTimestamp ts, uint32_t clock_rate);
+
+SmolRTSP_RtpTransport *SmolRTSP_RtpTransport_new(
+    SmolRTSP_Transport t, uint8_t payload_ty, uint32_t clock_rate) {
+    return SmolRTSP_RtpTransport_new_with_ssrc(
+        t, payload_ty, clock_rate, (uint32_t)rand());
+}
+
+SmolRTSP_RtpTransport *SmolRTSP_RtpTransport_new_with_ssrc(
+    SmolRTSP_Transport t, uint8_t payload_ty, uint32_t clock_rate,
+    uint32_t ssrc) {
+    assert(t.self && t.vptr);
+
+    SmolRTSP_RtpTransport *self = malloc(sizeof *self);
+    assert(self);
+
+    self->seq_num = 0;
+    self->ssrc = ssrc;
+    self->pkt_count = 0;
+    self->octet_count = 0;
+    self->last_rtp_ts = 0;
+    self->payload_ty = payload_ty;
+    self->clock_rate = clock_rate;
+    self->transport = t;
+
+    return self;
+}
+
+static void SmolRTSP_RtpTransport_drop(VSelf) {
+    VSELF(SmolRTSP_RtpTransport);
+    assert(self);
+
+    VCALL_SUPER(self->transport, SmolRTSP_Droppable, drop);
+
+    free(self);
+}
+
+implExtern(SmolRTSP_Droppable, SmolRTSP_RtpTransport);
+
+int SmolRTSP_RtpTransport_send_packet(
+    SmolRTSP_RtpTransport *self, SmolRTSP_RtpTimestamp ts, bool marker,
+    U8Slice99 payload_header, U8Slice99 payload) {
+    assert(self);
+
+    const uint32_t rtp_ts = compute_timestamp(ts, self->clock_rate);
+
+    const SmolRTSP_RtpHeader header = {
+        .version = 2,
+        .padding = false,
+        .extension = false,
+        .csrc_count = 0,
+        .marker = marker,
+        .payload_ty = self->payload_ty,
+        .sequence_number = htons(self->seq_num),
+        .timestamp = htobe32(rtp_ts),
+        /* SSRC is the only multi-byte RTP-header field that was
+         * passed in host order — every other (sequence, timestamp,
+         * extension_*) is htobe32/htons'd in this same struct.
+         * Without this swap, on little-endian hosts the wire bytes
+         * are the byte-reversal of the SSRC, so receivers can't
+         * correlate the RTP stream with the htonl-ed SSRC in our
+         * RTCP packets (SR/RR/SDES/BYE). RFC 3550 §5.1 requires
+         * network byte order for all multi-byte RTP fields. */
+        .ssrc = htonl(self->ssrc),
+        .csrc = NULL,
+        .extension_profile = htons(0),
+        .extension_payload_len = htons(0),
+        .extension_payload = NULL,
+    };
+
+    const size_t rtp_header_size = SmolRTSP_RtpHeader_size(header);
+    const U8Slice99 rtp_header = U8Slice99_new(
+        SmolRTSP_RtpHeader_serialize(header, alloca(rtp_header_size)),
+        rtp_header_size);
+
+    const SmolRTSP_IoVecSlice bufs =
+        (SmolRTSP_IoVecSlice)Slice99_typed_from_array((struct iovec[]){
+            smolrtsp_slice_to_iovec(rtp_header),
+            smolrtsp_slice_to_iovec(payload_header),
+            smolrtsp_slice_to_iovec(payload),
+        });
+
+    const int ret = VCALL(self->transport, transmit, bufs);
+    if (ret != -1) {
+        self->seq_num++;
+        self->pkt_count++;
+        /* RFC 3550 §6.4.1: octet count covers payload only (no RTP header
+         * or padding). The codec-specific `payload_header` is part of the
+         * payload from the receiver's point of view. */
+        self->octet_count += (uint32_t)(payload_header.len + payload.len);
+        self->last_rtp_ts = rtp_ts;
+    }
+
+    return ret;
+}
+
+static uint32_t
+compute_timestamp(SmolRTSP_RtpTimestamp ts, uint32_t clock_rate) {
+    match(ts) {
+        of(SmolRTSP_RtpTimestamp_Raw, raw_ts) {
+            return *raw_ts;
+        }
+        of(SmolRTSP_RtpTimestamp_SysClockUs, time_us) {
+            const uint64_t us_rem = *time_us % 1000,
+                           ms = (*time_us - us_rem) / 1000;
+            uint32_t clock_rate_kHz = clock_rate / 1000;
+            return ms * clock_rate_kHz +
+                   (uint32_t)(us_rem * ((double)clock_rate_kHz / 1000.0));
+        }
+    }
+
+    return 0;
+}
+
+bool SmolRTSP_RtpTransport_is_full(SmolRTSP_RtpTransport *self) {
+    return VCALL(self->transport, is_full);
+}
+
+uint32_t SmolRTSP_RtpTransport_ssrc(SmolRTSP_RtpTransport *self) {
+    assert(self);
+    return self->ssrc;
+}
+
+uint32_t SmolRTSP_RtpTransport_pkt_count(SmolRTSP_RtpTransport *self) {
+    assert(self);
+    return self->pkt_count;
+}
+
+uint32_t SmolRTSP_RtpTransport_octet_count(SmolRTSP_RtpTransport *self) {
+    assert(self);
+    return self->octet_count;
+}
+
+uint32_t SmolRTSP_RtpTransport_last_rtp_ts(SmolRTSP_RtpTransport *self) {
+    assert(self);
+    return self->last_rtp_ts;
+}

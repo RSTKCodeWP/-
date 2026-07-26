@@ -46,7 +46,12 @@ python3 fpv-library/scripts/discover.py \
 
 # Pages 1–5
 python3 fpv-library/scripts/discover.py --search Fpv --pages 1-5 --expand-owners
+
+# Themed batch: GCS, fiber, WFB, OpenIPC, DroneBridge, owner ecosystems
+python3 fpv-library/scripts/discover_themes.py --pages 1-2 --min-score 2.5
 ```
+
+See [`THEMED.md`](THEMED.md) for curated project highlights.
 
 ### Sync upstream updates
 

@@ -1,0 +1,162 @@
+Straight answer first: use an **ESP32-S3** (or STM32H7) as the controller. A Raspberry Pi is overkill, adds boot time/heat, and doesn’t help demod analog CVBS. ESP32-S3 gives you fast GPIO/SPI/ADC for the sweep, tiny power, and instant-on.
+
+Below is a **complete BOM** for the Hybrid design you approved (three antennas, separate VRXs, 3.3 GHz down-converted to ~1.2 GHz IF). I’ve grouped items by function, listed control interfaces, and flagged anything you may substitute.
+
+---
+
+# A) Antennas, RF I/O, mechanics
+
+* **Antennas (SMA male):**
+
+  * 1× **1.2 GHz omni** (1.1–1.3 GHz).
+  * 1× **3.3 GHz omni** (3.1–3.6 GHz) or a small **1–6 GHz log-periodic** (directional, better range).
+  * 1× **5.8 GHz omni** (5.5–6.1 GHz).
+* **Connectors & cabling:** 3× panel-mount **SMA female bulkhead**, short RG316 pigtails to RF boards, SMA dust caps.
+* **Enclosure & hardware:** rugged plastic/ABS case, tripod insert (¼-20), shield cans for LNA/mixer/PLL, standoffs/screws.
+
+# B) Per-band RF front-ends (from antenna to VRX & detector)
+
+## LOW band (1.2 GHz – native)
+
+* **Band-pass filter (BPF) ~1.1–1.3 GHz** (ceramic/SAW).
+* **LNA**: **SPF5189Z** module (good NF, high IP3).
+* **Directional coupler**: –10 dB (0.8–6 GHz inline SMA or PCB).
+* **Log detector**: **AD8318** module (RSSI to MCU ADC).
+* **VRX #1 (1.2 GHz analog, 12-ch) with CVBS out.**
+
+  * Control: often **button/DIP only**. Plan **button-emulation** (see Section F) or choose a model with UART/SPI if you can find one.
+
+## MID band (3.3 GHz – down-convert to 1.2 GHz IF)
+
+* **Band-pass filter**: 3.1–3.6 GHz.
+* **LNA**: wideband to 6 GHz.
+* **Passive mixer**: **Mini-Circuits ZX05-43MH-S+** (or equiv).
+* **LO/PLL/VCO**: **ADF4351** module + LO BPF + 3–6 dB attenuator pad.
+
+  * Control: **SPI** from MCU (set LO ≈ 2.1 GHz so 3.3 GHz → ~1.2 GHz IF).
+* **IF filter**: **1.15–1.35 GHz BPF** (ceramic).
+* **IF gain block**: **ERA-3+ / GALI-84+** (50 Ω MMIC amp).
+* **Directional coupler**: –10 dB at IF to AD8318.
+* **Log detector**: **AD8318** module (RSSI to MCU ADC).
+* **VRX #2 (1.2 GHz analog)** dedicated to the 3.3→1.2 GHz IF path.
+
+  * Control: can be **fixed** to your chosen IF channel (no runtime control needed) or use button-emulation.
+
+## HIGH band (5.8 GHz – native)
+
+* **Band-pass filter**: 5.5–6.1 GHz.
+* **LNA**: 6 GHz-rated low-noise module (e.g., SKY6xxx-class or generic 6 GHz LNA module).
+* **Directional coupler**: –10 dB (to AD8318).
+* **Log detector**: **AD8318** module (RSSI to MCU ADC).
+* **VRX 5.8 GHz**: **RX5808/RTC6715-class module** with CVBS out.
+
+  * Control: **SPI** (set frequency directly; mature open libs exist).
+
+# C) Video path, switching, and lock detection
+
+* **3-to-1 CVBS video switch (75 Ω capable)**: **ADG774** or **TS3V340**.
+* **Sync separator**: **LM1881** (or **LMH1980**) to assert **valid PAL/NTSC lock** to MCU.
+* **3.5″ TFT display with composite video (CVBS) input** (prefer **5 V** model).
+* **AV-OUT** connector (RCA or 3.5 mm TRRS) in parallel with LCD input (after the switch; with proper buffering/impedance).
+
+# D) Control & UI electronics
+
+* **Main MCU (pick 1):**
+
+  * **ESP32-S3** module/dev board (recommended): dual-core, ADCs for AD8318, SPI for ADF4351 & video switch, I²C for OLED/gauge, PWM for buzzer. Instant-on, low power.
+  * **(Alt)** STM32H743 Nucleo if you prefer STM32Cube/HAL and more deterministic ADC timing.
+* **Status display:** 0.96″ **I²C OLED** (128×64).
+* **Inputs:** 3× momentary buttons (Menu/Monitor/Mute), 1× **rotary encoder** with push.
+* **Alerts:** **Piezo buzzer** (driven by MCU PWM), **tri-color LEDs** (one per band + status).
+* **Optional:** microSD socket (logging hits), UART/USB-serial header for debug.
+
+# E) Power system (2S Li-ion)
+
+* **Battery pack:** 2× **21700** Li-ion (≈4500–5000 mAh) with **2S BMS** (protection).
+* **USB-C charger/PMIC:** **BQ25895** (5 V in; charge 2S via appropriate front-end or use a 2S charger board—choose one approach):
+
+  * **Simpler route (recommended):** External **2S Li-ion charger** jack + internal **5 V buck** for system power from the pack (skip USB-C if time-boxed).
+* **DC/DC rails:**
+
+  * **2S → 5 V buck** (≥3 A, low ripple): feeds VRXs, LNAs, ADF4351, video switch, OLED, LCD.
+  * **5 V → 3.3 V buck/LDO** (≥1 A): MCU, logic, LM1881.
+  * **(Only if LCD needs it)** 5 V → **9–12 V boost**.
+* **Fuel gauge:** **MAX17048** (I²C).
+* **EMI**: LC filters per RF island, ferrites on each rail, star-ground at power entry, shield cans over **LNA / mixer / PLL**.
+
+# F) VRX control strategy (so the MCU can “set channels”)
+
+**5.8 GHz VRX (RX5808/RTC6715):**
+
+* Control via **SPI** (MOSI/MISO/SCLK/CS). You set frequency or standard 40/48-ch band plans directly.
+* Additional lines: **RSSI** (if module exposes), **video enable** (optional).
+
+**1.2 GHz VRXs (both units):**
+
+* Many 1.2 GHz boards are **button/DIP-driven**. Two options:
+
+  1. **Button-emulation board**: small MOSFET/optocoupler pair per button (“CH+”, “CH−”, “BAND”). MCU “presses” via GPIO for X ms. Works with any receiver that has tact switches.
+  2. **Fixed-channel approach** (simplest for the **3.3 GHz IF VRX**): set VRX #2 to a fixed IF channel (e.g., 1200/1258/1280 MHz). Then you scan 3.3 GHz by **stepping the LO** only (ADF4351); VRX #2 never changes.
+* If you can source a **1.2 GHz VRX with UART/SPI** (rarer), use that and skip button emulation.
+
+# G) Video/UI control lines (wiring)
+
+* **Video switch select (2–3 GPIOs)** → choose A/B/C.
+* **LM1881 LOCK pin** → MCU interrupt (valid video).
+* **Buzzer PWM**, **LEDs**, **buttons/encoder**, **OLED I²C** → MCU.
+* **ADF4351 SPI** (CLK, MOSI, CS) + **lock detect (MUXout)** → MCU.
+* **AD8318 analog outs (×3)** → **MCU ADC** channels.
+
+# H) Passive/RF odds-and-ends
+
+* Fixed **attenuator pads** (3–10 dB) for LO cleanup & VRX overload protection.
+* **50 Ω terminations**, SMA **T-pieces** (for bring-up), short **SMA jumpers**.
+* **Impedance-controlled PCB** or quality RF prototyping boards for the mixer/IF section.
+* **AC-coupling capacitors** (RF & CVBS), **75 Ω video resistors**.
+
+---
+
+## Quick Quantity Summary (1 unit)
+
+* Antennas: 3
+* SMA bulkhead: 3; short SMA pigtails: 3–6
+* Filters: 1.2 GHz BPF ×1, 3.3 GHz BPF ×1, 5.8 GHz BPF ×1, 1.2 GHz IF BPF ×1
+* LNAs: SPF5189Z ×2 (1.2 & pre-mixer 3.3), 6 GHz LNA ×1 (5.8)
+* Directional couplers: ×3 (one per path; plus 1 on IF if you prefer AD8318 there—already counted)
+* Log detectors: **AD8318 ×3**
+* Mixer: **ZX05-43MH-S+ ×1**
+* PLL/VCO: **ADF4351 module ×1**
+* IF amp: **ERA-3+/GALI-84+ ×1**
+* VRX modules: **1.2 GHz VRX ×2**, **5.8 GHz VRX ×1**
+* Video switch: **ADG774/TS3V340 ×1**
+* Sync separator: **LM1881/LMH1980 ×1**
+* Display: **3.5″ CVBS TFT ×1**
+* MCU: **ESP32-S3 module/dev board ×1**
+* OLED: ×1; Buzzer: ×1; Rotary encoder: ×1; Buttons: 2–3; LEDs: 3–5
+* Power: **2S pack**, **BMS**, **buck 2S→5 V**, **buck 5→3.3 V**, (**boost** if required), **charger** (USB-C or external 2S), **MAX17048**
+* Shield cans, ferrites, passives, cabling, enclosure
+
+---
+
+## Which processor to pick (final call)
+
+* **ESP32-S3 (recommended):** does everything here (ADC for AD8318, SPI for ADF4351 & 5.8-VRX, I²C for OLED/gauge, PWM for buzzer). Cold-start to scanning in ~100 ms. Battery-friendly.
+* **STM32H7 (alt):** best if your team prefers STM32 peripherals/timers. More code ceremony, similar capability.
+* **Raspberry Pi (not recommended)** unless you explicitly want HDMI UI/recording/ML add-ons. Otherwise it’s extra bulk, power, and boot delay for zero gain in analog demod.
+
+---
+
+## What I’ll wire for you in firmware (so it truly auto-switches)
+
+* **Scan loop** with per-band **adaptive thresholds** (noise floor + ΔdB).
+* **Candidate validation**: park VRX, wait 120 ms, require **LM1881 sync**.
+* **Auto video switch**: show strongest **valid** feed with **hysteresis** (+6 dB to steal focus) and **min-hold** (≥3 s) to avoid flicker.
+* **Hold/Monitor** & **Mute** modes, OLED hit list, buzzer cadence ∝ RSSI.
+
+---
+
+If you want, next I’ll turn this into:
+
+1. a **procurement sheet** (columns: item, example PN, control interface, qty, critical specs), and
+2. a **wiring map** (pin-level for ESP32-S3: SPI pins, ADC channels, GPIO mapping),
+   so your team can start ordering and crimping today.

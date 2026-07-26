@@ -1,0 +1,40 @@
+{
+  "project_info": {
+    "project_number": "655023850386",
+    "firebase_url": "https://videoexample-1b7dd.firebaseio.com",
+    "project_id": "videoexample-1b7dd",
+    "storage_bucket": "videoexample-1b7dd.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:655023850386:android:7fc59e2c01f9f880",
+        "android_client_info": {
+          "package_name": "constantin.video.example"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "655023850386-1opuejnnki9dptu5903vv16qbao2j8ka.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCZt15c1KE9DOiVhFTshK5mRhaXory6YaI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "655023850386-1opuejnnki9dptu5903vv16qbao2j8ka.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

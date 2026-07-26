@@ -1,0 +1,820 @@
+//! A reusable, non-blocking emitter that ships discrete [`EventFrame`] records
+//! from any Rust service to the logging daemon's ingest socket.
+//!
+//! The log-shipping [`crate::logd::layer`] carries `tracing` *log* events; this
+//! emitter carries the structured *events* a service wants to record as
+//! first-class, queryable rows (a regulatory-gate verdict, a bind-session
+//! lifecycle transition, a received-side link-proof state change). Until this
+//! module existed, only log lines reached the daemon; a service had no way to
+//! emit a typed event with an open detail map. This closes that gap with the
+//! same transport discipline as the log layer:
+//!
+//! - [`EventEmitter::emit`] redacts any secret-bearing detail field, frames an
+//!   [`EventFrame`], and hands it to a bounded channel with a non-blocking send.
+//!   A full channel drops the event and counts it — the producer never blocks.
+//! - A single background task drains the channel, batches frames, and writes
+//!   them to the ingest socket through a reconnecting writer. An absent socket
+//!   (the daemon not yet up, or restarting) backs off quietly; it never panics,
+//!   never blocks the producer, and never logs an error that could disrupt the
+//!   service.
+//! - The writer's hot path never emits a `tracing` event, so shipping an event
+//!   can never recurse into another shipped log.
+//!
+//! Unlike the log layer, this module is **not** behind the `tracing-layer`
+//! feature: events are a first-class capture path a service reaches for directly
+//! (`emitter.emit(...)`), independent of whether the binary installs the log
+//! layer. Redaction happens before a frame ever leaves the process, so a secret
+//! is never written to the socket or to disk.
+
+use std::collections::VecDeque;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+use tokio::io::AsyncWriteExt;
+use tokio::net::UnixStream;
+use tokio::sync::mpsc;
+
+use crate::logd::{EventFrame, Fields, IngestFrame, Level, TelemetryFrame};
+
+/// Default ingest socket path. Producers connect here to write framed records.
+/// The single source of truth for the path shared by the log layer and the
+/// event emitter.
+pub const DEFAULT_INGEST_SOCK: &str = "/run/ados/logd.sock";
+
+/// Channel capacity between an emitter and its background shipper. Events are
+/// low-rate (a verdict, a lifecycle transition), so a modest buffer rides a
+/// brief writer stall without dropping while bounding pinned memory.
+pub const EVENT_CHANNEL_CAPACITY: usize = 256;
+
+/// Channel capacity between an [`IngestEmitter`] and its background shipper.
+/// Larger than the event buffer because this channel also carries periodic
+/// telemetry samples (a handful of metrics per second per producer); the extra
+/// headroom rides a brief writer stall without shedding the low-severity stream.
+pub const INGEST_CHANNEL_CAPACITY: usize = 512;
+
+/// Maximum frames coalesced into one socket write.
+const BATCH_MAX_FRAMES: usize = 64;
+
+/// Upper bound on the frames the shipper holds across a disconnected window. The
+/// shipper carries its pending batch over a failed connect (so an early producer's
+/// frames survive the daemon coming up late) instead of dropping it; this caps the
+/// pinned memory of that buffer. At a few hundred bytes per frame this is well
+/// under a megabyte. When full, the oldest frame is dropped (and counted) so the
+/// freshest state — the one an RCA wants — is the one retained.
+const SHIPPER_BUFFER_MAX_FRAMES: usize = 1024;
+
+/// Reconnect backoff schedule (milliseconds). The writer steps through these on
+/// repeated connect failures and holds at the last value, so an absent socket
+/// produces a slow, quiet retry rather than a hot loop.
+const BACKOFF_MS: [u64; 5] = [250, 500, 1000, 2000, 5000];
+
+/// Counters surfaced for diagnostics: events enqueued for shipping and events
+/// dropped because the channel was full. A visible drop is better than a silent
+/// one. Cheap atomics so the emit path stays lock-free.
+#[derive(Debug, Default)]
+pub struct EmitterStats {
+    enqueued: AtomicU64,
+    dropped: AtomicU64,
+}
+
+impl EmitterStats {
+    fn record_enqueued(&self) {
+        self.enqueued.fetch_add(1, Ordering::Relaxed);
+    }
+
+    fn record_dropped(&self) {
+        self.dropped.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Total events handed to the shipper channel.
+    pub fn enqueued(&self) -> u64 {
+        self.enqueued.load(Ordering::Relaxed)
+    }
+
+    /// Total events dropped at the channel boundary under backpressure.
+    pub fn dropped(&self) -> u64 {
+        self.dropped.load(Ordering::Relaxed)
+    }
+}
+
+/// Ships structured events to the logging daemon's ingest socket.
+///
+/// Construct it with [`EventEmitter::new`] (or [`EventEmitter::with_socket`])
+/// inside a running tokio runtime — the background shipper is spawned at
+/// construction. Clone it freely: every clone shares the one shipper channel and
+/// the one stats handle, so a service can hand a clone to each task that needs to
+/// record an event without standing up a second shipper.
+#[derive(Clone)]
+pub struct EventEmitter {
+    source: Arc<str>,
+    tx: mpsc::Sender<EventFrame>,
+    stats: Arc<EmitterStats>,
+}
+
+impl EventEmitter {
+    /// Build an emitter for the default ingest socket, tagging every event with
+    /// `source` (the binary name). Spawns the background shipper on the current
+    /// tokio runtime; must be called from within a runtime context.
+    pub fn new(source: impl Into<String>) -> Self {
+        Self::with_socket(source, DEFAULT_INGEST_SOCK)
+    }
+
+    /// Build an emitter that ships to an explicit socket path (used by tests).
+    /// Spawns the background shipper on the current tokio runtime.
+    pub fn with_socket(source: impl Into<String>, socket: impl AsRef<Path>) -> Self {
+        let (tx, rx) = mpsc::channel::<EventFrame>(EVENT_CHANNEL_CAPACITY);
+        let stats = Arc::new(EmitterStats::default());
+        let path = socket.as_ref().to_path_buf();
+        tokio::spawn(shipper_task(rx, path, Arc::clone(&stats)));
+        Self {
+            source: source.into().into(),
+            tx,
+            stats,
+        }
+    }
+
+    /// The diagnostic counters for this emitter (enqueued / dropped).
+    pub fn stats(&self) -> Arc<EmitterStats> {
+        Arc::clone(&self.stats)
+    }
+
+    /// Record one event: `kind` is the dotted classifier, `severity` the level,
+    /// `detail` the open field map (redacted in place before it leaves the
+    /// process). Wait-free: a full channel drops the event and counts it, a
+    /// closed channel (shipper gone) is a silent drop. Never blocks the caller,
+    /// so an event recorded from a hot loop or a heartbeat tick cannot stall.
+    pub fn emit(&self, kind: impl Into<String>, severity: Level, detail: Fields) {
+        let mut frame = EventFrame::new(now_us(), kind.into(), self.source.to_string(), severity);
+        frame.detail = detail;
+        // Redact before the frame leaves the process: a secret-bearing detail
+        // field is hashed at the source so a raw value never reaches the socket
+        // or disk (the daemon redacts again at ingest as belt-and-suspenders).
+        frame.redact_detail();
+        match self.tx.try_send(frame) {
+            Ok(()) => self.stats.record_enqueued(),
+            Err(mpsc::error::TrySendError::Full(_)) => self.stats.record_dropped(),
+            Err(mpsc::error::TrySendError::Closed(_)) => self.stats.record_dropped(),
+        }
+    }
+}
+
+/// Ships telemetry samples and discrete events to the logging daemon's ingest
+/// socket over the same reconnecting, batched, non-blocking transport the
+/// [`EventEmitter`] uses, but over one channel typed on the full [`IngestFrame`]
+/// so a single shipper carries both [`TelemetryFrame`] metrics and
+/// [`EventFrame`] events.
+///
+/// This is the producer-side counterpart to the in-process metric path the
+/// logging daemon's own hardware collector uses: a Rust service outside the
+/// daemon cannot push onto that in-process channel, so it frames each sample and
+/// writes it to the ingest socket here. Construct it with [`IngestEmitter::new`]
+/// inside a running tokio runtime (the background shipper is spawned at
+/// construction); clone it freely (every clone shares the one shipper and stats).
+///
+/// Backpressure: telemetry is low-severity and droppable. A full channel drops
+/// the frame and counts it; the producer never blocks. An absent daemon socket
+/// (not yet up, or restarting) backs off quietly and is never an error.
+#[derive(Clone)]
+pub struct IngestEmitter {
+    source: Arc<str>,
+    tx: mpsc::Sender<IngestFrame>,
+    stats: Arc<EmitterStats>,
+}
+
+impl IngestEmitter {
+    /// Build an emitter for the default ingest socket, tagging events with
+    /// `source` (the binary name). Spawns the background shipper on the current
+    /// tokio runtime; must be called from within a runtime context.
+    pub fn new(source: impl Into<String>) -> Self {
+        Self::with_socket(source, DEFAULT_INGEST_SOCK)
+    }
+
+    /// Build an emitter that ships to an explicit socket path (used by tests).
+    /// Spawns the background shipper on the current tokio runtime.
+    pub fn with_socket(source: impl Into<String>, socket: impl AsRef<Path>) -> Self {
+        let (tx, rx) = mpsc::channel::<IngestFrame>(INGEST_CHANNEL_CAPACITY);
+        let stats = Arc::new(EmitterStats::default());
+        let path = socket.as_ref().to_path_buf();
+        tokio::spawn(ingest_shipper_task(rx, path, Arc::clone(&stats)));
+        Self {
+            source: source.into().into(),
+            tx,
+            stats,
+        }
+    }
+
+    /// The diagnostic counters for this emitter (enqueued / dropped).
+    pub fn stats(&self) -> Arc<EmitterStats> {
+        Arc::clone(&self.stats)
+    }
+
+    /// Record one telemetry sample: `metric` is the dotted key, `value` the
+    /// numeric reading, `tags` the open dimension map. Wait-free: a full channel
+    /// drops the sample and counts it, so a metric emitted from a 1 Hz loop can
+    /// never stall the producer. Telemetry carries no secret-bearing material
+    /// (the keys are fixed dotted names), so no redaction is applied here; the
+    /// daemon redacts again at ingest as belt-and-suspenders.
+    pub fn emit_metric(&self, metric: impl Into<String>, value: f64, tags: Fields) {
+        let mut frame = TelemetryFrame::new(now_us(), metric, value);
+        frame.tags = tags;
+        self.send(IngestFrame::Telemetry(frame));
+    }
+
+    /// Record one discrete event: `kind` is the dotted classifier, `severity`
+    /// the level, `detail` the open field map (redacted in place before it leaves
+    /// the process). Wait-free, same drop-and-count discipline as
+    /// [`EventEmitter::emit`].
+    pub fn emit_event(&self, kind: impl Into<String>, severity: Level, detail: Fields) {
+        let mut frame = EventFrame::new(now_us(), kind.into(), self.source.to_string(), severity);
+        frame.detail = detail;
+        frame.redact_detail();
+        self.send(IngestFrame::Event(frame));
+    }
+
+    /// Non-blocking enqueue: a full or closed channel is a counted drop.
+    fn send(&self, frame: IngestFrame) {
+        match self.tx.try_send(frame) {
+            Ok(()) => self.stats.record_enqueued(),
+            Err(_) => self.stats.record_dropped(),
+        }
+    }
+}
+
+/// Encode a batch of ingest frames into one length-prefixed byte buffer. A frame
+/// that fails to encode (e.g. an oversized payload) is skipped rather than
+/// aborting the batch, so one bad record never blocks the rest.
+fn encode_ingest_batch(batch: &[IngestFrame]) -> Vec<u8> {
+    let mut buf = Vec::new();
+    for frame in batch {
+        if let Ok(bytes) = frame.encode() {
+            buf.extend_from_slice(&bytes);
+        }
+    }
+    buf
+}
+
+/// Drain the ingest channel and ship over the shared transport. Mirrors
+/// [`shipper_task`] but over the [`IngestFrame`] channel so the one shipper
+/// carries both telemetry and events.
+async fn ingest_shipper_task(
+    rx: mpsc::Receiver<IngestFrame>,
+    path: PathBuf,
+    stats: Arc<EmitterStats>,
+) {
+    run_shipper(rx, path, stats, encode_ingest_batch).await;
+}
+
+/// Push a frame onto the pending buffer, bounded at [`SHIPPER_BUFFER_MAX_FRAMES`].
+/// When full, the oldest frame is evicted (and counted as a drop) so the freshest
+/// frames win — the state an RCA cares about. Memory stays pinned at the cap.
+fn push_bounded<T>(pending: &mut VecDeque<T>, frame: T, stats: &EmitterStats) {
+    if pending.len() >= SHIPPER_BUFFER_MAX_FRAMES {
+        pending.pop_front();
+        stats.record_dropped();
+    }
+    pending.push_back(frame);
+}
+
+/// Ship one front batch (up to [`BATCH_MAX_FRAMES`]) and, on a confirmed write,
+/// remove those frames from the buffer. A batch whose every frame failed to encode
+/// is consumed too, so a single bad record can never wedge the buffer. Returns
+/// whether the buffer advanced (false on a write failure, which also drops the
+/// connection so the next attempt reconnects).
+async fn ship_front<T>(
+    writer: &mut SocketWriter,
+    pending: &mut VecDeque<T>,
+    encode: fn(&[T]) -> Vec<u8>,
+) -> bool {
+    let take = pending.len().min(BATCH_MAX_FRAMES);
+    if take == 0 {
+        return false;
+    }
+    let buf = encode(&pending.make_contiguous()[..take]);
+    if buf.is_empty() || writer.write_all(&buf).await {
+        for _ in 0..take {
+            pending.pop_front();
+        }
+        true
+    } else {
+        false
+    }
+}
+
+/// Drain a frame channel, hold the pending frames in a bounded buffer across a
+/// disconnected window, and ship them once the ingest socket is reachable. Runs
+/// until the channel closes and the buffer drains (or the channel is closed and
+/// the socket is unreachable, so nothing more can be delivered), then exits.
+///
+/// The key property over a per-iteration throwaway batch: a failed connect does
+/// NOT drop the held frames. An emitter that records before the daemon's socket
+/// exists (e.g. a service's startup-time state transitions, emitted before the
+/// logging unit is listening) keeps those frames buffered and flushes them the
+/// instant the socket appears, instead of losing the first batch. Wait-free for
+/// `emit()` callers is unchanged: the bounded channel + `try_send` drop-on-full is
+/// still the producer-side overflow valve; this buffer is the shipper-side one.
+/// The hot path never emits a `tracing` event, so shipping can never recurse.
+async fn run_shipper<T>(
+    mut rx: mpsc::Receiver<T>,
+    path: PathBuf,
+    stats: Arc<EmitterStats>,
+    encode: fn(&[T]) -> Vec<u8>,
+) {
+    let mut writer = SocketWriter::new(path);
+    let mut pending: VecDeque<T> = VecDeque::with_capacity(BATCH_MAX_FRAMES);
+    let mut closed = false;
+
+    loop {
+        // Idle cheaply when nothing is buffered: block for the next frame. A
+        // closed channel with an empty buffer means there is no more work.
+        if pending.is_empty() {
+            if closed {
+                break;
+            }
+            match rx.recv().await {
+                Some(frame) => push_bounded(&mut pending, frame, &stats),
+                None => break,
+            }
+        }
+
+        // Pull everything already queued into the bounded buffer without blocking.
+        loop {
+            match rx.try_recv() {
+                Ok(frame) => push_bounded(&mut pending, frame, &stats),
+                Err(mpsc::error::TryRecvError::Empty) => break,
+                Err(mpsc::error::TryRecvError::Disconnected) => {
+                    closed = true;
+                    break;
+                }
+            }
+        }
+
+        // Connect (with backoff) and ship a front batch; a failed connect holds
+        // the buffer and retries on the next pass. If the channel is also closed
+        // and the socket is unreachable, nothing more can arrive or be delivered,
+        // so stop rather than spin.
+        if writer.ensure_connected().await {
+            ship_front(&mut writer, &mut pending, encode).await;
+        } else if closed {
+            break;
+        }
+    }
+
+    // Bounded final flush: drain whatever remains while a live connection holds,
+    // never opening a new one (no backoff), so shutdown stays prompt.
+    while writer.stream.is_some() && ship_front(&mut writer, &mut pending, encode).await {}
+}
+
+/// Microsecond epoch timestamp for the current instant.
+fn now_us() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_micros() as i64)
+        .unwrap_or(0)
+}
+
+/// The reconnecting socket writer. Holds at most one live connection; on any I/O
+/// error it drops the connection and reconnects on the backoff schedule. All
+/// failures are swallowed — the socket being absent is the expected steady state
+/// before the daemon's unit is enabled, so it must never log or panic.
+struct SocketWriter {
+    path: PathBuf,
+    stream: Option<UnixStream>,
+    backoff_idx: usize,
+}
+
+impl SocketWriter {
+    fn new(path: PathBuf) -> Self {
+        Self {
+            path,
+            stream: None,
+            backoff_idx: 0,
+        }
+    }
+
+    /// Ensure a live connection, connecting if needed. Returns `false` (after a
+    /// backoff sleep) when the socket cannot be reached, so the caller can retry
+    /// later without hot-spinning.
+    async fn ensure_connected(&mut self) -> bool {
+        if self.stream.is_some() {
+            return true;
+        }
+        match UnixStream::connect(&self.path).await {
+            Ok(s) => {
+                self.stream = Some(s);
+                self.backoff_idx = 0;
+                true
+            }
+            Err(_) => {
+                let ms = BACKOFF_MS[self.backoff_idx.min(BACKOFF_MS.len() - 1)];
+                self.backoff_idx = (self.backoff_idx + 1).min(BACKOFF_MS.len() - 1);
+                tokio::time::sleep(Duration::from_millis(ms)).await;
+                false
+            }
+        }
+    }
+
+    /// Write one pre-framed byte buffer (a concatenation of length-prefixed
+    /// frames) to the socket. On error, drops the connection so the next call
+    /// reconnects. Returns `true` on success.
+    async fn write_all(&mut self, buf: &[u8]) -> bool {
+        let Some(stream) = self.stream.as_mut() else {
+            return false;
+        };
+        match stream.write_all(buf).await {
+            Ok(()) => true,
+            Err(_) => {
+                // The daemon went away or the socket errored: drop the handle so
+                // the next batch reconnects from scratch. The dropped batch is
+                // lost on the durable path, but journald still has the line the
+                // service logged alongside the event.
+                self.stream = None;
+                false
+            }
+        }
+    }
+}
+
+/// Encode a batch of event frames into one length-prefixed byte buffer. A frame
+/// that fails to encode (e.g. an oversized payload) is skipped rather than
+/// aborting the batch, so one bad record never blocks the rest.
+fn encode_batch(batch: &[EventFrame]) -> Vec<u8> {
+    let mut buf = Vec::new();
+    for frame in batch {
+        if let Ok(bytes) = IngestFrame::Event(frame.clone()).encode() {
+            buf.extend_from_slice(&bytes);
+        }
+    }
+    buf
+}
+
+/// Drain the event channel and ship over the shared transport. A thin wrapper
+/// over [`run_shipper`] specialised to [`EventFrame`].
+async fn shipper_task(rx: mpsc::Receiver<EventFrame>, path: PathBuf, stats: Arc<EmitterStats>) {
+    run_shipper(rx, path, stats, encode_batch).await;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rmpv::Value as MpVal;
+    use tokio::io::AsyncReadExt;
+    use tokio::net::{UnixListener, UnixStream};
+
+    use crate::frame::{decode_len, HEADER_SIZE};
+    use crate::logd::LOGD_MAX_FRAME;
+
+    fn tmp_sock() -> PathBuf {
+        // A process-unique monotonic counter avoids the same-microsecond
+        // collision two concurrent tests would otherwise hit on `now_us()`.
+        static SEQ: AtomicU64 = AtomicU64::new(0);
+        let mut p = std::env::temp_dir();
+        let uniq = format!(
+            "ados-logd-emitter-test-{}-{}-{}.sock",
+            std::process::id(),
+            now_us(),
+            SEQ.fetch_add(1, Ordering::Relaxed)
+        );
+        p.push(uniq);
+        let _ = std::fs::remove_file(&p);
+        p
+    }
+
+    fn detail(pairs: &[(&str, MpVal)]) -> Fields {
+        pairs
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.clone()))
+            .collect()
+    }
+
+    /// Read one length-prefixed ingest frame off a connected stream.
+    async fn read_one(stream: &mut UnixStream) -> IngestFrame {
+        let mut header = [0u8; HEADER_SIZE];
+        stream.read_exact(&mut header).await.unwrap();
+        let len = decode_len(header, LOGD_MAX_FRAME, true).unwrap();
+        let mut body = vec![0u8; len];
+        stream.read_exact(&mut body).await.unwrap();
+        IngestFrame::decode(&body).unwrap()
+    }
+
+    #[tokio::test]
+    async fn ships_a_redacted_event_to_a_live_socket() {
+        let path = tmp_sock();
+        let listener = UnixListener::bind(&path).unwrap();
+        let accept = {
+            let listener = listener;
+            tokio::spawn(async move {
+                let (mut stream, _) = listener.accept().await.unwrap();
+                read_one(&mut stream).await
+            })
+        };
+
+        let emitter = EventEmitter::with_socket("ados-test", &path);
+        emitter.emit(
+            "radio.reg_gate",
+            Level::Warn,
+            detail(&[
+                ("result", MpVal::from("blocked")),
+                ("channel", MpVal::from(149u64)),
+                // A secret-bearing detail field must be redacted before it leaves.
+                ("session_token", MpVal::from("tok_supersecretvalue")),
+            ]),
+        );
+
+        let frame = tokio::time::timeout(Duration::from_secs(5), accept)
+            .await
+            .expect("event delivered within the deadline")
+            .expect("accept task ok");
+
+        match frame {
+            IngestFrame::Event(evt) => {
+                assert_eq!(evt.source, "ados-test");
+                assert_eq!(evt.kind, "radio.reg_gate");
+                assert_eq!(evt.severity, Level::Warn);
+                assert_eq!(
+                    evt.detail.get("result").and_then(|v| v.as_str()),
+                    Some("blocked")
+                );
+                assert_eq!(
+                    evt.detail.get("channel").and_then(|v| v.as_u64()),
+                    Some(149)
+                );
+                assert_eq!(
+                    evt.detail.get("session_token").and_then(|v| v.as_str()),
+                    Some("redacted:tok_...160e465f")
+                );
+            }
+            other => panic!("expected an event frame, got {other:?}"),
+        }
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn absent_socket_never_blocks_or_panics() {
+        // Point the emitter at a path with no listener. Recording events must not
+        // block the producer or panic; frames are dropped on the durable path
+        // while the shipper backs off quietly.
+        let path = tmp_sock(); // never bound
+        let emitter = EventEmitter::with_socket("ados-test", &path);
+        for i in 0..20 {
+            emitter.emit("radio.bind", Level::Info, detail(&[("n", MpVal::from(i))]));
+        }
+        assert!(emitter.stats().enqueued() >= 1, "at least one enqueued");
+        // Give the shipper a moment to attempt and fail a connection; it must
+        // still be alive and the test still running (no panic propagated).
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn full_channel_drops_without_blocking_and_counts_it() {
+        // Point at an absent socket so the shipper parks in backoff and never
+        // drains, then flood past the channel capacity. Emits must return
+        // immediately and the overflow is counted.
+        let path = tmp_sock(); // never bound
+        let emitter = EventEmitter::with_socket("ados-test", &path);
+        let total = EVENT_CHANNEL_CAPACITY * 2;
+        for n in 0..total {
+            emitter.emit(
+                "radio.rf_unverified",
+                Level::Warn,
+                detail(&[("n", MpVal::from(n as u64))]),
+            );
+        }
+        let enq = emitter.stats().enqueued();
+        let drp = emitter.stats().dropped();
+        assert_eq!(enq + drp, total as u64, "every event accounted for");
+        assert!(drp >= 1, "overflow past capacity was dropped and counted");
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn a_clone_shares_the_shipper_and_stats() {
+        let path = tmp_sock();
+        let listener = UnixListener::bind(&path).unwrap();
+        // Drain everything so the channel stays empty across both handles.
+        tokio::spawn(async move {
+            loop {
+                let Ok((mut stream, _)) = listener.accept().await else {
+                    break;
+                };
+                let mut sink = [0u8; 4096];
+                while stream.read(&mut sink).await.unwrap_or(0) > 0 {}
+            }
+        });
+
+        let emitter = EventEmitter::with_socket("ados-test", &path);
+        let clone = emitter.clone();
+        emitter.emit("radio.bind", Level::Info, Fields::new());
+        clone.emit("radio.bind", Level::Info, Fields::new());
+        // Both handles report through the one shared stats counter.
+        assert_eq!(emitter.stats().enqueued(), 2);
+        assert_eq!(clone.stats().dropped(), 0);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    // --- IngestEmitter (telemetry + events over one shipper) ------------
+
+    #[tokio::test]
+    async fn ingest_ships_a_telemetry_frame_with_tags() {
+        let path = tmp_sock();
+        let listener = UnixListener::bind(&path).unwrap();
+        let accept = tokio::spawn(async move {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            read_one(&mut stream).await
+        });
+
+        let emitter = IngestEmitter::with_socket("ados-test", &path);
+        let mut tags = Fields::new();
+        tags.insert("direction".to_string(), MpVal::from("downlink"));
+        tags.insert("link".to_string(), MpVal::from("video"));
+        emitter.emit_metric("link.rssi_dbm", -53.0, tags);
+
+        let frame = tokio::time::timeout(Duration::from_secs(5), accept)
+            .await
+            .expect("metric delivered within the deadline")
+            .expect("accept task ok");
+
+        match frame {
+            IngestFrame::Telemetry(t) => {
+                assert_eq!(t.metric, "link.rssi_dbm");
+                assert_eq!(t.value, -53.0);
+                assert_eq!(
+                    t.tags.get("direction").and_then(|v| v.as_str()),
+                    Some("downlink")
+                );
+                assert_eq!(t.tags.get("link").and_then(|v| v.as_str()), Some("video"));
+            }
+            other => panic!("expected a telemetry frame, got {other:?}"),
+        }
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn ingest_ships_a_redacted_event() {
+        let path = tmp_sock();
+        let listener = UnixListener::bind(&path).unwrap();
+        let accept = tokio::spawn(async move {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            read_one(&mut stream).await
+        });
+
+        let emitter = IngestEmitter::with_socket("ados-test", &path);
+        emitter.emit_event(
+            "link.unlock",
+            Level::Warn,
+            detail(&[
+                ("reason", MpVal::from("loss")),
+                // A secret-bearing detail field must be redacted before it leaves.
+                ("session_token", MpVal::from("tok_supersecretvalue")),
+            ]),
+        );
+
+        let frame = tokio::time::timeout(Duration::from_secs(5), accept)
+            .await
+            .expect("event delivered within the deadline")
+            .expect("accept task ok");
+
+        match frame {
+            IngestFrame::Event(evt) => {
+                assert_eq!(evt.source, "ados-test");
+                assert_eq!(evt.kind, "link.unlock");
+                assert_eq!(evt.severity, Level::Warn);
+                assert_eq!(
+                    evt.detail.get("session_token").and_then(|v| v.as_str()),
+                    Some("redacted:tok_...160e465f")
+                );
+            }
+            other => panic!("expected an event frame, got {other:?}"),
+        }
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn ingest_absent_socket_never_blocks_or_panics() {
+        let path = tmp_sock(); // never bound
+        let emitter = IngestEmitter::with_socket("ados-test", &path);
+        for i in 0..20 {
+            let mut tags = Fields::new();
+            tags.insert("n".to_string(), MpVal::from(i as u64));
+            emitter.emit_metric("video.framerate_hz", 30.0, tags);
+        }
+        assert!(emitter.stats().enqueued() >= 1, "at least one enqueued");
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn ingest_full_channel_drops_without_blocking_and_counts_it() {
+        let path = tmp_sock(); // never bound, so the shipper parks in backoff
+        let emitter = IngestEmitter::with_socket("ados-test", &path);
+        let total = INGEST_CHANNEL_CAPACITY * 2;
+        for n in 0..total {
+            emitter.emit_metric("cpu.utilization_pct", n as f64, Fields::new());
+        }
+        let enq = emitter.stats().enqueued();
+        let drp = emitter.stats().dropped();
+        assert_eq!(enq + drp, total as u64, "every sample accounted for");
+        assert!(drp >= 1, "overflow past capacity was dropped and counted");
+        let _ = std::fs::remove_file(&path);
+    }
+
+    // --- shipper buffering (the early-producer fix) ----------------------
+
+    #[test]
+    fn push_bounded_caps_the_buffer_and_drops_oldest() {
+        let stats = EmitterStats::default();
+        let mut pending: VecDeque<u64> = VecDeque::new();
+        // Push ten past the cap: the buffer holds exactly the cap, the ten oldest
+        // are dropped and counted, and the newest survive.
+        let total = SHIPPER_BUFFER_MAX_FRAMES as u64 + 10;
+        for i in 0..total {
+            push_bounded(&mut pending, i, &stats);
+        }
+        assert_eq!(pending.len(), SHIPPER_BUFFER_MAX_FRAMES);
+        assert_eq!(
+            stats.dropped(),
+            10,
+            "the ten oldest were dropped and counted"
+        );
+        assert_eq!(*pending.front().unwrap(), 10, "oldest survivor is frame 10");
+        assert_eq!(*pending.back().unwrap(), total - 1, "newest frame retained");
+    }
+
+    #[tokio::test]
+    async fn buffered_events_survive_a_late_socket() {
+        // Emit before any listener exists. The old shipper dropped the batch on
+        // its first failed connect; the buffered shipper must hold the frames and
+        // flush them once the socket appears.
+        let path = tmp_sock(); // not bound yet
+        let emitter = EventEmitter::with_socket("ados-test", &path);
+        for i in 0..3u64 {
+            emitter.emit("radio.bind", Level::Info, detail(&[("n", MpVal::from(i))]));
+        }
+        // Yield so the shipper attempts a connect, fails, and parks in backoff
+        // while holding the three frames.
+        tokio::time::sleep(Duration::from_millis(60)).await;
+
+        // Bring the socket up; the held frames must arrive, in order.
+        let listener = UnixListener::bind(&path).unwrap();
+        let got = tokio::time::timeout(Duration::from_secs(5), async {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let mut ns = Vec::new();
+            for _ in 0..3 {
+                match read_one(&mut stream).await {
+                    IngestFrame::Event(e) => {
+                        ns.push(e.detail.get("n").and_then(|v| v.as_u64()).unwrap());
+                    }
+                    other => panic!("expected an event frame, got {other:?}"),
+                }
+            }
+            ns
+        })
+        .await
+        .expect("the held events were delivered after the socket appeared");
+        assert_eq!(
+            got,
+            vec![0, 1, 2],
+            "all three early events arrived in order"
+        );
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn ingest_buffered_metrics_survive_a_late_socket() {
+        // The IngestEmitter shares the one shipper, so the late-socket hold applies
+        // to telemetry too.
+        let path = tmp_sock(); // not bound yet
+        let emitter = IngestEmitter::with_socket("ados-test", &path);
+        for i in 0..3u64 {
+            let mut tags = Fields::new();
+            tags.insert("n".to_string(), MpVal::from(i));
+            emitter.emit_metric("cpu.utilization_pct", i as f64, tags);
+        }
+        tokio::time::sleep(Duration::from_millis(60)).await;
+
+        let listener = UnixListener::bind(&path).unwrap();
+        let got = tokio::time::timeout(Duration::from_secs(5), async {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let mut ns = Vec::new();
+            for _ in 0..3 {
+                match read_one(&mut stream).await {
+                    IngestFrame::Telemetry(t) => {
+                        ns.push(t.tags.get("n").and_then(|v| v.as_u64()).unwrap());
+                    }
+                    other => panic!("expected a telemetry frame, got {other:?}"),
+                }
+            }
+            ns
+        })
+        .await
+        .expect("the held metrics were delivered after the socket appeared");
+        assert_eq!(
+            got,
+            vec![0, 1, 2],
+            "all three early metrics arrived in order"
+        );
+        let _ = std::fs::remove_file(&path);
+    }
+}

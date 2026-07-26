@@ -1,0 +1,117 @@
+# ADOS Ground Station — Software Architecture
+
+## Overview
+
+Same `ados` package as the air unit, running with the `ground_station` profile.
+Profile and role settings switch services from transmit behavior to receive,
+relay, setup webapp, and local mesh behavior. One codebase supports both air
+and ground nodes.
+
+## Service Layout
+
+```
+┌────────────────────────────────────────────────┐
+│          ADOS Ground Station profile            │
+│                                                  │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐      │
+│  │ wfb_rx   │  │ mediamtx │  │ MAVLink  │      │
+│  │ (receive │  │ (WebRTC  │  │ Relay    │      │
+│  │  video + │  │  relay   │  │ (WS/TCP/ │      │
+│  │  telem)  │  │  to      │  │  UDP to  │      │
+│  │          │  │  browser) │  │  GCS)    │      │
+│  └──────────┘  └──────────┘  └──────────┘      │
+│  ┌──────────┐  ┌──────────┐                     │
+│  │ WiFi AP  │  │ REST API │                     │
+│  │ +Captive │  │ + WebApp │                     │
+│  │  Portal  │  │ + facade │                     │
+│  └──────────┘  └──────────┘                     │
+└────────────────────────────────────────────────┘
+```
+
+The REST API is served by `ados-api` on `:8080`. Route handlers read
+ground-station status, WFB-ng state, network state, and physical UI state
+through the API runtime facade rather than by depending on service internals.
+
+## Data Flow
+
+```
+DRONE (air unit):
+  Camera → H.264 HW encode → wfb_tx → RTL8812EU (5.8GHz broadcast)
+      ↓ (RF, 30-70ms, 5-50km)
+GROUND STATION:
+  RTL8812EU (RX) → wfb_rx → H.264 stream
+      ↓
+  mediamtx (RTSP input → WebRTC output)
+      ↓
+  WiFi AP (ADOS-GS-XXXX)
+      ↓
+  Phone/Laptop browser → WebRTC video + MAVLink telemetry
+```
+
+## Configuration Differences
+
+| Setting | Air Unit | Ground Station |
+|---------|----------|---------------|
+| `wfb.mode` | `tx` | `rx` |
+| `video.enabled` | `true` (captures from camera) | `false` (receives, does not capture) |
+| `mavlink.serial_port` | `/dev/ttyAMA0` (UART to FC) | `none` |
+| `wifi_ap.enabled` | `false` (optional) | `true` (always) |
+| `mediamtx.enabled` | `false` | `true` |
+
+## Boot Sequence
+
+1. Detect profile from config and hardware fingerprint
+2. Start `ados-api` with the ground-station route surface on `:8080`
+3. Start `wfb_rx` (monitor mode, listen on configured channel)
+4. Start `mediamtx` (RTSP ingest from wfb_rx, WebRTC output)
+5. Start WiFi AP (`hostapd`, SSID: `ADOS-GS-XXXX`)
+6. Start setup webapp and captive portal services when enabled
+7. Start role-specific mesh, relay, receiver, OLED, button, and kiosk services
+8. LED solid green when required services are healthy
+
+## Memory Estimate (Ground Station on RK3566)
+
+| Service | RAM Usage |
+|---------|----------|
+| wfb_rx | ~20 MB |
+| mediamtx | ~50 MB |
+| Python (ados) | ~30 MB |
+| hostapd + dnsmasq | ~5 MB |
+| OS (Armbian minimal) | ~80 MB |
+| **Total** | **~185 MB** |
+
+Fits comfortably in 2GB RAM (Radxa CM3 Lite variant).
+
+## Key Design Decisions
+
+- **mediamtx for video relay.** Accepts RTSP from wfb_rx, serves WebRTC to browsers. No transcoding. Copy codec only. Adds ~1-3ms latency.
+- **WiFi AP instead of Ethernet.** Most field operators carry phones, not laptops with Ethernet cables. WiFi AP gives instant connectivity without cables.
+- **Captive portal for first boot.** Auto-redirects to setup wizard when user connects to WiFi. No need to know the IP address.
+- **WebRTC over HLS/DASH.** WebRTC gives sub-second latency. HLS/DASH add 3-10 seconds of buffering. Not acceptable for drone video.
+- **MAVLink over WebSocket.** Browsers cannot open raw TCP/UDP sockets. WebSocket is the only option for bidirectional binary data in a browser.
+
+## Multi-Node Topology (Distributed Receive)
+
+A single-node ground station (`direct` role) serves one site. When the flight area is obstructed or stretched along a corridor, two or three ground nodes can work together. One node becomes the `receiver` hub. Every other node becomes a `relay` that forwards WFB-ng fragments it hears.
+
+```
+  DRONE (single wfb_tx, 5.8 GHz)
+    │
+    ├── heard by relay A  ──►  batman-adv mesh  ──┐
+    ├── heard by relay B  ──►  batman-adv mesh  ──┤
+    └── heard by receiver ─────────────────────── ▼
+                                                  wfb_rx -a on receiver
+                                                  (Reed-Solomon FEC combine)
+                                                    │
+                                          mediamtx → WebRTC → browser
+```
+
+**Transport.** batman-adv on a second USB WiFi dongle per relay and receiver. The dongle runs in 802.11s (or IBSS) mode; the kernel module advertises OGMv2 messages every second and converges on routes in 3-5 s.
+
+**Discovery.** The receiver publishes `_ados-receiver._tcp` on the `bat0` interface. Relays resolve the receiver during role transition and re-resolve if the record disappears.
+
+**Cloud uplink.** Any node with WiFi client, Ethernet, or 4G can advertise itself as a batman-adv gateway (`gw server`). The receiver picks the best gateway by measured TQ via `gw client`. Gateway election is automatic and survives the loss of any one uplink.
+
+**Partition tolerance.** If the mesh splits, each side converges independently. When the partition heals, batman-adv re-merges routes. Pairing credentials survive partitions because they are stored per node at install time, not on the receiver.
+
+**Single-node stays the default.** The three-role code paths are gated by `ground_station.role` in config. A `direct` install never starts batman-adv, never opens UDP 5801, and behaves exactly like it did before.

@@ -1,0 +1,17 @@
+{
+  "detailsFor": "Dettagli per {{name}}",
+  "submit": "Salva impostazioni",
+  "loading": "Caricamento dettagli pacchetti...",
+  "visitProjectPage": "Visita la pagina del progetto",
+  "maintainer": "Mantenuto da: {{name}}",
+  "remove": "Rimuovi",
+  "install": "Installa",
+  "installing": "Installazione pacchetto...",
+  "removing": "Rimozione pacchetto...",
+  "fetchPackageFailed": "Recupero dei dettagli del pacchetto fallito!",
+  "removePackageFailed": "Rimozione del pacchetto fallita:",
+  "installPackageFailed": "Installazione del pacchetto non riuscita:",
+  "fetchPackagesFailed": "Recupero dell'elenco dei pacchetti fallito:",
+  "upgradeFailed": "Aggiornamento dei pacchetti non riuscito:",
+  "fetchUpgradableFailed": "Recupero pacchetti aggiornabili non riuscito:"
+}

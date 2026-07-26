@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HYDRA DETECT -- Setup Wizard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --olive-primary: #385723;
+            --olive-dark: #2a4118;
+            --ogt-muted: #A6BC92;
+            --ogt-warm: #D8E2D0;
+            --ogt-light: #EFF5EB;
+            --bg-panel: #0c0c0c;
+            --card-bg: #1c1c1c;
+            --border-default: #262626;
+            --text-primary: #e8e8e8;
+            --text-dim: #888;
+            --danger: #c53030;
+            --danger-bg: #2a1010;
+            --success: #385723;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Barlow', sans-serif;
+            background: var(--bg-panel);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+        }
+        .setup-container {
+            background: var(--card-bg);
+            border: 1px solid var(--border-default);
+            border-radius: 12px;
+            padding: 40px;
+            max-width: 520px;
+            width: 100%;
+        }
+        .setup-section-divider {
+            font-family: 'Barlow Condensed', sans-serif;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--ogt-muted);
+            border-top: 1px solid var(--border-default);
+            padding-top: 16px;
+            margin-top: 8px;
+        }
+        .setup-hint {
+            font-size: 0.7rem;
+            color: var(--text-dim);
+            line-height: 1.35;
+        }
+        .setup-toggle-label {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            color: var(--text-primary);
+            font-family: 'Barlow', sans-serif;
+            font-size: 0.9rem;
+            text-transform: none;
+            letter-spacing: 0;
+        }
+        .setup-toggle-label input[type="checkbox"] {
+            width: auto;
+            accent-color: var(--olive-primary);
+        }
+        .setup-header {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+        .setup-badge {
+            display: inline-block;
+            width: 48px;
+            height: 48px;
+            margin-bottom: 12px;
+        }
+        .setup-title {
+            font-family: 'Barlow Condensed', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--ogt-muted);
+        }
+        .setup-subtitle {
+            font-size: 0.85rem;
+            color: var(--text-dim);
+            margin-top: 4px;
+        }
+        .setup-form {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .setup-field {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .setup-field label {
+            font-family: 'Barlow Condensed', sans-serif;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-dim);
+        }
+        .setup-field select,
+        .setup-field input {
+            background: #111;
+            color: var(--text-primary);
+            border: 1px solid var(--border-default);
+            border-radius: 6px;
+            padding: 10px 12px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            width: 100%;
+        }
+        .setup-field select:focus,
+        .setup-field input:focus {
+            outline: none;
+            border-color: var(--olive-primary);
+            box-shadow: 0 0 0 2px rgba(56, 87, 35, 0.3);
+        }
+        .setup-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+        .setup-actions {
+            margin-top: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .btn-save {
+            background: var(--olive-primary);
+            color: var(--ogt-light);
+            border: none;
+            border-radius: 6px;
+            padding: 14px 24px;
+            font-family: 'Barlow Condensed', sans-serif;
+            font-size: 1rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            cursor: pointer;
+            transition: background 0.15s, box-shadow 0.15s;
+        }
+        .btn-save:hover {
+            background: #4a6e30;
+            box-shadow: 0 0 16px rgba(56, 87, 35, 0.4);
+        }
+        .btn-save:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .btn-skip {
+            background: transparent;
+            color: var(--text-dim);
+            border: 1px solid var(--border-default);
+            border-radius: 6px;
+            padding: 10px 24px;
+            font-family: 'Barlow Condensed', sans-serif;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            cursor: pointer;
+            transition: border-color 0.15s;
+        }
+        .btn-skip:hover {
+            border-color: var(--text-dim);
+        }
+        .setup-status {
+            text-align: center;
+            font-size: 0.8rem;
+            min-height: 1.2em;
+        }
+        .setup-status.error {
+            color: var(--danger);
+        }
+        .setup-status.success {
+            color: var(--ogt-muted);
+        }
+        .setup-loading {
+            color: var(--text-dim);
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="setup-container">
+        <div class="setup-header">
+            <svg class="setup-badge" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="24" y="3" width="29" height="29" rx="3" transform="rotate(45 24 3)" fill="#385723" stroke="#A6BC92" stroke-width="1.5"/>
+                <text x="24" y="28" text-anchor="middle" fill="#EFF5EB" font-family="Barlow Condensed" font-size="10" font-weight="700" letter-spacing="0.08em">SORCC</text>
+            </svg>
+            <h1 class="setup-title">Hydra Detect Setup</h1>
+            <p class="setup-subtitle">Configure hardware and identity for this unit</p>
+        </div>
+
+        <div class="setup-form" id="setup-form">
+            <div class="setup-field">
+                <label for="setup-camera">Camera Source</label>
+                <select id="setup-camera">
+                    <option value="auto">Auto Detect</option>
+                </select>
+            </div>
+
+            <div class="setup-field">
+                <label for="setup-serial">Serial Port (Pixhawk)</label>
+                <select id="setup-serial">
+                    <option value="/dev/ttyTHS1">/dev/ttyTHS1 (default)</option>
+                </select>
+            </div>
+
+            <div class="setup-field">
+                <label for="setup-vehicle">Platform Type</label>
+                <select id="setup-vehicle">
+                    <option value="">-- Select --</option>
+                    <option value="drone">Drone (Multirotor)</option>
+                    <option value="usv">USV (Boat)</option>
+                    <option value="ugv">UGV (Rover)</option>
+                    <option value="fw">Fixed Wing</option>
+                </select>
+            </div>
+
+            <div class="setup-row">
+                <div class="setup-field">
+                    <label for="setup-team">Team Number</label>
+                    <input type="text" id="setup-team" placeholder="e.g. 1" maxlength="20">
+                </div>
+                <div class="setup-field">
+                    <label for="setup-callsign">Callsign</label>
+                    <input type="text" id="setup-callsign" placeholder="auto: HYDRA-{team}-{vehicle}" maxlength="50">
+                    <span class="setup-hint" id="callsign-preview"></span>
+                </div>
+            </div>
+
+            <div class="setup-section-divider">TAK / ATAK</div>
+
+            <div class="setup-field setup-field-row">
+                <label for="setup-tak-enabled" class="setup-toggle-label">
+                    <input type="checkbox" id="setup-tak-enabled" checked>
+                    <span>Enable TAK output</span>
+                </label>
+                <span class="setup-hint">Broadcasts detections + position over multicast for ATAK devices on the same LAN.</span>
+            </div>
+
+            <div class="setup-field setup-tak-field">
+                <label for="setup-tak-advertise-host">Advertise Host (Jetson IP)</label>
+                <input type="text" id="setup-tak-advertise-host" placeholder="detecting..." maxlength="253">
+                <span class="setup-hint" id="advertise-host-hint">Used for RTSP video links shown in ATAK markers.</span>
+            </div>
+
+            <div class="setup-field setup-tak-field">
+                <label for="setup-tak-allowed-callsigns">Allowed ATAK Callsigns</label>
+                <input type="text" id="setup-tak-allowed-callsigns" placeholder="INSTRUCTOR-1,TOC-1" maxlength="500">
+                <span class="setup-hint">Comma-separated. Commands from other callsigns are dropped. Leave blank to disable inbound commands.</span>
+            </div>
+
+            <p class="setup-status" id="setup-status"></p>
+
+            <div class="setup-actions">
+                <button class="btn-save" id="setup-save">Save &amp; Start</button>
+                <button class="btn-skip" id="setup-skip" type="button">Skip to Dashboard</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/setup.js"></script>
+</body>
+</html>

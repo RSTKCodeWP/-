@@ -1,0 +1,10 @@
+{
+  "recoveryTitle": "Sicherheitsmaßnahmen/Hinweise zur Wiederherstellung:",
+  "recoveryText": "Wenn du Probleme mit wtfOS hast, versuche, in den abgesicherten Modus zu booten, indem du die Bindungstaste deines Geräts beim Einschalten 30 Sekunden lang gedrückt hältst. Du solltest dann in der Lage sein, wtfOS zu deinstallieren und neu zu installieren oder suche dir weitere Hilfe.",
+  "browserNotSupported": "Dieser Browser wird nicht unterstützt!",
+  "browserNotSupportedText": "Dein Browser unterstützt keine Webusb-Funktionalität. Bitte verwende einen",
+  "browserNotSupportedLink": "Browser, der diese Funktionalität bereitstellt.",
+  "browserSupported": "Unterstützte (und getestete) Browser:",
+  "browserSupportedAndroid": "Einige Android Handys",
+  "browserSupportedOther": "Andere Chromium-basierte Browser"
+}

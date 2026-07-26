@@ -1,0 +1,23 @@
+using Asv.Common;
+using Asv.IO;
+using Asv.XUnit;
+using Microsoft.Extensions.Time.Testing;
+
+using Xunit;
+namespace Asv.Mavlink.Test;
+
+public class TestContext
+{
+    public TestContext(ITestOutputHelper log, string logPrefix, IProtocolConnection connection, IProtocolMessageFactory<MavlinkMessage, int> messageFactory)
+    {
+        Log = log;
+        Time = new FakeTimeProvider();
+        Seq = new PacketSequenceCalculator();
+        Core = new CoreServices(connection, messageFactory,  Seq, new TestLoggerFactory(log, Time, logPrefix), Time, new DefaultMeterFactory());
+    }
+    
+    public IMavlinkContext Core { get;  }
+    public IPacketSequenceCalculator Seq { get; }
+    public FakeTimeProvider Time { get; }
+    public ITestOutputHelper Log { get; }
+}

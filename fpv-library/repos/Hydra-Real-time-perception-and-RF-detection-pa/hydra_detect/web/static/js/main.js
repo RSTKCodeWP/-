@@ -1,0 +1,460 @@
+'use strict';
+
+(function bootstrapHydraApp() {
+    const modules = window.HydraModules || {};
+    const store = modules.createStore();
+    if (window.HydraSimGps) window.HydraSimGps.init(store);
+    const toast = modules.createToastService();
+    const modal = modules.createModalController();
+    const api = modules.createApiClient({ store, toast });
+    const preflight = modules.createPreflight({});
+    // Expose the preflight gate so view controllers (ops.js, config.js) can
+    // block Start Sortie on a failed/degraded preflight (issue #295).
+    window.HydraPreflight = preflight;
+    const stream = modules.createStreamController({ getCurrentView: () => store.getState().currentView });
+
+    let callsignSet = false;
+    let duplicateWarningShown = false;
+    let lowBandwidthMode = false;
+
+    function formatUptime(sec) {
+        if (!sec || sec < 0) return '--';
+        const h = Math.floor(sec / 3600);
+        const m = Math.floor((sec % 3600) / 60);
+        return `${h}h ${m}m`;
+    }
+
+    function updateConnectionStatus(connected) {
+        const pill = document.getElementById('connection-pill');
+        const text = document.getElementById('connection-text');
+        if (!pill || !text) return;
+        pill.className = connected ? 'pill pill-live' : 'pill pill-offline';
+        text.textContent = connected ? 'LIVE' : 'OFFLINE';
+    }
+
+    function setDotClass(el, tone) {
+        if (!el) return;
+        el.className = 'tb-dot ' + tone;
+    }
+
+    function gpsBlipMeta(mavConnected, fix) {
+        if (!mavConnected) return { label: 'GPS --', tone: 'dim' };
+        if (fix === 0) return { label: 'GPS No Fix', tone: 'red' };
+        if (fix === 2) return { label: 'GPS 2D', tone: 'amber' };
+        if (fix === 3) return { label: 'GPS 3D', tone: 'olive' };
+        return { label: 'GPS --', tone: 'dim' };
+    }
+
+    function updateTopBarStats(data) {
+        const fpsEl = document.getElementById('fps-display');
+        if (fpsEl) fpsEl.textContent = `${(data.fps || 0).toFixed(1)}`;
+
+        if (data.callsign && !callsignSet) {
+            const brandEl = document.querySelector('.topbar-brand');
+            if (brandEl) {
+                brandEl.textContent = `${data.callsign}`;
+                document.title = `${data.callsign} — SORCC`;
+                callsignSet = true;
+            }
+        }
+
+        if (data.duplicate_callsign && !duplicateWarningShown) {
+            toast.showToast(`DUPLICATE CALLSIGN: another ${data.callsign} detected on network`, 'error');
+            duplicateWarningShown = true;
+        }
+
+        const badge = document.getElementById('low-light-badge');
+        if (badge) badge.classList.toggle('visible', !!data.low_light);
+
+        // ── Topbar health blips — mock mapping:
+        //    green/olive → good, amber → degraded, red → fault, dim → unknown.
+        const dotCam = document.getElementById('dot-camera');
+        const dotMav = document.getElementById('dot-mavlink');
+        const dotGps = document.getElementById('dot-gps');
+        const dotSim = document.getElementById('dot-sim');
+        const dotKis = document.getElementById('dot-kismet');
+        const dotTak = document.getElementById('dot-tak');
+        const gpsLabel = document.getElementById('tb-gps-label');
+
+        setDotClass(dotCam, data.camera_ok ? 'olive' : 'red');
+        setDotClass(dotMav, data.mavlink ? 'olive' : 'red');
+        const gpsMeta = gpsBlipMeta(!!data.mavlink, data.gps_fix);
+        setDotClass(dotGps, gpsMeta.tone);
+        if (gpsLabel) gpsLabel.textContent = gpsMeta.label;
+        setDotClass(dotSim, data.is_sim_gps ? 'yellow' : 'dim');
+        // Kismet / TAK blips: stats fields not always present — fall back to dim.
+        const kisOk = data.kismet_running || data.kismet_connected;
+        const takOk = data.tak_running || data.tak_enabled;
+        setDotClass(dotKis, kisOk ? 'olive' : (data.kismet_running === false ? 'red' : 'dim'));
+        setDotClass(dotTak, takOk ? 'olive' : (data.tak_running === false ? 'red' : 'dim'));
+
+        // SIM pill (amber) — visible only when simulated GPS is active.
+        const simPill = document.getElementById('sim-gps-pill');
+        if (simPill) {
+            if (data.is_sim_gps) simPill.removeAttribute('hidden');
+            else simPill.setAttribute('hidden', '');
+        }
+
+        // Battery indicator — uses structured `battery` block when present,
+        // falls back to legacy battery_pct/battery_v keys for back-compat.
+        const battEl = document.getElementById('tb-battery');
+        const battDot = document.getElementById('tb-battery-dot');
+        const battPct = document.getElementById('tb-battery-pct');
+        if (battEl && battDot && battPct) {
+            const battery = data.battery;
+            let level = (battery && battery.level) || null;
+            let pct = battery && battery.remaining_pct != null
+                ? battery.remaining_pct
+                : (data.battery_pct != null ? data.battery_pct : null);
+            if (!level && pct != null) {
+                // Legacy fallback: derive a coarse tone from raw pct only.
+                level = pct <= 10 ? 'CRITICAL' : (pct <= 20 ? 'LOW' : 'OK');
+            }
+            const uncalibrated = !!(battery && battery.uncalibrated);
+            const haveBattery = (battery && (battery.voltage_v != null
+                || battery.remaining_pct != null
+                || battery.uncalibrated)) || pct != null;
+            if (haveBattery) {
+                battEl.removeAttribute('hidden');
+                let tone = 'dim';
+                if (uncalibrated && pct == null) {
+                    // Distinct from "monitor disabled" (widget hidden) and
+                    // from healthy OK (olive). Operator sees the unit is
+                    // talking but the percent path is silent. R1-1 (b).
+                    battPct.textContent = 'UNCAL';
+                    tone = 'amber';
+                    battEl.setAttribute(
+                        'title',
+                        'Battery monitor uncalibrated — set BATT_CAPACITY '
+                        + 'in ArduPilot and calibrate to enable percent alerts.',
+                    );
+                } else {
+                    battPct.textContent = pct != null ? pct + '%' : '--%';
+                    if (level === 'OK') tone = 'olive';
+                    else if (level === 'LOW') tone = 'amber';
+                    else if (level === 'CRITICAL') tone = 'red';
+                    battEl.removeAttribute('title');
+                }
+                setDotClass(battDot, tone);
+                battEl.setAttribute(
+                    'data-level',
+                    uncalibrated && pct == null
+                        ? 'UNCALIBRATED'
+                        : (level || 'UNKNOWN'),
+                );
+            } else {
+                battEl.setAttribute('hidden', '');
+            }
+        }
+
+        // Latency readout — prefer mavlink latency, fall back to inference_ms.
+        const latEl = document.getElementById('tb-latency-value');
+        if (latEl) {
+            const ms = data.mavlink_latency_ms != null
+                ? data.mavlink_latency_ms
+                : (data.inference_ms != null ? data.inference_ms : null);
+            latEl.textContent = ms == null ? '--' : `${Math.round(ms)}`;
+        }
+
+        // CS chip mirrors callsign; PLT chip mirrors platform if provided.
+        const csEl = document.getElementById('tb-cs-value');
+        if (csEl && data.callsign) csEl.textContent = data.callsign;
+        const pltEl = document.getElementById('tb-plt-value');
+        if (pltEl && data.platform) pltEl.textContent = String(data.platform).toUpperCase();
+
+        const trackBadge = document.getElementById('track-count-badge');
+        if (trackBadge) trackBadge.textContent = `${data.active_tracks || 0} TRACKS`;
+
+        const footerLeft = document.getElementById('footer-left');
+        if (footerLeft && data.callsign) {
+            const uptime = data.uptime_sec ? formatUptime(data.uptime_sec) : '--';
+            const pos = window.HydraSimGps ? window.HydraSimGps.withSimSuffix(data.position || '--') : (data.position || '--');
+            footerLeft.textContent = `${data.callsign} | TS: ${pos} | Up: ${uptime}`;
+        }
+    }
+
+    const pollers = modules.createPollerManager({
+        store,
+        onStats: updateTopBarStats,
+        onConnection: updateConnectionStatus,
+    });
+
+    function invokeViewLifecycle(prev, view) {
+        if (typeof HydraOps !== 'undefined' && prev !== view) {
+            if (view === 'ops') HydraOps.onEnter();
+            if (prev === 'ops') HydraOps.onLeave();
+        }
+        if (typeof HydraOperations !== 'undefined' && prev !== view) {
+            if (view === 'config') HydraOperations.onEnter();
+            if (prev === 'config') HydraOperations.onLeave();
+        }
+        if (typeof HydraSettings !== 'undefined' && prev !== view) {
+            if (view === 'settings') HydraSettings.onEnter();
+            if (prev === 'settings') HydraSettings.onLeave();
+        }
+        if (typeof HydraTak !== 'undefined' && prev !== view) {
+            if (view === 'tak') HydraTak.onEnter();
+            if (prev === 'tak') HydraTak.onLeave();
+        }
+        // Systems folded into Settings — its panel is rendered inside the
+        // Settings view, so polling lifecycle follows that view.
+        if (typeof HydraSystems !== 'undefined' && prev !== view) {
+            if (view === 'settings') HydraSystems.onEnter();
+            if (prev === 'settings') HydraSystems.onLeave();
+        }
+        // Autonomy folded into Config — its dashboard is included at the
+        // bottom of the Config view, so polling follows the Config lifecycle.
+        if (typeof HydraAutonomy !== 'undefined' && prev !== view) {
+            if (view === 'config') HydraAutonomy.onEnter();
+            if (prev === 'config') HydraAutonomy.onLeave();
+        }
+    }
+
+    const router = modules.createViewRouter({
+        store,
+        onViewLifecycle: invokeViewLifecycle,
+        onViewChanged: (view) => {
+            stream.syncForView(view);
+            pollers.updatePollers(view);
+        },
+    });
+
+    function toggleLowBandwidth() {
+        lowBandwidthMode = !lowBandwidthMode;
+        const btn = document.getElementById('bandwidth-toggle');
+        if (btn) btn.classList.toggle('active', lowBandwidthMode);
+        api.apiPost('/api/stream/quality', { quality: lowBandwidthMode ? 30 : 70 });
+    }
+
+    function initBandwidthToggle() {
+        const btn = document.getElementById('bandwidth-toggle');
+        if (!btn) return;
+        btn.addEventListener('click', toggleLowBandwidth);
+    }
+
+    // Emergency abort wiring. POST /api/abort and raise body[data-emerg="1"]
+    // so the topbar ABORT button + fullscreen border both pulse red.
+    function initAbortButton() {
+        const btn = document.getElementById('tb-abort');
+        if (!btn) return;
+        btn.addEventListener('click', async () => {
+            document.body.setAttribute('data-emerg', '1');
+            try {
+                await api.apiPost('/api/abort', {});
+                toast.showToast('EMERGENCY ABORT sent', 'error');
+            } catch (e) {
+                toast.showToast('Abort POST failed', 'error');
+            }
+        });
+    }
+
+    async function initLogoutButton() {
+        const btn = document.getElementById('footer-logout');
+        if (!btn) return;
+        try {
+            const resp = await fetch('/auth/status', { credentials: 'same-origin' });
+            if (resp.ok) {
+                const data = await resp.json();
+                if (data && data.password_enabled && data.authenticated) btn.style.display = '';
+            }
+        } catch (e) {}
+
+        btn.addEventListener('click', async () => {
+            try {
+                await fetch('/auth/logout', { method: 'POST', credentials: 'same-origin' });
+            } catch (e) {}
+            window.location.href = '/login';
+        });
+    }
+
+    // Frontend error reporter — POSTs to /api/client_error. Throttled to
+    // 1 report per second so a runaway exception loop can't flood the
+    // backend (which also rate-limits to 50/min/IP, but we want to be
+    // polite on the wire too).
+    let _lastErrorReportAt = 0;
+    function reportClientError(payload) {
+        const now = Date.now();
+        if (now - _lastErrorReportAt < 1000) return;
+        _lastErrorReportAt = now;
+        const body = JSON.stringify({
+            message: String(payload.message || ''),
+            source: String(payload.source || ''),
+            lineno: Number.isFinite(payload.lineno) ? payload.lineno : null,
+            colno: Number.isFinite(payload.colno) ? payload.colno : null,
+            stack: String(payload.stack || ''),
+            url: String(payload.url || window.location.href || ''),
+            timestamp: now / 1000,
+        });
+        // fetch with keepalive so the report survives page unload.
+        try {
+            fetch('/api/client_error', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: body,
+                credentials: 'same-origin',
+                keepalive: true,
+            }).catch(function () { /* swallow — don't recurse */ });
+        } catch (e) { /* swallow */ }
+    }
+
+    function initClientErrorReporter() {
+        window.addEventListener('error', function (event) {
+            const err = event && event.error;
+            reportClientError({
+                message: (event && event.message) || (err && err.message) || 'unknown error',
+                source: (event && event.filename) || '',
+                lineno: event && event.lineno,
+                colno: event && event.colno,
+                stack: (err && err.stack) ? String(err.stack) : '',
+                url: window.location.href,
+            });
+        });
+        window.addEventListener('unhandledrejection', function (event) {
+            const reason = event && event.reason;
+            const msg = reason && (reason.message || String(reason)) || 'unhandled promise rejection';
+            const stack = (reason && reason.stack) ? String(reason.stack) : '';
+            reportClientError({
+                message: 'unhandledrejection: ' + msg,
+                source: '',
+                lineno: null,
+                colno: null,
+                stack: stack,
+                url: window.location.href,
+            });
+        });
+    }
+
+    // ── Operating mode badge ─────────────────────────────────────────
+    // Polls /api/mode every 5 s (same cadence as slow stats).
+    // Badge element: #tb-mode-badge with data-mode attribute.
+    let _modePollTimer = null;
+
+    function updateModeBadge(mode) {
+        const el = document.getElementById('tb-mode-badge');
+        if (!el) return;
+        el.textContent = mode;
+        el.setAttribute('data-mode', mode);
+        el.setAttribute('title', 'Mode: ' + mode);
+    }
+
+    function pollMode() {
+        fetch('/api/mode')
+            .then(r => r.ok ? r.json() : null)
+            .then(data => { if (data && data.mode) updateModeBadge(data.mode); })
+            .catch(() => {})
+            .finally(() => { _modePollTimer = setTimeout(pollMode, 5000); });
+    }
+
+    function initModeBadge() {
+        pollMode();
+    }
+
+    function init() {
+        preflight.runPreflight();
+        modal.initEscapeAndTrap();
+        stream.initStreamWatcher();
+        router.initRouter();
+        initClientErrorReporter();
+        initModeBadge();
+        // Defer initial view enter until all scripts are loaded
+        setTimeout(function() {
+            var v = store.getState().currentView;
+            if (v === 'ops' && typeof HydraOps !== 'undefined') HydraOps.onEnter();
+            else if (v === 'config') {
+                if (typeof HydraOperations !== 'undefined') HydraOperations.onEnter();
+                if (typeof HydraAutonomy !== 'undefined') HydraAutonomy.onEnter();
+            }
+            else if (v === 'settings') {
+                if (typeof HydraSettings !== 'undefined') HydraSettings.onEnter();
+                if (typeof HydraSystems !== 'undefined') HydraSystems.onEnter();
+            }
+            else if (v === 'tak' && typeof HydraTak !== 'undefined') HydraTak.onEnter();
+            stream.resumeStream();
+        }, 0);
+        initBandwidthToggle();
+        initAbortButton();
+        initLogoutButton();
+        pollers.updatePollers(store.getState().currentView);
+    }
+
+    const hydraApp = {
+        state: store.getState().data,
+        currentView: () => store.getState().currentView,
+        switchView: router.switchView,
+        showToast: toast.showToast,
+        apiPost: api.apiPost,
+        apiGet: api.apiGet,
+        authHeaders: api.authHeaders,
+        setApiToken: store.setApiToken,
+        toggleLowBandwidth,
+        toggleFullscreen: stream.toggleFullscreen,
+        runPreflight: preflight.runPreflight,
+        dismissPreflight: preflight.dismissPreflight,
+        openModal: modal.openModal,
+        closeModal: modal.closeModal,
+        closeActiveModal: modal.closeActiveModal,
+        subscribe: store.subscribe,
+    };
+
+    window.HydraApp = hydraApp;
+
+    // CSP-safe image fallbacks (replaces inline onerror= in base.html so the
+    // topbar still degrades gracefully when logo assets 404, but the CSP
+    // script-src policy stays strict — no 'unsafe-inline' required).
+    //
+    // Must run synchronously at script load, not inside DOMContentLoaded:
+    // the <img> tags are already parsed by the time this script executes
+    // (it lives at the bottom of <body>) and a fast 404 from a missing
+    // static asset can fire the error event before DOMContentLoaded. If
+    // the listener is attached inside that callback, the fallback never
+    // runs and the topbar keeps a broken-image icon.
+    //
+    // Handles two cases:
+    //   1. Error already happened before bind (img.complete && naturalWidth===0)
+    //      → run the fallback synchronously.
+    //   2. Error fires later → event handler catches it.
+    function applyShieldFallback(shield) {
+        if (shield.dataset.fallback) {
+            shield.outerHTML = shield.dataset.fallback;
+        }
+    }
+    function applyOgtFallback(ogt) {
+        ogt.style.display = 'none';
+    }
+    function imageAlreadyFailed(img) {
+        // complete === true + naturalWidth === 0 means the browser has
+        // finished trying and got nothing (404, DNS fail, etc.).
+        return img.complete && img.naturalWidth === 0;
+    }
+    function bindImageFallbacks() {
+        const shield = document.getElementById('tb-shield');
+        if (shield) {
+            if (imageAlreadyFailed(shield)) {
+                applyShieldFallback(shield);
+            } else {
+                shield.addEventListener('error', function onShieldError() {
+                    shield.removeEventListener('error', onShieldError);
+                    applyShieldFallback(shield);
+                });
+            }
+        }
+        const ogt = document.getElementById('tb-ogt');
+        if (ogt) {
+            if (imageAlreadyFailed(ogt)) {
+                applyOgtFallback(ogt);
+            } else {
+                ogt.addEventListener('error', function onOgtError() {
+                    ogt.removeEventListener('error', onOgtError);
+                    applyOgtFallback(ogt);
+                });
+            }
+        }
+    }
+    bindImageFallbacks();
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
+})();

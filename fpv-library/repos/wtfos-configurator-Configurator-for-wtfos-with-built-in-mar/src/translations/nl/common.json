@@ -1,0 +1,8 @@
+{
+  "disconnect": "Verbinding verbreken",
+  "connect": "Verbinding maken",
+  "connectDevice": "Verbinding maken met apparaat",
+  "rebooting": "Herstarten...",
+  "adbCheck": "Device connected - checking for ADB, this can take up to 30 seconds...",
+  "adbDetectionFailed": "Failed detecting ADB, please (re-)root your device!"
+}

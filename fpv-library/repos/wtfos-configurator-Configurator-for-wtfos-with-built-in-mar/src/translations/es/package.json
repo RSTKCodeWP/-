@@ -1,0 +1,17 @@
+{
+  "detailsFor": "Detalles de {{name}}",
+  "submit": "Guardar configuración",
+  "loading": "Cargando detalles del paquete...",
+  "visitProjectPage": "Visita la página del proyecto",
+  "maintainer": "Mantenedor: {value}",
+  "remove": "Eliminar",
+  "install": "Instalar",
+  "installing": "Instalando paquete",
+  "removing": "Eliminando paquete...",
+  "fetchPackageFailed": "¡Error al obtener los detalles del paquete!",
+  "removePackageFailed": "Fallo al eliminar el paquete:",
+  "installPackageFailed": "Fallo instalando el paquete:",
+  "fetchPackagesFailed": "Fallo al obtener la lista de paquetes:",
+  "upgradeFailed": "Fallo al actualizar los paquetes:",
+  "fetchUpgradableFailed": "Fallo al obtener los paquetes actualizables:"
+}

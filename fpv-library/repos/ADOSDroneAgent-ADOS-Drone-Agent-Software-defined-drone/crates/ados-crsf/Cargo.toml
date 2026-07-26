@@ -1,0 +1,43 @@
+[package]
+name = "ados-crsf"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "CRSF / ExpressLRS RC control lane: frame codec, 420 kbaud serial transport, fixed-cadence RC channel transmitter, telemetry decode, and the lane state sidecar."
+
+[lib]
+name = "ados_crsf"
+path = "src/lib.rs"
+
+[[bin]]
+name = "ados-crsf"
+path = "src/main.rs"
+
+[dependencies]
+# The producer-side log-shipping layer (feature-gated in ados-protocol) feeds
+# the logging daemon's ingest socket alongside journald; never on the hot path.
+ados-protocol = { path = "../ados-protocol", features = ["tracing-layer"] }
+ados-config = { path = "../ados-config" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_norway = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+# Async serial port at 420 kbaud. Declared per-crate (not a workspace dep),
+# matching the other serial consumers in the workspace.
+tokio-serial = "5.4"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+# Pure-Rust Linux input for the gamepad channel source (same crate/version the
+# input daemons use). The tokio feature drives the async event stream; only
+# the node-open + read loop is target-gated — the axis/switch → channel maths
+# stays host-portable.
+evdev = { version = "0.12", features = ["tokio"] }
+
+[dev-dependencies]
+tempfile = "3"
+# The paused-clock harness for the liveness-watchdog stall-window tests.
+# Dev-only: resolver 2 keeps test-util out of the shipped binary's features.
+tokio = { workspace = true, features = ["test-util"] }

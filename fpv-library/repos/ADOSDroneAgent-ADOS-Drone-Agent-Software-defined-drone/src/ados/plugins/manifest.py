@@ -1,0 +1,720 @@
+"""Plugin manifest model.
+
+A plugin manifest is the declarative contract: identity, halves shipped,
+capabilities requested, lifecycle settings, compatibility constraints. The
+manifest is the only field the host trusts after signature verification;
+everything the supervisor and the GCS do is driven from manifest content.
+
+Schema design choices:
+
+* Reverse-DNS ``id`` is enforced at validate time. Squatting on
+  short ids is not permitted.
+* ``permissions`` is a union: a bare string means "required", an object
+  with ``id`` plus ``required: false`` means optional or degradable.
+* The ``agent`` and ``gcs`` blocks are both optional. A plugin can ship
+  one half, the other, or both.
+* Unknown top-level keys are rejected (forbid extra). Unknown nested
+  keys under ``extra`` are allowed for vendor-specific extension.
+
+This module produces a :class:`PluginManifest` Pydantic model and is
+the source of the JSON Schema the SDK ships and the public docs render.
+The schema is exported via :func:`schema_dict` for downstream consumers.
+"""
+
+from __future__ import annotations
+
+import re
+from pathlib import Path
+from typing import Any, Literal
+
+import yaml
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+from ados.core.logging import get_logger
+from ados.plugins.capabilities import (
+    is_known_agent_capability,
+    is_known_gcs_capability,
+)
+from ados.plugins.errors import ManifestError
+
+log = get_logger("plugins.manifest")
+
+PLUGIN_ID_PATTERN = re.compile(r"^[a-z0-9]+(\.[a-z0-9-]+)+$")
+"""Reverse-DNS plugin ids: at least two dotted segments, lowercase plus digits
+plus hyphen-only-after-first-char inside segments."""
+
+SEMVER_PATTERN = re.compile(
+    r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)"
+    r"(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?"
+    r"(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$"
+)
+
+
+class _StrictModel(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+
+class PermissionRef(_StrictModel):
+    """Object form of a permission entry: ``{id, required, degraded_behavior}``."""
+
+    id: str
+    required: bool = True
+    degraded_behavior: str | None = None
+
+
+def _normalize_permission(value: Any) -> dict[str, Any]:
+    """Canonicalize a permission entry to dict shape (string OR object)."""
+    if isinstance(value, str):
+        return {"id": value, "required": True, "degraded_behavior": None}
+    if isinstance(value, dict):
+        return value
+    raise ManifestError(f"permission entry must be str or object, got {type(value)}")
+
+
+class ResourceLimits(_StrictModel):
+    max_ram_mb: int = Field(96, ge=8, le=4096)
+    max_cpu_percent: int = Field(25, ge=1, le=100)
+    max_pids: int = Field(12, ge=1, le=256)
+
+
+class MavlinkComponent(_StrictModel):
+    component_id: int = Field(..., ge=0, le=255)
+    component_kind: Literal[
+        "camera", "gimbal", "payload", "peripheral", "generic", "vio"
+    ]
+    sub_id: int | None = Field(None, ge=0, le=255)
+
+
+class VendorAttribution(BaseModel):
+    """Source-offer record for plugins that ship a vendor binary.
+
+    Required when ``agent.contains_vendor_binary`` is true so the install
+    dialog can surface the upstream repo, version, license, and a
+    reachable source URL. Satisfies GPL-3.0 section 6 for plugins that
+    distribute pre-compiled binaries built from GPL-compatible
+    upstreams.
+
+    Accepts two equivalent field name sets so existing first-party
+    plugins do not have to migrate their manifest copy:
+
+    * ``name`` / ``source_url`` / ``upstream_version`` (informational)
+    * ``upstream_repo`` / ``source_offer_url`` / ``commit_sha`` (legalistic)
+
+    Only ``license`` is strictly required; the other fields are
+    optional and at least one of ``source_url`` or ``source_offer_url``
+    plus one of ``upstream_version`` or ``commit_sha`` should be set
+    for the GCS install dialog to render meaningful disclosure.
+    """
+
+    model_config = ConfigDict(extra="allow", str_strip_whitespace=True)
+
+    name: str | None = None
+    license: str = Field(..., min_length=1)
+    source_url: str | None = None
+    source_offer_url: str | None = None
+    upstream_repo: str | None = None
+    upstream_version: str | None = None
+    commit_sha: str | None = None
+    notice: str | None = None
+
+
+class VisionModelRef(BaseModel):
+    """A typed view of a ``vision.models[]`` entry. A model is delivered either BY
+    REFERENCE — ``source`` + a pinned ``sha256``, per-board ``board_match`` — so the
+    agent fetches/verifies/caches it (the model-delivery framework), or BUNDLED in the
+    archive at ``path``. Lenient (``extra=ignore``) and additive: the manifest field stays
+    free-form ``list[dict]`` for backward compatibility; this only parses the entries the
+    framework resolves. The pinned ``sha256`` is signed (the manifest is signed), so a
+    by-reference model is tamper-proof even though the weights are not inside the archive.
+    """
+
+    model_config = ConfigDict(extra="ignore", str_strip_whitespace=True)
+
+    id: str
+    runtime: str = "onnx"            # onnx | rknn | tensorrt | tflite | pytorch
+    board_match: str = "generic"     # board family this variant targets (e.g. rk3588, orin, generic)
+    sha256: str | None = None        # pinned hex digest the fetched model is verified against
+    source: str | None = None        # where to fetch (registry ref / url); None ⇒ bundled or cache-only
+    path: str | None = None          # relative in-archive path when the model is bundled
+
+
+class VisionContribution(_StrictModel):
+    behaviors: list[dict[str, Any]] = Field(default_factory=list)
+    models: list[dict[str, Any]] = Field(default_factory=list)
+    detectors: list[dict[str, Any]] = Field(default_factory=list)
+
+    def model_refs(self) -> list[VisionModelRef]:
+        """Typed view of the model entries that declare an id + runtime (additive, lenient)."""
+        return [
+            VisionModelRef.model_validate(d)
+            for d in self.models
+            if isinstance(d, dict) and d.get("id") and d.get("runtime")
+        ]
+
+
+class ServiceSpec(_StrictModel):
+    """A long-running service a plugin declares on top of its main half.
+
+    The supervisor renders one extra systemd unit per spec under the
+    plugin slice and starts/stops it across the plugin's enable/disable
+    lifecycle. Each spec reports readiness on the heartbeat so the GCS
+    can show whether the declared daemon is actually up and serving.
+
+    Fields:
+
+    * ``name`` — short identifier, unique within the plugin. Used to
+      build the unit name (``ados-plugin-<id>-<name>.service``, with
+      dots and underscores sanitized to hyphens) and to key the
+      readiness entry. Lowercase alnum plus ``.``, ``_``, ``-``.
+    * ``command`` — the exec line the unit runs. Treated as a verbatim
+      ``ExecStart``; the plugin author is responsible for an absolute
+      path or a binary on ``PATH``.
+    * ``ready_check`` — how readiness is probed. ``None`` ⇒ the service
+      is ready iff its unit is active. A value that starts with
+      ``http://`` or ``https://`` ⇒ an HTTP GET, ready on a 2xx status.
+      Any other value ⇒ a shell command, ready on exit code 0.
+    * ``restart`` — systemd restart policy for the unit.
+    * ``slice`` — cgroup slice the unit runs in; defaults to the shared
+      plugin slice so resource accounting stays grouped.
+
+    Backward-compatible: a bare string element in ``services`` is
+    coerced to ``{"name": <s>, "command": <s>}`` so existing
+    ``services: ["foo"]`` manifests still parse.
+    """
+
+    name: str = Field(..., min_length=1, max_length=64)
+    command: str = Field(..., min_length=1)
+    ready_check: str | None = None
+    restart: Literal["always", "on-failure", "no"] = "on-failure"
+    slice: str = "ados-plugins.slice"
+
+    @field_validator("name")
+    @classmethod
+    def _validate_name(cls, v: str) -> str:
+        if not re.match(r"^[a-z0-9][a-z0-9._-]*$", v):
+            raise ManifestError(
+                f"service name {v!r} must be lowercase alnum plus ._- , "
+                "starting with an alnum"
+            )
+        return v
+
+
+class AgentContributes(_StrictModel):
+    services: list[ServiceSpec] = Field(default_factory=list)
+    drivers: list[dict[str, Any]] = Field(default_factory=list)
+    vision: VisionContribution | None = None
+    # MCP tool / resource / prompt contributions (schema v3). Free-form and
+    # additive; the plugin host reads them to build the tool registry and to
+    # route a host->plugin tool.invoke. The agent does not interpret their
+    # bodies beyond name + inputSchema + safety_class. A v2 manifest with no
+    # tools block loads exactly as before, so the platform stays inert for
+    # every existing plugin. Exposure needs the mcp.expose capability.
+    tools: list[dict[str, Any]] = Field(default_factory=list)
+    resources: list[dict[str, Any]] = Field(default_factory=list)
+    prompts: list[dict[str, Any]] = Field(default_factory=list)
+
+    @field_validator("services", mode="before")
+    @classmethod
+    def _coerce_services(cls, raw: Any) -> Any:
+        """Accept the legacy ``list[str]`` shape alongside the rich
+        ``list[ServiceSpec]`` shape. A bare string ``s`` becomes
+        ``{"name": s, "command": s}`` so old manifests keep parsing."""
+        if not isinstance(raw, list):
+            return raw
+        out: list[Any] = []
+        for item in raw:
+            if isinstance(item, str):
+                out.append({"name": item, "command": item})
+            else:
+                out.append(item)
+        return out
+
+    def service_specs(self) -> list[ServiceSpec]:
+        """Typed accessor for the declared services (already parsed)."""
+        return list(self.services)
+
+
+def _validate_entrypoint(value: str) -> str:
+    """Reject path-traversal or absolute paths in entrypoint fields.
+
+    Module-id form (``module:Class``) passes through. Path form must
+    be relative and contain no ``..`` segments.
+    """
+    if ":" in value:
+        return value
+    if value.startswith("/") or value.startswith("\\") or "\\" in value:
+        raise ManifestError(f"entrypoint must be a relative posix path, got {value!r}")
+    parts = value.split("/")
+    if any(p == ".." or p.startswith("..") for p in parts):
+        raise ManifestError(f"entrypoint must not contain .. segments, got {value!r}")
+    if not value.strip():
+        raise ManifestError("entrypoint must not be empty")
+    return value
+
+
+class AgentBlock(_StrictModel):
+    """Agent-half manifest block."""
+
+    entrypoint: str
+    """Either an entry-point id (``module:Class``) for built-in plugins,
+    or a relative path to a Python module inside the archive for
+    third-party plugins."""
+
+    isolation: Literal["subprocess", "inprocess"] = "subprocess"
+    """Default subprocess. ``inprocess`` is allowed only for first-party
+    built-in plugins; the supervisor enforces this."""
+
+    runtime: Literal["python", "rust"] = "python"
+    """Which executor systemd starts: the shared Python runner (default)
+    or the plugin's own binary (``rust``). Additive and optional, so an
+    older manifest with no ``runtime`` field loads as ``python``."""
+
+    permissions: list[PermissionRef] = Field(default_factory=list)
+    resources: ResourceLimits = Field(default_factory=ResourceLimits)
+    contributes: AgentContributes = Field(default_factory=AgentContributes)
+    mavlink_components: list[MavlinkComponent] = Field(default_factory=list)
+    contains_vendor_binary: bool = False
+    test_fixtures: dict[str, str] = Field(default_factory=dict)
+    """Map of friendly name to fixture YAML path (relative to plugin root).
+    Consumed by the SDK test harness so plugin tests can replay scenarios
+    by name. Paths are validated for traversal at install time."""
+
+    vendor_attribution: list[VendorAttribution] = Field(default_factory=list)
+    """Source-offer records for vendor-binary plugins. Required (non-empty)
+    when ``contains_vendor_binary`` is true; empty list for pure-Python
+    plugins. Multiple entries permitted when a plugin bundles binaries
+    from more than one upstream. Schema v2."""
+
+    subprocess_spawn: list[str] | None = None
+    """Allowlist of binary basenames the plugin may exec via
+    ``ctx.process.spawn``. Paths resolve relative to the plugin's
+    ``data_dir``. Implies the ``process.spawn`` capability must be
+    declared in ``permissions``. Empty or absent means the plugin
+    cannot spawn any subprocess. Schema v2."""
+
+    per_drone_config: bool = False
+    """When true, the supervisor runs one process instance per
+    connected drone with a distinct ``ctx.agent_id`` and a per-drone
+    config dict at
+    ``/var/ados/plugin-data/<plugin_id>/config/<agent_id>.yaml``.
+    Default false preserves single-config behavior from the v1
+    schema. Schema v2."""
+
+    target_profiles: list[Literal["drone", "ground-station", "workstation"]] = Field(
+        default_factory=lambda: ["drone"],
+    )
+    """Node profiles the plugin is compatible with. Default ``["drone"]``
+    so existing manifests that omit the field stay drone-only — which
+    matches the only first-party plugin that exists today
+    (``com.altnautica.vision-nav``). A plugin that wants to surface on a
+    ground station declares ``["ground-station"]``, on the operator
+    workstation ``["workstation"]``; a multi-target plugin declares more
+    than one. Schema v2 — older manifests get the default."""
+
+    @field_validator("target_profiles")
+    @classmethod
+    def _validate_target_profiles(
+        cls, value: list[str]
+    ) -> list[Literal["drone", "ground-station", "workstation"]]:
+        if not value:
+            raise ManifestError(
+                "agent.target_profiles must list at least one profile",
+            )
+        # Dedupe preserving order so the wire shape stays deterministic
+        # across reads. Pydantic's Literal validation runs before this
+        # hook, so each entry is already a known profile string.
+        seen: set[str] = set()
+        deduped: list[Literal["drone", "ground-station", "workstation"]] = []
+        for entry in value:
+            if entry in seen:
+                continue
+            seen.add(entry)
+            deduped.append(entry)  # type: ignore[arg-type]
+        return deduped
+
+    @field_validator("entrypoint")
+    @classmethod
+    def _validate_entrypoint(cls, v: str) -> str:
+        return _validate_entrypoint(v)
+
+    @field_validator("test_fixtures")
+    @classmethod
+    def _validate_test_fixtures(cls, raw: dict[str, str]) -> dict[str, str]:
+        for name, path in raw.items():
+            if not isinstance(name, str) or not name:
+                raise ManifestError(
+                    f"test_fixtures key must be a non-empty string, got {name!r}"
+                )
+            if not isinstance(path, str) or not path:
+                raise ManifestError(
+                    f"test_fixtures[{name!r}] must be a non-empty path"
+                )
+            _validate_entrypoint(path)
+        return raw
+
+    @field_validator("permissions", mode="before")
+    @classmethod
+    def _normalize_perms(cls, raw: Any) -> Any:
+        if not isinstance(raw, list):
+            return raw
+        return [_normalize_permission(item) for item in raw]
+
+    @model_validator(mode="after")
+    def _warn_unknown_capabilities(self) -> AgentBlock:
+        """Log a warning for any permission id not in the canonical
+        catalog. Older or experimental manifests must still load, so
+        this never rejects; it only flags drift between the manifest
+        author and the host's known capability set.
+        """
+        for perm in self.permissions:
+            if not is_known_agent_capability(perm.id):
+                log.warning(
+                    "plugin_manifest_unknown_agent_capability",
+                    capability=perm.id,
+                )
+        return self
+
+    @model_validator(mode="after")
+    def _validate_vendor_attribution_pairing(self) -> AgentBlock:
+        """``contains_vendor_binary`` and ``vendor_attribution`` must
+        agree. A vendor-binary plugin without a source-offer record
+        would ship a GPL-incompatible install dialog; a source-offer
+        record without a declared vendor binary is a manifest typo
+        that the operator would not see in the install dialog risk
+        summary."""
+        has_attribution = bool(self.vendor_attribution)
+        if self.contains_vendor_binary and not has_attribution:
+            raise ManifestError(
+                "agent.contains_vendor_binary is true but "
+                "agent.vendor_attribution is empty; at least one "
+                "source-offer record is required for vendor-binary "
+                "plugins"
+            )
+        if has_attribution and not self.contains_vendor_binary:
+            raise ManifestError(
+                "agent.vendor_attribution is set but "
+                "agent.contains_vendor_binary is false; set the flag "
+                "or remove the attribution block"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _validate_subprocess_spawn_capability(self) -> AgentBlock:
+        """If ``subprocess_spawn`` lists any binary, the plugin must
+        declare the ``process.spawn`` capability so the operator sees
+        the Critical-tier risk badge at install time. The supervisor
+        also enforces the allowlist at spawn time, but the manifest
+        validator surfaces the missing declaration up-front with an
+        actionable error."""
+        spawns = self.subprocess_spawn or []
+        if not spawns:
+            return self
+        declared = {p.id for p in self.permissions}
+        if "process.spawn" not in declared:
+            raise ManifestError(
+                "agent.subprocess_spawn lists "
+                f"{len(spawns)} binary path(s) but the "
+                "process.spawn capability is not declared in "
+                "agent.permissions; add it so the operator can "
+                "review the spawn allowlist at install time"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _validate_runtime_isolation(self) -> AgentBlock:
+        """A rust runtime always runs as its own binary under systemd, so
+        there is no in-process Python analog. Reject the combination up
+        front rather than letting it reach the supervisor."""
+        if self.runtime == "rust" and self.isolation == "inprocess":
+            raise ManifestError(
+                "Rust plugins have no in-process analog; rust runtime "
+                "requires subprocess isolation"
+            )
+        return self
+
+
+class GcsContributes(_StrictModel):
+    panels: list[dict[str, Any]] = Field(default_factory=list)
+    overlays: list[dict[str, Any]] = Field(default_factory=list)
+    notifications: list[dict[str, Any]] = Field(default_factory=list)
+    smart_functions: list[dict[str, Any]] = Field(default_factory=list)
+    # Node-detail tab contributions (the node.detail.tab slot), each with its
+    # profile narrowing plus title/icon/order. Free-form and additive; the GCS
+    # contribution registry reads them, the agent does not interpret them.
+    tabs: list[dict[str, Any]] = Field(default_factory=list)
+    # Declarative parameter contributions. The GCS renders these as native
+    # config controls; the agent reads the same per-drone keys live each loop.
+    parameters: list[dict[str, Any]] = Field(default_factory=list)
+    # Detection/vision models the plugin ships, offered by the model picker.
+    models: list[dict[str, Any]] = Field(default_factory=list)
+    # Flight Skill contributions. Each entry surfaces a behavior as a
+    # first-class Skill in the cockpit Skill Bar (toggle, hotkey/gamepad
+    # binding, activation via per-drone config, read-back via an event
+    # topic). The agent does not interpret these; they are read by the
+    # GCS skill registry. Kept free-form (``dict``) and additive so a
+    # forward-compatible manifest parses without a schema bump.
+    skills: list[dict[str, Any]] = Field(default_factory=list)
+    # Target-action contributions. Each entry is an action a plugin offers for
+    # a clicked detection in the cockpit target overlay: designate the target,
+    # then flip a per-drone config key. Listed beside the built-in actions in
+    # one popup. The agent does not interpret these; the GCS target-action
+    # registry reads them. Free-form and additive like ``skills``.
+    target_actions: list[dict[str, Any]] = Field(default_factory=list)
+    # MCP tool / resource / prompt contributions for the GCS half (schema v3).
+    # The GCS contribution registry reads these to assemble the MCP tools/list;
+    # a GCS-only plugin's tools route through the GCS bridge (no agent socket).
+    # Free-form and additive like ``skills``. Exposure needs the mcp.expose cap.
+    tools: list[dict[str, Any]] = Field(default_factory=list)
+    resources: list[dict[str, Any]] = Field(default_factory=list)
+    prompts: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class GcsBlock(_StrictModel):
+    """GCS-half manifest block."""
+
+    entrypoint: str
+    """Relative path inside the archive to the GCS bundle entrypoint
+    (``gcs/plugin.bundle.js``)."""
+
+    isolation: Literal["iframe", "worker", "inline"] = "iframe"
+    """Inline is restricted to first-party signers."""
+
+    permissions: list[PermissionRef] = Field(default_factory=list)
+    contributes: GcsContributes = Field(default_factory=GcsContributes)
+    locales: list[str] = Field(default_factory=list)
+
+    @field_validator("entrypoint")
+    @classmethod
+    def _validate_entrypoint(cls, v: str) -> str:
+        return _validate_entrypoint(v)
+
+    @field_validator("permissions", mode="before")
+    @classmethod
+    def _normalize_perms(cls, raw: Any) -> Any:
+        if not isinstance(raw, list):
+            return raw
+        return [_normalize_permission(item) for item in raw]
+
+    @model_validator(mode="after")
+    def _warn_unknown_capabilities(self) -> GcsBlock:
+        """Log a warning for any GCS permission id not in the known GCS
+        capability set. Older or experimental manifests must still load,
+        so this never rejects; it only flags drift between the manifest
+        author and the host's known GCS capability set. Symmetric with
+        the agent-half validator.
+        """
+        for perm in self.permissions:
+            if not is_known_gcs_capability(perm.id):
+                log.warning(
+                    "plugin_manifest_unknown_gcs_capability",
+                    capability=perm.id,
+                )
+        return self
+
+
+class Compatibility(_StrictModel):
+    ados_version: str = Field(..., min_length=1)
+    """Semver range, e.g. ``>=0.9.0,<1.0.0``."""
+
+    gcs_version: str | None = None
+    supported_boards: list[str] = Field(default_factory=list)
+
+    min_tier: int | None = Field(None, ge=1, le=4)
+    """Minimum compute-class tier the plugin needs (1=basic … 4=highest).
+
+    Optional and additive: when absent there is no tier floor and any
+    board passes (lenient, matching the ``supported_boards`` empty-list
+    behavior). When set, the supervisor refuses install/enable on a board
+    whose detected tier is below this value. A board with an unknown tier
+    is never blocked, so the gate only bites when both the floor and the
+    board tier are known."""
+
+
+class HardwareRequirements(_StrictModel):
+    """Optional hardware-side requirements surfaced in the install dialog.
+
+    All fields are free-form so the dialog can render whatever the
+    manifest author wants the operator to see. The agent does not enforce
+    any of these at install time; they are informational copy."""
+
+    cameras: str | None = None
+    fc_firmware: str | None = None
+    boards: list[str] = Field(default_factory=list)
+    optional: list[str] = Field(default_factory=list)
+
+
+class ResourceImpact(_StrictModel):
+    """Estimated runtime resource impact. The supervisor still enforces
+    the hard limits declared under ``agent.resources``; these numbers are
+    forecast copy for the install-dialog summary."""
+
+    # CPU peak is allowed up to 1000 so multi-core peak figures
+    # (e.g. 4 cores * 100% = 400) parse without truncation.
+    cpu_percent_peak: float | None = Field(None, ge=0, le=1000)
+    ram_mb: float | None = Field(None, gt=0)
+    pids: int | None = Field(None, gt=0)
+    startup_time_seconds: float | None = Field(None, gt=0)
+    # Steady-state output rate for plugins that push a periodic stream
+    # (pose, video frames, sensor samples). Renders in place of CPU peak
+    # on the install-dialog resource-impact card when present.
+    output_rate_hz: float | None = Field(None, gt=0, le=10000)
+
+
+class FcParameter(_StrictModel):
+    """A single firmware parameter the plugin expects the operator to
+    set before the feature behaves correctly. ``value`` is optional
+    because some parameters take a bitmask the operator computes from
+    multiple flags; in that case ``note`` carries the guidance."""
+
+    param: str = Field(..., min_length=1)
+    note: str | None = None
+    value: str | float | int | None = None
+
+
+class RequiredFcParameters(_StrictModel):
+    """Per-firmware bucket of required parameter hints. Each bucket is
+    optional so a plugin can ship guidance for only the firmware it
+    actually targets."""
+
+    ardupilot: list[FcParameter] = Field(default_factory=list)
+    px4: list[FcParameter] = Field(default_factory=list)
+    inav: list[FcParameter] = Field(default_factory=list)
+
+
+class Screenshot(_StrictModel):
+    """One screenshot entry rendered by the install dialog."""
+
+    url: str = Field(..., min_length=1)
+    caption: str | None = None
+
+
+class PluginManifest(_StrictModel):
+    """Top-level plugin manifest. Loaded from ``manifest.yaml``."""
+
+    schema_version: int = Field(1, ge=1, le=3)
+    """Manifest schema version. ``1`` is the original baseline. ``2``
+    unlocks the additional ``agent`` fields ``vendor_attribution``,
+    ``subprocess_spawn``, and ``per_drone_config``. ``3`` unlocks the
+    MCP ``tools`` / ``resources`` / ``prompts`` contributions on both
+    the agent and GCS halves. Every version parses identical-shape
+    older manifests; the version field is informational so older
+    tooling can route on schema generation."""
+    id: str
+    version: str
+    name: str
+    description: str = ""
+    author: str = ""
+    homepage: str | None = None
+    license: str = ""
+    risk: Literal["low", "medium", "high", "critical"] = "medium"
+
+    compatibility: Compatibility
+    agent: AgentBlock | None = None
+    gcs: GcsBlock | None = None
+
+    # --- Optional install-dialog content fields ---
+    # These are informational copy the GCS install modal renders to give
+    # the operator a richer pre-install summary. The agent does not
+    # enforce or interpret any of them; they are forward-compatible and
+    # may be absent on older manifests.
+    description_long: str | None = None
+    features: list[str] = Field(default_factory=list)
+    hardware_requirements: HardwareRequirements | None = None
+    resource_impact: ResourceImpact | None = None
+    required_fc_parameters: RequiredFcParameters | None = None
+    telemetry_fields: list[str] = Field(default_factory=list)
+    documentation_url: str | None = None
+    screenshots: list[Screenshot] = Field(default_factory=list)
+
+    extra: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("id")
+    @classmethod
+    def _validate_id(cls, v: str) -> str:
+        if not PLUGIN_ID_PATTERN.match(v):
+            raise ManifestError(
+                f"plugin id {v!r} must be reverse-DNS lowercase, e.g. com.example.thermal"
+            )
+        return v
+
+    @field_validator("version")
+    @classmethod
+    def _validate_version(cls, v: str) -> str:
+        if not SEMVER_PATTERN.match(v):
+            raise ManifestError(f"plugin version {v!r} is not valid semver")
+        return v
+
+    @field_validator("documentation_url")
+    @classmethod
+    def _validate_documentation_url(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        if not v.startswith("https://"):
+            raise ManifestError(
+                f"documentation_url must use https://, got {v!r}"
+            )
+        return v
+
+    @model_validator(mode="after")
+    def _at_least_one_half(self) -> PluginManifest:
+        if self.agent is None and self.gcs is None:
+            raise ManifestError(
+                f"plugin {self.id} declares neither agent nor gcs half; "
+                "at least one is required"
+            )
+        return self
+
+    @classmethod
+    def from_yaml_text(cls, text: str) -> PluginManifest:
+        try:
+            data = yaml.safe_load(text)
+        except yaml.YAMLError as exc:
+            raise ManifestError(f"manifest is not valid YAML: {exc}") from exc
+        if not isinstance(data, dict):
+            raise ManifestError("manifest top-level must be a mapping")
+        try:
+            return cls.model_validate(data)
+        except Exception as exc:
+            raise ManifestError(str(exc)) from exc
+
+    @classmethod
+    def from_yaml_file(cls, path: str | Path) -> PluginManifest:
+        p = Path(path)
+        try:
+            text = p.read_text(encoding="utf-8")
+        except OSError as exc:
+            raise ManifestError(f"cannot read manifest at {path}: {exc}") from exc
+        return cls.from_yaml_text(text)
+
+    def declared_permissions(self) -> set[str]:
+        """Flat set of declared permission ids across both halves.
+
+        Useful for the install dialog's permission preview where both
+        agent and GCS capabilities render side by side. For the agent's
+        own validation gate use :meth:`declared_agent_permissions`
+        instead so GCS-only ids never trigger the agent's capability
+        allowlist.
+        """
+        ids: set[str] = set()
+        if self.agent is not None:
+            ids.update(p.id for p in self.agent.permissions)
+        if self.gcs is not None:
+            ids.update(p.id for p in self.gcs.permissions)
+        return ids
+
+    def declared_agent_permissions(self) -> set[str]:
+        """Set of permission ids the plugin requests from the agent.
+
+        The agent enforces this list against its own capability catalog.
+        GCS-only ids live under ``self.gcs.permissions`` and are policed
+        by the browser-side runtime, not the agent.
+        """
+        if self.agent is None:
+            return set()
+        return {p.id for p in self.agent.permissions}
+
+
+def schema_dict() -> dict[str, Any]:
+    """Return the JSON Schema for :class:`PluginManifest`. Used by the SDK
+    type generator and the public docs."""
+    return PluginManifest.model_json_schema()

@@ -1,0 +1,256 @@
+/* ── Top Bar ── */
+.topbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: var(--topbar-height);
+    background: linear-gradient(135deg, var(--olive-primary) 0%, var(--olive-dark) 60%, #1a2d10 100%);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 var(--s-3);
+    z-index: 100;
+    border-bottom: 1px solid rgba(166, 188, 146, 0.12);
+    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.4);
+}
+
+.topbar-left {
+    display: flex;
+    align-items: center;
+    gap: var(--s-2);
+}
+.topbar-brand {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 700;
+    font-size: var(--font-lg);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #fff;
+    text-shadow: 0 0 8px rgba(255, 255, 255, 0.15);
+}
+.topbar-badge {
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
+}
+
+.topbar-center {
+    display: flex;
+    gap: var(--s-2);
+}
+.topbar-tab {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: var(--font-sm);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: var(--ls-condensed);
+    padding: 3px 10px 5px;
+    border-radius: 0;
+    border: none;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.45);
+    cursor: pointer;
+    transition: color var(--transition-fast), border-color var(--transition-fast);
+}
+.topbar-tab:hover {
+    color: rgba(255, 255, 255, 0.85);
+    border-bottom-color: rgba(166, 188, 146, 0.3);
+}
+.topbar-tab.active {
+    color: #fff;
+    border-bottom-color: var(--ogt-muted);
+}
+
+.topbar-right {
+    display: flex;
+    align-items: center;
+    gap: var(--s-2);
+}
+.status-dot {
+    font-family: var(--font-mono);
+    font-size: 0.5rem;
+    font-weight: 700;
+    padding: 1px 4px;
+    border-radius: 2px;
+    background: rgba(0, 0, 0, 0.2);
+    color: rgba(255, 255, 255, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+}
+.status-dot.green { color: #4ade80; border-color: rgba(74, 222, 128, 0.15); }
+.status-dot.yellow { color: #facc15; border-color: rgba(250, 204, 21, 0.15); }
+.status-dot.red { color: #f87171; border-color: rgba(248, 113, 113, 0.15); }
+.sim-gps-pill {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 0.55rem;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    padding: 1px 5px;
+    border-radius: var(--radius-sm);
+    background: var(--warning);
+    color: #0a0a0a;
+    text-transform: uppercase;
+}
+.sim-gps-pill[hidden] { display: none; }
+.topbar-tracks {
+    font-family: var(--font-mono);
+    font-size: 0.55rem;
+    color: var(--ogt-muted);
+    font-weight: 700;
+}
+.topbar-fps {
+    font-family: var(--font-mono);
+    font-size: 0.55rem;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+/* ── Mini Video Thumbnail ── */
+.topbar-thumbnail {
+    width: 100px;
+    height: 66px;
+    overflow: hidden;
+    border-radius: var(--radius-sm);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    cursor: pointer;
+    display: none;
+    position: relative;
+}
+body.view-settings .topbar-thumbnail {
+    display: block;
+}
+.topbar-thumbnail img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* ── Footer ── */
+.footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: var(--footer-height);
+    background: var(--bg-panel);
+    border-top: 1px solid var(--border-default);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 var(--s-2);
+    z-index: 100;
+}
+.footer::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(56, 87, 35, 0.4), transparent);
+}
+.footer-text {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 0.55rem;
+    font-weight: 600;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+}
+.footer-logout {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 0.55rem;
+    font-weight: 600;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    background: none;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    padding: 1px 8px;
+    cursor: pointer;
+    transition: color var(--transition-fast), border-color var(--transition-fast);
+}
+.footer-logout:hover {
+    color: var(--danger);
+    border-color: var(--danger);
+}
+
+/* ── MJPEG Stream Positioning ── */
+#mjpeg-stream {
+    position: fixed;
+    z-index: 1;
+    background: #000;
+    object-fit: contain;
+    transition: all var(--transition-normal);
+    cursor: pointer;
+}
+#mjpeg-stream:fullscreen {
+    object-fit: contain;
+    width: 100vw;
+    height: 100vh;
+    background: #000;
+}
+/* Ops HUD: stream hidden (ops.html has its own video element) */
+body.view-ops #mjpeg-stream {
+    opacity: 0;
+    pointer-events: none;
+    top: 0;
+    left: 0;
+    width: 0;
+    height: 0;
+}
+/* Config view: stream shown left 60% (same as old operations) */
+body.view-config #mjpeg-stream {
+    top: var(--topbar-height);
+    left: 0;
+    width: 60%;
+    height: calc(100vh - var(--topbar-height) - var(--footer-height));
+}
+body.view-settings #mjpeg-stream {
+    opacity: 0;
+    pointer-events: none;
+    top: 0;
+    left: 0;
+    width: 0;
+    height: 0;
+}
+
+/* ── Presentation Mode ── */
+body.presentation .topbar,
+body.presentation .footer {
+    display: none;
+}
+body.presentation #mjpeg-stream {
+    top: 0;
+    bottom: 0;
+    height: 100vh;
+}
+
+/* ── View Containers ── */
+.view { display: none; }
+body.view-ops .view.view-ops { display: flex; }
+body.view-config .view.view-config { display: flex; }
+body.view-settings .view.view-settings { display: flex; }
+
+.view.view-ops,
+.view.view-config,
+.view.view-settings {
+    position: fixed;
+    top: var(--topbar-height);
+    left: 0;
+    right: 0;
+    bottom: var(--footer-height);
+    z-index: 2;
+}
+
+/* ── Responsive: Steam Deck (800-1279px) ── */
+@media (max-width: 1279px) {
+    .topbar-tab .tab-label { display: none; }
+    .topbar-thumbnail { display: none !important; }
+
+    body.view-config #mjpeg-stream {
+        width: 100%;
+        height: 40vh;
+    }
+}

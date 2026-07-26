@@ -1,0 +1,6 @@
+{
+  "running": "esecuzione (PID: {{pid}})",
+  "started": "avviato",
+  "stopped": "fermato",
+  "hint": "I servizi abilitati vengono avviati durante l'avvio del dispositivo."
+}

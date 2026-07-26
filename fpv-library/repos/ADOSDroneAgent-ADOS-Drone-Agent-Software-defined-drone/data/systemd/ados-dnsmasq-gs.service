@@ -1,0 +1,46 @@
+[Unit]
+Description=ADOS Ground Station DHCP/DNS (dnsmasq)
+After=ados-hostapd.service
+PartOf=ados-supervisor.service
+Requires=ados-hostapd.service
+ConditionPathExists=/etc/ados/dnsmasq-gs.conf
+# The setup AP is opt-in. hostapd's unit cannot gate this one: when the
+# operator has not opted in, hostapd idles in place instead of exiting (so the
+# supervisor does not read a clean exit as a crash), which leaves its unit
+# `active` and satisfies Requires=. Gate on the marker mirroring
+# network.hotspot.enabled instead, or dnsmasq starts on a box whose onboard
+# radio is a WiFi client, fails to bind an address already carrying a lease,
+# and burns its restart budget into a permanently failed unit.
+ConditionPathExists=/etc/ados/hotspot-enabled
+StartLimitInterval=60s
+StartLimitBurst=5
+
+[Service]
+# Join the shared accounting slice so MemoryCurrent/CPUUsage are
+# observable per unit (the slice sets MemoryAccounting=yes).
+Slice=ados.slice
+Type=simple
+User=root
+# Defence in depth against the Debian-default standalone dnsmasq.service.
+# install.sh masks it on a fresh ground-station install, but a future
+# apt reinstall or a manual `systemctl unmask` can revive it and then
+# the standalone binds 0.0.0.0:53 before we get a chance to take wlan0:53.
+# Stop+disable here so the start sequence always wins.
+ExecStartPre=-/bin/systemctl stop dnsmasq.service
+ExecStartPre=-/bin/systemctl disable dnsmasq.service
+ExecStart=/usr/sbin/dnsmasq --keep-in-foreground --conf-file=/etc/ados/dnsmasq-gs.conf
+Restart=on-failure
+RestartSec=5
+
+# dnsmasq binds UDP/53 and UDP/67 on wlan0
+AmbientCapabilities=CAP_NET_BIND_SERVICE CAP_NET_ADMIN CAP_NET_RAW
+NoNewPrivileges=no
+
+MemoryMax=32M
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ados-dnsmasq-gs
+
+[Install]
+WantedBy=ados-supervisor.service

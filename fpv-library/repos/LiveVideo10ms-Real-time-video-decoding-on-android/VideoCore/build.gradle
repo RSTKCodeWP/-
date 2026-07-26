@@ -1,0 +1,62 @@
+apply plugin: 'com.android.library'
+group='com.github.Consti10'
+
+android {
+    compileSdkVersion rootProject.compileSdkVersion
+    //ndkVersion rootProject.myNdkVersion
+    defaultConfig {
+        minSdkVersion rootProject.minSdkVersion
+        targetSdkVersion rootProject.targetSdkVersion
+        externalNativeBuild {
+            cmake {
+                cppFlags "-std=c++17"
+                arguments "-DANDROID_STL=c++_static"
+            }
+        }
+        ndk {
+            abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+    buildFeatures{
+        viewBinding=true
+        //prefab true
+    }
+    externalNativeBuild {
+        cmake {
+            path file('CMakeLists.txt')
+        }
+    }
+    sourceSets {
+        main {
+            // https://developer.android.com/studio/releases/gradle-plugin?buildsystem=cmake#cmake-imported-targets
+            // Not needed anymore
+            //jniLibs.srcDirs = ['libs/ffmpeg/lib']
+        }
+    }
+    // looks like prefab is just not ready yet ( too many compile errors for me)
+    //buildFeatures {
+    //    prefabPublishing true
+    //}
+    //prefab {
+    //    VideoNative {
+    //        headers "src/main/cpp/NALU"
+    //    }
+    //}
+}
+
+dependencies {
+    //implementation fileTree(dir: 'libs', include: ['*.jar'])
+    implementation "androidx.appcompat:appcompat:$rootProject.appcompatVersion"
+    implementation "androidx.constraintlayout:constraintlayout:$rootProject.constraintlayoutVersion"
+    implementation "androidx.preference:preference:$rootProject.androidxpreferenceVersion"
+    implementation "com.github.Consti10:prefs-plus:$rootProject.myPrefsPlusVersion"
+    api project(':Shared')
+    //implementation project(path: ':Shared')
+    //implementation 'com.github.Consti10:prefab-publishing:Tag'
+}

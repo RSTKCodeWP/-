@@ -1,0 +1,48 @@
+[Unit]
+Description=ADOS WFB-ng RX (ground-station profile)
+# After= the network and the mavlink unit, NOT the supervisor itself.
+# An earlier revision had After=ados-supervisor.service which deadlocked
+# the supervisor's own startup: when the supervisor's start_service
+# called systemctl start during its init phase, systemd held the start
+# request waiting for the supervisor to reach 'active' state — but the
+# supervisor needed this child to start before it could call
+# sd_notify(READY=1). PartOf= still binds the lifecycle so a supervisor
+# stop tears the rx unit down with it.
+After=network.target ados-mavlink.service
+PartOf=ados-supervisor.service
+ConditionKernelCommandLine=!no-wfb
+StartLimitInterval=60s
+StartLimitBurst=5
+
+[Service]
+# Join the shared accounting slice so MemoryCurrent/CPUUsage are
+# observable per unit (the slice sets MemoryAccounting=yes).
+Slice=ados.slice
+Type=simple
+User=root
+# The native ground-station receive plane (direct role). The install verifies
+# the binary is present before this unit starts, so a normal boot runs it
+# directly. There is no packaged fallback — the Python direct-role receive
+# plane was removed; a missing or broken binary fails loud. (The mesh
+# relay/receiver roles are native-only too; their packaged modules were
+# deleted, so no role keeps a Python fallback.)
+ExecStart=/opt/ados/bin/ados-groundlink
+Restart=on-failure
+RestartSec=5
+Environment=ADOS_CONFIG=/etc/ados/config.yaml
+EnvironmentFile=-/etc/ados/env
+
+# WFB RX needs raw socket + monitor-mode WiFi adapter access
+AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN
+NoNewPrivileges=no
+ProtectSystem=strict
+ReadWritePaths=/var/ados /run/ados /dev /etc/ados
+
+MemoryMax=64M
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ados-wfb-rx
+
+[Install]
+WantedBy=ados-supervisor.service

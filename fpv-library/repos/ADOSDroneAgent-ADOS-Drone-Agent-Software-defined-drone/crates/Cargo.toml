@@ -1,0 +1,119 @@
+[workspace]
+resolver = "2"
+members = ["ados-protocol", "ados-config", "ados-capabilities-codegen", "ados-tui", "ados-supervisor", "ados-mavlink-router", "ados-radio", "ados-crsf", "ados-config-tunnel", "ados-video", "ados-plugin-host", "ados-sdk", "ados-cloud", "ados-groundlink", "ados-net", "ados-hid", "ados-gpio", "ados-display", "ados-vision", "ados-hal-probe", "ados-macpin", "ados-installer", "ados-logd", "ados-control", "ados-compute", "ados-atlas", "ados-atlas-transport", "ados-offload"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "GPL-3.0-or-later"
+repository = "https://github.com/altnautica/ADOSDroneAgent"
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rmp-serde = "1.3"
+rmpv = { version = "1.3", features = ["with-serde"] }
+hmac = "0.12"
+sha2 = "0.10"
+# base64 sig decode: the plugin SIGNATURE blob carries a base64-encoded raw
+# 64-byte Ed25519 signature over the canonical payload hash.
+base64 = "0.22"
+# Ed25519 verify over the canonical payload hash. The `pem` feature reads the
+# same PEM/SPKI public-key files the agent ships under /etc/ados/plugin-keys.
+ed25519-dalek = { version = "2", features = ["pem"] }
+# .adosplug archive reader. Stored/deflate zip; the reader walks the central
+# directory, rejects traversal/symlink entries, and bounds per-entry + total
+# size before reading any payload.
+zip = { version = "2", default-features = false, features = ["deflate"] }
+# blake2b-8 → the 16-hex WFB key fingerprint (peer-public-half digest).
+blake2 = "0.10"
+hex = "0.4"
+thiserror = "2"
+getrandom = "0.2"
+toml = "0.8"
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "net", "io-util", "sync", "time", "process", "signal", "fs"] }
+# HTTP-only (no TLS): the REST client targets the agent on localhost:8080.
+ureq = { version = "2", default-features = false, features = ["json"] }
+# TUI. ratatui re-exports a matching crossterm, so the binary uses
+# `ratatui::crossterm` rather than a separately versioned crossterm dependency.
+ratatui = "0.29"
+anyhow = "1"
+# YAML config reader (/etc/ados/config.yaml + profile.conf). serde_yaml is
+# archived and serde_yml has an outstanding advisory; serde_norway is the
+# maintained pick.
+serde_norway = "0.9"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+# Async methods on the plugin SDK's driver and lifecycle traits; keeps the
+# traits object-safe behind a `Box<dyn ...>`.
+async-trait = "0.1"
+# Trait-only `Stream` for the SDK driver iterators (mirrors the Python
+# `AsyncIterator` returns). The minimal crate, no full futures stack.
+futures-core = "0.3"
+# Linux-only deps (systemd notify + journald). Declared here; the consuming
+# crate pulls them in only under `[target.'cfg(target_os = "linux")'.dependencies]`
+# so the pure-logic core still builds and tests on a non-Linux host.
+sd-notify = "0.4"
+tracing-journald = "0.3"
+# Unix process-group management (setsid + killpg) — the structural fix for
+# the orphaned-wfb_tx bug class. Linux-only; consuming crates target-gate it.
+# `term` adds sys::termios so the installer's onboarding wizard can put the
+# controlling terminal (/dev/tty) into raw mode and restore it on exit.
+nix = { version = "0.29", default-features = false, features = ["process", "signal", "fs", "user", "term", "poll"] }
+# /dev/shm frame-ring mapping for the vision engine. Operates on the byte
+# region the framebus contract defines; the contract itself stays OS-free.
+memmap2 = "0.9"
+# LCD page rendering — all pure Rust so the byte-level draw path cross-builds
+# for the musl SBC target with no C toolchain.
+#  * embedded-graphics: 2D draw primitives (rect/line/circle/polyline) onto an
+#    in-memory RGB888 buffer; the canvas the pages paint into.
+#  * ab_glyph: TrueType glyph rasterizer — renders the same DejaVu faces the
+#    prior renderer used, so text metrics match pixel-for-pixel.
+#  * image (png only): decode/encode PNG for off-rig snapshot fixtures; the
+#    png feature path is pure Rust (no libpng).
+#  * qrcode: pair-URL / short-code QR matrix generation.
+#  * png: low-level PNG codec used by the snapshot harness.
+embedded-graphics = "0.8"
+ab_glyph = "0.2"
+image = { version = "0.25", default-features = false, features = ["png"] }
+qrcode = "0.14"
+png = "0.17"
+# Embedded single-writer SQLite for the durable local log/telemetry store. The
+# `bundled` feature compiles SQLite from source (no system libsqlite3), so the
+# binary cross-builds for the musl SBC target as a self-contained file. This is
+# the first database dependency in the workspace; only the logging daemon opens
+# it read-write, every other reader connects read-only.
+rusqlite = { version = "0.31", features = ["bundled"] }
+# Native HTTP framework for the local query API. Pure Rust over tokio/hyper;
+# the same listener Router is served on a unix socket and a TCP port.
+axum = "0.7"
+tower = "0.4"
+tower-http = { version = "0.5", features = ["trace", "cors"] }
+# hyper 1 + the tokio glue serve the same axum Router on the trusted unix
+# socket (a per-connection accept loop) and the LAN TCP port. The http /
+# http-body-util / bytes crates carry the request/response and streaming-body
+# types the export endpoint writes chunked rows into.
+hyper = { version = "1", features = ["server", "http1"] }
+hyper-util = { version = "0.1", features = ["server", "server-auto", "tokio"] }
+http = "1"
+http-body-util = "0.1"
+bytes = "1"
+# Stream combinators for the chunked export body and the live tail.
+futures = { version = "0.3", default-features = false, features = ["std"] }
+# `stream!` macro for the SSE tail generator (subscribe-then-loop over the
+# writer broadcast); keeps the live-tail handler readable.
+async-stream = "0.3"
+# Streaming compression for the export endpoint and explicit cloud-push windows.
+zstd = "0.13"
+# Cross-platform host hardware read (CPU%, memory, disk, cores). The non-SBC
+# (workstation / macOS) path where `ados-logd` is not the running collector falls
+# back to this so the status surfaces report real numbers instead of zeros. Lean
+# feature set: `system` (CPU + memory) + `disk` (filesystem capacity); the
+# component/network/user collectors are unused. Already in the tree transitively.
+sysinfo = { version = "0.38", default-features = false, features = ["system", "disk"] }
+
+[profile.release]
+strip = true
+lto = "thin"
+codegen-units = 1
+panic = "abort"

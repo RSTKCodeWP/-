@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.appcompat.widget.LinearLayoutCompat xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:orientation="vertical"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context=".MainActivity">
+
+    <Button
+        android:id="@+id/b_startVideoActivity"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Start Video Only"
+        tools:ignore="HardcodedText" />
+
+    <Button
+        android:id="@+id/b_startSettingsActivity"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Video Settings"
+        tools:ignore="HardcodedText" />
+
+    <Spinner
+        android:id="@+id/s_videoFileSelector"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        tools:ignore="HardcodedText" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="3dp"
+        android:background="?android:attr/listDivider" />
+
+    <androidx.appcompat.widget.LinearLayoutCompat
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+        <Button
+            android:id="@+id/b_startTethering"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:text="Start Tethering" />
+
+        <Button
+            android:id="@+id/b_startViewDatabase"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:text="View Database" />
+        <Button
+            android:id="@+id/b_startColorFormatsTester"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="start ColorFormat Tester" />
+    </androidx.appcompat.widget.LinearLayoutCompat>
+
+
+    <androidx.appcompat.widget.LinearLayoutCompat
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+        <Button
+            android:id="@+id/b_startTranscodeService"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="start T service " />
+        <Button
+            android:id="@+id/b_stopTranscodeService"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="stop T service " />
+    </androidx.appcompat.widget.LinearLayoutCompat>
+
+    <View
+        android:id="@+id/divider"
+        android:layout_width="match_parent"
+        android:layout_height="3dp"
+        android:background="?android:attr/listDivider" />
+    <Button
+        android:id="@+id/b_startTelemetry"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Start Telemetry Example" />
+
+
+    <View
+        android:id="@+id/divider2"
+        android:layout_width="match_parent"
+        android:layout_height="3dp"
+        android:background="?android:attr/listDivider" />
+
+    <androidx.appcompat.widget.LinearLayoutCompat
+        android:layout_width="match_parent"
+        android:layout_height="50dp"
+        android:orientation="horizontal">
+        <Button
+            android:id="@+id/b_StartStreamingServer"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:text="StartStreamingServer" />
+        <Button
+            android:id="@+id/b_StreamingServerSettings"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:text="SS_Settings" />
+        <Button
+            android:id="@+id/b_TestFEC"
+            android:textSize="9dp"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:text="Test_FEC" />
+    </androidx.appcompat.widget.LinearLayoutCompat>
+
+
+
+    <Button
+        android:id="@+id/b_startGraphView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Start Graph View" />
+
+
+</androidx.appcompat.widget.LinearLayoutCompat>

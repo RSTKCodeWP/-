@@ -1,0 +1,47 @@
+[package]
+name = "ados-supervisor"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Process orchestrator for the ADOS Drone Agent: gates, starts, and supervises the systemd service units."
+
+[[bin]]
+name = "ados-supervisor"
+path = "src/main.rs"
+
+[dependencies]
+ados-macpin = { path = "../ados-macpin" }
+# The producer-side log-shipping layer (feature-gated in ados-protocol) feeds
+# the logging daemon's ingest socket alongside journald; never on the hot path.
+ados-protocol = { path = "../ados-protocol", features = ["tracing-layer"] }
+ados-config = { path = "../ados-config" }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_norway = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow = { workspace = true }
+# Object-safe async methods on the process-manager backend trait so the
+# supervisor can hold the active backend behind an `Arc<dyn ProcessManager>`.
+async-trait = { workspace = true }
+# WFB key fingerprint (blake2b-8 over the peer-public half) + hex render +
+# session-id entropy for the bind orchestrator.
+blake2 = { workspace = true }
+hex = { workspace = true }
+getrandom = { workspace = true }
+# ISO-8601 second-precision UTC timestamps for the bind session + pair state.
+time = { version = "0.3", features = ["std", "formatting", "macros"] }
+
+# Linux-only edges (systemd notify + journald + USB presence enumeration for
+# the hot-plug poller + setsid/killpg + flock). Confined to a target section so
+# the pure-logic core still builds and `cargo test`s on a non-Linux dev host;
+# the edge call sites are cfg-gated with inert fallbacks.
+[target.'cfg(target_os = "linux")'.dependencies]
+sd-notify = { workspace = true }
+tracing-journald = { workspace = true }
+nix = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3"

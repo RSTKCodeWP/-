@@ -1,0 +1,4637 @@
+"""FastAPI web server — MJPEG stream, operator dashboard, runtime config, and REST API."""
+
+from __future__ import annotations
+
+import asyncio
+import collections
+import configparser
+import datetime
+import hashlib
+import hmac
+import json
+import logging
+import os
+import re
+import secrets
+import threading
+import time
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional
+from urllib.parse import urlsplit
+
+import cv2
+import numpy as np
+from fastapi import FastAPI, Header, HTTPException, Request, Response
+from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
+from starlette.datastructures import MutableHeaders
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+
+from hydra_detect.web.config_api import (
+    MAX_BODY_SIZE,
+    compute_config_diff,
+    export_config_payload,
+    export_filename,
+    factory_reset_with_backup,
+    has_backup,
+    has_factory,
+    read_config,
+    read_runtime_config,
+    restore_backup,
+    validate_import_payload,
+    write_config,
+    validate_config_updates,
+)
+from hydra_detect.web import pixhawk_wizard as _pixhawk_wizard
+from hydra_detect.config_schema import SCHEMA as CONFIG_SCHEMA
+from hydra_detect.web.capability_api import router as _capability_router
+from hydra_detect.audit import (
+    attach_to_logger as _attach_audit,
+    get_default_sink as _get_audit_sink,
+)
+from hydra_detect.observability import (
+    attach_audit_counters as _attach_metrics_counters,
+    get_client_error_sink as _get_client_error_sink,
+    health_snapshot as _health_snapshot,
+    hydra_cpu_temp_c as _m_cpu_temp,
+    hydra_fps as _m_fps,
+    hydra_gpu_temp_c as _m_gpu_temp,
+    hydra_inference_ms as _m_inference_ms,
+    hydra_ram_pct as _m_ram_pct,
+    render_metrics as _render_metrics,
+)
+from hydra_detect.observability.version_surface import (
+    _read_channel_file,
+    _read_last_update,
+)
+
+# Attach the audit ring handler to the `hydra.audit` logger exactly once.
+# Safe to import-time — idempotent + non-blocking.
+_attach_audit()
+_attach_metrics_counters()
+_audit_sink = _get_audit_sink()
+_client_error_sink = _get_client_error_sink()
+
+# Wire gauge providers to read live values from ``stream_state.stats`` on
+# every Prometheus scrape. Set once at import — provider closures are stable.
+_m_fps.set_provider(lambda: stream_state.get_stats().get("fps"))
+_m_inference_ms.set_provider(lambda: stream_state.get_stats().get("inference_ms"))
+
+
+def _ram_pct_from_stats() -> float | None:
+    """Compute RAM utilisation percent from the jetson_stats dict in stream_state.
+
+    Returns None when either total or used is missing or total is zero, so the
+    Prometheus exposition renders NaN rather than a misleading number.
+    """
+    stats = stream_state.get_stats()
+    total = stats.get("ram_total_mb")
+    used = stats.get("ram_used_mb")
+    if not total or used is None:
+        return None
+    return round(float(used) / float(total) * 100.0, 1)
+
+
+# SoC temp + RAM providers fed from system.read_jetson_stats(), which the
+# pipeline merges into stream_state every ~5 s. Keeps deployed-unit thermal
+# state visible via /metrics without adding a separate scrape thread.
+_m_cpu_temp.set_provider(lambda: stream_state.get_stats().get("cpu_temp_c"))
+_m_gpu_temp.set_provider(lambda: stream_state.get_stats().get("gpu_temp_c"))
+_m_ram_pct.set_provider(_ram_pct_from_stats)
+
+logger = logging.getLogger(__name__)
+
+TEMPLATE_DIR = Path(__file__).parent / "templates"
+STATIC_DIR = Path(__file__).parent / "static"
+
+# Spectrum endpoint configuration (overridable via env vars; see .env.example)
+_SPECTRUM_PATH = Path(os.environ.get("HYDRA_SPECTRUM_PATH", "/tmp/hydra_spectrum.json"))
+_SPECTRUM_MAX_AGE_S = float(os.environ.get("HYDRA_SPECTRUM_MAX_AGE_S", "10"))
+
+app = FastAPI(title="Hydra Detect v2.0", version="2.0.0")
+
+# ── Capability status API (issue #146) ───────────────────────────────────────
+app.include_router(_capability_router)
+
+# CORS: restrict cross-origin to fleet-view-relevant paths only.
+# The Fleet View page polls /api/stats and /api/abort on peer Hydra
+# instances, so those endpoints need permissive CORS.  All other
+# endpoints stay same-origin.
+_CORS_ALLOWED_PATHS = {"/api/stats", "/api/abort"}
+
+
+class _FleetCORSMiddleware:
+    """Pure ASGI middleware — add CORS headers for fleet-view endpoints."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        path = scope.get("path", "")
+
+        async def send_wrapper(message):
+            if message["type"] == "http.response.start" and path in _CORS_ALLOWED_PATHS:
+                headers = MutableHeaders(scope=message)
+                headers.append("Access-Control-Allow-Origin", "*")
+                headers.append("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+                headers.append("Access-Control-Allow-Headers", "Authorization, Content-Type")
+            await send(message)
+
+        await self.app(scope, receive, send_wrapper)
+
+
+app.add_middleware(_FleetCORSMiddleware)
+
+# Standard CSP for the SPA and standalone pages
+_CSP_DEFAULT = (
+    "default-src 'self'; "
+    "img-src 'self' data: https://*.tile.openstreetmap.org; "
+    "script-src 'self' https://unpkg.com; "
+    "style-src 'self' 'unsafe-inline' https://unpkg.com; "
+    "frame-src https://www.youtube-nocookie.com; "
+    "connect-src 'self'"
+)
+
+# Relaxed CSP for the Fleet View page — it fetches from other Jetsons
+_CSP_FLEET = (
+    "default-src 'self'; "
+    "img-src 'self' data:; "
+    "script-src 'self'; "
+    "style-src 'self' 'unsafe-inline'; "
+    "connect-src *"
+)
+
+
+class _SecurityHeadersMiddleware:
+    """Pure ASGI middleware — inject security headers."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        path = scope.get("path", "")
+
+        async def send_wrapper(message):
+            if message["type"] == "http.response.start":
+                headers = MutableHeaders(scope=message)
+                headers["X-Frame-Options"] = "DENY"
+                headers["X-Content-Type-Options"] = "nosniff"
+                csp = _CSP_FLEET if path in ("/fleet", "/instructor") else _CSP_DEFAULT
+                headers["Content-Security-Policy"] = csp
+            await send(message)
+
+        await self.app(scope, receive, send_wrapper)
+
+
+app.add_middleware(_SecurityHeadersMiddleware)
+
+if STATIC_DIR.is_dir():
+    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+templates = Jinja2Templates(directory=str(TEMPLATE_DIR))
+
+# API token for control endpoints — set via configure_auth()
+_api_token: Optional[str] = None
+_require_auth_for_control: bool = False
+
+# Morale features flag; off by default for field images
+_morale_features_enabled: bool = False
+
+# Rate limiting for auth failures — per-IP, sliding window
+_AUTH_FAIL_WINDOW = 60  # seconds
+_AUTH_FAIL_MAX = 50  # max failures per window before lockout
+_auth_failures: Dict[str, list] = collections.defaultdict(list)
+
+
+def _recent_auth_failures(client_ip: str, now: float) -> list[float]:
+    """Return recent auth failures for an IP and prune expired entries."""
+    failures = [t for t in _auth_failures.get(client_ip, []) if now - t < _AUTH_FAIL_WINDOW]
+    if failures:
+        _auth_failures[client_ip] = failures
+    elif client_ip in _auth_failures:
+        del _auth_failures[client_ip]
+    return failures
+
+
+def _record_auth_failure(client_ip: str, now: float) -> None:
+    """Record one failed auth attempt for an IP."""
+    _auth_failures.setdefault(client_ip, []).append(now)
+
+
+def configure_auth(
+    token: Optional[str],
+    require_auth_for_control: bool = False,
+) -> None:
+    """Set the API token for control endpoints. None or empty disables auth."""
+    global _api_token, _require_auth_for_control
+    _api_token = token if token else None
+    _require_auth_for_control = require_auth_for_control
+    if _api_token:
+        logger.info("API token auth enabled for control endpoints.")
+    else:
+        logger.info("API token auth disabled (no token configured).")
+
+
+def configure_morale_features(enabled: bool) -> None:
+    """Set the morale-features flag for this server instance.
+
+    Off by default; field images ship without beep/easter-egg routes.
+    Call from pipeline startup after reading [ui] morale_features_enabled.
+    """
+    global _morale_features_enabled
+    _morale_features_enabled = bool(enabled)
+    logger.info("Morale features %s.", "enabled" if enabled else "disabled")
+
+
+def _check_auth(
+    authorization: Optional[str],
+    request: Optional[Request] = None,
+) -> Optional[JSONResponse]:
+    """Validate Bearer token. Returns an error response if auth fails, None if OK."""
+    if _api_token is None:
+        if _require_auth_for_control:
+            return JSONResponse(
+                {"error": (
+                    "Control endpoint requires api_token. Set it in"
+                    " config.ini or set require_auth_for_control = false."
+                )},
+                status_code=401,
+            )
+        return None  # Auth disabled
+
+    if request is not None:
+        origin = request.headers.get("origin", "")
+        if origin and _origin_matches_request(origin, request):
+            return None
+        # Password-authenticated sessions also bypass Bearer token check
+        cookie_header = request.headers.get("cookie", "")
+        if cookie_header:
+            cookies = _parse_cookies(cookie_header)
+            session = cookies.get("hydra_session", "")
+            if session and _validate_session_cookie(session):
+                return None
+
+    # Rate limit check — reject if too many recent failures from this IP
+    client_ip = request.client.host if request and request.client else "unknown"
+    now = time.monotonic()
+    failures = _recent_auth_failures(client_ip, now)
+    if len(failures) >= _AUTH_FAIL_MAX:
+        return JSONResponse({"error": "Too many failed attempts, try again later"}, status_code=429)
+
+    if not authorization or not authorization.startswith("Bearer "):
+        _record_auth_failure(client_ip, now)
+        return JSONResponse(
+            {"error": "Authorization header with Bearer token required"},
+            status_code=401,
+        )
+    provided = authorization[len("Bearer "):]
+    if not hmac.compare_digest(provided, _api_token):
+        _record_auth_failure(client_ip, now)
+        return JSONResponse({"error": "Invalid API token"}, status_code=403)
+    return None
+
+
+# Loopback hosts that should NOT trigger the "remote abort reachable" banner
+# on the dashboard. Anything else (LAN IP, Tailscale IP, public DNS) counts
+# as a remote viewer and the banner is shown to remind the operator that
+# /api/abort is intentionally unauthenticated. (issue #150)
+_LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
+
+
+def _is_remote_client(request: Request) -> bool:
+    """Return True when the dashboard is being viewed from a non-loopback host.
+
+    Used to surface the "remote abort reachable" banner. Robust to a missing
+    request.client (TestClient with no scope, ASGI lifespan calls). Treats
+    unknown / missing client host as remote — fail-loud rather than fail-quiet.
+
+    PR #210 R1-2 from docs/adversarial/210.md: missing client info now returns
+    True. The banner is informational about a security state; showing it once
+    extra (e.g. on the synthetic / ASGI-lifespan path) is harmless, whereas
+    suppressing it when we genuinely can't classify the viewer was the bug.
+    """
+    client = getattr(request, "client", None)
+    host = getattr(client, "host", None) if client else None
+    if not host:
+        return True  # no client info → fail-loud, surface the banner
+    return host not in _LOOPBACK_HOSTS
+
+
+def _origin_matches_request(origin: str, request: Request) -> bool:
+    """Return True when Origin exactly matches request scheme + host + port."""
+    try:
+        parsed = urlsplit(origin)
+    except ValueError:
+        return False
+    if not parsed.scheme or not parsed.netloc or parsed.hostname is None:
+        return False
+    if parsed.username or parsed.password:
+        return False
+
+    req_scheme = request.url.scheme
+    req_host = request.url.hostname
+    if not req_scheme or not req_host:
+        return False
+
+    origin_port = parsed.port or (
+        443 if parsed.scheme == "https" else 80 if parsed.scheme == "http" else None
+    )
+    req_port = request.url.port or (
+        443 if req_scheme == "https" else 80 if req_scheme == "http" else None
+    )
+    if origin_port is None or req_port is None:
+        return False
+
+    return parsed.scheme == req_scheme and parsed.hostname == req_host and origin_port == req_port
+
+
+# ── Web password session auth ────────────────────────────────────────
+# Two storage paths, mutually exclusive:
+#   _web_password      — plaintext from [web].web_password (legacy / dev).
+#   _web_password_hash — pbkdf2 hash from [identity].web_password_hash
+#                        (set by Platform Setup, issue #149).
+# When the hash path is active, _web_password is None and login uses
+# hydra_detect.identity.verify_password() instead of hmac.compare_digest.
+_web_password: str | None = None
+_web_password_hash: str | None = None
+_session_secret: bytes = secrets.token_bytes(32)
+_session_timeout_sec: int = 8 * 3600
+_tls_active: bool = False
+
+
+def configure_web_password(
+    password: str | None,
+    timeout_min: int = 480,
+    tls_enabled: bool = False,
+    password_hash: str | None = None,
+) -> None:
+    """Enable password-based browser access.
+
+    Exactly one of ``password`` (plaintext) or ``password_hash`` (pbkdf2)
+    should be set. If both are provided, ``password_hash`` wins — Platform
+    Setup is the higher-trust source. None/empty on both disables auth.
+
+    The plaintext path is preserved for backward compat on units that
+    haven't run Platform Setup yet (legacy [web].web_password). New
+    field images ship with [identity].web_password_hash and the running
+    pipeline routes through that. (Issue #149.)
+    """
+    global _web_password, _web_password_hash, _session_timeout_sec, _tls_active
+    _session_timeout_sec = timeout_min * 60
+    _tls_active = tls_enabled
+
+    if password_hash:
+        _web_password_hash = password_hash
+        _web_password = None
+        logger.info(
+            "Web password auth enabled (hashed, session timeout: %d min).",
+            timeout_min,
+        )
+    elif password:
+        _web_password = password
+        _web_password_hash = None
+        logger.info("Web password auth enabled (session timeout: %d min).", timeout_min)
+    else:
+        _web_password = None
+        _web_password_hash = None
+        logger.info("Web password auth disabled (no password configured).")
+        return
+
+    if not tls_enabled:
+        logger.warning(
+            "web_password is set but TLS is disabled — "
+            "password will be sent in cleartext over HTTP."
+        )
+
+
+def _web_password_configured() -> bool:
+    """True if either plaintext or hashed password is set."""
+    return _web_password is not None or _web_password_hash is not None
+
+
+def _verify_web_password(provided: str) -> bool:
+    """Verify a plaintext password against whichever auth storage is active.
+
+    Constant-time comparison via either ``hmac.compare_digest`` (plaintext)
+    or ``identity.verify_password`` (pbkdf2). Returns False if no password
+    auth is configured — callers should gate on ``_web_password_configured``
+    before calling this.
+    """
+    if _web_password_hash is not None:
+        from hydra_detect.identity import verify_password
+        return verify_password(provided, _web_password_hash)
+    if _web_password is not None:
+        return hmac.compare_digest(provided, _web_password)
+    return False
+
+
+def _make_session_cookie() -> str:
+    """Create a signed session cookie: nonce:expires:signature."""
+    nonce = secrets.token_hex(16)
+    expires = int(time.time()) + _session_timeout_sec
+    payload = f"{nonce}:{expires}"
+    sig = hmac.new(_session_secret, payload.encode(), hashlib.sha256).hexdigest()
+    return f"{payload}:{sig}"
+
+
+def _validate_session_cookie(cookie: str) -> bool:
+    """Verify HMAC signature and check expiry of a session cookie."""
+    parts = cookie.split(":")
+    if len(parts) != 3:
+        return False
+    payload = f"{parts[0]}:{parts[1]}"
+    expected = hmac.new(_session_secret, payload.encode(), hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(parts[2], expected):
+        return False
+    try:
+        return int(parts[1]) > time.time()
+    except ValueError:
+        return False
+
+
+def _parse_cookies(cookie_header: str) -> dict[str, str]:
+    """Parse a Cookie header into a dict."""
+    cookies: dict[str, str] = {}
+    for pair in cookie_header.split(";"):
+        pair = pair.strip()
+        if "=" in pair:
+            k, v = pair.split("=", 1)
+            cookies[k.strip()] = v.strip()
+    return cookies
+
+
+# Paths that are always accessible without password login
+_PUBLIC_PATH_PREFIXES = (
+    "/login", "/auth/", "/static/",
+    "/api/health", "/api/preflight", "/api/abort",
+    "/api/stats",      # fleet view polls peers cross-origin
+    "/api/tracks",     # read-only dashboard data
+    "/api/mode",       # operating mode — dashboard polls; POST still auth-checked
+    "/api/metrics",    # Prometheus scrape
+    "/api/client_error",  # frontend error sink (same-origin, rate-limited)
+    "/stream.jpg",     # snapshot polling (img.src, no cookie in some contexts)
+    "/stream.mjpeg",   # MJPEG fallback
+)
+
+
+class _SessionAuthMiddleware:
+    """Pure ASGI middleware — gate all access behind password login.
+
+    Skips entirely when no web_password is configured (default).
+    Allows through requests with a valid Bearer token or session cookie.
+    """
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http" or not _web_password_configured():
+            await self.app(scope, receive, send)
+            return
+
+        path = scope.get("path", "")
+
+        # Public paths — always accessible
+        if any(path.startswith(p) for p in _PUBLIC_PATH_PREFIXES):
+            await self.app(scope, receive, send)
+            return
+
+        # Extract headers from raw ASGI scope
+        headers = dict(scope.get("headers", []))
+
+        # Allow requests with a valid Bearer token (API clients)
+        auth_header = headers.get(b"authorization", b"").decode()
+        if (
+            _api_token
+            and auth_header.startswith("Bearer ")
+            and hmac.compare_digest(auth_header[7:], _api_token)
+        ):
+            await self.app(scope, receive, send)
+            return
+
+        # Check session cookie
+        cookie_header = headers.get(b"cookie", b"").decode()
+        if cookie_header:
+            cookies = _parse_cookies(cookie_header)
+            session = cookies.get("hydra_session", "")
+            if session and _validate_session_cookie(session):
+                await self.app(scope, receive, send)
+                return
+
+        # Not authenticated — decide response based on request type
+        accept = headers.get(b"accept", b"").decode()
+        if "text/html" in accept:
+            # Browser page request — redirect to login
+            redirect_body = b""
+            await send({
+                "type": "http.response.start",
+                "status": 302,
+                "headers": [
+                    [b"location", b"/login"],
+                    [b"content-length", b"0"],
+                ],
+            })
+            await send({
+                "type": "http.response.body",
+                "body": redirect_body,
+            })
+        else:
+            # API request — return 401 JSON
+            import json as _json
+            body = _json.dumps({"error": "Login required"}).encode()
+            await send({
+                "type": "http.response.start",
+                "status": 401,
+                "headers": [
+                    [b"content-type", b"application/json"],
+                    [b"content-length", str(len(body)).encode()],
+                    [b"x-login-required", b"true"],
+                ],
+            })
+            await send({
+                "type": "http.response.body",
+                "body": body,
+            })
+
+
+app.add_middleware(_SessionAuthMiddleware)
+
+
+# Dedicated audit logger for control actions
+audit_log = logging.getLogger("hydra.audit")
+
+
+@app.exception_handler(HTTPException)
+async def _http_exception_handler(request: Request, exc: HTTPException):
+    """Render fastapi.HTTPException with this app's ``{"error": ...}`` body
+    convention (the 413s raised by ``_read_body_capped``). Starlette's own
+    routing exceptions (404/405) are a different class and keep the default
+    handler."""
+    return JSONResponse({"error": exc.detail}, status_code=exc.status_code)
+
+
+async def _read_body_capped(request: Request, cap: int = MAX_BODY_SIZE) -> bytes:
+    """Read the request body, never letting more than ``cap`` bytes become
+    resident (issue #289 — a single multi-GB POST could OOM the 8 GB Orin
+    and take the pipeline down for the whole class).
+
+    Rejects on the declared Content-Length first (cheap), then enforces the
+    same cap on the actual stream — chunked transfer encoding carries no
+    length declaration, and a declared length can simply lie.
+
+    Raises ``HTTPException(413)`` on an oversized body. On success the
+    assembled body is cached on the request so any later ``request.body()``
+    / ``request.json()`` call in the same handler still works.
+    """
+    declared = request.headers.get("content-length")
+    if declared is not None:
+        try:
+            if int(declared) > cap:
+                raise HTTPException(status_code=413, detail="Request body too large")
+        except ValueError:
+            pass  # malformed header — the streamed cap below still holds
+    chunks: list[bytes] = []
+    total = 0
+    async for chunk in request.stream():
+        total += len(chunk)
+        if total > cap:
+            raise HTTPException(status_code=413, detail="Request body too large")
+        chunks.append(chunk)
+    body = b"".join(chunks)
+    request._body = body  # keep Starlette's body cache coherent
+    return body
+
+
+async def _parse_json(request: Request) -> dict | None:
+    """Safely parse JSON body, returning None on malformed input.
+
+    Body size is capped via :func:`_read_body_capped` — an oversized body
+    raises ``HTTPException(413)`` before it is ever fully buffered.
+    """
+    try:
+        return json.loads(await _read_body_capped(request))
+    except (ValueError, json.JSONDecodeError, UnicodeDecodeError):
+        return None
+
+# Prompt constraints
+MAX_PROMPTS = 20
+MAX_PROMPT_LENGTH = 200
+BSSID_RE = re.compile(r"^[0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){5}$")
+
+TACTICAL_CATEGORIES = {
+    "People": [
+        "person", "pedestrian", "people", "soldier", "combatant", "civilian",
+    ],
+    "Ground Vehicles": [
+        "car", "truck", "bus", "van", "motorcycle", "bicycle", "tricycle",
+        "awning-tricycle", "motor", "train", "tank", "apc", "afv", "mev",
+        "lav", "humvee",
+    ],
+    "Aircraft": [
+        "airplane", "helicopter", "drone", "fighter jet", "fighter plane",
+        "light aircraft", "commercial aircraft", "cargo aircraft",
+    ],
+    "Watercraft": [
+        "boat", "ship", "warship", "cargo ship", "cruise ship", "yacht",
+        "sailboat",
+    ],
+    "Weapons/Threats": [
+        "gun", "knife", "grenade", "explosion", "missile", "scissors",
+        "baseball bat", "rifle", "pistol", "rpg",
+    ],
+    "Equipment": [
+        "backpack", "suitcase", "handbag", "cell phone", "laptop", "radio",
+        "bottle", "umbrella",
+    ],
+    "Animals": [
+        "dog", "horse", "bird", "cow", "sheep", "cat", "bear", "elephant",
+        "zebra", "giraffe",
+    ],
+    "Infrastructure": [
+        "fire hydrant", "stop sign", "traffic light", "bench", "parking meter",
+    ],
+}
+
+# Pre-built lowercase lookup: maps lowercase class name -> category name.
+# Rebuilt once at import time (and after any hot-reload).
+_CATEGORY_LOOKUP: Dict[str, str] = {}
+for _cat, _members in TACTICAL_CATEGORIES.items():
+    for _m in _members:
+        _CATEGORY_LOOKUP[_m.lower()] = _cat
+
+
+def _categorize_classes(all_classes: list[str]) -> dict[str, list[str]]:
+    """Group class names into tactical categories (case-insensitive).
+
+    Unmatched classes fall into 'Other'.
+    """
+    result: Dict[str, List[str]] = {}
+    for c in all_classes:
+        cat = _CATEGORY_LOOKUP.get(c.lower(), "Other")
+        result.setdefault(cat, []).append(c)
+    return result
+
+
+def _audit(request: Request, action: str, target: str = "", outcome: str = "ok") -> None:
+    """Log a control action for accountability."""
+    client = request.client.host if request.client else "unknown"
+    ts = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    audit_log.info(
+        "ts=%s actor=%s action=%s target=%s outcome=%s",
+        ts, client, action, target, outcome,
+    )
+
+
+# ── Response cache with stale-data fallback ──────────────────────────
+
+_response_cache: dict[str, tuple[float, Any]] = {}
+_RESPONSE_CACHE_TTL = 30.0
+
+
+def _cached_callback(key: str, callback: Callable | None, *args: Any) -> Any | None:
+    """Call a pipeline callback with stale-data fallback.
+
+    If the callback succeeds, cache the result. If it raises or returns None
+    and we have cached data within TTL, return the cached data instead.
+    """
+    now = time.monotonic()
+    try:
+        if callback is None:
+            raise RuntimeError("no callback")
+        result = callback(*args)
+        if result is not None:
+            _response_cache[key] = (now, result)
+        return result
+    except Exception:
+        cached = _response_cache.get(key)
+        if cached and (now - cached[0]) < _RESPONSE_CACHE_TTL:
+            logger.warning("Serving stale %s (age %.1fs)", key, now - cached[0])
+            return cached[1]
+        return None
+
+
+class StreamState:
+    """Shared state between the pipeline and the web server."""
+
+    def __init__(self):
+        self.frame: Optional[np.ndarray] = None
+        self.raw_frame: Optional[np.ndarray] = None
+        self.stats: Dict[str, Any] = {
+            "fps": 0.0,
+            "inference_ms": 0.0,
+            "active_tracks": 0,
+            "total_detections": 0,
+            "detector": "n/a",
+            "mavlink": False,
+            "gps_fix": 0,
+            "position": None,
+        }
+        self._lock = threading.Lock()
+
+        # Runtime config callbacks (set by pipeline via set_callbacks)
+        self._callbacks: Dict[str, Callable] = {}
+
+        # Current runtime config (readable by web UI)
+        self.runtime_config: Dict[str, Any] = {
+            "threshold": 0.45,
+            "auto_loiter": False,
+        }
+
+        # Target lock state (readable by web UI)
+        self.target_lock: Dict[str, Any] = {
+            "locked": False,
+            "track_id": None,
+            "mode": None,  # "track" or "strike"
+            "label": None,
+        }
+
+        # Adaptive MJPEG quality (1-100)
+        self._mjpeg_quality: int = 70
+
+    def update_frame(self, frame: np.ndarray) -> None:
+        with self._lock:
+            self.frame = frame
+
+    def get_frame(self) -> Optional[np.ndarray]:
+        with self._lock:
+            return self.frame.copy() if self.frame is not None else None
+
+    def update_raw_frame(self, frame: np.ndarray) -> None:
+        with self._lock:
+            self.raw_frame = frame
+
+    def get_raw_frame(self) -> Optional[np.ndarray]:
+        with self._lock:
+            return self.raw_frame.copy() if self.raw_frame is not None else None
+
+    def update_stats(self, **kwargs: Any) -> None:
+        with self._lock:
+            self.stats.update(kwargs)
+
+    def get_stats(self) -> Dict[str, Any]:
+        with self._lock:
+            return dict(self.stats)
+
+    def set_target_lock(self, lock_state: Dict[str, Any]) -> None:
+        with self._lock:
+            self.target_lock = lock_state
+
+    def get_target_lock(self) -> Dict[str, Any]:
+        with self._lock:
+            return dict(self.target_lock)
+
+    def set_runtime_config(self, key: str, value: Any) -> None:
+        with self._lock:
+            self.runtime_config[key] = value
+
+    def update_runtime_config(self, updates: Dict[str, Any]) -> None:
+        with self._lock:
+            self.runtime_config.update(updates)
+
+    def get_runtime_config(self) -> Dict[str, Any]:
+        with self._lock:
+            return dict(self.runtime_config)
+
+    def set_callbacks(self, **callbacks: Optional[Callable]) -> None:
+        with self._lock:
+            for name, cb in callbacks.items():
+                if cb is not None:
+                    self._callbacks[name] = cb
+
+    def get_callback(self, name: str) -> Optional[Callable]:
+        """Safely retrieve a callback by name."""
+        with self._lock:
+            return self._callbacks.get(name)
+
+    def set_mjpeg_quality(self, quality: int) -> None:
+        with self._lock:
+            self._mjpeg_quality = max(1, min(100, quality))
+
+    def get_mjpeg_quality(self) -> int:
+        with self._lock:
+            return self._mjpeg_quality
+
+
+# Global state instance — set by the pipeline before starting the server
+stream_state = StreamState()
+
+
+# TAK command listener handle — set by the pipeline via set_tak_input().
+# Powers GET /api/tak/commands (inbound GeoChat feed for dashboard).
+_tak_input_ref: Any = None
+
+# TAK output handle — powers /api/tak/peers (unicast targets) and
+# /api/tak/type_counts side-channels. Set via set_tak_output().
+_tak_output_ref: Any = None
+
+# Servo tracker handle — powers /api/servo/status. Set via
+# set_servo_tracker(). None => dashboard renders the idle state.
+_servo_tracker_ref: Any = None
+
+# RF ambient scan sink handle — powers /api/rf/ambient_scan. Set via
+# set_rf_ambient_scan(). None => dashboard renders the idle state.
+_rf_ambient_ref: Any = None
+
+# Autonomous controller handle — powers /api/autonomy/status and
+# /api/autonomy/mode. Set via set_autonomous_controller(). None =>
+# endpoint returns the idle/default shape so the dashboard renders.
+_autonomous_ref: Any = None
+
+# MAVLink I/O handle — powers flight-instrument fields (heading, airspeed,
+# altitude, vertical_speed) on /api/stats. Set via set_mavlink(). None =>
+# those fields default to None so the dashboard renders a dash.
+_mavlink_ref: Any = None
+
+
+def set_tak_input(tak_input: Any) -> None:
+    """Register the TAKInput instance for the /api/tak/commands feed.
+
+    Called from the pipeline facade after the listener is constructed.
+    Pass None to detach.
+    """
+    global _tak_input_ref
+    _tak_input_ref = tak_input
+
+
+def set_tak_output(tak_output: Any) -> None:
+    """Register the TAKOutput instance for peer/unicast roll-ups."""
+    global _tak_output_ref
+    _tak_output_ref = tak_output
+
+
+def set_mavlink(mav: Any) -> None:
+    """Register the MAVLinkIO instance that powers flight-instrument
+    fields on /api/stats. Pass None to detach."""
+    global _mavlink_ref
+    _mavlink_ref = mav
+
+
+def set_servo_tracker(servo: Any) -> None:
+    """Register a servo-state provider for /api/servo/status.
+
+    The provided object must expose ``get_api_status() -> dict``. Pass
+    None to detach (the endpoint will return the idle/disabled shape).
+    """
+    global _servo_tracker_ref
+    _servo_tracker_ref = servo
+
+
+def set_rf_ambient_scan(scanner: Any) -> None:
+    """Register an ambient-scan sink for /api/rf/ambient_scan.
+
+    The provided object must expose ``get_samples()`` returning a dict
+    with keys ``samples``, ``window_seconds``, ``max_rssi``.
+    """
+    global _rf_ambient_ref
+    _rf_ambient_ref = scanner
+
+
+def set_autonomous_controller(controller: Any) -> None:
+    """Register an AutonomousController for /api/autonomy/* endpoints.
+
+    The provided object must expose ``get_dashboard_snapshot(callsign=...)``
+    and ``set_mode(mode)``. Pass None to detach (endpoint falls back to
+    an idle-default shape so the dashboard still renders).
+    """
+    global _autonomous_ref
+    _autonomous_ref = controller
+
+
+# ── Routes ────────────────────────────────────────────────────────────
+
+
+@app.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request):
+    """Serve the login page (or redirect to dashboard if already logged in)."""
+    if not _web_password_configured():
+        return Response(status_code=302, headers={"location": "/"})
+    cookie = request.cookies.get("hydra_session", "")
+    if cookie and _validate_session_cookie(cookie):
+        return Response(status_code=302, headers={"location": "/"})
+    return templates.TemplateResponse(request, "login.html")
+
+
+@app.post("/auth/login")
+async def auth_login(request: Request):
+    """Validate password and set session cookie."""
+    if not _web_password_configured():
+        return JSONResponse({"status": "ok"})
+
+    client_ip = request.client.host if request.client else "unknown"
+    now = time.monotonic()
+
+    # Rate limit check (reuse same tracking as Bearer token auth)
+    failures = _recent_auth_failures(client_ip, now)
+    if len(failures) >= _AUTH_FAIL_MAX:
+        return JSONResponse(
+            {"error": "Too many failed attempts, try again later"}, status_code=429,
+        )
+
+    body = await _parse_json(request)
+    if not body or "password" not in body:
+        return JSONResponse({"error": "Missing password"}, status_code=400)
+
+    password = str(body["password"])
+    if not _verify_web_password(password):
+        _record_auth_failure(client_ip, now)
+        return JSONResponse({"error": "Wrong password"}, status_code=401)
+
+    cookie_value = _make_session_cookie()
+    cookie_flags = (
+        f"hydra_session={cookie_value}; "
+        f"HttpOnly; SameSite=Lax; Path=/; Max-Age={_session_timeout_sec}"
+    )
+    if _tls_active:
+        cookie_flags += "; Secure"
+
+    return JSONResponse(
+        {"status": "ok"},
+        headers={"set-cookie": cookie_flags},
+    )
+
+
+@app.post("/auth/logout")
+async def auth_logout():
+    """Clear session cookie."""
+    return JSONResponse(
+        {"status": "ok"},
+        headers={
+            "set-cookie": "hydra_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0",
+        },
+    )
+
+
+@app.get("/auth/status")
+async def auth_status(request: Request):
+    """Return whether web password auth is enabled and this request is authenticated."""
+    if not _web_password_configured():
+        return {"password_enabled": False, "authenticated": True}
+
+    cookie = request.cookies.get("hydra_session", "")
+    authenticated = bool(cookie and _validate_session_cookie(cookie))
+    return {"password_enabled": True, "authenticated": authenticated}
+
+
+@app.get("/", response_class=HTMLResponse)
+async def index(request: Request):
+    """Serve the operator dashboard SPA.
+
+    Passes ``morale_features_enabled`` so dev-image easter eggs render only
+    on dev builds, and ``remote_abort_reachable`` so the dashboard surfaces
+    a banner reminding the operator that /api/abort is intentionally
+    unauthenticated whenever a non-loopback browser loads the page (#150).
+    """
+    return templates.TemplateResponse(
+        request, "base.html",
+        {
+            "morale_features_enabled": _morale_features_enabled,
+            "remote_abort_reachable": _is_remote_client(request),
+        },
+    )
+
+
+@app.get("/api/health")
+async def api_health():
+    """Structured subsystem health.
+
+    Returns::
+
+        {
+          "status": "ok"|"warn"|"fail",
+          "ts": <unix>,
+          "subsystems": { camera, mavlink, gps, detector, rtsp, tak, audit, disk:
+                          {"status": "ok"|"warn"|"fail", "detail": str} },
+
+          # Back-compat fields for Docker HEALTHCHECK + load balancers + older
+          # clients that checked ``healthy`` / ``fps`` / ``camera_ok``:
+          "healthy": bool, "camera_ok": bool, "fps": float,
+        }
+
+    HTTP 200 when overall ``status`` is ok or warn, 503 when ``fail``. (warn
+    is deliberately not a 5xx — it should not take a Jetson out of rotation.)
+    """
+    stats = stream_state.get_stats()
+    snapshot = _health_snapshot(
+        stats=stats,
+        mavlink_ref=_mavlink_ref,
+        tak_output_ref=_tak_output_ref,
+        audit_sink=_audit_sink,
+    )
+    status = snapshot.get("status", "ok")
+    camera_ok = bool(stats.get("camera_ok", True))
+    fps = float(stats.get("fps", 0.0))
+    legacy_healthy = camera_ok and fps > 0
+    body = dict(snapshot)
+    body["healthy"] = legacy_healthy
+    body["camera_ok"] = camera_ok
+    body["fps"] = fps
+    # OTA surface (issue #152, PR-A). ``version`` is baked into the image
+    # by the Dockerfile (CI sets HYDRA_VERSION=<git sha>); channel +
+    # last_update read on-disk state populated by future PR-B's
+    # platform-update.sh. None of these reads can fail the health check.
+    body["version"] = os.environ.get("HYDRA_VERSION", "dev")
+    body["channel"] = _read_channel_file()
+    body["last_update"] = _read_last_update()
+    status_code = 503 if status == "fail" else (200 if legacy_healthy else 503)
+    return JSONResponse(body, status_code=status_code)
+
+
+# --- Platform Setup: Pixhawk Wizard endpoints (#158 PR-A) ---
+#
+# First-run wizard surface — operator hits /detect to see the connected FC,
+# /diff to see what would change against a profile's param pack, /apply to
+# commit (with pre-change backup), /restore to roll a backup back. UI lives in
+# PR-B; these are the JSON endpoints PR-B drives. All four mutate or read FC
+# state and require the same Bearer-token / session-cookie auth as other
+# control endpoints in this file.
+
+_PIXHAWK_CONNECT_TIMEOUT_SEC = 10.0
+_PIXHAWK_PARAM_COLLECT_TIMEOUT_SEC = 10.0
+
+# Issue #288: the wizard's pymavlink I/O is blocking (wait_heartbeat /
+# recv_match loops up to 10 s). The four wizard handlers run that work in
+# the threadpool via run_in_threadpool so the event loop — which also
+# serves MJPEG and every poller for the whole class — never parks. The
+# single-flight lock keeps concurrent wizard calls from stacking threads
+# (and from fighting over the same serial device); a busy wizard answers
+# 423 immediately.
+_pixhawk_wizard_lock = threading.Lock()
+
+
+def _pixhawk_wizard_busy_response() -> JSONResponse:
+    return JSONResponse(
+        {"error": "another Pixhawk wizard operation is in progress — retry when it completes"},
+        status_code=423,
+    )
+
+
+def _pixhawk_open_connection(conn_str: str, baud: int = 115200):
+    """Open a mavutil connection and wait for a heartbeat.
+
+    Returns the connection on success, or raises a ``TimeoutError``-flavored
+    ``RuntimeError`` if the heartbeat does not arrive in time. Kept thin so
+    tests can monkeypatch a single seam.
+    """
+    from pymavlink import mavutil  # imported lazily — server.py runs without it for some test paths
+    conn = mavutil.mavlink_connection(conn_str, baud=baud)
+    hb = conn.wait_heartbeat(timeout=_PIXHAWK_CONNECT_TIMEOUT_SEC)
+    if hb is None:
+        try:
+            conn.close()
+        except Exception:
+            pass
+        raise RuntimeError(f"no heartbeat from {conn_str} within {_PIXHAWK_CONNECT_TIMEOUT_SEC}s")
+    return conn
+
+
+def _pixhawk_collect_live_params(
+    conn,
+    timeout: float = _PIXHAWK_PARAM_COLLECT_TIMEOUT_SEC,
+) -> dict[str, float]:
+    """Request and collect the FC's full param map.
+
+    Thin wrapper around :func:`_pixhawk_collect_live_params_with_types` that
+    drops the type map; kept for callers that only need values (e.g. /diff).
+    """
+    values, _types = _pixhawk_collect_live_params_with_types(conn, timeout=timeout)
+    return values
+
+
+def _pixhawk_collect_live_params_with_types(
+    conn,
+    timeout: float = _PIXHAWK_PARAM_COLLECT_TIMEOUT_SEC,
+) -> tuple[dict[str, float], dict[str, int]]:
+    """Request and collect the FC's full param map plus per-name MAV_PARAM_TYPE.
+
+    Sends PARAM_REQUEST_LIST, then drains PARAM_VALUE for ``timeout`` seconds
+    or until quiescent for 1 s. Mirrors ``scripts/pixhawk_preflight.collect_params``
+    but inlined to avoid pulling that CLI module into the web import path.
+
+    Returns ``(values, types)`` where ``types`` is the FC-reported
+    MAV_PARAM_TYPE per param name. Captured here (rather than at apply time)
+    because PARAM_REQUEST_LIST is the only message that pulls the type for
+    every param in one pass; per-name PARAM_REQUEST_READ would re-fetch them
+    one-at-a-time which costs an extra round-trip per param. (See PR
+    adversarial doc R1-5.)
+    """
+    target_system = getattr(conn, "target_system", 1)
+    target_component = getattr(conn, "target_component", 1)
+    conn.mav.param_request_list_send(target_system, target_component)
+
+    deadline = time.monotonic() + max(0.0, float(timeout))
+    last_new = time.monotonic()
+    quiescent = 1.0
+    params: dict[str, float] = {}
+    types: dict[str, int] = {}
+
+    while time.monotonic() < deadline:
+        remaining = deadline - time.monotonic()
+        msg = conn.recv_match(
+            type="PARAM_VALUE",
+            blocking=True,
+            timeout=min(0.5, remaining),
+        )
+        if msg is None:
+            if time.monotonic() - last_new >= quiescent:
+                break
+            continue
+        pid = getattr(msg, "param_id", "")
+        if isinstance(pid, (bytes, bytearray)):
+            try:
+                pid = pid.decode("utf-8", errors="replace")
+            except Exception:
+                pid = ""
+        pid = str(pid).rstrip("\x00").strip()
+        if pid and pid not in params:
+            params[pid] = float(getattr(msg, "param_value", 0.0))
+            try:
+                types[pid] = int(getattr(msg, "param_type", 0) or 0)
+            except (TypeError, ValueError):
+                pass
+            last_new = time.monotonic()
+    return params, types
+
+
+def _pixhawk_diff_hash(diff: list[dict]) -> str:
+    """Stable hash of a diff list — used for the apply-time freshness check."""
+    canonical = json.dumps(
+        [
+            {
+                "name": str(row.get("name", "")),
+                "current": row.get("current"),
+                "target": row.get("target"),
+                "action": str(row.get("action", "")),
+            }
+            for row in diff
+        ],
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+_PIXHAWK_DEFAULT_CALLSIGN = "HYDRA"
+"""Fallback callsign for backup paths when runtime_config has none.
+
+Matches the ``HYDRA`` default used by ``MAVLinkIO`` and ``BatteryMonitor`` so
+the wizard's backups land under ``output_data/missions/HYDRA/`` on platforms
+that never set an explicit callsign, instead of orphaning them under
+``output_data/missions/unknown/``. (See PR adversarial doc R3-4.)
+"""
+
+# Repo-anchored root for backup-path resolution. Resolving relative to
+# ``__file__`` (three levels up from ``hydra_detect/web/server.py``) makes
+# /restore's path-traversal check independent of the FastAPI process CWD.
+# Without this, launching uvicorn from a directory other than the repo root
+# silently breaks the ``resolved.relative_to(missions_root)`` constraint.
+# (See PR adversarial doc R1-4.)
+_PIXHAWK_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+_PIXHAWK_MISSIONS_ROOT = _PIXHAWK_REPO_ROOT / "output_data" / "missions"
+
+
+def _pixhawk_backup_path(callsign: str | None) -> Path:
+    """Pre-wizard backup file path under ``output_data/missions/<callsign>/``.
+
+    Filename uses microsecond-precision UTC ISO8601 + PID so two wizard runs in
+    the same wall-clock second do not collide. (See PR adversarial doc R2.)
+    """
+    cs = (callsign or _PIXHAWK_DEFAULT_CALLSIGN).strip() or _PIXHAWK_DEFAULT_CALLSIGN
+    # Constrain to safe characters; mirror what battery_monitor / autonomous do.
+    cs = re.sub(r"[^A-Za-z0-9_\-]", "_", cs)[:32] or _PIXHAWK_DEFAULT_CALLSIGN
+    ts = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
+    base = _PIXHAWK_MISSIONS_ROOT / cs
+    base.mkdir(parents=True, exist_ok=True)
+    return base / f"pre-wizard-params-{ts}-pid{os.getpid()}.json"
+
+
+def _pixhawk_callsign_from_runtime() -> str | None:
+    """Pull the configured callsign from runtime config, if any.
+
+    Returns ``None`` when runtime_config is unreachable or has no ``callsign``
+    field; the caller is responsible for substituting the
+    ``_PIXHAWK_DEFAULT_CALLSIGN`` fallback (handled inside
+    :func:`_pixhawk_backup_path`).
+    """
+    try:
+        rc = stream_state.get_runtime_config() or {}
+    except Exception:
+        return None
+    cs = rc.get("callsign")
+    if cs is None:
+        return None
+    try:
+        return str(cs)
+    except Exception:
+        return None
+
+
+@app.get("/api/platform/setup/pixhawk/detect")
+async def api_pixhawk_detect(
+    request: Request,
+    conn: str,
+    baud: int = 115200,
+    authorization: Optional[str] = Header(None),
+):
+    """Detect the connected FC — firmware / version / frame / autopilot id."""
+    auth_err = _check_auth(authorization, request)
+    if auth_err:
+        return auth_err
+
+    def _work():
+        # Blocking pymavlink span — runs in the threadpool (issue #288).
+        try:
+            link = _pixhawk_open_connection(conn, baud=baud)
+        except Exception as exc:
+            return ("connect_failed", str(exc))
+        try:
+            # Request AUTOPILOT_VERSION via MAV_CMD_REQUEST_AUTOPILOT_CAPABILITIES.
+            try:
+                from pymavlink.dialects.v20 import common as mavlink2
+                link.mav.command_long_send(
+                    link.target_system, link.target_component,
+                    mavlink2.MAV_CMD_REQUEST_AUTOPILOT_CAPABILITIES,
+                    0, 1, 0, 0, 0, 0, 0, 0,
+                )
+            except Exception:
+                # Some autopilots emit AUTOPILOT_VERSION on connect — best-effort only.
+                pass
+            info = _pixhawk_wizard.detect_fc(link, timeout=_PIXHAWK_CONNECT_TIMEOUT_SEC)
+        finally:
+            try:
+                link.close()
+            except Exception:
+                pass
+        return ("ok", info)
+
+    if not _pixhawk_wizard_lock.acquire(blocking=False):
+        return _pixhawk_wizard_busy_response()
+    try:
+        tag, payload = await run_in_threadpool(_work)
+    finally:
+        _pixhawk_wizard_lock.release()
+    if tag == "connect_failed":
+        _audit(request, "pixhawk_detect", target=conn, outcome="connect_failed")
+        return JSONResponse(
+            {"error": f"connect failed: {payload}"},
+            status_code=408,
+        )
+    info = payload
+    _audit(request, "pixhawk_detect", target=info.get("firmware", "unknown"))
+    return info
+
+
+@app.get("/api/platform/setup/pixhawk/diff")
+async def api_pixhawk_diff(
+    request: Request,
+    profile: str,
+    conn: str,
+    baud: int = 115200,
+    authorization: Optional[str] = Header(None),
+):
+    """Diff the FC's live params against a profile's required param pack."""
+    auth_err = _check_auth(authorization, request)
+    if auth_err:
+        return auth_err
+    try:
+        pack = _pixhawk_wizard.load_param_pack(profile)
+    except FileNotFoundError:
+        return JSONResponse(
+            {"error": f"unknown profile: {profile}"},
+            status_code=404,
+        )
+    except ValueError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=500)
+
+    def _work():
+        # Blocking pymavlink span — runs in the threadpool (issue #288).
+        try:
+            link = _pixhawk_open_connection(conn, baud=baud)
+        except Exception as exc:
+            return ("connect_failed", str(exc))
+        try:
+            live = _pixhawk_collect_live_params(link)
+        finally:
+            try:
+                link.close()
+            except Exception:
+                pass
+        return ("ok", live)
+
+    if not _pixhawk_wizard_lock.acquire(blocking=False):
+        return _pixhawk_wizard_busy_response()
+    try:
+        tag, payload = await run_in_threadpool(_work)
+    finally:
+        _pixhawk_wizard_lock.release()
+    if tag == "connect_failed":
+        _audit(request, "pixhawk_diff", target=profile, outcome="connect_failed")
+        return JSONResponse(
+            {"error": f"connect failed: {payload}"},
+            status_code=408,
+        )
+    live = payload
+
+    rows = _pixhawk_wizard.compute_diff(live, pack)
+    _audit(request, "pixhawk_diff", target=f"{profile}:{len(rows)}rows")
+    return {
+        "profile": profile,
+        "diff": rows,
+        "diff_hash": _pixhawk_diff_hash(rows),
+        "live_param_count": len(live),
+    }
+
+
+@app.post("/api/platform/setup/pixhawk/apply")
+async def api_pixhawk_apply(
+    request: Request,
+    authorization: Optional[str] = Header(None),
+):
+    """Apply a confirmed diff to the FC, capturing a pre-change backup first.
+
+    Body schema: ``{profile, conn, baud?, confirmed_diff_hash, diff}``.
+
+    Recomputes the diff fresh from the live FC at apply-time, hashes it, and
+    rejects (409) if it doesn't match ``confirmed_diff_hash`` — that means a
+    third party (Mission Planner, another wizard run) changed params between
+    /diff and /apply, and the operator's confirmation is now stale.
+    """
+    auth_err = _check_auth(authorization, request)
+    if auth_err:
+        return auth_err
+
+    body = await _parse_json(request)
+    if body is None:
+        return JSONResponse({"error": "Invalid or missing JSON body"}, status_code=400)
+    profile = body.get("profile")
+    conn_str = body.get("conn")
+    baud = int(body.get("baud", 115200))
+    confirmed_hash = body.get("confirmed_diff_hash")
+    if not isinstance(profile, str) or not profile:
+        return JSONResponse({"error": "profile required"}, status_code=400)
+    if not isinstance(conn_str, str) or not conn_str:
+        return JSONResponse({"error": "conn required"}, status_code=400)
+    if not isinstance(confirmed_hash, str) or not confirmed_hash:
+        return JSONResponse({"error": "confirmed_diff_hash required"}, status_code=400)
+
+    try:
+        pack = _pixhawk_wizard.load_param_pack(profile)
+    except FileNotFoundError:
+        return JSONResponse(
+            {"error": f"unknown profile: {profile}"},
+            status_code=404,
+        )
+
+    def _work():
+        # Blocking pymavlink span — runs in the threadpool (issue #288).
+        try:
+            link = _pixhawk_open_connection(conn_str, baud=baud)
+        except Exception as exc:
+            return ("connect_failed", str(exc))
+
+        try:
+            # 1. Recompute live → fresh diff → freshness check. Capture per-name
+            #    MAV_PARAM_TYPE in the same pass so apply_pack can send each
+            #    PARAM_SET with the FC-reported type instead of always REAL32.
+            live, live_types = _pixhawk_collect_live_params_with_types(link)
+            fresh_diff = _pixhawk_wizard.compute_diff(live, pack)
+            fresh_hash = _pixhawk_diff_hash(fresh_diff)
+            if not hmac.compare_digest(fresh_hash, confirmed_hash):
+                return ("hash_mismatch", {
+                    "fresh_diff": fresh_diff,
+                    "fresh_diff_hash": fresh_hash,
+                })
+
+            # 2. Capture pre-change backup of every name we're about to touch.
+            names_to_touch = [
+                row["name"] for row in fresh_diff
+                if row.get("action") in ("change", "add")
+            ]
+            backup = _pixhawk_wizard.capture_backup(link, names_to_touch)
+            backup_path = _pixhawk_backup_path(_pixhawk_callsign_from_runtime())
+            backup_payload = {
+                "profile": profile,
+                "timestamp": datetime.datetime.now(datetime.timezone.utc).strftime(
+                    "%Y-%m-%dT%H:%M:%S.%fZ"
+                ),
+                "conn": conn_str,
+                "backup": backup,
+            }
+            backup_path.write_text(
+                json.dumps(backup_payload, indent=2, sort_keys=True),
+                encoding="utf-8",
+            )
+
+            # 3. Apply.
+            results = _pixhawk_wizard.apply_pack(
+                link, fresh_diff, live_param_types=live_types,
+            )
+
+            # 4. Authoritative post-apply re-read. PARAM_VALUE arriving during the
+            #    apply loop can be a third-party PARAM_SET broadcast (Mission
+            #    Planner on telemetry radio); the value we observed as the ack is
+            #    not necessarily the value we wrote. Re-read every touched param
+            #    after the apply loop completes and overwrite ``post_value`` with
+            #    the FC's actual current value, so the operator surface reflects
+            #    real state instead of an interloper's value. (R3-1)
+            re_read_at = datetime.datetime.now(datetime.timezone.utc).strftime(
+                "%Y-%m-%dT%H:%M:%S.%fZ"
+            )
+            if names_to_touch:
+                authoritative = _pixhawk_wizard.reread_params(link, names_to_touch)
+                for row in results:
+                    rname = row.get("name")
+                    if rname in authoritative:
+                        row["post_value"] = authoritative[rname]
+        finally:
+            try:
+                link.close()
+            except Exception:
+                pass
+        return ("ok", {
+            "backup_path": backup_path,
+            "results": results,
+            "re_read_at": re_read_at,
+        })
+
+    if not _pixhawk_wizard_lock.acquire(blocking=False):
+        return _pixhawk_wizard_busy_response()
+    try:
+        tag, payload = await run_in_threadpool(_work)
+    finally:
+        _pixhawk_wizard_lock.release()
+
+    if tag == "connect_failed":
+        _audit(request, "pixhawk_apply", target=profile, outcome="connect_failed")
+        return JSONResponse(
+            {"error": f"connect failed: {payload}"},
+            status_code=408,
+        )
+    if tag == "hash_mismatch":
+        _audit(request, "pixhawk_apply", target=profile, outcome="hash_mismatch")
+        return JSONResponse(
+            {
+                "error": "diff changed since confirmation — re-run /diff and re-confirm",
+                "fresh_diff": payload["fresh_diff"],
+                "fresh_diff_hash": payload["fresh_diff_hash"],
+            },
+            status_code=409,
+        )
+
+    results = payload["results"]
+    _audit(request, "pixhawk_apply", target=f"{profile}:{len(results)}rows")
+    return {
+        "backup_path": str(payload["backup_path"]),
+        "results": results,
+        "applied": sum(1 for r in results if r.get("applied")),
+        "failed": sum(1 for r in results if not r.get("applied")),
+        "re_read_at": payload["re_read_at"],
+    }
+
+
+@app.post("/api/platform/setup/pixhawk/restore")
+async def api_pixhawk_restore(
+    request: Request,
+    authorization: Optional[str] = Header(None),
+):
+    """Restore a previously-captured backup to the FC.
+
+    Body schema: ``{conn, backup_path, baud?}``.
+    """
+    auth_err = _check_auth(authorization, request)
+    if auth_err:
+        return auth_err
+
+    body = await _parse_json(request)
+    if body is None:
+        return JSONResponse({"error": "Invalid or missing JSON body"}, status_code=400)
+    conn_str = body.get("conn")
+    backup_path_str = body.get("backup_path")
+    baud = int(body.get("baud", 115200))
+    if not isinstance(conn_str, str) or not conn_str:
+        return JSONResponse({"error": "conn required"}, status_code=400)
+    if not isinstance(backup_path_str, str) or not backup_path_str:
+        return JSONResponse({"error": "backup_path required"}, status_code=400)
+
+    backup_path = Path(backup_path_str)
+    if not backup_path.exists():
+        return JSONResponse(
+            {"error": f"backup not found: {backup_path}"},
+            status_code=404,
+        )
+    # Constrain reads to output_data/missions/ — caller-supplied path traversal
+    # would let an authenticated client read arbitrary files via the
+    # subsequent payload-shape check, so reject obvious escape patterns. The
+    # missions root is anchored to the package location, not CWD, so the
+    # constraint holds when uvicorn is launched from any directory.
+    try:
+        resolved = backup_path.resolve()
+        missions_root = _PIXHAWK_MISSIONS_ROOT.resolve()
+        resolved.relative_to(missions_root)
+    except (OSError, ValueError):
+        return JSONResponse(
+            {"error": "backup_path must live under output_data/missions/"},
+            status_code=400,
+        )
+
+    try:
+        payload = json.loads(resolved.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        return JSONResponse(
+            {"error": f"unreadable backup: {exc}"},
+            status_code=400,
+        )
+    backup = payload.get("backup", {})
+    if not isinstance(backup, dict):
+        return JSONResponse(
+            {"error": "backup file missing 'backup' map"},
+            status_code=400,
+        )
+
+    def _work():
+        # Blocking pymavlink span — runs in the threadpool (issue #288).
+        try:
+            link = _pixhawk_open_connection(conn_str, baud=baud)
+        except Exception as exc:
+            return ("connect_failed", str(exc))
+        try:
+            results = _pixhawk_wizard.restore_backup(link, backup)
+        finally:
+            try:
+                link.close()
+            except Exception:
+                pass
+        return ("ok", results)
+
+    if not _pixhawk_wizard_lock.acquire(blocking=False):
+        return _pixhawk_wizard_busy_response()
+    try:
+        tag, payload = await run_in_threadpool(_work)
+    finally:
+        _pixhawk_wizard_lock.release()
+    if tag == "connect_failed":
+        _audit(request, "pixhawk_restore", target=str(resolved), outcome="connect_failed")
+        return JSONResponse(
+            {"error": f"connect failed: {payload}"},
+            status_code=408,
+        )
+    results = payload
+
+    _audit(request, "pixhawk_restore", target=f"{resolved.name}:{len(results)}rows")
+    return {
+        "backup_path": str(resolved),
+        "results": results,
+        "applied": sum(1 for r in results if r.get("applied")),
+        "failed": sum(1 for r in results if not r.get("applied")),
+    }
+
+
+# --- end Platform Setup: Pixhawk Wizard endpoints ---
+
+
+@app.get("/api/metrics")
+async def api_metrics():
+    """Prometheus exposition — counters + gauges in 0.0.4 text format.
+
+    Auth-free by design — Prometheus scrapers are expected to fetch this
+    from the same subnet on a 15–60s interval. No sensitive data is
+    exposed; values are aggregates already surfaced elsewhere.
+    """
+    body = _render_metrics()
+    return Response(
+        content=body,
+        media_type="text/plain; version=0.0.4; charset=utf-8",
+    )
+
+
+# Rate limit for /api/client_error — per-remote-IP sliding window so a
+# runaway JS handler on one tablet can't drown the Jetson.
+_CLIENT_ERROR_WINDOW_SEC = 60.0
+_CLIENT_ERROR_MAX_PER_WINDOW = 50
+_client_error_hits: Dict[str, list[float]] = collections.defaultdict(list)
+_client_error_lock = threading.Lock()
+
+
+def _client_error_rate_limited(client_ip: str, now: float) -> bool:
+    """Return True when ``client_ip`` has exceeded the per-window cap."""
+    with _client_error_lock:
+        hits = [t for t in _client_error_hits.get(client_ip, [])
+                if now - t < _CLIENT_ERROR_WINDOW_SEC]
+        if len(hits) >= _CLIENT_ERROR_MAX_PER_WINDOW:
+            _client_error_hits[client_ip] = hits
+            return True
+        hits.append(now)
+        _client_error_hits[client_ip] = hits
+        return False
+
+
+@app.post("/api/client_error")
+async def api_client_error(request: Request):
+    """Frontend error sink.
+
+    Expected body (all fields optional, all coerced + clipped defensively)::
+
+        {"message": str, "source": str, "lineno": int, "colno": int,
+         "stack": str, "url": str, "timestamp": number}
+
+    Auth-free, same-origin only. Rate-limited to 50 reports / 60 s / IP.
+    """
+    # Rate-limit BEFORE touching the body (issue #289): this endpoint is
+    # unauthenticated, so the body read must sit behind the per-IP limiter,
+    # not in front of it.
+    client_ip = request.client.host if request.client else "unknown"
+    now = time.monotonic()
+    if _client_error_rate_limited(client_ip, now):
+        return JSONResponse({"error": "rate limited"}, status_code=429)
+
+    body = await _parse_json(request)
+    if body is None or not isinstance(body, dict):
+        return JSONResponse({"error": "Invalid or missing JSON body"}, status_code=400)
+
+    user_agent = request.headers.get("user-agent", "")[:512]
+    _client_error_sink.push(
+        message=body.get("message", ""),
+        source=body.get("source", ""),
+        lineno=body.get("lineno"),
+        colno=body.get("colno"),
+        stack=body.get("stack", ""),
+        url=body.get("url", ""),
+        client_ts=body.get("timestamp"),
+        remote_addr=client_ip,
+        user_agent=user_agent,
+    )
+    return {"status": "ok", "total": len(_client_error_sink)}
+
+
+@app.get("/api/client_error/recent")
+async def api_client_error_recent(limit: int = 50):
+    """Read back recent client errors (dashboard diagnostic use)."""
+    try:
+        n = int(limit)
+    except (TypeError, ValueError):
+        n = 50
+    return _client_error_sink.snapshot(limit=max(1, min(200, n)))
+
+
+@app.get("/api/preflight")
+async def api_preflight():
+    """Run pre-flight checks and return structured results.
+
+    Returns a JSON object with a list of checks (camera, mavlink, config,
+    models, disk) and an overall status (pass/warn/fail).  Used for
+    operator-facing status display before a sortie.
+    """
+    cb = stream_state.get_callback("get_preflight")
+    if cb:
+        return cb()
+    return {"checks": [], "overall": "fail"}
+
+
+@app.get("/api/stats")
+async def api_stats():
+    """Return current pipeline statistics as JSON."""
+    result = _cached_callback("stats", stream_state.get_stats)
+    if result is None:
+        result = stream_state.stats.copy()  # fallback: return raw defaults
+    # Always project flight-instrument fields onto the response so the
+    # FlightHUD tapes render even before the pipeline plumbs them through.
+    return dict(result, **_flight_fields())
+
+
+def _flight_fields() -> Dict[str, Any]:
+    """Read heading/airspeed/altitude/vertical_speed from the MAVLink
+    handle, plus lat/lon/alt_agl for map rendering, falling back to
+    None when MAVLink is not registered or has no fix.
+
+    Also surfaces a structured ``battery`` object when a BatteryMonitor
+    is attached. Legacy ``battery_v`` / ``battery_pct`` keys remain on
+    the response (set elsewhere by the pipeline) — the new ``battery``
+    object is purely additive.
+    """
+    defaults: Dict[str, Any] = {
+        "heading": None,
+        "airspeed": None,
+        "altitude": None,
+        "vertical_speed": None,
+        "cog": None,
+        "ground_speed": None,
+        "lat": None,
+        "lon": None,
+        "alt_msl_m": None,
+        "battery": None,
+    }
+    mav = _mavlink_ref
+    if mav is None:
+        return defaults
+    try:
+        data = mav.get_flight_data()
+    except Exception:
+        data = {}
+    if isinstance(data, dict):
+        for key in ("heading", "airspeed", "altitude", "vertical_speed",
+                    "cog", "ground_speed"):
+            defaults[key] = data.get(key)
+    try:
+        lat, lon, alt = mav.get_lat_lon()
+    except Exception:
+        lat = lon = alt = None
+    if lat is not None and lon is not None:
+        defaults["lat"] = lat
+        defaults["lon"] = lon
+        defaults["alt_msl_m"] = alt
+
+    # Structured battery block from BatteryMonitor (additive — does not
+    # replace legacy battery_v / battery_pct keys set by the pipeline).
+    getter = getattr(mav, "get_battery_monitor", None)
+    monitor = getter() if callable(getter) else None
+    if monitor is not None and getattr(monitor, "enabled", False):
+        try:
+            defaults["battery"] = monitor.get_state().to_api()
+        except Exception:
+            defaults["battery"] = None
+    return defaults
+
+
+@app.get("/api/config")
+async def api_get_config():
+    """Return current runtime configuration."""
+    return stream_state.get_runtime_config()
+
+
+@app.post("/api/config/prompts")
+async def api_set_prompts(request: Request, authorization: Optional[str] = Header(None)):
+    """Update detection prompt labels at runtime.
+
+    Body: {"prompts": ["person", "car", "dog"]}
+    """
+    auth_err = _check_auth(authorization, request)
+    if auth_err:
+        return auth_err
+    body = await _parse_json(request)
+    if body is None:
+        return JSONResponse({"error": "Invalid or missing JSON body"}, status_code=400)
+    prompts = body.get("prompts")
+    if not isinstance(prompts, list):
+        return JSONResponse({"error": "prompts must be a list"}, status_code=400)
+    if len(prompts) == 0:
+        return JSONResponse({"error": "prompts list must not be empty"}, status_code=400)
+    if len(prompts) > MAX_PROMPTS:
+        return JSONResponse(
+            {"error": f"max {MAX_PROMPTS} prompts allowed"}, status_code=400,
+        )
+    cleaned: List[str] = []
+    for p in prompts:
+        if not isinstance(p, str):
+            return JSONResponse({"error": "each prompt must be a string"}, status_code=400)
+        p = p.strip()
+        if not p:
+            return JSONResponse({"error": "prompts must not be empty or blank"}, status_code=400)
+        cleaned.append(p[:MAX_PROMPT_LENGTH])
+
+    stream_state.set_runtime_config("prompts", cleaned)
+    cb = stream_state.get_callback("on_prompts_change")
+    if cb:
+        cb(cleaned)
+        _audit(request, "set_prompts", target=str(len(cleaned)))
+        return {"status": "ok", "prompts": cleaned}
+    # Store even without callback — allows web UI to track prompts
+    _audit(request, "set_prompts", target=str(len(cleaned)))
+    return {"status": "ok", "prompts": cleaned}
+
+
+@app.post("/api/config/threshold")
+async def api_set_threshold(request: Request, authorization: Optional[str] = Header(None)):
+    """Update detection confidence threshold at runtime."""
+    auth_err = _check_auth(authorization, request)
+    if auth_err:
+        return auth_err
+    body = await _parse_json(request)
+    if body is None:
+        return JSONResponse({"error": "Invalid or missing JSON body"}, status_code=400)
+    threshold = body.get("threshold")
+    try:
+        threshold_val = float(threshold)
+    except (TypeError, ValueError):
+        return JSONResponse({"error": "threshold must be a number 0.0-1.0"}, status_code=400)
+    if not (0.0 <= threshold_val <= 1.0):
+        return JSONResponse({"error": "threshold must be 0.0-1.0"}, status_code=400)
+
+    cb = stream_state.get_callback("on_threshold_change")
+    if cb:
+        cb(threshold_val)
+        stream_state.set_runtime_config("threshold", threshold_val)
+        _audit(request, "set_threshold", target=f"{threshold_val:.2f}")
+        return {"status": "ok", "threshold": threshold_val}
+    _audit(request, "set_threshold", outcome="unavailable")
+    return JSONResponse({"error": "threshold change not available"}, status_code=400)
+
+
+@app.get("/api/config/alert-classes")
+async def api_get_alert_classes():
+    """Return current alert class filter and available classes."""
+    cb = stream_state.get_callback("get_class_names")
+    all_classes = cb() if cb else []
+    config = stream_state.get_runtime_config()
+    alert_classes = config.get("alert_classes", [])
+    return {
+        "alert_classes": alert_classes,
+        "all_classes": all_classes,
+        "categories": _categorize_classes(all_classes),
+    }
+
+
+@app.post("/api/config/alert-classes")
+async def api_set_alert_classes(request: Request, authorization: Optional[str] = Header(None)):
+    """Update alert class filter.
+
+    Body: {"classes": ["person", "car"]} or {"classes": []} for all.
+    """
+    auth_err = _check_auth(authorization, request)
+    if auth_err:
+        return auth_err
+    body = await _parse_json(request)
+    if body is None:
+        return JSONResponse({"error": "Invalid or missing JSON body"}, status_code=400)
+    classes = body.get("classes")
+    if not isinstance(classes, list):
+        return JSONResponse({"error": "classes must be a list"}, status_code=400)
+    if classes:
+        cb = stream_state.get_callback("get_class_names")
+        valid_classes = set(cb()) if cb else set()
+        for c in classes:
+            if not isinstance(c, str):
+                return JSONResponse({"error": "each class must be a string"}, status_code=400)
+            if valid_classes and c not in valid_classes:
+                return JSONResponse({"error": f"unknown class: {c}"}, status_code=400)
+    cb = stream_state.get_callback("on_alert_classes_change")
+    if cb:
+        cb(classes)
+        _audit(request, "set_alert_classes", target=str(len(classes)))
+        return {"status": "ok", "classes": classes}
+    _audit(request, "set_alert_classes", outcome="unavailable")
+    return JSONResponse({"error": "alert class filter not available"}, status_code=503)
+
+
+@app.post("/api/vehicle/loiter")
+async def api_command_loiter(request: Request, authorization: Optional[str] = Header(None)):
+    """Command vehicle to LOITER/HOLD at current position."""
+    auth_err = _check_auth(authorization, request)
+    if auth_err:
+        return auth_err
+    cb = stream_state.get_callback("on_loiter_command")
+    if cb:
+        cb()
+        _audit(request, "loiter")
+        return {"status": "ok", "command": "loiter"}
+    _audit(request, "loiter", outcome="mavlink_disconnected")
+    return JSONResponse({"error": "MAVLink not connected"}, status_code=503)
+
+
+@app.post("/api/vehicle/mode")
+async def api_set_vehicle_mode(request: Request, authorization: Optional[str] = Header(None)):
+    """Set vehicle flight mode. Body: {"mode": "AUTO"}"""
+    auth_err = _check_auth(authorization, request)
+    if auth_err:
+        return auth_err
+    _ALLOWED_MODES = {"AUTO", "RTL", "LOITER", "HOLD", "GUIDED"}
+    body = await _parse_json(request)
+    if body is None:
+        return JSONResponse({"error": "Invalid or missing JSON body"}, status_code=400)
+    mode = body.get("mode")
+    if not mode or not isinstance(mode, str):
+        return JSONResponse({"error": "mode is required (string)"}, status_code=400)
+    if mode not in _ALLOWED_MODES:
+        allowed = ', '.join(sorted(_ALLOWED_MODES))
+        return JSONResponse(
+            {"error": f"mode must be one of: {allowed}"},
+            status_code=400,
+        )
+    cb = stream_state.get_callback("on_set_mode_command")
+    if cb:
+        success = cb(mode)
+        if success:
+            _audit(request, "set_mode", target=mode)
+            return {"status": "ok", "mode": mode}
+        _audit(request, "set_mode", target=mode, outcome="failed")
+        return JSONResponse({"error": f"Failed to set mode {mode}"}, status_code=503)
+    _audit(request, "set_mode", outcome="mavlink_disconnected")
+    return JSONResponse({"error": "MAVLink not connected"}, status_code=503)
+
+
+@app.get("/api/tracks")
+async def api_active_tracks():
+    """Return currently active tracked objects (for target selection)."""
+    cb = stream_state.get_callback("get_active_tracks")
+    result = _cached_callback("tracks", cb)
+    if result is not None:
+        return result
+    return []
+
+
+@app.get("/api/tak/commands")
+async def api_tak_commands(request: Request):
+    """Return the most recent inbound TAK command events.
+
+    Auth-free read (same-origin bypass list alongside /api/stats,
+    /api/tracks, /api/config/full, /api/stream/quality). Powers the
+    GeoChat inbound panel on the dashboard.
+
+    Query params:
+        limit (int, default 100): max events to return, capped at the
+            TAKInput ring buffer size (500).
+    """
+    tak_in = _tak_input_ref
+
+    # Parse and clamp limit
+    try:
+        limit = int(request.query_params.get("limit", "100"))
+    except (TypeError, ValueError):
+        limit = 100
+    if limit < 1:
+        limit = 1
+    if limit > 500:
+        limit = 500
+
+    if tak_in is None:
+        return JSONResponse({
+            "enabled": False,
+            "commands": [],
+            "allowed_callsigns": [],
+            "hmac_enforced": False,
+            "duplicate_callsign_alarm": False,
+            "limit": limit,
+        })
+
+    return JSONResponse({
+        "enabled": True,
+        "commands": tak_in.get_recent_commands(limit),
+        "allowed_callsigns": sorted(tak_in._allowed_callsigns),
+        "hmac_enforced": tak_in._hmac_secret is not None,
+        "duplicate_callsign_alarm": bool(tak_in._duplicate_callsign),
+        "limit": limit,
+    })
+
+
+@app.get("/api/tak/type_counts")
+async def api_tak_type_counts(request: Request):
+    """Return an inbound CoT-type histogram over a bounded time window.
+
+    Auth-free read (same-origin bypass list alongside /api/tak/commands,
+    /api/stats, /api/tracks, /api/config/full, /api/stream/quality).
+
+    Query params:
+        window_seconds (int, default 900, capped at 3600): window over
+            which to aggregate the histogram.
+    """
+    tak_in = _tak_input_ref
+    try:
+        window = int(request.query_params.get("window_seconds", "900"))
+    except (TypeError, ValueError):
+        window = 900
+    window = max(1, min(3600, window))
+
+    if tak_in is None:
+        return JSONResponse({
+            "enabled": False,
+            "counts": {},
+            "total": 0,
+            "window_seconds": window,
+        })
+
+    hist = tak_in.get_type_counts(window_seconds=window)
+    return JSONResponse({"enabled": True, **hist})
+
+
+@app.get("/api/tak/peers")
+async def api_tak_peers():
+    """Return the current inbound TAK peer roster with security flags.
+
+    Auth-free read. Surfaces allowed_callsigns / hmac_enforced /
+    duplicate_callsign_alarm from TAKInput alongside the peer list and the
+    current unicast target set from TAKOutput — a single roll-up for the
+    TAK map panel and security chip.
+    """
+    tak_in = _tak_input_ref
+    tak_out = _tak_output_ref
+
+    if tak_out is not None:
+        unicast_targets = [
+            f"{t['host']}:{t['port']}" for t in tak_out.get_unicast_targets()
+        ]
+    else:
+        unicast_targets = []
+
+    if tak_in is None:
+        return JSONResponse({
+            "enabled": False,
+            "peers": [],
+            "unicast_targets": unicast_targets,
+            "hmac_enforced": False,
+            "duplicate_callsign_alarm": False,
+            "allowed_callsigns": [],
+        })
+
+    return JSONResponse({
+        "enabled": True,
+        "peers": tak_in.get_peers(),
+        "unicast_targets": unicast_targets,
+        "hmac_enforced": tak_in._hmac_secret is not None,
+        "duplicate_callsign_alarm": bool(tak_in._duplicate_callsign),
+        "allowed_callsigns": sorted(tak_in._allowed_callsigns),
+    })
+
+
+@app.get("/api/audit/summary")
+async def api_audit_summary(request: Request):
+    """Roll-up of recent audit events for the security panel.
+
+    Merges TAK command log, HMAC rejections, approach arm/abort, and
+    strike/drop events that are emitted through the ``hydra.audit``
+    logger into one windowed summary.
+
+    Auth-free read. Bounded ring of 500 most recent events.
+
+    Query params:
+        window_seconds (int, default 3600, capped at 86400): roll-up
+            window for the counts block.
+        recent (int, default 50, capped at 200): cap on recent_events.
+    """
+    try:
+        window = int(request.query_params.get("window_seconds", "3600"))
+    except (TypeError, ValueError):
+        window = 3600
+    window = max(1, min(86400, window))
+    try:
+        recent_limit = int(request.query_params.get("recent", "50"))
+    except (TypeError, ValueError):
+        recent_limit = 50
+    recent_limit = max(0, min(200, recent_limit))
+
+    return JSONResponse(
+        _audit_sink.summary(window_seconds=window, recent_limit=recent_limit)
+    )
+
+
+@app.get("/api/rf/ambient_scan")
+async def api_rf_ambient_scan():
+    """Return the most recent ambient RF samples for the SDR ticker.
+
+    Auth-free read. When no buffer is registered the response has
+    ``enabled=False`` and an empty sample set.
+    """
+    scanner = _rf_ambient_ref
+    if scanner is None:
+        return JSONResponse({
+            "enabled": False,
+            "samples": [],
+            "window_seconds": 60,
+            "max_rssi": None,
+        })
+    try:
+        snapshot = scanner.get_samples()
+    except Exception as exc:  # pragma: no cover — defensive
+        logger.warning("rf_ambient.get_samples() failed: %s", exc)
+        return JSONResponse({
+            "enabled": False,
+            "samples": [],
+            "window_seconds": 60,
+            "max_rssi": None,
+        })
+    return JSONResponse({"enabled": True, **snapshot})
+
+
+@app.get("/api/rf/spectrum")
+async def api_rf_spectrum():
+    """Return the latest rtl_power spectrum sweep from /tmp/hydra_spectrum.json.
+
+    The file is written by an external rtl_power daemon. Returns enabled=False
+    when the daemon is not running or its output is missing/corrupt; the
+    dashboard overlay treats that as no live SDR and skips rendering.
+    """
+    path = _SPECTRUM_PATH
+    try:
+        stat = path.stat()
+        with path.open() as fh:
+            data = json.load(fh)
+        file_age_s = round(max(0.0, time.time() - stat.st_mtime), 2)
+        data["file_age_s"] = file_age_s
+        if file_age_s > _SPECTRUM_MAX_AGE_S:
+            data["enabled"] = False
+            data["status"] = "stale_data"
+        else:
+            data["enabled"] = True
+        return JSONResponse(data)
+    except FileNotFoundError:
+        return JSONResponse(
+            {"enabled": False, "reason": "daemon not running", "bins": [], "peaks": []}
+        )
+    except Exception as exc:
+        return JSONResponse(
+            {
+                "enabled": False,
+                "reason": f"{type(exc).__name__}: {exc}",
+                "bins": [],
+                "peaks": [],
+            }
+        )
+
+
+@app.get("/api/servo/status")
+async def api_servo_status():
+    """Return the current pan/tilt servo state for the cockpit dial.
+
+    Auth-free read (same-origin bypass). When no controller is registered
+    the response has ``enabled=False`` and zeroed angles — the dashboard
+    renders that as an idle/off panel.
+    """
+    servo = _servo_tracker_ref
+    if servo is None:
+        return JSONResponse({
+            "enabled": False,
+            "pan_deg": 0.0,
+            "tilt_deg": 0.0,
+            "pan_limit_min": -90.0,
+            "pan_limit_max": 90.0,
+            "tilt_limit_min": -30.0,
+            "tilt_limit_max": 60.0,
+            "scanning": False,
+            "locked_track_id": None,
+        })
+    try:
+        return JSONResponse(servo.get_api_status())
+    except Exception as exc:  # pragma: no cover — defensive
+        logger.warning("servo.get_api_status() failed: %s", exc)
+        return JSONResponse({
+            "enabled": False,
+            "pan_deg": 0.0,
+            "tilt_deg": 0.0,
+            "pan_limit_min": -90.0,
+            "pan_limit_max": 90.0,
+            "tilt_limit_min": -30.0,
+            "tilt_limit_max": 60.0,
+            "scanning": False,
+            "locked_track_id": None,
+        })
+
+
+@app.get("/api/target")
+async def api_target_status():
+    """Return current target lock state."""
+    return stream_state.get_target_lock()
+
+
+@app.post("/api/target/lock")
+async def api_target_lock(request: Request, authorization: Optional[str] = Header(None)):
+    """Lock onto a tracked object for keep-in-frame tracking.
+
+    Body: {"track_id": 5}
+    """
+    auth_err = _check_auth(authorization, request)
+    if auth_err:
+        return auth_err
+    body = await _parse_json(request)
+    if body is None:
+        return JSONResponse({"error": "Invalid or missing JSON body"}, status_code=400)
+    track_id = body.get("track_id")
+    if track_id is None:
+        return JSONResponse({"error": "track_id required"}, status_code=400)
+    try:
+        track_id_int = int(track_id)
+    except (TypeError, ValueError):
+        return JSONResponse({"error": "track_id must be an integer"}, status_code=400)
+
+    cb = stream_state.get_callback("on_target_lock")
+    if cb:
+        result = cb(track_id_int, mode="track")
+        if result:
+            _audit(request, "target_lock", target=str(track_id))
+            return {"status": "ok", "track_id": track_id, "mode": "track"}
+        _audit(request, "target_lock", target=str(track_id), outcome="track_not_found")
+        return JSONResponse({"error": "track_id not found in active tracks"}, status_code=404)
+    _audit(request, "target_lock", outcome="unavailable")
+    return JSONResponse({"error": "target lock not available"}, status_code=503)
+
+
+@app.post("/api/target/unlock")
+async def api_target_unlock(request: Request, authorization: Optional[str] = Header(None)):
+    """Release target lock."""
+    auth_err = _check_auth(authorization, request)
+    if auth_err:
+        return auth_err
+    cb = stream_state.get_callback("on_target_unlock")
+    if cb:
+        cb()
+        _audit(request, "target_unlock")
+        return {"status": "ok"}
+    _audit(request, "target_unlock", outcome="unavailable")
+    return JSONResponse({"error": "target lock not available"}, status_code=503)
+
+
+@app.post("/api/target/strike")
+async def api_strike_command(request: Request, authorization: Optional[str] = Header(None)):
+    """Command vehicle to navigate toward the locked target.
+
+    Body: {"track_id": 5, "confirm": true}
+    The confirm field MUST be true — this is a safety check.
+    """
+    auth_err = _check_auth(authorization, request)
+    if auth_err:
+        return auth_err
+    body = await _parse_json(request)
+    if body is None:
+        return JSONResponse({"error": "Invalid or missing JSON body"}, status_code=400)
+    track_id = body.get("track_id")
+    confirm = body.get("confirm", False)
+
+    if not confirm:
+        return JSONResponse(
+            {"error": "Strike requires explicit confirmation. Set confirm=true."},
+            status_code=400,
+        )
+    if track_id is None:
+        return JSONResponse({"error": "track_id required"}, status_code=400)
+    try:
+        track_id_int = int(track_id)
+    except (TypeError, ValueError):
+        return JSONResponse({"error": "track_id must be an integer"}, status_code=400)
+
+    cb = stream_state.get_callback("on_strike_command")
+    if cb:
+        result = cb(track_id_int)
+        if result:
+            _audit(request, "strike", target=str(track_id))
+            return {"status": "ok", "track_id": track_id, "mode": "strike"}
+        _audit(request, "strike", target=str(track_id), outcome="failed")
+        return JSONResponse(
+            {"error": "Strike failed — no GPS fix or track not found"},
+            status_code=503,
+        )
+    _audit(request, "strike", outcome="unavailable")
+    return JSONResponse({"error": "strike not available"}, status_code=503)
+
+
+# -- Approach mode endpoints (Follow / Drop / Strike continuous) -----------
+
+@app.get("/api/approach/status")
+async def api_approach_status():
+    """Return current approach controller status."""
+    cb = stream_state.get_callback("get_approach_status")
+    if cb:
+        return cb()
+    return {"mode": "idle", "active": False}
+
+
+@app.post("/api/approach/follow/{track_id}")
+async def api_approach_follow(
+    track_id: int, request: Request, authorization: Optional[str] = Header(None),
+):
+    """Start follow mode for a tracked target."""
+    auth_err = _check_auth(authorization, request)
+    if auth_err:
+        return auth_err
+    cb = stream_state.get_callback("on_follow_command")
+    if cb:
+        result = cb(track_id)
+        if result:
+            _audit(request, "approach_follow", target=str(track_id))
+            return {"status": "ok", "track_id": track_id, "mode": "follow"}
+        _audit(request, "approach_follow", target=str(track_id), outcome="failed")
+        return JSONResponse(
+            {"error": "Follow failed — track not found or approach already active"},
+            status_code=503,
+        )
+    _audit(request, "approach_follow", outcome="unavailable")
+    return JSONResponse({"error": "approach controller not available"}, status_code=503)
+
+
+@app.post("/api/approach/drop/{track_id}")
+async def api_approach_drop(
+    track_id: int, request: Request, authorization: Optional[str] = Header(None),
+):
+    """Start drop approach for a tracked target.
+
+    Body (optional): {"confirm": true}
+    """
+    auth_err = _check_auth(authorization, request)
+    if auth_err:
+        return auth_err
+    body = await _parse_json(request)
+    if body is None:
+        return JSONResponse({"error": "Invalid or missing JSON body"}, status_code=400)
+    confirm = body.get("confirm", False)
+    if not confirm:
+        return JSONResponse(
+            {"error": "Drop requires explicit confirmation. Set confirm=true."},
+            status_code=400,
+        )
+    cb = stream_state.get_callback("on_drop_command")
+    if cb:
+        result = cb(track_id)
+        if result:
+            _audit(request, "approach_drop", target=str(track_id))
+            return {"status": "ok", "track_id": track_id, "mode": "drop"}
+        _audit(request, "approach_drop", target=str(track_id), outcome="failed")
+        return JSONResponse(
+            {"error": "Drop failed — track not found, no GPS, or approach already active"},
+            status_code=503,
+        )
+    _audit(request, "approach_drop", outcome="unavailable")
+    return JSONResponse({"error": "approach controller not available"}, status_code=503)
+
+
+@app.post("/api/approach/strike/{track_id}")
+async def api_approach_strike(
+    track_id: int, request: Request, authorization: Optional[str] = Header(None),
+):
+    """Start continuous strike approach for a tracked target.
+
+    Body: {"confirm": true}
+    """
+    auth_err = _check_auth(authorization, request)
+    if auth_err:
+        return auth_err
+    body = await _parse_json(request)
+    if body is None:
+        return JSONResponse({"error": "Invalid or missing JSON body"}, status_code=400)
+    confirm = body.get("confirm", False)
+    if not confirm:
+        return JSONResponse(
+            {"error": "Strike requires explicit confirmation. Set confirm=true."},
+            status_code=400,
+        )
+    cb = stream_state.get_callback("on_approach_strike_command")
+    if cb:
+        result = cb(track_id)
+        if result:
+            _audit(request, "approach_strike", target=str(track_id))
+            return {"status": "ok", "track_id": track_id, "mode": "strike"}
+        _audit(request, "approach_strike", target=str(track_id), outcome="failed")
+        return JSONResponse(
+            {"error": "Strike failed — track not found or approach already active"},
+            status_code=503,
+        )
+    _audit(request, "approach_strike", outcome="unavailable")
+    return JSONResponse({"error": "approach controller not available"}, status_code=503)
+
+
+@app.post("/api/approach/pixel_lock/{track_id}")
+async def api_approach_pixel_lock(
+    track_id: int, request: Request, authorization: Optional[str] = Header(None),
+):
+    """Start pixel-lock visual servoing for a tracked target."""
+    auth_err = _check_auth(authorization, request)
+    if auth_err:
+        return auth_err
+    cb = stream_state.get_callback("on_pixel_lock_command")
+    if cb:
+        result = cb(track_id)
+        if result:
+            _audit(request, "approach_pixel_lock", target=str(track_id))
+            return {"status": "ok", "track_id": track_id, "mode": "pixel_lock"}
+        _audit(request, "approach_pixel_lock", target=str(track_id), outcome="failed")
+        return JSONResponse(
+            {"error": "Pixel-lock failed — track not found or approach already active"},
+            status_code=503,
+        )
+    _audit(request, "approach_pixel_lock", outcome="unavailable")
+    return JSONResponse({"error": "approach controller not available"}, status_code=503)
+
+
+@app.post("/api/approach/abort")
+async def api_approach_abort(
+    request: Request, authorization: Optional[str] = Header(None),
+):
+    """Abort the current approach mode and safe all channels."""
+    auth_err = _check_auth(authorization, request)
+    if auth_err:
+        return auth_err
+    cb = stream_state.get_callback("on_approach_abort")
+    if cb:
+        cb()
+        _audit(request, "approach_abort")
+        return {"status": "ok"}
+    _audit(request, "approach_abort", outcome="unavailable")
+    return JSONResponse({"error": "approach controller not available"}, status_code=503)
+
+
+@app.get("/api/detections")
+async def api_recent_detections():
+    """Return recent detection log entries."""
+    cb = stream_state.get_callback("get_recent_detections")
+    if cb:
+        return cb()
+    return []
+
+
+@app.get("/api/events")
+async def api_events():
+    """Get event timeline for the current or most recent mission."""
+    cb = stream_state.get_callback("get_events")
+    if cb:
+        return cb()
+    return {"events": []}
+
+
+@app.get("/api/events/status")
+async def api_events_status():
+    """Get event logger mission status."""
+    cb = stream_state.get_callback("get_event_status")
+    if cb:
+        return cb()
+    return {"mission_active": False, "mission_name": None}
+
+
+@app.get("/api/camera/sources")
+async def api_camera_sources():
+    """Return available video sources."""
+    cb = stream_state.get_callback("get_camera_sources")
+    if cb:
+        return cb()
+    return []
+
+
+@app.post("/api/camera/switch")
+async def api_camera_switch(request: Request, authorization: Optional[str] = Header(None)):
+    """Switch to a different camera source at runtime.
+
+    Body: {"source": 2}  (device index or RTSP URL)
+    """
+    auth_err = _check_auth(authorization, request)
+    if auth_err:
+        return auth_err
+    body = await _parse_json(request)
+    if body is None:
+        return JSONResponse({"error": "Invalid or missing JSON body"}, status_code=400)
+    source = body.get("source")
+    if source is None:
+        return JSONResponse({"error": "source required"}, status_code=400)
+    source = str(source)
+    if len(source) > 1024:
+        return JSONResponse({"error": "source too long"}, status_code=400)
+
+    cb = stream_state.get_callback("on_camera_switch")
+    if cb:
+        success = cb(source)
+        if success:
+            _audit(request, "camera_switch", target=str(source))
+            return {"status": "ok", "source": source}
+        _audit(request, "camera_switch", target=str(source), outcome="failed")
+        return JSONResponse({"error": "Failed to switch camera source"}, status_code=400)
+    return JSONResponse({"error": "Camera switch not available"}, status_code=503)
+
+
+@app.get("/api/system/power-modes")
+async def api_power_modes():
+    """Return available Jetson power modes."""
+    cb = stream_state.get_callback("get_power_modes")
+    if cb:
+        return cb()
+    return []
+
+
+@app.post("/api/system/power-mode")
+async def api_set_power_mode(request: Request, authorization: Optional[str] = Header(None)):
+    """Set Jetson power mode. Body: {"mode_id": 0}"""
+    auth_err = _check_auth(authorization, request)
+    if auth_err:
+        return auth_err
+    body = await _parse_json(request)
+    if body is None:
+        return JSONResponse({"error": "Invalid or missing JSON body"}, status_code=400)
+    mode_id = body.get("mode_id")
+    if mode_id is None:
+        return JSONResponse({"error": "mode_id required"}, status_code=400)
+    try:
+        mode_id_int = int(mode_id)
+    except (TypeError, ValueError):
+        return JSONResponse({"error": "mode_id must be an integer"}, status_code=400)
+    cb = stream_state.get_callback("on_set_power_mode")
+    if cb:
+        result = cb(mode_id_int)
+        _audit(request, "set_power_mode", target=str(mode_id_int),
+               outcome=result.get("status", "unknown"))
+        if result.get("status") == "ok":
+            return result
+        return JSONResponse(result, status_code=500)
+    return JSONResponse({"error": "Power mode control not available"}, status_code=503)
+
+
+@app.get("/api/models")
+async def api_list_models():
+    """Return available YOLO model files."""
+    cb = stream_state.get_callback("get_models")
+    if cb:
+        return cb()
+    return []
+
+
+@app.post("/api/models/switch")
+async def api_switch_model(request: Request, authorization: Optional[str] = Header(None)):
+    """Switch YOLO model at runtime. Body: {"model": "yolov8s.pt"}"""
+    auth_err = _check_auth(authorization, request)
+    if auth_err:
+        return auth_err
+    body = await _parse_json(request)
+    if body is None:
+        return JSONResponse({"error": "Invalid or missing JSON body"}, status_code=400)
+    model = body.get("model")
+    if not model:
+        return JSONResponse({"error": "model name required"}, status_code=400)
+    model = str(model)
+    if len(model) > 256 or "/" in model or ".." in model:
+        return JSONResponse({"error": "invalid model name"}, status_code=400)
+    cb = stream_state.get_callback("on_model_switch")
+    if cb:
+        success = cb(model)
+        if success:
+            _audit(request, "model_switch", target=model)
+            return {"status": "ok", "model": model}
+        _audit(request, "model_switch", target=model, outcome="failed")
+        return JSONResponse({"error": "Failed to switch model"}, status_code=400)
+    return JSONResponse({"error": "Model switching not available"}, status_code=503)
+
+
+# ── Mission Profiles ──────────────────────────────────────────
+
+@app.get("/api/profiles")
+async def api_list_profiles():
+    """Return available mission profiles."""
+    cb = stream_state.get_callback("get_profiles")
+    if cb:
+        return cb()
+    return {"profiles": [], "active_profile": None}
+
+
+@app.post("/api/profiles/switch")
+async def api_switch_profile(request: Request, authorization: Optional[str] = Header(None)):
+    """Switch to a mission profile. Body: {"profile": "counter-uas"}"""
+    auth_err = _check_auth(authorization, request)
+    if auth_err:
+        return auth_err
+    body = await _parse_json(request)
+    if body is None:
+        return JSONResponse({"error": "Invalid or missing JSON body"}, status_code=400)
+    profile_id = body.get("profile")
+    if not profile_id:
+        return JSONResponse({"error": "profile ID required"}, status_code=400)
+    if not isinstance(profile_id, str):
+        return JSONResponse({"error": "profile must be a string"}, status_code=400)
+    profile_id = profile_id.strip()[:100]
+    cb = stream_state.get_callback("on_profile_switch")
+    if cb:
+        success = cb(profile_id)
+        if success:
+            _audit(request, "profile_switch", target=profile_id)
+            return {"status": "ok", "profile": profile_id}
+        _audit(request, "profile_switch", target=profile_id, outcome="failed")
+        return JSONResponse(
+            {"error": f"Failed to switch to profile '{profile_id}'"},
+            status_code=400,
+        )
+    return JSONResponse({"error": "Profile switching not available"}, status_code=503)
+
+
+# ── Mission Profile Presets ───────────────────────────────────
+
+@app.get("/api/mission-profiles")
+async def api_list_mission_profiles():
+    """List available mission profile presets."""
+    from hydra_detect.mission_profiles import get_profiles
+    profiles = get_profiles()
+    return {
+        name: {
+            "display_name": p.display_name,
+            "description": p.description,
+            "behavior": p.behavior,
+            "approach_method": p.approach_method,
+            "post_action": p.post_action,
+            "icon": p.icon,
+        }
+        for name, p in profiles.items()
+    }
+
+
+# ── RF Hunt ─────────────────────────────────────────────────────
+
+@app.get("/api/rf/status")
+async def api_rf_status():
+    """Return current RF hunt status."""
+    cb = stream_state.get_callback("get_rf_status")
+    if cb:
+        return cb()
+    return {"state": "unavailable"}
+
+
+@app.get("/api/rf/rssi_history")
+async def api_rf_rssi_history():
+    """Return RSSI history for visualization."""
+    cb = stream_state.get_callback("get_rf_rssi_history")
+    if cb:
+        return cb()
+    return []
+
+
+@app.get("/api/rf/devices")
+async def api_rf_devices():
+    """Return the current Kismet device feed with ``is_target`` flags.
+
+    Auth-free read — powers the ops dashboard device table. Payload::
+
+        {"mode": "live"|"replay"|"unavailable",
+         "devices": [{bssid, ssid, rssi, channel, freq_mhz, manuf,
+                      first_seen, last_seen, lat, lon, is_target}, ...]}
+    """
+    cb = stream_state.get_callback("get_rf_devices")
+    if cb:
+        try:
+            return cb()
+        except Exception as exc:  # defensive — keep dashboard alive
+            logger.warning("get_rf_devices callback failed: %s", exc)
+    return {"mode": "unavailable", "devices": []}
+
+
+@app.get("/api/rf/events")
+async def api_rf_events():
+    """Return the RF hunt state-transition ring (last 50)."""
+    cb = stream_state.get_callback("get_rf_events")
+    if cb:
+        try:
+            return cb()
+        except Exception as exc:
+            logger.warning("get_rf_events callback failed: %s", exc)
+    return []
+
+
+@app.post("/api/rf/target")
+async def api_rf_target(
+    request: Request, authorization: Optional[str] = Header(None),
+):
+    """Set the hunt target from the device feed — one-click targeting.
+
+    Body: ``{mode?: "wifi"|"sdr", bssid?: str, freq_mhz?: float, confirm: bool}``
+
+    Either ``bssid`` or ``freq_mhz`` must be supplied. ``confirm`` must be
+    true — dashboard requires an explicit operator confirmation step.
+    """
+    auth_err = _check_auth(authorization, request)
+    if auth_err:
+        return auth_err
+    body = await _parse_json(request)
+    if body is None:
+        return JSONResponse(
+            {"error": "Invalid or missing JSON body"}, status_code=400,
+        )
+    if not body.get("confirm"):
+        return JSONResponse(
+            {"error": "confirm=true required to set hunt target"},
+            status_code=400,
+        )
+    bssid = (body.get("bssid") or "").strip()
+    freq_mhz = body.get("freq_mhz")
+    mode = body.get("mode")
+    if not bssid and freq_mhz is None:
+        return JSONResponse(
+            {"error": "bssid or freq_mhz required"}, status_code=400,
+        )
+    if mode and mode not in ("wifi", "sdr"):
+        return JSONResponse(
+            {"error": "mode must be 'wifi' or 'sdr'"}, status_code=400,
+        )
+    if bssid and not BSSID_RE.fullmatch(bssid):
+        return JSONResponse(
+            {"error": "bssid must be MAC format AA:BB:CC:DD:EE:FF"},
+            status_code=400,
+        )
+    if freq_mhz is not None:
+        try:
+            freq_mhz = float(freq_mhz)
+            if not (1.0 <= freq_mhz <= 6000.0):
+                return JSONResponse(
+                    {"error": "freq_mhz must be 1-6000"}, status_code=400,
+                )
+        except (TypeError, ValueError):
+            return JSONResponse(
+                {"error": "freq_mhz must be a number"}, status_code=400,
+            )
+    params: dict = {}
+    if mode:
+        params["mode"] = mode
+    if bssid:
+        params["bssid"] = bssid.upper()
+    if freq_mhz is not None:
+        params["freq_mhz"] = freq_mhz
+    cb = stream_state.get_callback("on_rf_target")
+    if cb:
+        ok = cb(params)
+        target_label = bssid or (f"{freq_mhz}MHz" if freq_mhz else "?")
+        if ok:
+            _audit(request, "rf_hunt_target", target=target_label)
+            return {"status": "ok", "message": "RF hunt target set"}
+        _audit(request, "rf_hunt_target", target=target_label, outcome="failed")
+        return JSONResponse(
+            {"error": "Failed to set RF hunt target"}, status_code=503,
+        )
+    _audit(request, "rf_hunt_target", outcome="unavailable")
+    return JSONResponse(
+        {"error": "RF homing not configured"}, status_code=503,
+    )
+
+
+@app.post("/api/rf/start")
+async def api_rf_start(request: Request, authorization: Optional[str] = Header(None)):
+    """Start an RF hunt with the given parameters.
+
+    Body: {mode, target_bssid, target_freq_mhz, search_pattern,
+           search_area_m, search_spacing_m, search_alt_m,
+           rssi_threshold_dbm, rssi_converge_dbm, gradient_step_m}
+    All fields optional — unset fields keep current config values.
+    """
+    auth_err = _check_auth(authorization, request)
+    if auth_err:
+        return auth_err
+    body = await _parse_json(request)
+    if body is None:
+        return JSONResponse({"error": "Invalid or missing JSON body"}, status_code=400)
+
+    # Validate mode
+    mode = body.get("mode")
+    if mode and mode not in ("wifi", "sdr"):
+        return JSONResponse({"error": "mode must be 'wifi' or 'sdr'"}, status_code=400)
+
+    # Validate BSSID format if provided
+    bssid = body.get("target_bssid", "").strip()
+    if mode == "wifi" and not bssid:
+        return JSONResponse({"error": "target_bssid required for wifi mode"}, status_code=400)
+    if bssid and not BSSID_RE.fullmatch(bssid):
+        return JSONResponse(
+            {"error": "target_bssid must be MAC format AA:BB:CC:DD:EE:FF"},
+            status_code=400,
+        )
+
+    # Validate freq if SDR
+    freq = body.get("target_freq_mhz")
+    if freq is not None:
+        try:
+            freq = float(freq)
+            if not (1.0 <= freq <= 6000.0):
+                return JSONResponse({"error": "target_freq_mhz must be 1-6000"}, status_code=400)
+        except (TypeError, ValueError):
+            return JSONResponse({"error": "target_freq_mhz must be a number"}, status_code=400)
+
+    # Validate search pattern
+    pattern = body.get("search_pattern")
+    if pattern and pattern not in ("lawnmower", "spiral"):
+        return JSONResponse(
+            {"error": "search_pattern must be 'lawnmower' or 'spiral'"},
+            status_code=400,
+        )
+
+    # Validate numeric fields
+    for field, lo, hi in [
+        ("search_area_m", 10.0, 2000.0),
+        ("search_spacing_m", 2.0, 200.0),
+        ("search_alt_m", 3.0, 120.0),
+        ("rssi_threshold_dbm", -100.0, -10.0),
+        ("rssi_converge_dbm", -90.0, 0.0),
+        ("gradient_step_m", 1.0, 50.0),
+    ]:
+        val = body.get(field)
+        if val is not None:
+            try:
+                val = float(val)
+                if not (lo <= val <= hi):
+                    return JSONResponse(
+                        {"error": f"{field} must be {lo}-{hi}"}, status_code=400,
+                    )
+            except (TypeError, ValueError):
+                return JSONResponse({"error": f"{field} must be a number"}, status_code=400)
+
+    cb = stream_state.get_callback("on_rf_start")
+    if cb:
+        result = cb(body)
+        if result:
+            _audit(request, "rf_hunt_start", target=str(body.get("mode", "wifi")))
+            return {"status": "ok", "message": "RF hunt started"}
+        _audit(request, "rf_hunt_start", outcome="failed")
+        return JSONResponse(
+            {"error": "RF hunt failed to start — check Kismet connection and GPS fix"},
+            status_code=503,
+        )
+    _audit(request, "rf_hunt_start", outcome="unavailable")
+    return JSONResponse({"error": "RF homing not configured"}, status_code=503)
+
+
+@app.post("/api/rf/stop")
+async def api_rf_stop(request: Request, authorization: Optional[str] = Header(None)):
+    """Stop an active RF hunt."""
+    auth_err = _check_auth(authorization, request)
+    if auth_err:
+        return auth_err
+    cb = stream_state.get_callback("on_rf_stop")
+    if cb:
+        cb()
+        _audit(request, "rf_hunt_stop")
+        return {"status": "ok", "message": "RF hunt stopped"}
+    _audit(request, "rf_hunt_stop", outcome="unavailable")
+    return JSONResponse({"error": "RF homing not configured"}, status_code=503)
+
+
+# ── RTSP ─────────────────────────────────────────────────────
+
+@app.get("/api/rtsp/status")
+async def api_rtsp_status():
+    """Return RTSP server status."""
+    cb = stream_state.get_callback("get_rtsp_status")
+    if cb:
+        return cb()
+    return {"enabled": False, "running": False, "url": "", "clients": 0}
+
+
+@app.post("/api/rtsp/toggle")
+async def api_rtsp_toggle(request: Request, authorization: Optional[str] = Header(None)):
+    """Start or stop the RTSP server at runtime. Body: {"enabled": true/false}"""
+    auth_err = _check_auth(authorization, request)
+    if auth_err:
+        return auth_err
+    body = await _parse_json(request)
+    if body is None:
+        return JSONResponse({"error": "Invalid or missing JSON body"}, status_code=400)
+    enabled = body.get("enabled")
+    if enabled is None:
+        return JSONResponse({"error": "enabled field required (true/false)"}, status_code=400)
+    cb = stream_state.get_callback("on_rtsp_toggle")
+    if cb:
+        result = cb(bool(enabled))
+        _audit(request, "rtsp_toggle", target=str(enabled))
+        if result.get("status") == "ok":
+            return result
+        return JSONResponse(result, status_code=500)
+    _audit(request, "rtsp_toggle", outcome="unavailable")
+    return JSONResponse({"error": "RTSP toggle not available"}, status_code=503)
+
+
+# ── MAVLink Video ────────────────────────────────────────────
+
+@app.get("/api/mavlink-video/status")
+async def api_mavlink_video_status():
+    """Return MAVLink video thumbnail stream status."""
+    cb = stream_state.get_callback("get_mavlink_video_status")
+    if cb:
+        return cb()
+    return {"enabled": False, "running": False, "width": 0, "height": 0,
+            "quality": 0, "current_fps": 0, "bytes_per_sec": 0}
+
+
+@app.post("/api/mavlink-video/toggle")
+async def api_mavlink_video_toggle(request: Request, authorization: Optional[str] = Header(None)):
+    """Start or stop MAVLink video. Body: {"enabled": true/false}"""
+    auth_err = _check_auth(authorization, request)
+    if auth_err:
+        return auth_err
+    body = await _parse_json(request)
+    if body is None:
+        return JSONResponse({"error": "Invalid or missing JSON body"}, status_code=400)
+    enabled = body.get("enabled")
+    if enabled is None:
+        return JSONResponse({"error": "enabled field required"}, status_code=400)
+    cb = stream_state.get_callback("on_mavlink_video_toggle")
+    if cb:
+        result = cb(bool(enabled))
+        _audit(request, "mavlink_video_toggle", target=str(enabled))
+        if result.get("status") == "ok":
+            return result
+        return JSONResponse(result, status_code=500)
+    return JSONResponse({"error": "MAVLink video not available"}, status_code=503)
+
+
+# ── TAK/ATAK CoT Output ─────────────────────────────────────
+
+@app.get("/api/tak/status")
+async def api_tak_status():
+    """Return TAK CoT output status."""
+    cb = stream_state.get_callback("get_tak_status")
+    if cb:
+        return cb()
+    return {"enabled": False, "running": False, "callsign": "", "events_sent": 0}
+
+
+@app.post("/api/tak/toggle")
+async def api_tak_toggle(request: Request, authorization: Optional[str] = Header(None)):
+    """Start or stop TAK CoT output. Body: {"enabled": true/false}"""
+    auth_err = _check_auth(authorization, request)
+    if auth_err:
+        return auth_err
+    body = await _parse_json(request)
+    if body is None:
+        return JSONResponse({"error": "Invalid or missing JSON body"}, status_code=400)
+    enabled = body.get("enabled")
+    if enabled is None:
+        return JSONResponse({"error": "enabled field required"}, status_code=400)
+    cb = stream_state.get_callback("on_tak_toggle")
+    if cb:
+        result = cb(bool(enabled))
+        _audit(request, "tak_toggle", target=str(enabled))
+        if result.get("status") == "ok":
+            return result
+        return JSONResponse(result, status_code=500)
+    return JSONResponse({"error": "TAK output not available"}, status_code=503)
+
+
+@app.post("/api/tak/test_broadcast")
+async def api_tak_test_broadcast(
+    request: Request, authorization: Optional[str] = Header(None)
+):
+    """Force an immediate TAK self-SA emit so operators can verify wiring.
+
+    Useful before a demo or field sortie: click once, watch for the marker
+    to appear in ATAK. Returns destination list + reason string. Requires
+    the TAK sender thread to be running and MAVLink to have a GPS fix.
+    """
+    auth_err = _check_auth(authorization, request)
+    if auth_err:
+        return auth_err
+    if _tak_output_ref is None:
+        return JSONResponse(
+            {
+                "success": False,
+                "reason": "TAK output is not initialized",
+                "destinations": [],
+            },
+            status_code=503,
+        )
+    try:
+        result = _tak_output_ref.send_test_beacon()
+    except Exception as e:
+        logger.exception("TAK test broadcast failed: %s", e)
+        return JSONResponse(
+            {"success": False, "reason": f"Unexpected error: {e}", "destinations": []},
+            status_code=500,
+        )
+    _audit(request, "tak_test_broadcast", target=str(result.get("success")))
+    return result
+
+
+@app.get("/api/stream/quality")
+async def get_stream_quality():
+    """Return current MJPEG stream quality."""
+    return {"quality": stream_state.get_mjpeg_quality()}
+
+
+@app.post("/api/stream/quality")
+async def set_stream_quality(request: Request):
+    """Set stream JPEG quality at runtime. Body: {"quality": 70}
+
+    No auth required — this is a display preference, not a control action.
+    """
+    body = await _parse_json(request)
+    if body is None:
+        return JSONResponse({"error": "Invalid or missing JSON body"}, status_code=400)
+    quality = body.get("quality", 70)
+    try:
+        quality = int(quality)
+    except (TypeError, ValueError):
+        return JSONResponse({"error": "quality must be an integer 1-100"}, status_code=400)
+    quality = max(1, min(100, quality))
+    stream_state.set_mjpeg_quality(quality)
+    _audit(request, "set_stream_quality", target=str(quality))
+    return {"quality": quality}
+
+
+@app.post("/api/restart")
+async def restart_pipeline(request: Request, authorization: Optional[str] = Header(None)):
+    """Request a pipeline restart. Briefly interrupts detection."""
+    auth_err = _check_auth(authorization, request)
+    if auth_err:
+        return auth_err
+    cb = stream_state.get_callback("on_restart_command")
+    if cb:
+        cb()
+        _audit(request, "pipeline_restart")
+        return {"status": "restarting"}
+    _audit(request, "pipeline_restart", outcome="unavailable")
+    return JSONResponse({"error": "restart not available"}, status_code=503)
+
+
+# ── Autonomy dashboard ────────────────────────────────────────────────
+
+_AUTONOMY_MODES = ("dryrun", "shadow", "live")
+
+
+def _autonomy_default_snapshot(callsign: str) -> dict:
+    """Idle/default status shape returned when no controller is registered."""
+    return {
+        "mode": "dryrun",
+        "enabled": False,
+        "callsign": callsign,
+        "geofence": {
+            "shape": "CIRCLE",
+            "radius_m": 0.0,
+            "center_lat": 0.0,
+            "center_lon": 0.0,
+            "polygon": "",
+        },
+        "self_position": None,
+        "criteria": {
+            "min_confidence": 0.85,
+            "min_track_frames": 5,
+            "strike_cooldown_sec": 30.0,
+            "gps_max_stale_sec": 2.0,
+            "require_operator_lock": True,
+            "allowed_vehicle_modes": "AUTO",
+            "allowed_classes": [],
+        },
+        "gates": [
+            {"id": "geofence", "state": "N/A", "detail": ""},
+            {"id": "vehicle_mode", "state": "N/A", "detail": ""},
+            {"id": "operator_lock", "state": "N/A", "detail": ""},
+            {"id": "gps_fresh", "state": "N/A", "detail": ""},
+            {"id": "cooldown", "state": "N/A", "detail": ""},
+        ],
+        "log": [],
+    }
+
+
+@app.get("/api/autonomy/status")
+async def api_autonomy_status():
+    """Return autonomy gate + explainability snapshot.
+
+    Auth-free read (same precedent as /api/stats). Powers the autonomy
+    dashboard (now embedded inside #config): mode picker, gate panel,
+    and the rolling decision log.
+    Returns an idle default shape when no controller is registered so the
+    dashboard can render on a cold boot.
+    """
+    callsign = str(stream_state.get_stats().get("callsign") or "HYDRA-1")
+    ctrl = _autonomous_ref
+    if ctrl is None:
+        return _autonomy_default_snapshot(callsign)
+    try:
+        return ctrl.get_dashboard_snapshot(callsign=callsign)
+    except Exception as exc:
+        logger.warning("autonomy snapshot failed: %s", exc)
+        return _autonomy_default_snapshot(callsign)
+
+
+@app.post("/api/autonomy/mode")
+async def api_autonomy_mode(
+    request: Request, authorization: Optional[str] = Header(None),
+):
+    """Set the autonomy mode. Body: {"mode": "dryrun" | "shadow" | "live"}.
+
+    Bearer auth required — this is a safety-critical write.
+    """
+    auth_err = _check_auth(authorization, request)
+    if auth_err:
+        return auth_err
+    body = await _parse_json(request)
+    if body is None:
+        return JSONResponse({"error": "Invalid or missing JSON body"}, status_code=400)
+    mode = body.get("mode")
+    if not isinstance(mode, str) or mode not in _AUTONOMY_MODES:
+        return JSONResponse(
+            {"error": f"mode must be one of {list(_AUTONOMY_MODES)}"},
+            status_code=400,
+        )
+    ctrl = _autonomous_ref
+    if ctrl is None:
+        _audit(request, "autonomy_mode", target=mode, outcome="unavailable")
+        return JSONResponse(
+            {"error": "autonomous controller not available"}, status_code=503,
+        )
+    try:
+        ctrl.set_mode(mode)
+    except ValueError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+    _audit(request, "autonomy_mode", target=mode)
+    return {"status": "ok", "mode": mode}
+
+
+@app.post("/api/vehicle/beep")
+async def api_vehicle_beep(request: Request):
+    """Play a tune on the Pixhawk buzzer. Body: {"tune": "alert"}
+
+    Gated by [ui] morale_features_enabled. Returns 404 on field images.
+    Valid tune names: alert, success, warning, error, charles, startup.
+    Or pass a raw QBASIC tune string (up to 100 chars).
+    """
+    if not _morale_features_enabled:
+        return JSONResponse(status_code=404, content={"detail": "Not Found"})
+    body = await _parse_json(request)
+    if body is None:
+        return JSONResponse({"error": "Invalid or missing JSON body"}, status_code=400)
+    tune = str(body.get("tune", "alert"))
+    if len(tune) > 100:
+        return JSONResponse({"error": "tune too long"}, status_code=400)
+    cb = stream_state.get_callback("play_tune")
+    if cb:
+        result = cb(tune)
+        return {"status": "ok" if result else "failed", "tune": tune}
+    return JSONResponse({"error": "MAVLink not connected"}, status_code=503)
+
+
+@app.get("/api/tak/targets")
+async def api_get_tak_targets():
+    """List current TAK unicast targets."""
+    cb = stream_state.get_callback("get_tak_targets")
+    if cb:
+        return {"targets": cb()}
+    return {"targets": []}
+
+
+@app.post("/api/tak/targets")
+async def api_add_tak_target(
+    request: Request, authorization: Optional[str] = Header(None),
+):
+    """Add a TAK unicast target. Body: {"host": "ip", "port": 6969}"""
+    auth_err = _check_auth(authorization, request)
+    if auth_err:
+        return auth_err
+    body = await _parse_json(request)
+    if body is None:
+        return JSONResponse({"error": "Invalid or missing JSON body"}, status_code=400)
+    host = str(body.get("host", "")).strip()
+    if not host or len(host) > 256:
+        return JSONResponse({"error": "valid host required"}, status_code=400)
+    try:
+        port = int(body.get("port", 6969))
+    except (TypeError, ValueError):
+        return JSONResponse({"error": "port must be a number"}, status_code=400)
+    if not (1 <= port <= 65535):
+        return JSONResponse({"error": "port must be 1-65535"}, status_code=400)
+    cb = stream_state.get_callback("add_tak_target")
+    if cb:
+        cb(host, port)
+        _audit(request, "add_tak_target", target=f"{host}:{port}")
+        return {"status": "added", "host": host, "port": port}
+    return JSONResponse({"error": "TAK not available"}, status_code=503)
+
+
+@app.delete("/api/tak/targets")
+async def api_remove_tak_target(
+    request: Request, authorization: Optional[str] = Header(None),
+):
+    """Remove a TAK unicast target. Body: {"host": "ip", "port": 6969}"""
+    auth_err = _check_auth(authorization, request)
+    if auth_err:
+        return auth_err
+    body = await _parse_json(request)
+    if body is None:
+        return JSONResponse({"error": "Invalid or missing JSON body"}, status_code=400)
+    host = str(body.get("host", "")).strip()
+    if not host:
+        return JSONResponse({"error": "host required"}, status_code=400)
+    try:
+        port = int(body.get("port", 6969))
+    except (TypeError, ValueError):
+        return JSONResponse({"error": "port must be a number"}, status_code=400)
+    if not (1 <= port <= 65535):
+        return JSONResponse({"error": "port must be 1-65535"}, status_code=400)
+    cb = stream_state.get_callback("remove_tak_target")
+    if cb:
+        cb(host, port)
+        _audit(request, "remove_tak_target", target=f"{host}:{port}")
+        return {"status": "removed"}
+    return JSONResponse({"error": "TAK not available"}, status_code=503)
+
+
+@app.post("/api/mavlink-video/tune")
+async def api_mavlink_video_tune(request: Request, authorization: Optional[str] = Header(None)):
+    """Live-tune MAVLink video params. Body: {width, height, quality, max_fps} (all optional)"""
+    auth_err = _check_auth(authorization, request)
+    if auth_err:
+        return auth_err
+    body = await _parse_json(request)
+    if body is None:
+        return JSONResponse({"error": "Invalid or missing JSON body"}, status_code=400)
+    for field, lo, hi in [("width", 40, 320), ("height", 30, 240),
+                          ("quality", 5, 50), ("max_fps", 0.1, 5.0)]:
+        val = body.get(field)
+        if val is not None:
+            try:
+                val = float(val) if field == "max_fps" else int(val)
+                if not (lo <= val <= hi):
+                    return JSONResponse({"error": f"{field} must be {lo}-{hi}"}, status_code=400)
+            except (TypeError, ValueError):
+                return JSONResponse({"error": f"{field} must be a number"}, status_code=400)
+    cb = stream_state.get_callback("on_mavlink_video_tune")
+    if cb:
+        result = cb(body)
+        _audit(request, "mavlink_video_tune", target=str(body))
+        if result.get("status") == "ok":
+            return result
+        return JSONResponse(result, status_code=500)
+    return JSONResponse({"error": "MAVLink video not available"}, status_code=503)
+
+
+@app.post("/api/pipeline/stop")
+async def api_pipeline_stop(request: Request, authorization: Optional[str] = Header(None)):
+    """Gracefully stop the pipeline and shut down."""
+    auth_err = _check_auth(authorization, request)
+    if auth_err:
+        return auth_err
+    cb = stream_state.get_callback("on_stop_command")
+    if cb:
+        cb()
+        _audit(request, "pipeline_stop")
+        return {"status": "ok", "message": "Shutting down"}
+    _audit(request, "pipeline_stop", outcome="unavailable")
+    return JSONResponse({"error": "Stop not available"}, status_code=503)
+
+
+@app.post("/api/pipeline/pause")
+async def api_pipeline_pause(request: Request, authorization: Optional[str] = Header(None)):
+    """Pause or resume the detection pipeline."""
+    auth_err = _check_auth(authorization, request)
+    if auth_err:
+        return auth_err
+    body = await _parse_json(request)
+    if body is None:
+        return JSONResponse({"error": "Invalid or missing JSON body"}, status_code=400)
+    paused = body.get("paused", True)
+    if paused:
+        cb = stream_state.get_callback("on_pause_command")
+        if cb:
+            cb()
+            _audit(request, "pipeline_pause")
+            return {"status": "ok", "paused": True}
+    else:
+        cb = stream_state.get_callback("on_resume_command")
+        if cb:
+            cb()
+            _audit(request, "pipeline_resume")
+            return {"status": "ok", "paused": False}
+    return JSONResponse({"error": "Pause/resume not available"}, status_code=503)
+
+
+# ── Operator Control (mobile) ─────────────────────────────────────
+
+@app.get("/control", response_class=HTMLResponse)
+async def control_page(request: Request):
+    """Serve the mobile operator control page."""
+    return templates.TemplateResponse(request, "control.html")
+
+
+# ── Fleet View ─────────────────────────────────────────────────────
+
+@app.get("/fleet", response_class=HTMLResponse)
+async def fleet_page(request: Request):
+    """Serve the Fleet View page — multi-vehicle status and abort."""
+    return templates.TemplateResponse(request, "instructor.html")
+
+
+@app.get("/instructor", response_class=HTMLResponse)
+async def instructor_redirect(request: Request):
+    """Redirect legacy /instructor route to /fleet (307 preserves method)."""
+    from starlette.responses import RedirectResponse
+    return RedirectResponse(url="/fleet", status_code=307)
+
+
+@app.post("/api/abort")
+async def api_abort(request: Request):
+    """Emergency abort — switch vehicle to RTL mode.
+
+    Intentionally unauthenticated. Any device on the network can abort
+    any vehicle. This is the safety override: range control must be able
+    to abort without configuring tokens first.
+    """
+    _audit(request, "abort")
+    # Try RTL first, then LOITER/HOLD as fallback.
+    # Safety-critical — wrap in try/except so a callback crash
+    # never blocks an abort response.
+    cb = stream_state.get_callback("on_set_mode_command")
+    if cb:
+        for mode in ("RTL", "LOITER", "HOLD"):
+            try:
+                if cb(mode):
+                    logger.warning("ABORT: vehicle set to %s by range control", mode)
+                    return {"status": "ok", "mode": mode}
+            except Exception as exc:
+                logger.error("ABORT callback failed for %s: %s", mode, exc)
+        return JSONResponse({"error": "Failed to set abort mode"}, status_code=503)
+    return JSONResponse({"error": "MAVLink not connected"}, status_code=503)
+
+
+# ── Mission Tagging ────────────────────────────────────────────────
+
+# Rate-limit /api/mission/start to one call per 5 s per remote IP.
+# R2-1 in docs/adversarial/230.md: each successful call opens a new event
+# JSONL with a fresh UUID. A rapid-clicking operator (or scripted attacker)
+# can otherwise drive the DetectionLogger rotation policy into deleting
+# prior sorties' event logs as it makes room for the synthetic backlog.
+_MISSION_START_WINDOW_SEC = 5.0
+_mission_start_hits: Dict[str, float] = {}
+_mission_start_lock = threading.Lock()
+
+
+def _mission_start_retry_after(client_ip: str, now: float) -> float | None:
+    """Return seconds-until-allowed if ``client_ip`` is still in cooldown.
+
+    Records the hit when allowed. Returns the float Retry-After hint
+    (always >0) when the call should be rejected; returns ``None`` when
+    the call may proceed.
+    """
+    with _mission_start_lock:
+        last = _mission_start_hits.get(client_ip)
+        if last is not None and (now - last) < _MISSION_START_WINDOW_SEC:
+            return round(_MISSION_START_WINDOW_SEC - (now - last), 3)
+        _mission_start_hits[client_ip] = now
+        # Compact stale entries so this dict cannot grow without bound on a
+        # busy network. Cheap O(n) on each successful start — the dict is
+        # already small because entries expire after 5 s.
+        for k in [
+            ip for ip, ts in _mission_start_hits.items()
+            if (now - ts) > _MISSION_START_WINDOW_SEC * 4
+        ]:
+            _mission_start_hits.pop(k, None)
+        return None
+
+
+@app.post("/api/mission/start")
+async def api_start_mission(request: Request, authorization: Optional[str] = Header(None)):
+    """Start a named mission. Body: {"name": "mission-alpha"} (name optional).
+
+    Returns ``{"status": "started", "name": <name>, "mission_id": <uuid>}``
+    so the operator UI can surface the id and use it for ``/api/summary``
+    queries later.
+
+    Rate-limited to one call per 5 s per remote IP. Repeat callers within
+    the window get ``429 Too Many Requests`` with a ``Retry-After`` header.
+    """
+    auth_err = _check_auth(authorization, request)
+    if auth_err:
+        return auth_err
+    # Disk-BLOCKED gate (#226). When the Capability Status framework
+    # reports disk BLOCKED (free pct AND absolute floor both tripped),
+    # refuse new mission bundles. Detection metadata logging continues
+    # in the pipeline so the operator still gets event provenance for
+    # the BLOCKED window itself.
+    try:
+        from .capability_api import is_disk_blocked
+        blocked, blocked_reason = is_disk_blocked()
+    except Exception:
+        blocked, blocked_reason = False, ""
+    if blocked:
+        return JSONResponse(
+            {
+                "error": (
+                    "disk_free below 5% AND under 5GB free — "
+                    "refusing new mission bundles. Free space and retry."
+                ),
+                "reason": blocked_reason or (
+                    "disk_free below 5% AND under 5GB free"
+                ),
+            },
+            status_code=503,
+        )
+    client_ip = request.client.host if request.client else "unknown"
+    retry_after = _mission_start_retry_after(client_ip, time.monotonic())
+    if retry_after is not None:
+        return JSONResponse(
+            {
+                "error": (
+                    "Too many mission start requests. "
+                    "Wait at least 5 seconds between starts."
+                ),
+                "retry_after_sec": retry_after,
+            },
+            status_code=429,
+            # Retry-After is an integer-seconds HTTP header; round up so a
+            # 0.4s remaining wait still surfaces as "wait 1s" (RFC 7231).
+            headers={"Retry-After": str(int(retry_after) + 1)},
+        )
+    body = await _parse_json(request)
+    # Empty body is allowed — operator can hit Start without naming the sortie.
+    if body is None:
+        body = {}
+    if "name" in body:
+        # Key present → must be a non-empty trimmed string. This preserves
+        # the legacy behavior the instructor-ops UI relies on.
+        name = body["name"]
+        if not isinstance(name, str) or not name.strip():
+            return JSONResponse({"error": "name must be a non-empty string"}, status_code=400)
+    else:
+        name = f"mission-{int(time.time())}"
+    name = name.strip()[:100]  # Bound length
+    cb = stream_state.get_callback("on_mission_start")
+    mission_id: str | None = None
+    if cb:
+        result = cb(name)
+        if isinstance(result, str):
+            mission_id = result
+    _audit(request, "mission_start", target=name)
+    return {"status": "started", "name": name, "mission_id": mission_id}
+
+
+@app.post("/api/mission/end")
+async def api_end_mission(request: Request, authorization: Optional[str] = Header(None)):
+    """End the current mission."""
+    auth_err = _check_auth(authorization, request)
+    if auth_err:
+        return auth_err
+    cb = stream_state.get_callback("on_mission_end")
+    if cb:
+        cb()
+    _audit(request, "mission_end")
+    return {"status": "ended"}
+
+
+@app.get("/api/mission/status")
+async def api_mission_status():
+    """Return the active mission_id, name, and start timestamp (or all None).
+
+    Cheap, unauthenticated — operators on read-only dashboards still need
+    to see which sortie they're looking at.
+    """
+    cb = stream_state.get_callback("get_event_status")
+    if cb:
+        return cb()
+    return {
+        "mission_active": False,
+        "mission_name": None,
+        "mission_id": None,
+        "mission_start_ts": None,
+        "mission_log": None,
+    }
+
+
+@app.get("/api/missions")
+async def api_list_missions():
+    """List recent missions discovered in the log directory."""
+    from hydra_detect.mission_summary import list_missions
+    cb = stream_state.get_callback("get_log_dir")
+    log_dir = cb() if cb else "./output_data/logs"
+    return {"missions": list_missions(log_dir)}
+
+
+@app.get("/api/summary")
+async def api_mission_summary(mission: str = ""):
+    """Return per-mission stats: detections by class, unique tracks, time
+    to first detection, GPS coverage convex hull (issue #72).
+
+    Query string: ``?mission=<mission_id>``. The id is the UUID returned
+    from ``/api/mission/start``. Results are cached for 30 s.
+
+    Returns 400 for malformed input (missing param, oversized id), 404
+    for an unknown mission_id (no rows on disk — typo'd UUID or rotated
+    out by retention), 500 on unexpected failure.
+    """
+    from hydra_detect.mission_summary import (
+        MissionNotFoundError, get_summary,
+    )
+    if not mission:
+        return JSONResponse(
+            {"error": "mission query parameter required"}, status_code=400,
+        )
+    # Bound length to keep the cache key reasonable. UUIDs are 36 chars;
+    # we accept 64 to give a little slack for hyphen / case variants.
+    if len(mission) > 64:
+        return JSONResponse({"error": "mission id too long"}, status_code=400)
+    cb = stream_state.get_callback("get_log_dir")
+    log_dir = cb() if cb else "./output_data/logs"
+    try:
+        return get_summary(mission, log_dir)
+    except ValueError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+    except MissionNotFoundError as exc:
+        # R3-3 from PR #238 / issue #241. Distinguishes "you typo'd the
+        # UUID" from "mission ran, found nothing." Echo the id in the
+        # body so the operator can spot what they got wrong.
+        return JSONResponse({"error": str(exc)}, status_code=404)
+    except Exception as exc:  # pragma: no cover — defensive
+        logger.exception("Mission summary failed for %s: %s", mission, exc)
+        return JSONResponse({"error": "summary computation failed"}, status_code=500)
+
+
+# ── Mission Review ────────────────────────────────────────────────
+
+@app.get("/review", response_class=HTMLResponse)
+async def review_page(request: Request):
+    """Serve the post-mission review page."""
+    return templates.TemplateResponse(request, "review.html")
+
+
+@app.get("/api/review/logs")
+async def api_review_logs():
+    """List available detection log files, event timeline files, and missions.
+
+    Returns ``{"logs": [...], "event_logs": [...], "missions": [...],
+    "image_dir": "..."}`` — ``missions`` is the new per-mission grouping
+    added in issue #72 so the review tab can offer a sortie picker.
+    """
+    import json as _json
+    from hydra_detect.mission_summary import list_missions
+
+    cb = stream_state.get_callback("get_log_dir")
+    log_dir = cb() if cb else "/data/logs"
+    image_dir_cb = stream_state.get_callback("get_image_dir")
+    image_dir = image_dir_cb() if image_dir_cb else "/data/images"
+    result = []
+    event_logs = []
+    log_path = Path(log_dir)
+    if log_path.is_dir():
+        for f in sorted(log_path.iterdir(), reverse=True):
+            if f.suffix in (".jsonl", ".csv"):
+                result.append({
+                    "filename": f.name,
+                    "size_kb": round(f.stat().st_size / 1024, 1),
+                    "modified": f.stat().st_mtime,
+                })
+        # Scan for event timeline JSONL files
+        for f in sorted(log_path.glob("*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True):
+            try:
+                with open(f) as fh:
+                    first_line = fh.readline().strip()
+                    if first_line:
+                        record = _json.loads(first_line)
+                        if record.get("type") in ("mission_start", "track", "action", "state"):
+                            event_logs.append({
+                                "filename": f.name,
+                                "size_kb": round(f.stat().st_size / 1024, 1),
+                            })
+            except (_json.JSONDecodeError, OSError, UnicodeDecodeError):
+                logger.debug("Skipping unreadable event log: %s", f.name)
+                continue
+    # Mission roll-up — drives the per-sortie picker in the review UI.
+    missions = list_missions(log_dir) if log_path.is_dir() else []
+    return {
+        "logs": result,
+        "event_logs": event_logs,
+        "missions": missions,
+        "image_dir": image_dir,
+    }
+
+
+@app.get("/api/review/log/{filename}")
+async def api_review_log(filename: str):
+    """Parse and return detection data from a log file."""
+    import json as _json
+    # Prevent path traversal
+    if "/" in filename or "\\" in filename or ".." in filename:
+        return JSONResponse({"error": "Invalid filename"}, status_code=400)
+
+    cb = stream_state.get_callback("get_log_dir")
+    log_dir = cb() if cb else "/data/logs"
+    path = Path(log_dir) / filename
+
+    if not path.exists() or not path.is_file():
+        return JSONResponse({"error": "Log file not found"}, status_code=404)
+
+    records = []
+    max_records = 50000  # Cap to prevent OOM on large log files
+    if path.suffix == ".jsonl":
+        with open(path) as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    try:
+                        records.append(_json.loads(line))
+                    except _json.JSONDecodeError:
+                        continue
+                    if len(records) >= max_records:
+                        break
+    elif path.suffix == ".csv":
+        import csv as _csv
+        with open(path) as f:
+            reader = _csv.DictReader(f)
+            for row in reader:
+                # Convert numeric fields
+                for key in ("confidence", "x1", "y1", "x2", "y2", "lat", "lon", "alt"):
+                    if key in row and row[key]:
+                        try:
+                            row[key] = float(row[key])
+                        except ValueError:
+                            pass
+                for key in ("frame", "track_id", "class_id", "fix"):
+                    if key in row and row[key]:
+                        try:
+                            row[key] = int(row[key])
+                        except ValueError:
+                            pass
+                records.append(row)
+                if len(records) >= max_records:
+                    break
+
+    return {"filename": filename, "count": len(records), "detections": records,
+            "truncated": len(records) >= max_records}
+
+
+@app.get("/api/review/events/{filename}")
+async def api_review_events(filename: str):
+    """Return events from an event timeline JSONL file."""
+    import json as _json
+    if "/" in filename or "\\" in filename or ".." in filename:
+        return JSONResponse({"error": "invalid filename"}, status_code=400)
+
+    cb = stream_state.get_callback("get_log_dir")
+    log_dir = Path(cb() if cb else "/data/logs")
+    filepath = log_dir / filename
+
+    if not filepath.exists() or not filepath.suffix == ".jsonl":
+        return JSONResponse({"error": "not found"}, status_code=404)
+
+    events: list = []
+    max_events = 50000
+    try:
+        with open(filepath) as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    try:
+                        events.append(_json.loads(line))
+                    except _json.JSONDecodeError:
+                        continue
+                    if len(events) >= max_events:
+                        break
+    except (_json.JSONDecodeError, OSError, UnicodeDecodeError) as exc:
+        logger.error("Failed to read event log %s: %s", filename, exc)
+        return JSONResponse({"error": "read error"}, status_code=500)
+
+    return {"events": events, "filename": filename}
+
+
+@app.get("/api/logs")
+async def api_app_logs(lines: int = 50, level: str = "INFO"):
+    """Tail the application log file for remote debugging."""
+    import re
+    from collections import deque
+
+    lines = max(1, min(lines, 500))
+    level_order = {"DEBUG": 0, "INFO": 1, "WARNING": 2, "ERROR": 3, "CRITICAL": 4}
+    min_ord = level_order.get(level.upper(), 1)
+
+    log_re = re.compile(
+        r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}) "
+        r"\[([^\]]+)\] "
+        r"(\w+): "
+        r"(.*)$"
+    )
+
+    # Find the log file
+    cb = stream_state.get_callback("get_log_dir")
+    log_dir = cb() if cb else "/data/logs"
+    log_path = Path(log_dir) / "hydra.log"
+
+    if not log_path.exists():
+        return []
+
+    result = deque(maxlen=lines)
+    try:
+        with open(log_path, "r") as f:
+            for raw_line in f:
+                m = log_re.match(raw_line.strip())
+                if m:
+                    entry_level = m.group(3)
+                    if level_order.get(entry_level, 0) >= min_ord:
+                        result.append({
+                            "timestamp": m.group(1),
+                            "level": entry_level,
+                            "module": m.group(2),
+                            "message": m.group(4),
+                        })
+                elif raw_line.strip():
+                    result.append({
+                        "timestamp": "",
+                        "level": "RAW",
+                        "module": "",
+                        "message": raw_line.strip(),
+                    })
+    except OSError:
+        return []
+
+    return list(result)
+
+
+@app.get("/api/export")
+async def api_export_logs(request: Request, authorization: str | None = Header(None)):
+    """Export current session logs + images as a ZIP download (streamed from disk)."""
+    import tempfile
+    import zipfile
+
+    from fastapi.responses import FileResponse
+
+    auth_err = _check_auth(authorization, request)
+    if auth_err:
+        return auth_err
+
+    log_dir_cb = stream_state.get_callback("get_log_dir")
+    log_dir = log_dir_cb() if log_dir_cb else "./output_data/logs"
+    image_dir_cb = stream_state.get_callback("get_image_dir")
+    image_dir = image_dir_cb() if image_dir_cb else "./output_data/images"
+
+    tmp = tempfile.NamedTemporaryFile(suffix=".zip", delete=False)
+    try:
+        with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as zf:
+            for dir_path, dir_name in [(log_dir, "logs"), (image_dir, "images")]:
+                p = Path(dir_path)
+                if p.exists():
+                    for f in p.rglob("*"):
+                        if f.is_file() and not f.is_symlink():
+                            zf.write(f, f"{dir_name}/{f.relative_to(p)}")
+        tmp_path = tmp.name
+    finally:
+        tmp.close()
+
+    from starlette.background import BackgroundTask
+
+    return FileResponse(
+        tmp_path,
+        media_type="application/zip",
+        filename="hydra-export.zip",
+        background=BackgroundTask(lambda: Path(tmp_path).unlink(missing_ok=True)),
+    )
+
+
+@app.get("/api/export/waypoints")
+async def api_export_waypoints(
+    request: Request,
+    classes: str = "",
+    alt_m: float = 15.0,
+    authorization: str | None = Header(None),
+):
+    """Export GPS-tagged detections as a QGC WPL 110 waypoint file.
+
+    Query params:
+        classes: comma-separated class filter (e.g. ?classes=person,car)
+        alt_m: waypoint altitude in meters (default 15)
+    """
+    from hydra_detect.waypoint_export import (
+        deduplicate,
+        format_wpl,
+        tracks_to_waypoints,
+    )
+
+    auth_err = _check_auth(authorization, request)
+    if auth_err:
+        return auth_err
+
+    cb = stream_state.get_callback("get_recent_detections")
+    detections = cb() if cb else []
+    if not detections:
+        return JSONResponse({"error": "No detections available"}, status_code=404)
+
+    class_filter: set[str] | None = None
+    if classes.strip():
+        class_filter = {c.strip() for c in classes.split(",") if c.strip()}
+
+    waypoints = tracks_to_waypoints(detections, alt_m=alt_m, classes=class_filter)
+    if not waypoints:
+        return JSONResponse(
+            {"error": "No GPS-tagged detections found (need GPS fix)"},
+            status_code=404,
+        )
+    waypoints = deduplicate(waypoints)
+
+    # Home position: use first detection with GPS, or vehicle stats position
+    home_lat = waypoints[0].lat
+    home_lon = waypoints[0].lon
+
+    content = format_wpl(waypoints, home_lat, home_lon,
+                         home_alt=0.0, loiter_sec=5.0)
+    return Response(
+        content=content,
+        media_type="text/plain",
+        headers={"Content-Disposition": 'attachment; filename="hydra-waypoints.wpl"'},
+    )
+
+
+@app.get("/api/review/waypoints/{filename}")
+async def api_review_waypoints(
+    filename: str, classes: str = "", alt_m: float = 15.0,
+):
+    """Export waypoints from a saved detection log file.
+
+    Query params:
+        classes: comma-separated class filter (e.g. ?classes=person,car)
+        alt_m: waypoint altitude in meters (default 15)
+    """
+    import json as _json
+
+    from hydra_detect.waypoint_export import (
+        deduplicate,
+        format_wpl,
+        tracks_to_waypoints,
+    )
+
+    # Prevent path traversal
+    if "/" in filename or "\\" in filename or ".." in filename:
+        return JSONResponse({"error": "Invalid filename"}, status_code=400)
+
+    cb = stream_state.get_callback("get_log_dir")
+    log_dir = cb() if cb else "/data/logs"
+    path = Path(log_dir) / filename
+
+    if not path.exists() or not path.is_file():
+        return JSONResponse({"error": "Log file not found"}, status_code=404)
+
+    records: list[dict] = []
+    max_records = 50000
+    if path.suffix == ".jsonl":
+        with open(path) as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    try:
+                        records.append(_json.loads(line))
+                    except _json.JSONDecodeError:
+                        continue
+                    if len(records) >= max_records:
+                        break
+    elif path.suffix == ".csv":
+        import csv as _csv
+        with open(path) as f:
+            reader = _csv.DictReader(f)
+            for row in reader:
+                for key in ("confidence", "lat", "lon", "alt"):
+                    if key in row and row[key]:
+                        try:
+                            row[key] = float(row[key])
+                        except ValueError:
+                            pass
+                records.append(row)
+                if len(records) >= max_records:
+                    break
+    else:
+        return JSONResponse({"error": "Unsupported file type"}, status_code=400)
+
+    if not records:
+        return JSONResponse({"error": "No records in log file"}, status_code=404)
+
+    class_filter: set[str] | None = None
+    if classes.strip():
+        class_filter = {c.strip() for c in classes.split(",") if c.strip()}
+
+    waypoints = tracks_to_waypoints(records, alt_m=alt_m, classes=class_filter)
+    if not waypoints:
+        return JSONResponse(
+            {"error": "No GPS-tagged detections found in log"},
+            status_code=404,
+        )
+    waypoints = deduplicate(waypoints)
+
+    # Home position from first GPS-tagged record
+    home_lat = waypoints[0].lat
+    home_lon = waypoints[0].lon
+
+    content = format_wpl(waypoints, home_lat, home_lon,
+                         home_alt=0.0, loiter_sec=5.0)
+    return Response(
+        content=content,
+        media_type="text/plain",
+        headers={"Content-Disposition": f'attachment; filename="hydra-waypoints-{path.stem}.wpl"'},
+    )
+
+
+@app.get("/api/review/images/{filename}")
+async def api_review_image(filename: str):
+    """Serve a saved detection image."""
+    from fastapi.responses import FileResponse
+    # Prevent path traversal
+    if "/" in filename or "\\" in filename or ".." in filename:
+        return JSONResponse({"error": "Invalid filename"}, status_code=400)
+
+    cb = stream_state.get_callback("get_image_dir")
+    image_dir = cb() if cb else "/data/images"
+    path = Path(image_dir) / filename
+
+    if not path.exists() or not path.is_file():
+        return JSONResponse({"error": "Image not found"}, status_code=404)
+
+    return FileResponse(str(path), media_type="image/jpeg")
+
+
+@app.get("/stream.mjpeg")
+async def mjpeg_stream():
+    """MJPEG video stream endpoint."""
+    return StreamingResponse(
+        _generate_mjpeg(),
+        media_type="multipart/x-mixed-replace; boundary=frame",
+    )
+
+
+# Cached snapshot to avoid re-encoding the same frame on rapid polls.
+_snapshot_cache: dict[str, Any] = {"bytes": b"", "ts": 0.0, "quality": 0}
+_raw_snapshot_cache: dict[str, Any] = {"bytes": b"", "ts": 0.0, "quality": 0}
+_SNAPSHOT_TTL = 0.033  # 30 fps cap — serve cached JPEG if <33ms old
+
+
+@app.get("/stream.jpg")
+async def snapshot_frame(request: Request):
+    """Single JPEG frame snapshot — polled by the dashboard as a fallback
+    for browsers/middleware stacks where MJPEG streaming hangs.
+
+    Pass ?raw=1 to get the un-annotated frame (no overlay bounding boxes).
+    The Ops HUD uses this so its canvas-drawn boxes don't double up with
+    the server-side overlay.
+    """
+    use_raw = request.query_params.get("raw") == "1"
+    cache = _raw_snapshot_cache if use_raw else _snapshot_cache
+
+    now = time.monotonic()
+    if now - cache["ts"] < _SNAPSHOT_TTL and cache["bytes"]:
+        return Response(content=cache["bytes"], media_type="image/jpeg")
+    frame = stream_state.get_raw_frame() if use_raw else stream_state.get_frame()
+    if frame is None:
+        return Response(status_code=204)
+    quality = stream_state.get_mjpeg_quality()
+    ok, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, quality])
+    if not ok:
+        return Response(status_code=204)
+    jpeg_bytes = buf.tobytes()
+    cache["bytes"] = jpeg_bytes
+    cache["ts"] = now
+    cache["quality"] = quality
+    return Response(content=jpeg_bytes, media_type="image/jpeg")
+
+
+async def _generate_mjpeg():
+    """Async generator that yields JPEG frames.
+
+    Polls for new frames at ~30 fps. Frame storage is protected by
+    threading.Lock inside StreamState, so this is safe across threads.
+    """
+    try:
+        while True:
+            frame = stream_state.get_frame()
+            if frame is not None:
+                quality = stream_state.get_mjpeg_quality()
+                ok, buf = cv2.imencode(
+                    ".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, quality]
+                )
+                if ok:
+                    yield (
+                        b"--frame\r\n"
+                        b"Content-Type: image/jpeg\r\n\r\n"
+                        + buf.tobytes()
+                        + b"\r\n"
+                    )
+            await asyncio.sleep(0.033)  # ~30 fps cap
+    except (GeneratorExit, asyncio.CancelledError):
+        logger.debug("MJPEG stream client disconnected.")
+        return
+
+
+# ── Full Config ────────────────────────────────────────────────
+
+@app.get("/api/config/effective")
+async def api_get_effective_config():
+    """Return the effective (post-profile-merge) config state.
+
+    Returns the active vehicle profile name and runtime config values
+    reflecting any [vehicle.<name>] overrides applied at startup.
+    No auth required; read-only.
+    """
+    rc = stream_state.get_runtime_config()
+    return {
+        "vehicle_profile": rc.get("vehicle_profile"),
+        "runtime_config": rc,
+    }
+
+
+@app.get("/api/config/full")
+async def api_get_full_config():
+    """Return all config.ini sections as JSON. Sensitive fields are redacted.
+
+    No auth required — this is read-only and sensitive values (api_token,
+    kismet_pass) are already redacted by read_config(). Auth is only
+    enforced on the POST variant that writes config changes.
+    """
+    try:
+        return read_config()
+    except Exception as e:
+        logger.error("Failed to read config: %s", e)
+        return JSONResponse({"error": "Failed to read configuration"}, status_code=500)
+
+
+@app.get("/api/config/schema")
+async def api_get_config_schema():
+    """Return config schema metadata for UI control generation.
+
+    No auth required — read-only metadata describing field types, ranges,
+    choices, and defaults. Used by settings.js to render sliders and
+    dropdowns instead of plain text inputs.
+    """
+    result: dict[str, dict[str, dict[str, Any]]] = {}
+    for section, fields in CONFIG_SCHEMA.items():
+        section_schema: dict[str, dict[str, Any]] = {}
+        for key, spec in fields.items():
+            section_schema[key] = {
+                "type": spec.type.value,
+                "min": spec.min_val,
+                "max": spec.max_val,
+                "choices": spec.choices,
+                "default": spec.default,
+                "description": spec.description,
+            }
+        result[section] = section_schema
+    return result
+
+
+@app.post("/api/config/full")
+async def api_set_full_config(request: Request, authorization: str | None = Header(None)):
+    """Update config.ini fields. Returns list of fields requiring restart."""
+    auth_err = _check_auth(authorization, request)
+    if auth_err:
+        return auth_err
+    import json as _json
+    body_bytes = await _read_body_capped(request)
+    try:
+        body = _json.loads(body_bytes)
+    except (ValueError, _json.JSONDecodeError):
+        return JSONResponse({"error": "Invalid JSON"}, status_code=400)
+    field_errors = validate_config_updates(body)
+    if field_errors:
+        return JSONResponse(
+            {"error": "Validation failed", "field_errors": field_errors},
+            status_code=400,
+        )
+    try:
+        result = write_config(body)
+        _audit(request, "config_update", target=str(len(body)))
+        return {"status": "ok", **result}
+    except Exception as e:
+        logger.error("Failed to write config: %s", e)
+        return JSONResponse({"error": f"Failed to save configuration: {e}"}, status_code=500)
+
+
+@app.post("/api/config/restore-backup")
+async def api_restore_config_backup(request: Request, authorization: str | None = Header(None)):
+    """Restore config.ini from backup."""
+    auth_err = _check_auth(authorization, request)
+    if auth_err:
+        return auth_err
+    if not has_backup():
+        return JSONResponse({"error": "No backup file exists"}, status_code=404)
+    try:
+        restore_backup()
+        _audit(request, "config_restore_backup")
+        return {"status": "ok", "message": "Configuration restored from backup"}
+    except Exception as e:
+        logger.error("Failed to restore config backup: %s", e)
+        return JSONResponse({"error": f"Failed to restore: {e}"}, status_code=500)
+
+
+@app.get("/api/config/diff")
+async def api_config_diff():
+    """Return disk vs in-memory runtime config + per-key diff.
+
+    Issue #224 — factory-reset and import write to disk but do not
+    trigger the on_restart_command callback. The running pipeline keeps
+    using the boot-time values until the operator restarts the service,
+    which is the failure mode the operator hits when "Factory Reset"
+    succeeds in the UI but the pipeline still runs on pre-reset
+    detection thresholds, MAVLink port, camera source, etc.
+
+    Shape::
+
+        {
+          "disk":    {section: {key: value}, ...},
+          "runtime": {section: {key: value}, ...},
+          "diff":    {section: {key: {"disk": "...", "runtime": "..."}}}
+        }
+
+    Empty ``diff`` means disk and runtime agree (no restart needed). A
+    non-empty ``diff`` is the signal for the dashboard to surface the
+    "Restart Hydra to apply" banner.
+
+    ``runtime`` is empty when no pipeline callback is registered (test
+    harness, fresh boot before pipeline registers itself). The
+    dashboard treats that as "no runtime snapshot available" and
+    suppresses the banner — better than false-positive drift on every
+    fresh-boot poll. No auth required: read-only, secrets already
+    redacted by read_config / read_runtime_config.
+    """
+    try:
+        disk = read_config()
+    except Exception as e:
+        logger.error("Failed to read disk config for diff: %s", e)
+        return JSONResponse({"error": "Failed to read configuration"}, status_code=500)
+    cb = stream_state.get_callback("get_in_memory_config")
+    runtime: dict[str, dict[str, str]] = {}
+    if cb is not None:
+        try:
+            cfg = cb()
+            runtime = read_runtime_config(cfg)
+        except Exception as e:
+            # Don't fail the whole diff if the pipeline snapshot is unreadable;
+            # logging is enough — disk-side is still useful to the dashboard.
+            logger.warning("Failed to snapshot in-memory config: %s", e)
+    diff = compute_config_diff(disk, runtime)
+    return {"disk": disk, "runtime": runtime, "diff": diff}
+
+
+# Issue #233 (R3-3) — operator-facing note on the trigger-vs-apply
+# contract. The restart callback flips a flag the pipeline reads on
+# its next main-loop iteration (~200 ms on a 5 Hz pipeline). The
+# response returns BEFORE that iteration completes, so a brief window
+# exists where the API says "restart requested" while the pipeline is
+# still running the stale `_cfg`. Bounded but not zero.
+_AUTO_RESTART_NOTE = (
+    "Pipeline will pick up the new config on its next main-loop "
+    "iteration (~200ms)."
+)
+
+
+def _maybe_auto_restart(body: dict | None) -> tuple[bool, str | None, str | None]:
+    """Pop auto_restart from a request body and fire the restart callback.
+
+    Returns ``(restart_requested, suppression_reason, failure_reason)``.
+
+    - ``restart_requested`` is True only when the restart callback was
+      invoked without raising. Note: this is "requested," not "applied" —
+      the pipeline applies the new config on its next main-loop iteration.
+      The response payload returns this value under both ``restart_requested``
+      (the canonical key) and ``restart_triggered`` (deprecated alias kept
+      for one release for backward compat).
+    - ``suppression_reason`` is a short human-readable string when the
+      engagement-active safety gate refused the restart; otherwise None.
+    - ``failure_reason`` is a short error string when the callback raised;
+      otherwise None. Callers MUST write a `*_restart_failed` audit row
+      when this is non-None (the disk write already succeeded, so the
+      failure is operator-actionable: re-run or restart manually).
+
+    Used by factory-reset and import to opt into the same
+    on_restart_command surface /api/restart uses (server.py:2344, :3532
+    pattern). Default — no auto_restart key, or auto_restart=false —
+    is unchanged: the operator must restart explicitly. (Issue #224.)
+
+    Safety: refuses to auto-fire the restart while an autonomous
+    engagement is active. Dropping an in-flight engagement mid-cycle
+    with one dashboard click would bypass the PR #212 engagement-safety
+    gate. The disk reset itself still goes through (callers do that
+    before invoking this helper); only the auto-restart is suppressed.
+    (Adversarial finding R3-1 in docs/adversarial/228.md.)
+
+    Issue #233 (R2-1) — when the callback raises, the original return
+    `(False, None)` masked the failure as "no restart requested." That
+    silently dropped the audit trail. Now we surface a third value so
+    callers can write a `_restart_failed` audit row and the response
+    payload can carry `restart_failed_reason` for the operator.
+    """
+    if not isinstance(body, dict):
+        return False, None, None
+    auto = body.get("auto_restart")
+    if not bool(auto):
+        return False, None, None
+    engagement_active_cb = _engagement_active_cb_or_none()
+    if engagement_active_cb is not None and engagement_active_cb():
+        return False, (
+            "Autonomous engagement active — auto-restart suppressed. "
+            "Disengage and restart manually."
+        ), None
+    cb = stream_state.get_callback("on_restart_command")
+    if cb is None:
+        return False, None, None
+    try:
+        cb()
+    except Exception as e:
+        logger.error("auto_restart callback raised: %s", e)
+        return False, None, str(e) or e.__class__.__name__
+    return True, None, None
+
+
+def _engagement_active_cb_or_none():
+    """Return the engagement-active callback registered by the pipeline,
+    or None when no callback has been wired (e.g. test harness, cold-boot
+    web-server-only mode). Re-imported each call so tests that patch
+    `hydra_detect.web.config_api._engagement_active_cb` are honored."""
+    from hydra_detect.web import config_api as _cfg_api
+    return getattr(_cfg_api, "_engagement_active_cb", None)
+
+
+@app.post("/api/config/factory-reset")
+async def api_factory_reset(request: Request, authorization: str | None = Header(None)):
+    """Restore factory defaults from config.ini.factory.
+
+    Issue #75 — student recovery. Snapshots current config to
+    config.ini.before-reset.<utc> before overwriting (the rolling .bak is
+    not enough; the next save clobbers it). Always returns
+    restart_required=true — the running pipeline still holds the
+    pre-reset values in memory and the operator must restart to apply.
+
+    Issue #224 — accepts an optional JSON body ``{"auto_restart": true}``
+    to fire the on_restart_command callback after the write. Default
+    false preserves the explicit-confirm UX from PR #212; existing
+    callers that send no body get the original behavior unchanged.
+    """
+    auth_err = _check_auth(authorization, request)
+    if auth_err:
+        return auth_err
+    if not has_factory():
+        _audit(request, "config_factory_reset", outcome="no_factory_file")
+        return JSONResponse({"error": "No factory defaults available"}, status_code=404)
+    # Body is optional for backward-compat: existing callers send no body.
+    body: dict | None = None
+    body_bytes = await _read_body_capped(request)
+    if body_bytes:
+        import json as _json
+        try:
+            body = _json.loads(body_bytes)
+        except (ValueError, _json.JSONDecodeError):
+            return JSONResponse({"error": "Invalid JSON"}, status_code=400)
+    try:
+        result = factory_reset_with_backup()
+        # Issue #233 (R2-2) — include auto_restart flag in audit target so
+        # post-incident replay can distinguish operator-initiated restart
+        # from auto_restart firing. Format: "<backup_path> auto_restart=<bool>".
+        auto_restart_requested = bool(
+            isinstance(body, dict) and body.get("auto_restart")
+        )
+        audit_target = (
+            f"{result.get('backup_path', '')} "
+            f"auto_restart={str(auto_restart_requested).lower()}"
+        )
+        _audit(request, "config_factory_reset", target=audit_target)
+        identity_preserved = bool(result.get("identity_preserved", False))
+        restart_requested, restart_suppressed_reason, restart_failed_reason = (
+            _maybe_auto_restart(body)
+        )
+        if restart_requested:
+            _audit(request, "config_factory_reset_restart")
+            message_suffix = " Pipeline restart requested."
+        elif restart_failed_reason is not None:
+            # Issue #233 (R2-1) — disk reset succeeded but the restart
+            # callback raised. Operator needs a replayable trail.
+            _audit(
+                request, "config_factory_reset_restart_failed",
+                target=restart_failed_reason,
+            )
+            message_suffix = (
+                " Restart did not fire (callback error). "
+                "Restart manually to apply."
+            )
+        elif restart_suppressed_reason is not None:
+            _audit(
+                request, "config_factory_reset_restart_suppressed",
+                target=restart_suppressed_reason,
+            )
+            message_suffix = " " + restart_suppressed_reason
+        else:
+            message_suffix = " Restart the service to apply."
+        if identity_preserved:
+            message = (
+                "Factory defaults restored — your unit's API token and "
+                "callsign were preserved."
+            ) + message_suffix
+        else:
+            message = "Factory defaults restored." + message_suffix
+        return {
+            "status": "ok",
+            "backup_path": result["backup_path"],
+            "restart_required": result["restart_required"],
+            # Issue #233 (R3-3) — `restart_requested` is the canonical
+            # key. `restart_triggered` is a deprecated alias kept for one
+            # release; remove after dashboard JS has been updated.
+            "restart_requested": restart_requested,
+            "restart_triggered": restart_requested,
+            "restart_note": _AUTO_RESTART_NOTE if restart_requested else None,
+            "restart_suppressed_reason": restart_suppressed_reason,
+            "restart_failed_reason": restart_failed_reason,
+            "identity_preserved": identity_preserved,
+            "message": message,
+        }
+    except FileNotFoundError as e:
+        _audit(request, "config_factory_reset", outcome="missing_factory")
+        return JSONResponse({"error": str(e)}, status_code=404)
+    except configparser.Error as e:
+        _audit(request, "config_factory_reset", outcome="bad_factory")
+        logger.error("Factory defaults file is corrupt: %s", e)
+        return JSONResponse(
+            {"error": f"Factory defaults are corrupt: {e}"}, status_code=500,
+        )
+    except Exception as e:
+        _audit(request, "config_factory_reset", outcome="failed")
+        logger.error("Failed to restore factory defaults: %s", e)
+        return JSONResponse({"error": f"Failed to restore: {e}"}, status_code=500)
+
+
+@app.get("/api/config/export")
+async def api_config_export(request: Request, authorization: str | None = Header(None)):
+    """Export current config as a JSON download.
+
+    Issue #75 — student recovery. Returns a versioned envelope with
+    schema_version, exported_at, callsign, and the redacted config
+    sections. The Content-Disposition header sets the suggested filename
+    so browsers save it sensibly when the user clicks Export.
+    """
+    auth_err = _check_auth(authorization, request)
+    if auth_err:
+        return auth_err
+    try:
+        payload = export_config_payload()
+        filename = export_filename(payload)
+        body = json.dumps(payload, indent=2, sort_keys=True)
+        _audit(request, "config_export", target=filename)
+        return Response(
+            content=body,
+            media_type="application/json",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    except Exception as e:
+        logger.error("Failed to export config: %s", e)
+        return JSONResponse({"error": "Failed to export configuration"}, status_code=500)
+
+
+@app.post("/api/config/import")
+async def api_config_import(request: Request, authorization: str | None = Header(None)):
+    """Import config from uploaded JSON.
+
+    Issue #75 — student recovery. Strict validation: rejects unknown
+    sections, unknown keys, forbidden sections (identity), and any value
+    that fails schema validation. Nothing is written to disk until the
+    payload passes both gates. Restart is required for any field in
+    RESTART_REQUIRED_FIELDS that actually changed.
+
+    Issue #224 — accepts an optional top-level ``auto_restart`` flag in
+    the request body (sibling to ``sections`` in the export envelope).
+    When true, fires the on_restart_command callback after the write
+    completes. Default false preserves the PR #212 explicit-confirm UX.
+    """
+    auth_err = _check_auth(authorization, request)
+    if auth_err:
+        return auth_err
+    import json as _json
+    body_bytes = await _read_body_capped(request)
+    try:
+        body = _json.loads(body_bytes)
+    except (ValueError, _json.JSONDecodeError):
+        return JSONResponse({"error": "Invalid JSON"}, status_code=400)
+
+    # Strip the envelope-level auto_restart flag before validation so the
+    # bare-dict import path ({"auto_restart": true, "camera": {...}})
+    # doesn't trip "unknown section: auto_restart". The full-envelope
+    # path ({"sections": {...}, "auto_restart": true}) is already safe
+    # because validate_import_payload only descends into "sections".
+    auto_restart_flag = None
+    if isinstance(body, dict) and "auto_restart" in body:
+        auto_restart_flag = body.get("auto_restart")
+        # Only strip from the bare-dict case so we don't mutate the
+        # envelope shape that ships back to the operator on error.
+        if "sections" not in body:
+            body = {k: v for k, v in body.items() if k != "auto_restart"}
+
+    validation = validate_import_payload(body)
+    if not validation["ok"]:
+        _audit(request, "config_import", outcome="invalid")
+        resp: dict[str, Any] = {"error": "Validation failed"}
+        if validation["errors"]:
+            resp["errors"] = validation["errors"]
+        if validation["field_errors"]:
+            resp["field_errors"] = validation["field_errors"]
+        return JSONResponse(resp, status_code=400)
+
+    try:
+        result = write_config(validation["updates"])
+        # Issue #233 (R2-2) — include auto_restart in audit target.
+        auto_restart_requested = bool(auto_restart_flag)
+        _audit(
+            request, "config_import",
+            target=(
+                f"{len(validation['updates'])} "
+                f"auto_restart={str(auto_restart_requested).lower()}"
+            ),
+        )
+        restart_fields = result.get("restart_required", [])
+        restart_requested, restart_suppressed_reason, restart_failed_reason = (
+            _maybe_auto_restart(
+                {"auto_restart": auto_restart_flag}
+                if auto_restart_flag is not None else None
+            )
+        )
+        if restart_requested:
+            _audit(request, "config_import_restart")
+        elif restart_failed_reason is not None:
+            # Issue #233 (R2-1) — disk write succeeded but restart callback raised.
+            _audit(
+                request, "config_import_restart_failed",
+                target=restart_failed_reason,
+            )
+        elif restart_suppressed_reason is not None:
+            _audit(
+                request, "config_import_restart_suppressed",
+                target=restart_suppressed_reason,
+            )
+        return {
+            "status": "imported",
+            "restart_required_fields": restart_fields,
+            # Issue #233 (R3-3) — canonical key + deprecated alias.
+            "restart_requested": restart_requested,
+            "restart_triggered": restart_requested,
+            "restart_note": _AUTO_RESTART_NOTE if restart_requested else None,
+            "restart_suppressed_reason": restart_suppressed_reason,
+            "restart_failed_reason": restart_failed_reason,
+            **result,
+        }
+    except Exception as e:
+        _audit(request, "config_import", outcome="write_failed")
+        logger.error("Failed to import config: %s", e)
+        return JSONResponse({"error": f"Failed to import configuration: {e}"}, status_code=500)
+
+
+# ── Capability Status Page (issue #146) ──────────────────────────────
+
+@app.get("/capabilities", response_class=HTMLResponse)
+async def capabilities_page(request: Request):
+    """Serve the capability status page — subsystem readiness at a glance."""
+    return templates.TemplateResponse(request, "capabilities.html")
+
+
+# ── Setup Wizard ─────────────────────────────────────────────────────
+
+@app.get("/setup", response_class=HTMLResponse)
+async def setup_page(request: Request):
+    """Serve the first-boot setup wizard page."""
+    return templates.TemplateResponse(request, "setup.html")
+
+
+def _detect_lan_ip() -> str:
+    """Return the Jetson's outbound LAN IP, or empty string if undetectable.
+
+    Opens a UDP socket to a routable external address (no packet is sent)
+    and reads back the interface the kernel chose. Handles offline / no-route
+    gracefully — no exception propagates.
+    """
+    import socket as _socket
+    sock = None
+    try:
+        sock = _socket.socket(_socket.AF_INET, _socket.SOCK_DGRAM)
+        sock.settimeout(0.2)
+        sock.connect(("8.8.8.8", 80))
+        ip = sock.getsockname()[0]
+        return ip if ip and ip != "0.0.0.0" else ""
+    except OSError:
+        return ""
+    finally:
+        if sock is not None:
+            try:
+                sock.close()
+            except OSError:
+                pass
+
+
+@app.get("/api/setup/devices")
+async def api_setup_devices():
+    """List available cameras, serial ports, and LAN IP for setup wizard."""
+    import glob
+    cameras = []
+    serial_ports = []
+
+    # Detect V4L2 cameras
+    for dev in sorted(glob.glob("/dev/video*")):
+        cameras.append({"path": dev, "name": dev})
+
+    # Detect serial ports (potential Pixhawk connections)
+    for dev in sorted(glob.glob("/dev/tty*")):
+        if any(prefix in dev for prefix in ["ttyACM", "ttyUSB", "ttyTHS", "ttyAMA"]):
+            serial_ports.append({"path": dev, "name": dev})
+
+    return {
+        "cameras": cameras,
+        "serial_ports": serial_ports,
+        "lan_ip": _detect_lan_ip(),
+    }
+
+
+@app.post("/api/setup/save")
+async def api_setup_save(request: Request, authorization: Optional[str] = Header(None)):
+    """Save setup wizard configuration and trigger restart.
+
+    Auth is enforced when a token is configured (post-first-boot).
+    On first boot (no token), the setup wizard works without auth.
+    """
+    auth_err = _check_auth(authorization, request)
+    if auth_err:
+        return auth_err
+
+    import json as _json
+    body_bytes = await _read_body_capped(request)
+    try:
+        body = _json.loads(body_bytes)
+    except (ValueError, _json.JSONDecodeError):
+        return JSONResponse({"error": "Invalid JSON"}, status_code=400)
+
+    camera_source = body.get("camera_source", "auto")
+    serial_port = body.get("serial_port", "/dev/ttyTHS1")
+    vehicle_type = body.get("vehicle_type", "")
+    team_number = body.get("team_number", "")
+    callsign = body.get("callsign", "")
+    tak_advertise_host = body.get("tak_advertise_host", "")
+    tak_allowed_callsigns = body.get("tak_allowed_callsigns", "")
+    tak_enabled = body.get("tak_enabled", None)  # None = don't touch existing value
+
+    # Validate field types before length checks
+    for field in [camera_source, serial_port, vehicle_type, team_number,
+                  callsign, tak_advertise_host, tak_allowed_callsigns]:
+        if not isinstance(field, str):
+            return JSONResponse({"error": "All string fields must be strings"}, status_code=400)
+    if tak_enabled is not None and not isinstance(tak_enabled, bool):
+        return JSONResponse({"error": "tak_enabled must be bool"}, status_code=400)
+
+    # Validate inputs — bounded lengths
+    if len(camera_source) > 200:
+        return JSONResponse({"error": "camera_source too long"}, status_code=400)
+    if len(serial_port) > 200:
+        return JSONResponse({"error": "serial_port too long"}, status_code=400)
+    if len(vehicle_type) > 20:
+        return JSONResponse({"error": "vehicle_type too long"}, status_code=400)
+    if len(team_number) > 20:
+        return JSONResponse({"error": "team_number too long"}, status_code=400)
+    if len(callsign) > 50:
+        return JSONResponse({"error": "callsign too long"}, status_code=400)
+    if len(tak_advertise_host) > 253:
+        return JSONResponse({"error": "tak_advertise_host too long"}, status_code=400)
+    if len(tak_allowed_callsigns) > 500:
+        return JSONResponse({"error": "tak_allowed_callsigns too long"}, status_code=400)
+    if vehicle_type and vehicle_type not in ("drone", "usv", "ugv", "fw"):
+        return JSONResponse(
+            {"error": "vehicle_type must be drone, usv, ugv, or fw"},
+            status_code=400,
+        )
+
+    # Build callsign from team + vehicle if not explicitly set
+    if not callsign and team_number and vehicle_type:
+        callsign = f"HYDRA-{team_number}-{vehicle_type.upper()}"
+
+    # Write to config
+    updates: dict[str, dict[str, str]] = {
+        "camera": {"source": camera_source},
+        "mavlink": {"connection_string": serial_port},
+    }
+    tak_updates: dict[str, str] = {}
+    if callsign:
+        tak_updates["callsign"] = callsign
+    if tak_enabled is not None:
+        tak_updates["enabled"] = "true" if tak_enabled else "false"
+        # Inbound commands gate off the same toggle by default — students
+        # who enable TAK expect GeoChat commands to work if they populate
+        # an allowlist. Explicit separate toggle still lives in Settings.
+        tak_updates["listen_commands"] = "true" if tak_enabled else "false"
+    if tak_advertise_host:
+        tak_updates["advertise_host"] = tak_advertise_host
+    # Always write allowed_callsigns (including empty string) so the wizard
+    # can clear a stale allowlist on re-run.
+    if "tak_allowed_callsigns" in body:
+        tak_updates["allowed_callsigns"] = tak_allowed_callsigns
+    if tak_updates:
+        updates["tak"] = tak_updates
+
+    field_errors = validate_config_updates(updates)
+    if field_errors:
+        return JSONResponse(
+            {"error": "Validation failed", "field_errors": field_errors},
+            status_code=400,
+        )
+
+    try:
+        result = write_config(updates)
+    except Exception as e:
+        logger.error("Setup save failed: %s", e)
+        return JSONResponse({"error": f"Failed to save: {e}"}, status_code=500)
+
+    _audit(request, "setup_save", target=callsign or "no-callsign")
+
+    # Trigger pipeline restart
+    cb = stream_state.get_callback("on_restart_command")
+    if cb:
+        cb()
+
+    return {"status": "saved", "callsign": callsign, **result}
+
+
+# ── Operating mode router ────────────────────────────────────────────
+from hydra_detect.web.mode_api import router as _mode_router  # noqa: E402
+
+app.include_router(_mode_router)
+
+# ── Server launcher ──────────────────────────────────────────────────
+
+
+def run_server(
+    host: str = "0.0.0.0",
+    port: int = 8080,
+    ssl_certfile: str | None = None,
+    ssl_keyfile: str | None = None,
+) -> threading.Thread:
+    """Start uvicorn in a daemon thread and return the thread handle."""
+    import uvicorn
+
+    kwargs: dict[str, Any] = {"host": host, "port": port, "log_level": "warning"}
+    if ssl_certfile and ssl_keyfile:
+        kwargs["ssl_certfile"] = ssl_certfile
+        kwargs["ssl_keyfile"] = ssl_keyfile
+
+    def _run():
+        uvicorn.run(app, **kwargs)
+
+    t = threading.Thread(target=_run, daemon=True, name="hydra-web")
+    t.start()
+    scheme = "https" if ssl_certfile else "http"
+    logger.info("Web UI started at %s://%s:%d", scheme, host, port)
+    return t

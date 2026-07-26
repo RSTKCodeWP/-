@@ -1,0 +1,54 @@
+[Unit]
+Description=ADOS Native Control API
+# The control surface projects the live vehicle state + FC command path, so it
+# orders after the MAVLink service that owns both sockets. The logging store
+# (health source) is best-effort: an absent store degrades health, never blocks.
+After=ados-mavlink.service
+PartOf=ados-supervisor.service
+StartLimitInterval=60s
+StartLimitBurst=5
+
+[Service]
+# Join the shared accounting slice so MemoryCurrent/CPUUsage are observable.
+Slice=ados.slice
+# Opt-in, off by default: the unit runs the native binary only when the operator
+# has enabled it AND the binary is present. Otherwise it execs /bin/true — a
+# clean no-op — so the unit is inert and the GCS keeps using the FastAPI surface
+# on :8080. Two markers select the native branch: `control-rust-enabled` runs the
+# surface on the alternate LAN port (default :8082) alongside FastAPI; the
+# `front-rust-enabled` marker runs it as the LAN front (a drop-in sets
+# ADOS_CONTROL_PORT=8080 and the FastAPI unit moves to the internal socket). Both
+# also bind /run/ados/control.sock. Type=simple (not notify) because the
+# /bin/true branch never signals readiness; this matches the other guarded units.
+Type=simple
+ExecStart=/bin/sh -c 'if { [ -e /etc/ados/control-rust-enabled ] || [ -e /etc/ados/front-rust-enabled ]; } && [ -x /opt/ados/bin/ados-control ]; then exec /opt/ados/bin/ados-control; else exec /bin/true; fi'
+Restart=on-failure
+RestartSec=5
+Environment=RUST_LOG=info
+EnvironmentFile=-/etc/ados/env
+
+# The control surface reads the vehicle-state + MAVLink + logging sockets and the
+# install-result + board sidecars, writes the pairing document and its own control
+# socket, and on a ground station creates + writes session recordings under
+# /var/ados/recordings. /var/ados (mutable agent data) and /var/lib/ados (the
+# install-result read) are both listed so writes resolve under ProtectSystem=strict
+# exactly as the sibling daemons do.
+NoNewPrivileges=yes
+ProtectSystem=strict
+PrivateTmp=yes
+ReadWritePaths=/var/ados /etc/ados /run/ados /var/lib/ados
+
+# The surface is lightweight (no Python runtime, no plugin load); cap it so a
+# runaway can never starve the box.
+MemoryMax=128M
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ados-control
+
+[Install]
+# Not enabled by default. `ados rust enable control` enables + starts it; the
+# installer leaves it disabled unless the marker is present. Wanted by the
+# supervisor (which it is PartOf) so a supervisor restart cycles it with the set
+# once enabled.
+WantedBy=ados-supervisor.service

@@ -1,0 +1,41 @@
+{
+  "compilerOptions": {
+    "incremental": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "target": "es2022",
+    "module": "CommonJS",
+    "lib": ["dom", "es2022"],
+    "declaration": true,
+    "declarationMap": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "strict": true,
+    "sourceMap": true,
+    /* Additional Checks */
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    /* Module Resolution Options */
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    "allowJs": true,
+    "outDir": ".erb/dll",
+    "paths": {
+      "graphql-ws/use/ws": ["./node_modules/graphql-ws/dist/use/ws"]
+    }
+  },
+  "typeRoots": ["node_modules/@types", "src/@types"],
+  "include": ["src/**/*"],
+  "exclude": [
+    "test",
+    "release",
+    "src/main.js",
+    "src/renderer.prod.js",
+    "src/dist",
+    ".erb/dll"
+  ]
+}

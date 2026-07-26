@@ -1,0 +1,12 @@
+query getReleases (
+  $owner: String!,
+  $repository: String!,
+){
+  releases (
+    owner: $owner,
+    repository: $repository
+  ){
+    tagName
+    preRelease
+  }
+}

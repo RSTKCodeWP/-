@@ -1,0 +1,670 @@
+"""Detection event logger — CSV/JSON output with full-frame snapshots and geo-tagging."""
+
+from __future__ import annotations
+
+import csv
+import hashlib
+import json
+import logging
+import re
+import queue
+import threading
+from collections import deque
+import time
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Dict, Optional
+
+import cv2
+import numpy as np
+
+from .tracker import TrackedObject, TrackingResult
+
+logger = logging.getLogger(__name__)
+
+# Sentinel that signals the background writer thread to stop.
+_STOP = object()
+
+
+class DetectionLogger:
+    """Logs detection events to CSV or JSON-lines, with optional image saving.
+
+    Supports:
+    - Full-frame annotated JPEG snapshots (like v1.0)
+    - Optional cropped object images
+    - GPS geo-tagging when coordinates are provided
+    - Recent detections buffer for the web UI
+    - Size-based log rotation with configurable retention limits
+
+    All file I/O (JPEG writes, CSV/JSONL writes) is offloaded to a daemon
+    background thread so the detection hot-loop is never blocked by slow
+    storage.  A bounded queue (maxsize=100) caps memory growth; if the
+    writer falls behind, new work items are dropped with a warning rather
+    than stalling the caller.
+
+    Log rotation fires in the background writer thread every flush cycle
+    (every 30 frames by default).  When the active log file exceeds
+    ``max_log_size_mb``, it is closed and a new file opened with an
+    incremented numeric suffix (``detections_001.jsonl``, …).  The oldest
+    log files beyond ``max_log_files`` are deleted automatically.  If
+    ``save_images`` is enabled the same retention limit is applied to JPEG
+    snapshots (oldest deleted first).
+    """
+
+    _QUEUE_MAXSIZE_DEFAULT = 100
+
+    def __init__(
+        self,
+        log_dir: str = "/data/logs",
+        log_format: str = "jsonl",
+        save_images: bool = True,
+        image_dir: str = "/data/images",
+        image_quality: int = 90,
+        save_crops: bool = False,
+        crop_dir: str = "crops",
+        max_recent: int = 50,
+        max_log_size_mb: float = 10.0,
+        max_log_files: int = 20,
+        model_hash: str = "",
+        queue_size: int = 0,
+    ):
+        self._log_dir = Path(log_dir)
+        self._log_format = log_format.lower()
+        self._save_images = save_images
+        self._image_dir = Path(image_dir)
+        self._image_quality = image_quality
+        self._save_crops = save_crops
+        self._crop_dir = Path(crop_dir)
+        self._max_recent = max_recent
+        self._max_log_size_bytes = int(max_log_size_mb * 1024 * 1024)
+        self._max_log_files = max(1, max_log_files)
+
+        # Rate-limit image saving to prevent disk fill during high-FPS
+        # detection (e.g., 30 FPS with many objects). Save at most 1 image
+        # per second by default; every frame still gets logged to JSONL/CSV.
+        self._image_save_interval = 1.0  # seconds between saved images
+        self._last_image_save_time = 0.0
+
+        self._csv_writer = None
+        self._csv_file = None
+        self._json_file = None
+        self._current_log_path: Path | None = None
+        self._log_index: int = 0
+        self._frame_count = 0
+        self._disabled = False
+        self._model_hash = model_hash
+        self._prev_chain_hash = "0" * 64  # genesis hash
+
+        # Mission tagging (issue #72) — every detection row carries the
+        # currently active mission_id, or null when no mission is running.
+        # The pipeline sets this via set_mission_id() after the event logger
+        # starts the mission. The id is intentionally not chained — it is
+        # operator metadata, not provenance.
+        self._mission_id: str | None = None
+        self._mission_id_lock = threading.Lock()
+
+        # Disk-BLOCKED gate (issue #226). When the Capability Status
+        # framework reports disk BLOCKED, the web layer flips this flag and
+        # crop emission pauses; JSONL/CSV metadata logging keeps running so
+        # operators still have detection provenance for the BLOCKED window.
+        # Auto-clears when disk comes back above the threshold.
+        self._disk_blocked = False
+        self._disk_blocked_lock = threading.Lock()
+
+        # Recent detections ring buffer for web UI.
+        # Updated on the caller thread so the web API sees results immediately.
+        self._recent: deque[Dict[str, Any]] = deque(maxlen=self._max_recent)
+        self._recent_lock = threading.Lock()
+
+        # Background writer state.
+        maxsize = queue_size if queue_size > 0 else self._QUEUE_MAXSIZE_DEFAULT
+        self._write_queue: queue.Queue = queue.Queue(maxsize=maxsize)
+        self._writer_thread: threading.Thread | None = None
+
+    # ------------------------------------------------------------------
+    # Lifecycle
+    # ------------------------------------------------------------------
+
+    def start(self) -> None:
+        """Create directories, open output file, and start background writer."""
+        try:
+            self._log_dir.mkdir(parents=True, exist_ok=True)
+            if self._save_images:
+                self._image_dir.mkdir(parents=True, exist_ok=True)
+            if self._save_crops:
+                self._crop_dir.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            logger.error("Failed to create logging directories: %s", exc)
+            self._disabled = True
+            return
+
+        self._seed_log_index()
+        if not self._open_log_file():
+            self._disabled = True
+            return
+
+        # Start the background I/O thread.
+        self._writer_thread = threading.Thread(
+            target=self._writer_loop,
+            name="detection-logger-writer",
+            daemon=True,
+        )
+        self._writer_thread.start()
+
+    def stop(self, timeout: float | None = None) -> None:
+        """Drain the write queue, join the writer thread, and close log files.
+
+        Args:
+            timeout: Max seconds to wait for the writer thread to finish.
+                     ``None`` means wait indefinitely.
+        """
+        if self._writer_thread is not None and self._writer_thread.is_alive():
+            self._write_queue.put(_STOP)
+            self._writer_thread.join(timeout=timeout)
+            if self._writer_thread.is_alive():
+                logging.getLogger(__name__).warning(
+                    "Detection logger writer thread did not finish within %.1fs",
+                    timeout,
+                )
+            self._writer_thread = None
+
+        self._close_log_file()
+
+    def flush(self, timeout: float = 2.0) -> bool:
+        """Block until every queued work item has been processed.
+
+        Used by ``_handle_mission_end`` to guarantee detection rows
+        stamped with the active mission_id reach disk BEFORE the
+        ``mission_end`` event lands in the event log. Without this,
+        the writer thread can drain queued items after the boundary
+        event, producing rows that appear to occur "after" mission end
+        with the old mission_id — an audit-trail correctness gap
+        flagged in docs/adversarial/230.md R3-1.
+
+        Args:
+            timeout: Max seconds to wait. Returns False on timeout.
+
+        Returns:
+            True if the queue drained within the timeout; False if it
+            did not (the caller should still proceed but log a warning —
+            losing strict ordering is better than wedging mission_end).
+        """
+        if self._writer_thread is None or not self._writer_thread.is_alive():
+            return True
+
+        done = threading.Event()
+
+        def _await_drain() -> None:
+            self._write_queue.join()
+            done.set()
+
+        waiter = threading.Thread(
+            target=_await_drain, daemon=True, name="det-logger-flush",
+        )
+        waiter.start()
+        return done.wait(timeout=timeout)
+
+    # ------------------------------------------------------------------
+    # Hot-path method (called from the detection thread)
+    # ------------------------------------------------------------------
+
+    def log(
+        self,
+        tracking_result: TrackingResult,
+        frame: Optional[np.ndarray] = None,
+        gps: Optional[Dict[str, Any]] = None,
+        time_source: Optional[str] = None,
+    ) -> None:
+        """Enqueue tracking results for a single frame.
+
+        Record metadata and the recent buffer are updated immediately on the
+        caller thread so the web UI sees results without waiting for the
+        background writer.  Actual file I/O is handled off-thread.
+
+        Args:
+            tracking_result: Tracked objects this frame.
+            frame: The BGR frame (for image saving).
+            gps: GPS dict with keys lat, lon, alt, fix (raw MAVLink ints).
+            time_source: Active time source label (e.g. "GPS", "NTP", "RTC").
+                         Optional — omit to leave the field absent from the record.
+        """
+        if self._disabled or len(tracking_result) == 0:
+            self._frame_count += 1
+            return
+
+        self._frame_count += 1
+        ts = datetime.now(timezone.utc)
+        ts_iso = ts.isoformat()
+        ts_file = ts.strftime("%Y%m%d_%H%M%S")
+        frame_no = self._frame_count
+
+        # Parse GPS (cheap, no I/O).
+        lat, lon, alt, fix = None, None, None, 0
+        if gps:
+            fix = gps.get("fix", 0)
+            if fix >= 3 and gps.get("lat") is not None:
+                lat = gps["lat"] / 1e7
+                lon = gps["lon"] / 1e7
+                alt = gps["alt"] / 1000 if gps.get("alt") is not None else None
+
+        # Derive the image filename now so records are complete for the web UI
+        # even before the file is physically written.
+        # Rate-limit: save at most 1 image per _image_save_interval seconds
+        # to prevent disk fill during high-FPS detection sessions.
+        img_filename: str | None = None
+        now_mono = time.monotonic()
+        if self._save_images and frame is not None and \
+                (now_mono - self._last_image_save_time) >= self._image_save_interval:
+            img_filename = f"{ts_file}_{frame_no:06d}.jpg"
+            self._last_image_save_time = now_mono
+
+        # Snapshot the mission id once per frame so all detections in one
+        # frame share the same id even if the operator hits End mid-frame.
+        with self._mission_id_lock:
+            mission_id_snapshot = self._mission_id
+
+        # Build records (do NOT update _recent yet — only after successful enqueue).
+        records: list[Dict[str, Any]] = []
+        chain_hash_before_loop = self._prev_chain_hash
+        for track in tracking_result:
+            record: Dict[str, Any] = {
+                "timestamp": ts_iso,
+                "frame": frame_no,
+                "track_id": track.track_id,
+                "label": track.label,
+                "class_id": track.class_id,
+                "confidence": round(track.confidence, 3),
+                "bbox": [
+                    round(track.x1, 1), round(track.y1, 1),
+                    round(track.x2, 1), round(track.y2, 1),
+                ],
+                "lat": lat,
+                "lon": lon,
+                "alt": alt,
+                "fix": fix,
+                "image": img_filename,
+                "model_hash": self._model_hash,
+                "mission_id": mission_id_snapshot,
+            }
+            # Optional time_source field — only present when a source is known.
+            # Included before hashing so the chain is consistent.
+            if time_source is not None:
+                record["time_source"] = time_source
+            # Rolling SHA-256 chain: hash(record_json + prev_hash)
+            # Each record chains against the previous record's hash so
+            # multi-detection frames produce a sequential chain, not a
+            # fan-out from the same prev_hash.
+            record_json = json.dumps(record, sort_keys=True)
+            chain_input = record_json + self._prev_chain_hash
+            chain_hash = hashlib.sha256(chain_input.encode()).hexdigest()
+            record["chain_hash"] = chain_hash
+            self._prev_chain_hash = chain_hash
+            records.append(record)
+
+        # Copy the frame only when we need it for writing (avoids the copy
+        # entirely when image/crop saving is disabled or there is no frame).
+        frame_copy: np.ndarray | None = None
+        if (self._save_images or self._save_crops) and frame is not None:
+            frame_copy = frame.copy()
+
+        work_item = {
+            "records": records,
+            "frame": frame_copy,
+            "frame_no": frame_no,
+            "img_filename": img_filename,
+            "tracking_result": list(tracking_result),
+            "flush": (frame_no % 30 == 0),
+        }
+
+        try:
+            self._write_queue.put_nowait(work_item)
+            with self._recent_lock:
+                for record in records:
+                    self._recent.append(record)  # deque evicts oldest when full
+        except queue.Full:
+            # Revert chain state so dropped records don't leave a gap
+            # in the persisted hash chain.
+            self._prev_chain_hash = chain_hash_before_loop
+            logger.warning(
+                "Detection logger queue full — dropping frame %d "
+                "(storage too slow?)",
+                frame_no,
+            )
+
+    def set_model_hash(self, model_hash: str) -> None:
+        """Update the model hash (e.g. after a runtime model switch)."""
+        self._model_hash = model_hash
+
+    def set_disk_blocked(self, blocked: bool) -> None:
+        """Toggle the disk-BLOCKED crop-emission gate (issue #226).
+
+        Wired from the Capability Status disk evaluator. Metadata logging
+        (JSONL/CSV) is NOT affected — only image crop emission. The gate
+        clears automatically when disk usage falls back below the threshold.
+        """
+        with self._disk_blocked_lock:
+            self._disk_blocked = bool(blocked)
+
+    def set_mission_id(self, mission_id: str | None) -> None:
+        """Stamp every subsequent detection record with this mission_id.
+
+        Pass ``None`` to clear (records logged while no mission is active
+        will carry ``"mission_id": null``). Cheap — single guarded write.
+        """
+        with self._mission_id_lock:
+            self._mission_id = mission_id
+
+    def get_mission_id(self) -> str | None:
+        """Return the active mission_id, or None when no mission is active."""
+        with self._mission_id_lock:
+            return self._mission_id
+
+    def get_recent(self, n: int = 20) -> list[Dict[str, Any]]:
+        """Return the N most recent detection records (for web UI)."""
+        with self._recent_lock:
+            return list(self._recent)[-n:]
+
+    # ------------------------------------------------------------------
+    # Log file open / close / rotation helpers (background thread only)
+    # ------------------------------------------------------------------
+
+    def _open_log_file(self) -> bool:
+        """Open a new log file with an incremented index suffix.
+
+        Returns True on success, False on I/O error.
+        """
+        self._log_index += 1
+        ext = "csv" if self._log_format == "csv" else "jsonl"
+        path = self._log_dir / f"detections_{self._log_index:03d}.{ext}"
+        try:
+            if self._log_format == "csv":
+                self._csv_file = open(path, "w", newline="")
+                self._csv_writer = csv.writer(self._csv_file)
+                self._csv_writer.writerow([
+                    "timestamp", "frame", "track_id", "label", "class_id",
+                    "confidence", "x1", "y1", "x2", "y2",
+                    "lat", "lon", "alt", "fix", "image",
+                ])
+            else:
+                self._json_file = open(path, "w")
+            self._current_log_path = path
+            logger.info("Logging detections to %s", path)
+            return True
+        except OSError as exc:
+            self._current_log_path = None
+            logger.error("Failed to open detection log file: %s", exc)
+            return False
+
+    def _close_log_file(self) -> None:
+        """Flush and close the active log file handles."""
+        for fh_name in ("_csv_file", "_json_file"):
+            fh = getattr(self, fh_name, None)
+            if fh is not None:
+                try:
+                    fh.flush()
+                    fh.close()
+                except OSError as exc:
+                    logger.warning("Error closing log file: %s", exc)
+                finally:
+                    setattr(self, fh_name, None)
+        self._csv_writer = None
+        self._current_log_path = None
+
+    def _log_file_size(self) -> int:
+        """Return byte size of the current log file, or 0 on error."""
+        if self._current_log_path is None:
+            return 0
+        try:
+            return self._current_log_path.stat().st_size
+        except OSError:
+            return 0
+
+    def _rotate_if_needed(self) -> None:
+        """Check log file size and rotate + prune if the limit is exceeded.
+
+        Must only be called from the background writer thread.
+        """
+        if self._log_file_size() < self._max_log_size_bytes:
+            return
+
+        logger.info(
+            "Log file %s exceeded %.1f MB — rotating.",
+            self._current_log_path,
+            self._max_log_size_bytes / (1024 * 1024),
+        )
+        if not self._open_rotated_log_file():
+            self._disabled = True
+            logger.error("Disabling detection logger after log rotation failure")
+            return
+        self._prune_old_logs()
+
+        if self._save_images:
+            self._prune_old_images()
+
+    def _seed_log_index(self) -> None:
+        """Initialize the log index from existing files to avoid reuse on restart."""
+        ext = "csv" if self._log_format == "csv" else "jsonl"
+        pattern = re.compile(rf"^detections_(\d{{3}})\.{ext}$")
+        max_index = 0
+        for path in self._log_dir.glob(f"detections_*.{ext}"):
+            match = pattern.match(path.name)
+            if match:
+                max_index = max(max_index, int(match.group(1)))
+        self._log_index = max_index
+
+    def _open_rotated_log_file(self) -> bool:
+        """Rotate to a new file without losing the current log if reopen fails."""
+        old_csv_file = self._csv_file
+        old_json_file = self._json_file
+        old_csv_writer = self._csv_writer
+        old_path = self._current_log_path
+        old_index = self._log_index
+
+        if not self._open_log_file():
+            self._csv_file = old_csv_file
+            self._json_file = old_json_file
+            self._csv_writer = old_csv_writer
+            self._current_log_path = old_path
+            self._log_index = old_index
+            return False
+
+        try:
+            for fh in (old_csv_file, old_json_file):
+                if fh is not None:
+                    fh.flush()
+                    fh.close()
+        except OSError as exc:
+            logger.warning("Error closing rotated log file: %s", exc)
+        return True
+
+    def _prune_old_logs(self) -> None:
+        """Delete the oldest log files beyond the configured retention limit.
+
+        After any successful delete, invalidate the mission-summary cache —
+        the cache signature (file count + mtime sum + size sum) can match a
+        stale entry for the now-truncated dataset, silently serving wrong
+        numbers for the 30s TTL. R1-1 in docs/adversarial/230.md.
+        """
+        ext = "csv" if self._log_format == "csv" else "jsonl"
+        pattern = f"detections_*.{ext}"
+        files = sorted(self._log_dir.glob(pattern), key=lambda p: p.stat().st_mtime)
+        excess = len(files) - self._max_log_files
+        deleted_any = False
+        for path in files[:excess]:
+            try:
+                path.unlink()
+                deleted_any = True
+                logger.info("Pruned old log file: %s", path)
+            except OSError as exc:
+                logger.warning("Failed to delete old log file %s: %s", path, exc)
+        if deleted_any:
+            # Local import to avoid a hard cycle (mission_summary may import
+            # detection helpers in the future). Lazy + cheap on the rare
+            # prune path.
+            try:
+                from hydra_detect.mission_summary import invalidate_for_log_dir
+                invalidate_for_log_dir(self._log_dir)
+            except Exception as exc:  # pragma: no cover — defensive
+                logger.warning(
+                    "Could not invalidate mission_summary cache after prune: %s",
+                    exc,
+                )
+
+    def _prune_old_images(self) -> None:
+        """Delete oldest JPEG snapshots beyond the per-log-file average budget.
+
+        The image retention limit is derived from ``max_log_files`` so the
+        image directory scales proportionally with the log file limit.  Each
+        log file slot is allowed up to 200 images (a conservative estimate),
+        giving a default ceiling of 4 000 images at 20 log files.
+        """
+        max_images = self._max_log_files * 200
+        files = sorted(
+            self._image_dir.glob("*.jpg"),
+            key=lambda p: p.stat().st_mtime,
+        )
+        excess = len(files) - max_images
+        for path in files[:excess]:
+            try:
+                path.unlink()
+                logger.info("Pruned old image: %s", path)
+            except OSError as exc:
+                logger.warning("Failed to delete old image %s: %s", path, exc)
+
+    # ------------------------------------------------------------------
+    # Background writer loop
+    # ------------------------------------------------------------------
+
+    def _writer_loop(self) -> None:
+        """Consume work items from the queue and perform all file I/O.
+
+        task_done() is called for every queue.get() so callers can
+        synchronize on flush() via Queue.join() (used by mission-end to
+        guarantee detection rows with the active mission_id reach disk
+        before the mission_end event lands).
+        """
+        while True:
+            try:
+                item = self._write_queue.get(timeout=1.0)
+            except queue.Empty:
+                continue
+
+            try:
+                if item is _STOP:
+                    # Drain any remaining items before exiting so stop() is a
+                    # clean flush — no detections are silently discarded.
+                    while True:
+                        try:
+                            remaining = self._write_queue.get_nowait()
+                        except queue.Empty:
+                            break
+                        try:
+                            if remaining is not _STOP:
+                                self._safe_process(remaining)
+                        finally:
+                            self._write_queue.task_done()
+                    break
+                self._safe_process(item)
+            finally:
+                self._write_queue.task_done()
+
+    def _safe_process(self, item: Dict[str, Any]) -> None:
+        """Run _process_work_item with a hard guard against any exception.
+
+        If a single work item raises, log the exception and continue. Losing
+        one frame is far better than killing the writer thread silently —
+        without this guard, an unhandled exception would exit _writer_loop
+        and subsequent detections would pile up in the queue until
+        put_nowait starts raising queue.Full.
+        """
+        try:
+            self._process_work_item(item)
+        except Exception:
+            logger.exception(
+                "Detection logger work item failed — frame %s dropped",
+                item.get("frame_no"),
+            )
+
+    def _process_work_item(self, item: Dict[str, Any]) -> None:
+        """Write a single work item to disk (runs on the background thread)."""
+        records: list[Dict[str, Any]] = item["records"]
+        frame: np.ndarray | None = item["frame"]
+        frame_no: int = item["frame_no"]
+        img_filename: str | None = item["img_filename"]
+        tracking_result: list[TrackedObject] = item["tracking_result"]
+        do_flush: bool = item["flush"]
+
+        # Save full-frame snapshot.
+        if self._save_images and frame is not None and img_filename is not None:
+            try:
+                cv2.imwrite(
+                    str(self._image_dir / img_filename),
+                    frame,
+                    [int(cv2.IMWRITE_JPEG_QUALITY), self._image_quality],
+                )
+            except Exception as exc:
+                logger.warning("Failed to save snapshot: %s", exc)
+
+        # Write log records.
+        for record, track in zip(records, tracking_result):
+            if self._log_format == "csv" and self._csv_writer is not None:
+                try:
+                    self._csv_writer.writerow([
+                        record["timestamp"], frame_no, track.track_id,
+                        track.label, track.class_id,
+                        f"{track.confidence:.3f}",
+                        f"{track.x1:.1f}", f"{track.y1:.1f}",
+                        f"{track.x2:.1f}", f"{track.y2:.1f}",
+                        record["lat"], record["lon"], record["alt"],
+                        record["fix"], img_filename,
+                    ])
+                except Exception as exc:
+                    logger.warning("Failed to write CSV record: %s", exc)
+            elif self._json_file is not None:
+                try:
+                    self._json_file.write(json.dumps(record) + "\n")
+                except Exception as exc:
+                    logger.warning("Failed to write JSONL record: %s", exc)
+
+            # Save cropped object image. Suppressed when the disk-BLOCKED
+            # gate is tripped (issue #226) — JSONL/CSV metadata above still
+            # logs so the BLOCKED window has detection provenance.
+            with self._disk_blocked_lock:
+                blocked = self._disk_blocked
+            if self._save_crops and frame is not None and not blocked:
+                self._save_crop(frame, track, frame_no)
+
+        # Periodic flush to bound data loss on crash, then check rotation.
+        if do_flush:
+            try:
+                if self._csv_file is not None:
+                    self._csv_file.flush()
+                if self._json_file is not None:
+                    self._json_file.flush()
+            except OSError as exc:
+                logger.warning("Failed to flush log file: %s", exc)
+            self._rotate_if_needed()
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    def _save_crop(
+        self, frame: np.ndarray, track: TrackedObject, frame_no: int
+    ) -> None:
+        """Save a cropped image of the tracked object."""
+        h, w = frame.shape[:2]
+        x1 = max(0, int(track.x1))
+        y1 = max(0, int(track.y1))
+        x2 = min(w, int(track.x2))
+        y2 = min(h, int(track.y2))
+
+        if x2 <= x1 or y2 <= y1:
+            return
+
+        crop = frame[y1:y2, x1:x2]
+        fname = f"frame{frame_no:06d}_id{track.track_id}_{track.label}.jpg"
+        try:
+            cv2.imwrite(str(self._crop_dir / fname), crop)
+        except Exception as exc:
+            logger.warning("Failed to save crop: %s", exc)

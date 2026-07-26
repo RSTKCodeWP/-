@@ -1,0 +1,20 @@
+[
+  {
+    "category": "TX",
+    "name": "Axisflying THOR TX Backpack",
+    "targets": [
+      {
+        "flashingMethod": "UART",
+        "name": "AXIS_THOR_Tx_Backpack_UART"
+      },
+      {
+        "flashingMethod": "WIFI",
+        "name": "AXIS_THOR_Tx_Backpack_WIFI"
+      }
+    ],
+    "userDefines": ["BINDING_PHRASE", "HOME_WIFI_SSID", "HOME_WIFI_PASSWORD"],
+    "wikiUrl": "https://www.expresslrs.org/quick-start/transmitters/axisflying-thor/",
+    "deviceType": "Backpack",
+    "aliases": []
+  }
+]

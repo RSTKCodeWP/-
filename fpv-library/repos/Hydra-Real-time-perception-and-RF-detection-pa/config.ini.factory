@@ -1,0 +1,318 @@
+[meta]
+schema_version = 1
+
+[system]
+; Operating mode — environment the unit is running in.
+; Values: SIM | BENCH | OBSERVE | FIELD | ARMED | MAINTENANCE
+; Default OBSERVE. ARMED transitions require double-confirmation via API.
+mode = OBSERVE
+
+[camera]
+source_type = auto
+source = auto
+width = 640
+height = 480
+fps = 30
+hfov_deg = 60.0
+video_standard = ntsc
+
+[detector]
+yolo_model = yolov8n.pt
+yolo_confidence = 0.45
+yolo_imgsz = 416
+yolo_classes = 
+
+[tracker]
+track_thresh = 0.5
+track_buffer = 30
+match_thresh = 0.8
+
+[mavlink]
+enabled = true
+connection_string = /dev/ttyTHS1
+baud = 921600
+source_system = 1
+min_gps_fix = 3
+alert_statustext = true
+alert_interval_sec = 5.0
+severity = 2
+alert_classes = person, car, motorcycle, truck, bus, boat, bicycle, airplane, backpack, suitcase, handbag, cell phone, laptop, dog, horse, knife, scissors, baseball bat, bottle, umbrella
+auto_loiter_on_detect = false
+guided_roi_on_detect = false
+strike_distance_m = 20.0
+geo_tracking = true
+geo_tracking_interval = 2.0
+sim_gps_lat =
+sim_gps_lon = 
+
+[alerts]
+light_bar_enabled = true
+; Default channel 9 (aux). Channels 1-4 collide with drone reserved
+; (roll/pitch/throttle/yaw); pick any aux channel 5-14 for auxiliary gear.
+light_bar_channel = 9
+light_bar_pwm_on = 1900
+light_bar_pwm_off = 1100
+light_bar_flash_sec = 0.5
+global_max_per_sec = 2                   ; max STATUSTEXT alerts/sec across all labels
+priority_labels =                        ; comma-separated labels that bypass global cap (e.g. person,vehicle)
+
+[web]
+enabled = true
+host = 0.0.0.0
+port = 8080
+mjpeg_quality = 70
+api_token =
+; Field images ship with control auth ON. Platform Setup generates the
+; per-unit api_token + web_password and the running pipeline picks them
+; up from [identity] on boot (issue #149).
+require_auth_for_control = true
+
+[osd]
+enabled = true
+mode = named_value
+update_interval = 2.0
+serial_port = /dev/ttyUSB0
+serial_baud = 115200
+canvas_cols = 50
+canvas_rows = 18
+
+[autonomous]
+enabled = false
+geofence_lat = 0.0
+geofence_lon = 0.0
+geofence_radius_m = 100.0
+geofence_polygon = 
+min_confidence = 0.85
+min_track_frames = 5
+allowed_classes = 
+strike_cooldown_sec = 30.0
+allowed_vehicle_modes = AUTO
+gps_max_stale_sec = 2.0                 ; abort if GPS data is older than this
+rc_max_stale_sec = 2.0                  ; hw-arm gate: RC older than this reads unknown (fail closed)
+require_operator_lock = true             ; require explicit target lock before auto-strike
+
+[rf_homing]
+enabled = false
+mode = wifi
+target_bssid = 
+target_freq_mhz = 915.0
+kismet_host = http://localhost:2501
+kismet_user = kismet
+kismet_pass = kismet
+search_pattern = lawnmower
+search_area_m = 100.0
+search_spacing_m = 20.0
+search_alt_m = 15.0
+rssi_threshold_dbm = -80.0
+rssi_converge_dbm = -40.0
+rssi_window = 10
+gradient_step_m = 5.0
+gradient_rotation_deg = 45.0
+poll_interval_sec = 0.5
+arrival_tolerance_m = 3.0
+gps_required = false
+kismet_source = rtl433-0
+kismet_capture_dir = ./output_data/kismet
+kismet_max_capture_mb = 100
+kismet_auto_spawn = false
+
+[servo_tracking]
+enabled = false
+; Default aux channels (10/11). Channels 1-4 collide with drone reserved
+; (roll/pitch/throttle/yaw). The pipeline disables servo tracking if either
+; channel lands in the vehicle's reserved_channels set.
+pan_channel = 10
+pan_pwm_center = 1500
+pan_pwm_range = 500
+pan_invert = false
+pan_dead_zone = 0.05
+pan_smoothing = 0.3
+strike_channel = 11
+strike_pwm_fire = 1900
+strike_pwm_safe = 1100
+strike_duration = 0.5
+replaces_yaw = false
+
+[logging]
+log_dir = ./output_data/logs
+log_format = jsonl
+save_images = true
+image_dir = ./output_data/images
+image_quality = 90
+save_crops = false
+crop_dir = ./output_data/crops
+max_log_size_mb = 10
+max_log_files = 20
+app_log_file = true
+app_log_level = INFO
+
+[watchdog]
+max_stall_sec = 30                      ; force-exit if no frame processed in this many seconds
+
+[rtsp]
+enabled = true
+port = 8554
+mount = /hydra
+bitrate = 2000000
+
+[mavlink_video]
+enabled = false
+width = 160
+height = 120
+jpeg_quality = 20
+max_fps = 2.0
+min_fps = 0.2
+link_budget_bytes_sec = 8000
+
+[tak]
+enabled = true
+callsign = HYDRA-1
+multicast_group = 239.2.3.1
+multicast_port = 6969
+unicast_targets =                          ; comma-separated host:port pairs
+emit_interval = 2.0
+sa_interval = 5.0
+stale_detection = 60.0
+stale_sa = 30.0
+advertise_host =                          ; set to your Jetson Tailscale IP
+; Inbound TAK commands are OFF on field images until the operator configures
+; allowed_callsigns + command_hmac_secret. The Settings wizard / Platform
+; Setup flow flips this on as part of TAK enablement (issue #149).
+listen_commands = false
+listen_port = 6969
+
+[approach]
+follow_speed_min = 2.0
+follow_speed_max = 10.0
+follow_distance_m = 15.0
+follow_yaw_rate_max = 30.0
+strike_approach_m = 5.0
+abort_mode = LOITER
+waypoint_interval = 0.5
+
+[drop]
+servo_channel = 0
+pwm_release = 1900
+pwm_hold = 1100
+pulse_duration = 1.0
+drop_distance_m = 3.0
+
+[guidance]
+fwd_gain = 2.0
+lat_gain = 1.5
+vert_gain = 1.0
+yaw_gain = 30.0
+max_fwd_speed = 5.0
+max_lat_speed = 2.0
+max_vert_speed = 1.5
+max_yaw_rate = 45.0
+deadzone = 0.05
+smoothing = 0.4
+target_bbox_ratio = 0.15
+lost_track_timeout_s = 2.0
+min_altitude_m = 5.0
+
+[ui]
+; morale_features_enabled: set true only on dev/demo units. Field images ship
+; with this off. Affects: vehicle beep endpoint, Konami sentience screen,
+; power-user easter egg.
+morale_features_enabled = false
+
+; ---------------------------------------------------------------------------
+; Storage rotation — per-category file retention and disk-free gates.
+; Run scripts/storage_rotation.py --dry-run to preview, --apply to delete.
+; ---------------------------------------------------------------------------
+
+[storage]
+retention_detection_logs_days = 365
+retention_mission_bundles_days = 90
+retention_video_crops_days = 30
+retention_tak_audit_days = 90
+retention_feedback_crops_days = 90
+disk_warn_pct = 15
+disk_block_pct = 5
+retention_floor_days = 7
+retention_ceiling_days = 730
+
+; ---------------------------------------------------------------------------
+; Vehicle profiles — override base sections via --vehicle <name> or HYDRA_VEHICLE
+; Keys use "section.option" format to override the matching base section.
+; ---------------------------------------------------------------------------
+
+[vehicle.drone]
+reserved_channels = 1,2,3,4
+; Quad with a dedicated companion BEC — Jetson does not share the LiPo.
+; STATUSTEXT-only on LOW/CRITICAL (PR #211). See issue #222.
+shared_battery = false
+autonomous.post_drop_mode = DOGLEG_RTL
+autonomous.post_strike_mode = LOITER
+autonomous.platform_role = aerial_isr
+autonomous.safe_mode = LOITER
+autonomous.default_features = detect,mavlink,tak_output,logging
+; camera.source = /dev/video0
+; alerts.priority_labels = person,vehicle
+
+[vehicle.usv]
+reserved_channels = 1,3
+; Bonzi Sport Boat: Jetson rides the same pack as the propulsion motors.
+; LOW transition triggers graceful-stop (HOLD + zero servo PWM) while rail
+; is still up — Jetson brownout (~7 V) precedes LiPo LVC. See issue #222.
+shared_battery = true
+autonomous.post_drop_mode = SMART_RTL
+autonomous.post_strike_mode = LOITER
+autonomous.platform_role = water_isr
+autonomous.safe_mode = HOLD
+autonomous.default_features = detect,mavlink,tak_output,logging,geofence_warning
+; camera.source = /dev/video2
+; alerts.priority_labels = person,boat,kayak
+; tak.callsign = HYDRA-USV
+
+[vehicle.ugv]
+reserved_channels = 1,3
+; Axial SCX6: Jetson on the same pack as the drive ESC. LOW transition
+; triggers graceful-stop (HOLD + zero servo PWM). See issue #222.
+shared_battery = true
+autonomous.post_drop_mode = SMART_RTL
+autonomous.post_strike_mode = HOLD
+autonomous.platform_role = ground_isr
+autonomous.safe_mode = HOLD
+autonomous.default_features = detect,mavlink,tak_output,logging
+; camera.source = /dev/video0
+; alerts.priority_labels = person,vehicle
+; tak.callsign = HYDRA-UGV
+
+[vehicle.drone_10in]
+reserved_channels = 1,2,3,4
+; 10" platform — companion BEC, Jetson off the propulsion pack.
+; STATUSTEXT-only on LOW/CRITICAL. See issue #222.
+shared_battery = false
+autonomous.post_drop_mode = DOGLEG_RTL
+autonomous.post_strike_mode = LOITER
+autonomous.platform_role = aerial_isr
+autonomous.safe_mode = LOITER
+autonomous.default_features = detect,mavlink,tak_output,logging
+
+[vehicle.fw]
+; Fixed wing is detection + TAK marking only. Speed (15-25 m/s) makes hover,
+; follow, drop, and strike physically infeasible — see issue #70. The pipeline
+; refuses approach commands (follow/drop/strike/pixel-lock) when this profile
+; is active and only the modes listed below qualify for autonomous evaluation.
+reserved_channels = 1,2,3,4
+; Fixed-wing runs the Jetson off a dedicated companion battery — graceful-stop
+; on LOW would force-LOITER mid-mission. Operator surfaces LOW via STATUSTEXT
+; and decides whether to RTL. See issue #222.
+shared_battery = false
+autonomous.post_action_mode = LOITER
+autonomous.min_track_frames = 2
+autonomous.allowed_vehicle_modes = AUTO,LOITER,CRUISE
+autonomous.platform_role = aerial_isr
+autonomous.safe_mode = LOITER
+autonomous.default_features = detect,mavlink,tak_output,logging
+
+[time_sync]
+ntp_hosts = pool.ntp.org,time.cloudflare.com
+gps_freshness_seconds = 5
+gps_min_sats = 6
+gps_min_fix_type = 3
+drift_warn_seconds = 5
+drift_block_seconds = 30

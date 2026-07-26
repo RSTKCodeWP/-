@@ -1,0 +1,848 @@
+"""Tests for config schema validation and the /api/preflight endpoint."""
+
+from __future__ import annotations
+
+import configparser
+from pathlib import Path
+
+import pytest
+from fastapi.testclient import TestClient
+
+from hydra_detect.config_schema import (
+    ValidationResult,
+    validate_config,
+)
+from hydra_detect.web.server import app, configure_auth, stream_state, _auth_failures
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _make_config(sections: dict[str, dict[str, str]]) -> configparser.ConfigParser:
+    """Build a ConfigParser from a dict of sections."""
+    cfg = configparser.ConfigParser(inline_comment_prefixes=(";", "#"))
+    for section, keys in sections.items():
+        cfg.add_section(section)
+        for key, val in keys.items():
+            cfg.set(section, key, val)
+    return cfg
+
+
+def _valid_config() -> configparser.ConfigParser:
+    """Return a minimal config that passes validation."""
+    return _make_config({
+        "camera": {
+            "source_type": "auto",
+            "source": "auto",
+            "width": "640",
+            "height": "480",
+            "fps": "30",
+            "hfov_deg": "60.0",
+            "video_standard": "ntsc",
+        },
+        "detector": {
+            "yolo_model": "yolov8n.pt",
+            "yolo_confidence": "0.45",
+            "yolo_imgsz": "416",
+            "yolo_classes": "",
+        },
+        "tracker": {
+            "track_thresh": "0.5",
+            "track_buffer": "30",
+            "match_thresh": "0.8",
+        },
+        "mavlink": {
+            "enabled": "true",
+            "connection_string": "/dev/ttyTHS1",
+            "baud": "921600",
+            "source_system": "1",
+            "alert_statustext": "true",
+            "alert_interval_sec": "5.0",
+            "severity": "2",
+            "auto_loiter_on_detect": "false",
+            "guided_roi_on_detect": "false",
+            "geo_tracking": "true",
+        },
+        "alerts": {
+            "global_max_per_sec": "2",
+            "priority_labels": "person,vehicle",
+        },
+        "web": {
+            "enabled": "true",
+            "host": "0.0.0.0",
+            "port": "8080",
+            "mjpeg_quality": "70",
+            "api_token": "",
+        },
+        "autonomous": {
+            "enabled": "false",
+            "geofence_lat": "0.0",
+            "geofence_lon": "0.0",
+            "geofence_radius_m": "500.0",
+            "min_confidence": "0.85",
+            "min_track_frames": "5",
+            "strike_cooldown_sec": "30.0",
+            "gps_max_stale_sec": "2.0",
+            "require_operator_lock": "true",
+        },
+        "servo_tracking": {
+            "enabled": "false",
+            "pan_channel": "1",
+            "pan_pwm_center": "1500",
+            "pan_pwm_range": "500",
+            "strike_channel": "2",
+            "strike_pwm_fire": "1900",
+            "strike_pwm_safe": "1100",
+            "strike_duration": "0.5",
+        },
+        "watchdog": {
+            "max_stall_sec": "30",
+        },
+        "rtsp": {
+            "enabled": "true",
+            "port": "8554",
+        },
+        "osd": {
+            "enabled": "false",
+            "mode": "statustext",
+        },
+        "tak": {
+            "enabled": "false",
+            "callsign": "HYDRA-1",
+        },
+        "logging": {
+            "log_dir": "./output_data/logs",
+            "log_format": "jsonl",
+            "save_images": "true",
+            "save_crops": "false",
+        },
+    })
+
+
+# ---------------------------------------------------------------------------
+# Unit tests — validate_config
+# ---------------------------------------------------------------------------
+
+class TestValidConfig:
+    def test_valid_config_passes(self):
+        cfg = _valid_config()
+        result = validate_config(cfg)
+        assert result.ok
+        assert len(result.errors) == 0
+
+    def test_valid_config_no_warnings_with_known_keys(self):
+        cfg = _valid_config()
+        result = validate_config(cfg)
+        assert len(result.warnings) == 0
+
+
+class TestInvalidFloat:
+    def test_confidence_out_of_range(self):
+        """yolo_confidence=90 is outside 0.0-1.0 range."""
+        cfg = _valid_config()
+        cfg.set("detector", "yolo_confidence", "90")
+        result = validate_config(cfg)
+        assert not result.ok
+        assert any("yolo_confidence" in e and "at most" in e for e in result.errors)
+
+    def test_confidence_negative(self):
+        cfg = _valid_config()
+        cfg.set("detector", "yolo_confidence", "-0.5")
+        result = validate_config(cfg)
+        assert not result.ok
+        assert any("yolo_confidence" in e for e in result.errors)
+
+    def test_float_not_a_number(self):
+        cfg = _valid_config()
+        cfg.set("detector", "yolo_confidence", "abc")
+        result = validate_config(cfg)
+        assert not result.ok
+        assert any("yolo_confidence" in e and "a number" in e for e in result.errors)
+
+
+class TestInvalidBool:
+    def test_bad_bool_value(self):
+        cfg = _valid_config()
+        cfg.set("mavlink", "enabled", "maybe")
+        result = validate_config(cfg)
+        assert not result.ok
+        assert any("enabled" in e and "true or false" in e for e in result.errors)
+
+    def test_valid_bool_variants(self):
+        """All standard bool strings should be accepted."""
+        for val in ("true", "false", "yes", "no", "1", "0", "on", "off"):
+            cfg = _valid_config()
+            cfg.set("mavlink", "enabled", val)
+            result = validate_config(cfg)
+            assert result.ok, f"Bool value '{val}' should be valid"
+
+
+class TestEnumValidation:
+    def test_invalid_source_type(self):
+        cfg = _valid_config()
+        cfg.set("camera", "source_type", "satellite")
+        result = validate_config(cfg)
+        assert not result.ok
+        assert any("source_type" in e and "satellite" in e for e in result.errors)
+
+    def test_valid_source_types(self):
+        for val in ("auto", "usb", "rtsp", "file", "v4l2", "analog"):
+            cfg = _valid_config()
+            cfg.set("camera", "source_type", val)
+            result = validate_config(cfg)
+            errors_for_source = [e for e in result.errors if "source_type" in e]
+            assert len(errors_for_source) == 0, f"source_type '{val}' should be valid"
+
+    def test_enum_case_insensitive(self):
+        cfg = _valid_config()
+        cfg.set("camera", "source_type", "AUTO")
+        result = validate_config(cfg)
+        errors_for_source = [e for e in result.errors if "source_type" in e]
+        assert len(errors_for_source) == 0
+
+
+class TestUnknownKey:
+    def test_unknown_key_produces_warning(self):
+        cfg = _valid_config()
+        cfg.set("camera", "fov_magic", "42")
+        result = validate_config(cfg)
+        assert result.ok  # warnings don't fail
+        assert any("fov_magic" in w and "typo" in w for w in result.warnings)
+
+
+class TestMissingRequired:
+    def test_missing_yolo_model(self):
+        cfg = _valid_config()
+        cfg.remove_option("detector", "yolo_model")
+        result = validate_config(cfg)
+        assert not result.ok
+        assert any("yolo_model" in e and "required" in e for e in result.errors)
+
+    def test_missing_required_section(self):
+        cfg = _valid_config()
+        cfg.remove_section("detector")
+        result = validate_config(cfg)
+        assert not result.ok
+        assert any("[detector]" in e for e in result.errors)
+
+
+class TestRangeValidation:
+    def test_int_below_min(self):
+        cfg = _valid_config()
+        cfg.set("camera", "width", "50")  # min is 160
+        result = validate_config(cfg)
+        assert not result.ok
+        assert any("width" in e and "at least 160" in e for e in result.errors)
+
+    def test_int_above_max(self):
+        cfg = _valid_config()
+        cfg.set("camera", "width", "5000")  # max is 3840
+        result = validate_config(cfg)
+        assert not result.ok
+        assert any("width" in e and "at most 3840" in e for e in result.errors)
+
+    def test_float_below_min(self):
+        cfg = _valid_config()
+        cfg.set("camera", "hfov_deg", "5.0")  # min is 10.0
+        result = validate_config(cfg)
+        assert not result.ok
+        assert any("hfov_deg" in e for e in result.errors)
+
+    def test_float_above_max(self):
+        cfg = _valid_config()
+        cfg.set("camera", "hfov_deg", "200.0")  # max is 180.0
+        result = validate_config(cfg)
+        assert not result.ok
+        assert any("hfov_deg" in e for e in result.errors)
+
+    def test_int_not_a_number(self):
+        cfg = _valid_config()
+        cfg.set("camera", "width", "wide")
+        result = validate_config(cfg)
+        assert not result.ok
+        assert any("width" in e and "a number" in e for e in result.errors)
+
+    def test_port_boundary_valid(self):
+        """Port 1 and 65535 should both be valid."""
+        for val in ("1", "65535"):
+            cfg = _valid_config()
+            cfg.set("web", "port", val)
+            result = validate_config(cfg)
+            port_errors = [e for e in result.errors if "port" in e.lower()]
+            assert len(port_errors) == 0, f"Port {val} should be valid"
+
+
+class TestValidationResult:
+    def test_ok_when_no_errors(self):
+        r = ValidationResult()
+        assert r.ok
+
+    def test_not_ok_with_errors(self):
+        r = ValidationResult(errors=["something broke"])
+        assert not r.ok
+
+    def test_ok_with_only_warnings(self):
+        r = ValidationResult(warnings=["heads up"])
+        assert r.ok
+
+
+class TestEmptyAndMissingSections:
+    def test_missing_optional_section_no_error(self):
+        """Sections with no required fields can be absent."""
+        cfg = _valid_config()
+        cfg.remove_section("watchdog")
+        result = validate_config(cfg)
+        # watchdog has no required fields, so no error
+        assert not any("[watchdog]" in e for e in result.errors)
+
+    def test_empty_optional_string_no_error(self):
+        """Empty optional string fields should not error."""
+        cfg = _valid_config()
+        cfg.set("detector", "yolo_classes", "")
+        result = validate_config(cfg)
+        yolo_errors = [e for e in result.errors if "yolo_classes" in e]
+        assert len(yolo_errors) == 0
+
+
+# ---------------------------------------------------------------------------
+# Integration test — /api/preflight endpoint
+# ---------------------------------------------------------------------------
+
+@pytest.fixture(autouse=True)
+def _reset_state():
+    """Reset stream_state and auth between tests."""
+    configure_auth(None)
+    _auth_failures.clear()
+    stream_state._callbacks.clear()
+    yield
+    # Cleanup after each test to avoid leaking auth state to other test modules
+    configure_auth(None)
+    _auth_failures.clear()
+    stream_state._callbacks.clear()
+
+
+@pytest.fixture
+def client():
+    return TestClient(app)
+
+
+class TestPreflightEndpoint:
+    def test_preflight_returns_structure(self, client):
+        """The endpoint returns checks array and overall status."""
+        # Set up a mock preflight callback
+        stream_state.set_callbacks(
+            get_preflight=lambda: {
+                "checks": [
+                    {"name": "camera", "status": "pass", "message": "Camera OK"},
+                    {"name": "config", "status": "pass", "message": "Config valid"},
+                ],
+                "overall": "pass",
+            }
+        )
+        resp = client.get("/api/preflight")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "checks" in data
+        assert "overall" in data
+        assert isinstance(data["checks"], list)
+        assert data["overall"] in ("pass", "warn", "fail")
+
+    def test_preflight_no_callback(self, client):
+        """Without a pipeline callback, returns empty fail."""
+        resp = client.get("/api/preflight")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["checks"] == []
+        assert data["overall"] == "fail"
+
+    def test_preflight_check_fields(self, client):
+        """Each check has name, status, and message."""
+        stream_state.set_callbacks(
+            get_preflight=lambda: {
+                "checks": [
+                    {"name": "camera", "status": "pass", "message": "USB camera on /dev/video0"},
+                    {"name": "mavlink", "status": "warn", "message": "No GPS fix"},
+                    {"name": "config", "status": "fail", "message": "1 error"},
+                    {"name": "models", "status": "pass", "message": "yolov8n.pt loaded"},
+                    {"name": "disk", "status": "pass", "message": "12.4 GB free"},
+                ],
+                "overall": "fail",
+            }
+        )
+        resp = client.get("/api/preflight")
+        data = resp.json()
+        for check in data["checks"]:
+            assert "name" in check
+            assert "status" in check
+            assert "message" in check
+            assert check["status"] in ("pass", "warn", "fail")
+
+    def test_preflight_overall_is_worst(self, client):
+        """Overall status should be the worst status across all checks."""
+        stream_state.set_callbacks(
+            get_preflight=lambda: {
+                "checks": [
+                    {"name": "camera", "status": "pass", "message": "OK"},
+                    {"name": "mavlink", "status": "warn", "message": "No GPS"},
+                ],
+                "overall": "warn",
+            }
+        )
+        resp = client.get("/api/preflight")
+        assert resp.json()["overall"] == "warn"
+
+    def test_preflight_no_auth_required(self, client):
+        """Preflight is a read-only check — no auth needed."""
+        configure_auth("super-secret-token")
+        stream_state.set_callbacks(
+            get_preflight=lambda: {
+                "checks": [],
+                "overall": "pass",
+            }
+        )
+        resp = client.get("/api/preflight")
+        assert resp.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# Fallback / schema default alignment
+# ---------------------------------------------------------------------------
+
+class TestFallbackAlignment:
+    """Meta-test: pipeline.py fallback values must match config_schema.py defaults."""
+
+    def test_pipeline_fallbacks_match_schema_defaults(self):
+        import ast
+        import re as _re
+
+        from hydra_detect.config_schema import SCHEMA
+
+        pipeline_path = (
+            Path(__file__).resolve().parent.parent
+            / "hydra_detect"
+            / "pipeline.py"
+        )
+        source = pipeline_path.read_text()
+
+        # Match self._cfg.get*("section", "key", fallback=VALUE)
+        pattern = _re.compile(
+            r'self\._cfg\.get(int|float|boolean)?'
+            r'\(\s*"([^"]+)"\s*,\s*"([^"]+)"\s*,'
+            r'\s*fallback\s*=\s*(.+?)\s*\)'
+        )
+
+        mismatches: list[str] = []
+        for match in pattern.finditer(source):
+            getter_type = match.group(1)
+            section = match.group(2)
+            key = match.group(3)
+            fallback_raw = match.group(4).rstrip(",").strip()
+
+            if section not in SCHEMA or key not in SCHEMA[section]:
+                continue
+
+            spec = SCHEMA[section][key]
+            if spec.default is None:
+                continue
+
+            try:
+                fallback_val = ast.literal_eval(fallback_raw)
+            except (ValueError, SyntaxError):
+                continue  # dynamic expression, skip
+
+            schema_default = spec.default
+            if getter_type == "boolean" or spec.type.value == "bool":
+                fallback_val = bool(fallback_val)
+                schema_default = bool(schema_default)
+            elif getter_type == "int":
+                fallback_val = int(fallback_val)
+                schema_default = int(schema_default)
+            elif getter_type == "float":
+                fallback_val = float(fallback_val)
+                schema_default = float(schema_default)
+            elif getter_type is None and spec.type.value != "string":
+                # Plain .get() returns strings; coerce schema default
+                # to string for comparison with non-string fields.
+                schema_default = str(schema_default)
+
+            if fallback_val != schema_default:
+                mismatches.append(
+                    f"[{section}] {key}: "
+                    f"fallback={fallback_val!r} "
+                    f"!= schema default={schema_default!r}"
+                )
+
+        assert not mismatches, (
+            "Pipeline fallback / schema default mismatches:\n"
+            + "\n".join(mismatches)
+        )
+
+
+# ---------------------------------------------------------------------------
+# Vehicle-profile prefix-aware validation
+# ---------------------------------------------------------------------------
+
+class TestVehicleSectionValidation:
+    """[vehicle.*] sections validate dotted overrides against base schema."""
+
+    def _base(self) -> configparser.ConfigParser:
+        cfg = _valid_config()
+        return cfg
+
+    def test_valid_dotted_override_accepted(self):
+        cfg = self._base()
+        cfg.add_section("vehicle.drone")
+        cfg.set("vehicle.drone", "camera.source", "/dev/video2")
+        cfg.set("vehicle.drone", "camera.fps", "15")
+        cfg.set("vehicle.drone", "reserved_channels", "1,2,3,4")
+        result = validate_config(cfg)
+        assert result.ok, f"unexpected errors: {result.errors}"
+        # No warnings about the three keys above
+        bad = [w for w in result.warnings if "[vehicle.drone]" in w]
+        assert not bad, f"unexpected warnings: {bad}"
+
+    def test_unknown_base_section_warns(self):
+        cfg = self._base()
+        cfg.add_section("vehicle.drone")
+        cfg.set("vehicle.drone", "camara.source", "/dev/video2")  # typo
+        result = validate_config(cfg)
+        matched = [w for w in result.warnings if "camara.source" in w]
+        assert matched, f"expected warning for typo; got {result.warnings}"
+        assert "unknown base section" in matched[0]
+
+    def test_unknown_key_in_base_section_warns(self):
+        cfg = self._base()
+        cfg.add_section("vehicle.drone")
+        cfg.set("vehicle.drone", "camera.sauce", "/dev/video2")  # typo
+        result = validate_config(cfg)
+        matched = [w for w in result.warnings if "camera.sauce" in w]
+        assert matched, f"expected warning for key typo; got {result.warnings}"
+        assert "no key 'sauce'" in matched[0]
+
+    def test_non_dotted_unknown_key_warns(self):
+        cfg = self._base()
+        cfg.add_section("vehicle.drone")
+        cfg.set("vehicle.drone", "mystery_key", "42")
+        result = validate_config(cfg)
+        matched = [w for w in result.warnings if "mystery_key" in w]
+        assert matched, f"expected warning; got {result.warnings}"
+
+    def test_reserved_channels_accepted_as_local_key(self):
+        cfg = self._base()
+        cfg.add_section("vehicle.drone")
+        cfg.set("vehicle.drone", "reserved_channels", "1,2,3,4")
+        result = validate_config(cfg)
+        matched = [w for w in result.warnings
+                   if "reserved_channels" in w and "[vehicle.drone]" in w]
+        assert not matched, f"reserved_channels should not warn; got {matched}"
+
+    def test_shared_battery_accepted_as_local_key(self):
+        """shared_battery is a vehicle-local bool (#222)."""
+        cfg = self._base()
+        cfg.add_section("vehicle.usv")
+        cfg.set("vehicle.usv", "shared_battery", "true")
+        result = validate_config(cfg)
+        assert result.ok, f"unexpected errors: {result.errors}"
+        matched = [w for w in result.warnings
+                   if "shared_battery" in w and "[vehicle.usv]" in w]
+        assert not matched, f"shared_battery should not warn; got {matched}"
+
+    def test_shared_battery_accepts_false(self):
+        cfg = self._base()
+        cfg.add_section("vehicle.drone")
+        cfg.set("vehicle.drone", "shared_battery", "false")
+        result = validate_config(cfg)
+        assert result.ok, f"unexpected errors: {result.errors}"
+
+    def test_shared_battery_rejects_non_bool(self):
+        """Typo like ``shared_battery = ture`` must error, not silently pass."""
+        cfg = self._base()
+        cfg.add_section("vehicle.usv")
+        cfg.set("vehicle.usv", "shared_battery", "ture")
+        result = validate_config(cfg)
+        matched = [e for e in result.errors
+                   if "shared_battery" in e and "[vehicle.usv]" in e]
+        assert matched, f"expected error for bad bool; got {result.errors}"
+
+    def test_out_of_range_override_errors(self):
+        cfg = self._base()
+        cfg.add_section("vehicle.drone")
+        cfg.set("vehicle.drone", "camera.width", "99999")  # > max 3840
+        result = validate_config(cfg)
+        matched = [e for e in result.errors
+                   if "[vehicle.drone]" in e and "camera.width" in e]
+        assert matched, f"expected error; got {result.errors}"
+
+    def test_vehicle_fw_still_uses_main_validator(self):
+        """vehicle.fw has explicit schema — _validate_vehicle_sections skips it."""
+        cfg = self._base()
+        cfg.add_section("vehicle.fw")
+        cfg.set("vehicle.fw", "autonomous.post_action_mode", "LOITER")
+        cfg.set("vehicle.fw", "autonomous.min_track_frames", "2")
+        result = validate_config(cfg)
+        assert result.ok, f"unexpected errors: {result.errors}"
+
+
+# ---------------------------------------------------------------------------
+# Issue #234 R1-1 — battery.min_callback_interval_sec schema field
+# ---------------------------------------------------------------------------
+
+
+class TestBatteryMinCallbackIntervalSchema:
+    """Schema validation for the new LOW-callback rate cap field."""
+
+    @staticmethod
+    def _cfg_with_battery(value: str):
+        cfg = _valid_config()
+        if not cfg.has_section("battery"):
+            cfg.add_section("battery")
+        cfg.set("battery", "min_callback_interval_sec", value)
+        return cfg
+
+    def test_default_is_60s_when_omitted(self):
+        """Field is optional — defaults satisfy the schema."""
+        cfg = _valid_config()
+        result = validate_config(cfg)
+        assert result.ok, f"unexpected errors: {result.errors}"
+
+    def test_positive_float_accepted(self):
+        cfg = self._cfg_with_battery("30.0")
+        result = validate_config(cfg)
+        errs = [e for e in result.errors if "min_callback_interval_sec" in e]
+        assert errs == []
+
+    def test_zero_accepted(self):
+        """0 disables the cap — must validate (rate cap off, PR #229 behavior)."""
+        cfg = self._cfg_with_battery("0.0")
+        result = validate_config(cfg)
+        errs = [e for e in result.errors if "min_callback_interval_sec" in e]
+        assert errs == []
+
+    def test_negative_rejected(self):
+        cfg = self._cfg_with_battery("-5.0")
+        result = validate_config(cfg)
+        assert any(
+            "min_callback_interval_sec" in e for e in result.errors
+        ), f"expected negative-value error; got {result.errors}"
+
+    def test_non_numeric_rejected(self):
+        cfg = self._cfg_with_battery("soon")
+        result = validate_config(cfg)
+        assert any(
+            "min_callback_interval_sec" in e for e in result.errors
+        ), f"expected non-numeric error; got {result.errors}"
+
+    def test_max_clamp_at_3600(self):
+        """3600s is the upper bound (an hour is generous for a noisy pack)."""
+        cfg = self._cfg_with_battery("99999")
+        result = validate_config(cfg)
+        assert any(
+            "min_callback_interval_sec" in e and "at most" in e
+            for e in result.errors
+        )
+
+
+# ---------------------------------------------------------------------------
+# Issue #234 R3-3 — shared-battery + low_threshold_pct soft warning
+# ---------------------------------------------------------------------------
+
+
+class TestSharedBatteryThresholdWarning:
+    """Soft-validation warning when low_threshold_pct interacts poorly with
+    a shared-battery vehicle profile (issue #234 R3-3 tuning-trap).
+
+    Schema only enforces critical < low; an operator setting
+    low_threshold_pct=95 on a USV with shared_battery=true gets
+    immediate graceful-stop on a fresh pack. This layer surfaces that.
+    """
+
+    @staticmethod
+    def _set_low(cfg, value: str) -> None:
+        if not cfg.has_section("battery"):
+            cfg.add_section("battery")
+        cfg.set("battery", "low_threshold_pct", value)
+
+    def test_warn_fires_when_low_above_50_and_shared_true(self):
+        cfg = _valid_config()
+        self._set_low(cfg, "95")
+        cfg.add_section("vehicle.usv")
+        cfg.set("vehicle.usv", "shared_battery", "true")
+        result = validate_config(cfg)
+        matched = [w for w in result.warnings if "low_threshold_pct" in w]
+        assert matched, f"expected R3-3 warning; got {result.warnings}"
+        assert any("graceful-stop" in w for w in matched)
+        assert any("vehicle.usv" in w for w in matched)
+
+    def test_warn_silent_when_shared_battery_false(self):
+        cfg = _valid_config()
+        self._set_low(cfg, "95")
+        cfg.add_section("vehicle.drone")
+        cfg.set("vehicle.drone", "shared_battery", "false")
+        result = validate_config(cfg)
+        matched = [
+            w for w in result.warnings
+            if "low_threshold_pct" in w and "graceful-stop" in w
+        ]
+        assert matched == [], (
+            f"R3-3 warning should not fire when shared_battery=false; "
+            f"got {result.warnings}"
+        )
+
+    def test_warn_silent_when_low_pct_in_safe_range(self):
+        """low_threshold_pct=20 (default) with shared_battery=true is fine."""
+        cfg = _valid_config()
+        self._set_low(cfg, "20")
+        cfg.add_section("vehicle.usv")
+        cfg.set("vehicle.usv", "shared_battery", "true")
+        result = validate_config(cfg)
+        matched = [
+            w for w in result.warnings
+            if "low_threshold_pct" in w and "graceful-stop" in w
+        ]
+        assert matched == [], f"unexpected R3-3 warning; got {matched}"
+
+    def test_warn_boundary_at_50(self):
+        """50 is the boundary — strictly greater than fires."""
+        cfg = _valid_config()
+        self._set_low(cfg, "50")
+        cfg.add_section("vehicle.usv")
+        cfg.set("vehicle.usv", "shared_battery", "true")
+        result = validate_config(cfg)
+        matched = [
+            w for w in result.warnings
+            if "low_threshold_pct" in w and "graceful-stop" in w
+        ]
+        assert matched == [], f"50 should be at-boundary safe; got {matched}"
+
+        cfg.set("battery", "low_threshold_pct", "51")
+        result = validate_config(cfg)
+        matched = [
+            w for w in result.warnings
+            if "low_threshold_pct" in w and "graceful-stop" in w
+        ]
+        assert matched, f"51 should fire warning; got {result.warnings}"
+
+    def test_warn_fires_for_vehicle_fw_shared_true(self):
+        """vehicle.fw has explicit schema — warning still catches it."""
+        cfg = _valid_config()
+        self._set_low(cfg, "80")
+        cfg.add_section("vehicle.fw")
+        cfg.set("vehicle.fw", "shared_battery", "true")
+        result = validate_config(cfg)
+        matched = [
+            w for w in result.warnings
+            if "low_threshold_pct" in w and "graceful-stop" in w
+        ]
+        assert matched, f"expected R3-3 warning; got {result.warnings}"
+        assert any("vehicle.fw" in w for w in matched)
+
+    def test_warn_silent_when_no_vehicle_profile_present(self):
+        """No vehicle.* sections at all → no shared-battery context → no warn."""
+        cfg = _valid_config()
+        self._set_low(cfg, "95")
+        result = validate_config(cfg)
+        matched = [
+            w for w in result.warnings
+            if "low_threshold_pct" in w and "graceful-stop" in w
+        ]
+        assert matched == [], f"unexpected R3-3 warning; got {matched}"
+
+
+# ---------------------------------------------------------------------------
+# Property-based tests via hypothesis
+# ---------------------------------------------------------------------------
+
+from hypothesis import HealthCheck, given, settings, strategies as st  # noqa: E402
+
+
+# Deterministic + fast settings so CI doesn't flake / slow.  30 examples is
+# plenty for these simple coercion properties; each case is <1ms.
+_hyp = settings(
+    max_examples=30,
+    deadline=1000,
+    derandomize=True,
+    suppress_health_check=[HealthCheck.function_scoped_fixture],
+)
+
+
+class TestPropertyBased:
+    """Strategy-driven sweeps across coercion / range / enum rules."""
+
+    @given(conf=st.floats(min_value=0.0, max_value=1.0, allow_nan=False,
+                          allow_infinity=False))
+    @_hyp
+    def test_yolo_confidence_in_range_validates(self, conf):
+        cfg = _valid_config()
+        cfg.set("detector", "yolo_confidence", str(conf))
+        result = validate_config(cfg)
+        assert not any("yolo_confidence" in e for e in result.errors), (
+            f"conf={conf} should be valid but errors={result.errors}"
+        )
+
+    @given(conf=st.floats(min_value=1.01, max_value=1e6, allow_nan=False,
+                          allow_infinity=False))
+    @_hyp
+    def test_yolo_confidence_above_range_fails(self, conf):
+        cfg = _valid_config()
+        cfg.set("detector", "yolo_confidence", str(conf))
+        result = validate_config(cfg)
+        assert any("yolo_confidence" in e for e in result.errors)
+
+    @given(conf=st.floats(min_value=-1e6, max_value=-0.01, allow_nan=False,
+                          allow_infinity=False))
+    @_hyp
+    def test_yolo_confidence_negative_fails(self, conf):
+        cfg = _valid_config()
+        cfg.set("detector", "yolo_confidence", str(conf))
+        result = validate_config(cfg)
+        assert any("yolo_confidence" in e for e in result.errors)
+
+    @given(val=st.sampled_from([
+        "true", "True", "TRUE", "1", "yes", "on", "Yes", "ON",
+        "false", "False", "FALSE", "0", "no", "off", "No", "OFF",
+    ]))
+    @_hyp
+    def test_bool_variants_all_valid(self, val):
+        cfg = _valid_config()
+        cfg.set("mavlink", "enabled", val)
+        result = validate_config(cfg)
+        assert not any(
+            "enabled" in e and "true or false" in e for e in result.errors
+        ), f"bool '{val}' should be valid"
+
+    @given(val=st.text(min_size=1, max_size=20).filter(
+        lambda s: s.lower() not in (
+            "true", "false", "yes", "no", "1", "0", "on", "off",
+        ) and s.strip() != ""
+    ))
+    @_hyp
+    def test_arbitrary_strings_reject_as_bool(self, val):
+        cfg = _valid_config()
+        cfg.set("mavlink", "enabled", val)
+        result = validate_config(cfg)
+        assert any(
+            "enabled" in e and "true or false" in e for e in result.errors
+        ), f"'{val}' should fail bool validation"
+
+    @given(src=st.sampled_from(["auto", "usb", "rtsp", "file", "v4l2", "analog"]))
+    @_hyp
+    def test_source_type_enum_valid(self, src):
+        cfg = _valid_config()
+        cfg.set("camera", "source_type", src)
+        result = validate_config(cfg)
+        assert not any("source_type" in e for e in result.errors)
+
+    @given(src=st.text(min_size=1, max_size=20).filter(
+        lambda s: s.lower() not in (
+            "auto", "usb", "rtsp", "file", "v4l2", "analog",
+        )
+    ))
+    @_hyp
+    def test_source_type_enum_invalid_strings_rejected(self, src):
+        cfg = _valid_config()
+        cfg.set("camera", "source_type", src)
+        result = validate_config(cfg)
+        assert any("source_type" in e for e in result.errors), (
+            f"'{src}' should be rejected as invalid source_type"
+        )

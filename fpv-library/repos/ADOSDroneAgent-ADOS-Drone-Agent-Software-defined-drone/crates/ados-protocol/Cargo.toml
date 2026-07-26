@@ -1,0 +1,48 @@
+[package]
+name = "ados-protocol"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Canonical implementation of the ADOS Drone Agent IPC wire contracts: length-prefixed framing, plugin RPC envelope and capability tokens, and the vehicle-state codec."
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+# The shared no-provider rustls crypto-provider install (crypto.rs), so every
+# bare reqwest client builder in the agent installs the RustCrypto provider once
+# (no ring / aws-lc). Already in the workspace via ados-cloud.
+rustls = { version = "0.23", default-features = false }
+rustls-rustcrypto = "=0.0.2-alpha"
+rmp-serde = { workspace = true }
+rmpv = { workspace = true }
+hmac = { workspace = true }
+sha2 = { workspace = true }
+base64 = { workspace = true }
+hex = { workspace = true }
+thiserror = { workspace = true }
+getrandom = { workspace = true }
+tokio = { workspace = true }
+ureq = { workspace = true }
+# The MAVLink dialect is a large, slow-to-compile generated enum, and most
+# consumers (e.g. the TUI) do not need it, so it is behind the `mavlink`
+# feature. Renamed to avoid clashing with this crate's own `mavlink` module.
+rust_mavlink = { package = "mavlink", version = "0.13", default-features = false, features = ["ardupilotmega", "std"], optional = true }
+# Producer-side log shipping. Only the service binaries that ship logs to the
+# daemon pull these in (via the `tracing-layer` feature); the daemon and the
+# build tools stay lean without them.
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true, optional = true }
+
+[dev-dependencies]
+# Temp directories for the pairing-posture file-reader tests.
+tempfile = "3"
+
+[features]
+default = []
+# Enable the MAVLink codec module (ardupilotmega dialect).
+mavlink = ["dep:rust_mavlink"]
+# Enable the producer-side `tracing` layer that ships log events to the logging
+# daemon's ingest socket. Pulls in tracing + tracing-subscriber; the socket I/O
+# and bounded channel reuse the tokio dependency already present.
+tracing-layer = ["dep:tracing-subscriber"]

@@ -1,0 +1,86 @@
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.env
+logs/
+crops/
+*.pt
+*.onnx
+*.engine
+.venv/
+venv/
+hydra-docs-rewrite/
+
+# Runtime output
+output_data/
+
+# Kismet capture files
+*.kismet
+*.kismet-journal
+
+# Backup / temp files
+*.bak
+
+# Scratch workspace — bench scripts, throwaway configs, captured logs.
+# Contains hardcoded API tokens and operational data; must never be
+# committed. Currently kept untracked by convention; explicit ignore
+# closes the `git add -A` gap.
+.tmp/
+
+# Large reference material (not source — keep local only)
+docs/reference/
+docs/sorcc manuals/
+
+# TLS certificates (auto-generated)
+certs/
+
+# Claude Code / Superpowers
+.superpowers/
+
+# Evo experiment workspace
+.evo/
+
+# Local environment (secrets, IPs)
+.env.local
+
+# pytest-cov + hypothesis artifacts
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.hypothesis/
+
+# === INTERNAL — DO NOT COMMIT ===
+# These paths house AI-assistant scaffolding, internal dev journals,
+# session handoffs, and red-team specs. Kept locally for Kyle's workflow,
+# never pushed to the public repo. If you add a new agent/skill/plan,
+# put it here so it stays out of the public surface.
+
+# Claude Code & sub-agent scaffolding (covers .claude/worktrees/ too)
+.claude/
+.agents/
+
+# Repo-specific AI assistant guidelines (kept local)
+CLAUDE.md
+AGENTS.md
+
+# Personal dev journals & internal roadmaps
+CODE_REVIEW_TRACKER.md.local
+plan.md
+AUDIT_LOG.md
+
+# Internal dev / preservation / dashboard notes
+docs/dev-loop.md
+docs/development.md
+docs/preservation-rules.md
+docs/SORCC_DASHBOARD_AUDIT.md
+docs/sitl-testing.md
+
+# Claude session handoffs and design specs
+docs/superpowers/
+
+# Internal red-team / adversarial issue tracking
+docs/adversarial/

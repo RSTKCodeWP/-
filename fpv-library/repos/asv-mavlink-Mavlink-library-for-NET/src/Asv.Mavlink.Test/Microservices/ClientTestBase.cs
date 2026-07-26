@@ -1,0 +1,60 @@
+using System;
+using Asv.Common;
+using Asv.IO;
+using Asv.XUnit;
+using TimeProviderExtensions;
+
+using Xunit;
+namespace Asv.Mavlink.Test;
+
+public abstract class ClientTestBase<TClient> : IDisposable
+{
+    private TClient? _client;
+
+    protected ClientTestBase(ITestOutputHelper log)
+    {
+        Log = log;
+        
+        Time = new ManualTimeProvider();
+        Seq = new PacketSequenceCalculator();
+        Identity = new MavlinkClientIdentity(1, 2, 3, 4);
+        var loggerFactory = new TestLoggerFactory(log, Time, "SERVER");
+        var messageFactory = MavlinkV2Protocol.CreateMessageFactory();
+        var protocol = Protocol.Create(builder =>
+        {
+            builder.SetLog(loggerFactory);
+            builder.SetTimeProvider(Time);
+            builder.RegisterMavlinkV2Protocol(messageFactory);
+            
+        });
+        Link = protocol.CreateVirtualConnection();
+        Context = new CoreServices(Link.Client,messageFactory, Seq, new TestLoggerFactory(log, Time, "CLIENT"), Time, new DefaultMeterFactory());
+    }
+    
+    protected abstract TClient CreateClient(MavlinkClientIdentity identity, CoreServices core);
+    protected MavlinkClientIdentity Identity { get; }
+    protected ITestOutputHelper Log { get; }
+    protected TClient Client => _client ??= CreateClient(Identity, Context);
+    protected CoreServices Context { get; }
+    protected PacketSequenceCalculator Seq { get; }
+    protected ManualTimeProvider Time { get; }
+    protected IVirtualConnection Link { get; }
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            Link.Dispose();
+            if (_client is IDisposable client)
+            {
+                client.Dispose();
+            }
+        }
+    }
+
+    public void Dispose()
+    {
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+}

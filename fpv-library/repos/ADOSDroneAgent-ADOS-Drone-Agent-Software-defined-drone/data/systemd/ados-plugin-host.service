@@ -1,0 +1,50 @@
+[Unit]
+Description=ADOS Plugin Host
+After=ados-mavlink.service
+PartOf=ados-supervisor.service
+StartLimitInterval=60s
+StartLimitBurst=5
+
+[Service]
+# Join the shared accounting slice so MemoryCurrent/CPUUsage are
+# observable per unit (the slice sets MemoryAccounting=yes).
+Slice=ados.slice
+Type=simple
+# The native plugin host owns the per-plugin sockets by default: it runs its
+# native binary whenever the binary is present, UNLESS the operator pins the
+# packaged path with the fallback marker. When the marker is present (or the
+# binary is absent) the ExecStart is /bin/true and the packaged host server,
+# started on the supervisor's loop, serves the sockets instead. The native host
+# and the packaged server both bind /run/ados/plugins/<id>.sock, so they are
+# mutually exclusive and exactly one is the active owner. A routine install
+# enables this unit and the supervisor pulls it up (see [Install] below) with
+# zero manual steps. To pin the packaged path on a bench:
+#   ados rust disable plugin-host
+ExecStart=/bin/sh -c 'if [ -e /etc/ados/plugin-host-python-fallback ] || [ ! -x /opt/ados/bin/ados-plugin-host ]; then exec /bin/true; else exec /opt/ados/bin/ados-plugin-host; fi'
+Restart=on-failure
+RestartSec=3
+Environment=ADOS_CONFIG=/etc/ados/config.yaml
+EnvironmentFile=-/etc/ados/env
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+# The shipping daemon only discovers plugins + serves sockets (read-only), so
+# the current grants suffice and plugin lifecycle writes stay on the privileged
+# install path. When install/enable/remove move into this daemon, it will write
+# per-plugin unit files + the shared slice under /etc/systemd/system, append
+# logs under /var/log/ados/plugins, and unpack under /var/ados/plugins — add
+# those to ReadWritePaths at that cutover.
+ReadWritePaths=/var/ados /run/ados /etc/ados
+LimitNOFILE=8192
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ados-plugin-host
+
+[Install]
+# The native host owns the per-plugin sockets by default, so a routine install
+# enables this unit. Wanted by the supervisor (which it is PartOf) so the
+# supervisor pulls it up and a supervisor restart cycles it with the rest of the
+# set. Pinning the packaged path (the fallback marker) leaves the unit enabled
+# but its ExecStart resolves to /bin/true, so the packaged server serves instead.
+WantedBy=ados-supervisor.service

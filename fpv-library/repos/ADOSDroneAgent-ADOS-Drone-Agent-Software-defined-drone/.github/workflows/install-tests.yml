@@ -1,0 +1,74 @@
+name: install-tests
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/install.sh'
+      - 'scripts/drivers/**'
+      - 'scripts/lib/**'
+      - 'scripts/test/**'
+      - 'data/overlays/**'
+      - 'data/systemd/**'
+      - '.github/workflows/install-tests.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/install.sh'
+      - 'scripts/drivers/**'
+      - 'scripts/lib/**'
+      - 'scripts/test/**'
+      - 'data/overlays/**'
+      - 'data/systemd/**'
+      - '.github/workflows/install-tests.yml'
+
+jobs:
+  shell-tests:
+    name: shell + DTS lint harness
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: install toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            bats minisign shellcheck \
+            device-tree-compiler \
+            linux-headers-generic cpp
+
+      - name: shellcheck bootstrap + library + driver + test scripts
+        # --severity=warning: do not fail the build on advisory info-level
+        # notes (SC1091 unfollowed sources, SC2015 cd && pwd || true idiom).
+        # The tree is clean at warning severity and above.
+        run: |
+          shellcheck --severity=warning \
+            scripts/install.sh \
+            scripts/lib/net.sh \
+            scripts/lib/verify.sh \
+            scripts/drivers/install-display-overlay.sh \
+            scripts/drivers/install-rtl8812eu.sh \
+            scripts/test/e2e-install-rig.sh \
+            scripts/test/minisign_verify_smoke.sh \
+            scripts/test/verify_smoke.sh \
+            scripts/test/lint_overlay_invariants.sh \
+            scripts/test/compile_overlays.sh
+
+      - name: install bootstrap syntax check
+        run: sh -n scripts/install.sh
+
+      - name: minisign verify smoke
+        run: bash scripts/test/minisign_verify_smoke.sh
+
+      - name: verify.sh smoke
+        run: bash scripts/test/verify_smoke.sh
+
+      - name: per-board overlay invariant lint
+        run: bash scripts/test/lint_overlay_invariants.sh
+
+      - name: compile every device-tree overlay
+        run: bash scripts/test/compile_overlays.sh
+
+      # bats is installed above but no suite was ever executed, so the
+      # checked-in .bats files never gated a push. Run all of them.
+      - name: bats suites
+        run: bats scripts/test/*.bats

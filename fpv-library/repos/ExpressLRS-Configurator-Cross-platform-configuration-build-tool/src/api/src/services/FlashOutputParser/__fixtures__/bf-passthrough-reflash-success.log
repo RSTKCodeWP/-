@@ -1,0 +1,45 @@
+  ** Searching flight controllers **
+      > FC found from '/dev/ttyACM0'
+
+Detected the following serial ports on this system:
+  /dev/ttyACM0
+
+======== PASSTHROUGH INIT ========
+  Trying to initialize /dev/ttyACM0 @ 420000
+No CLI available. Already in passthrough mode?, If this fails reboot FC and try again!
+======== RESET TO BOOTLOADER ========
+  * Using full duplex (CRSF)
+Cannot detect RX target, blindly flashing!
+esptool.py v4.2.1
+Serial port /dev/ttyACM0
+WARNING: Pre-connection option "no_reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting...
+Chip is ESP32-C3 (revision 4)
+Features: Wi-Fi
+Crystal is 40MHz
+MAC: a0:85:e3:00:60:98
+Stub is already running. No upload is necessary.
+WARNING: Failed to communicate with the flash chip, read/write operations will fail. Try checking the chip connections or removing any other hardware connected to IOs.
+Configuring flash size...
+Warning: Could not auto-detect Flash size (FlashID=0x0, SizeID=0x0), defaulting to 4MB
+Flash will be erased from 0x00010000 to 0x00144fff...
+Compressed 1263088 bytes to 768909...
+Writing at 0x00010000... (0 %)
+Writing at 0x00015a7c... (2 %)
+Writing at 0x0001b1d4... (5 %)
+Writing at 0x00029320... (10 %)
+Writing at 0x000433a5... (15 %)
+Writing at 0x0005aa4e... (20 %)
+Writing at 0x0007925d... (30 %)
+Writing at 0x00097564... (40 %)
+Writing at 0x000b8f21... (50 %)
+Writing at 0x000d9e02... (60 %)
+Writing at 0x000fb4c3... (70 %)
+Writing at 0x0011c7a4... (80 %)
+Writing at 0x001251dd... (90 %)
+Writing at 0x001436b5... (100 %)
+Wrote 1263088 bytes (768909 compressed) at 0x00010000 in 29.0 seconds (effective 348.0 kbit/s)...
+Hash of data verified.
+
+Leaving...
+Hard resetting via RTS pin...

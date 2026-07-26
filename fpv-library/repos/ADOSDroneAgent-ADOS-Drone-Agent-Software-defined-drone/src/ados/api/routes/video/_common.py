@@ -1,0 +1,392 @@
+"""Shared constants, helpers, and Pydantic models for video routes.
+
+Holding these in one private module avoids per-sub-router redeclaration
+and keeps the shared mediamtx port numbers / pipeline accessor in one
+place where every sub-module imports them.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+from pathlib import Path
+from typing import Any, Literal
+
+import httpx
+from pydantic import BaseModel, Field
+
+from ados.api.deps import get_agent_app
+
+# httpx logs every request at INFO. These mediamtx health probes fire on every
+# dashboard/heartbeat poll against loopback, so at INFO they flood the journal
+# with `GET http://127.0.0.1:8889/main/whep "405 ..."` lines that look like
+# errors but are the normal bound-endpoint signal. Lift the threshold to WARNING
+# so only genuine httpx problems surface; the probe results are reported through
+# the video state, not the request log.
+logging.getLogger("httpx").setLevel(logging.WARNING)
+
+# mediamtx default ports — must match the values in mediamtx.py.
+_MEDIAMTX_API_PORT = 9997
+_MEDIAMTX_WEBRTC_PORT = 8889
+_MEDIAMTX_HLS_PORT = 8888
+
+# Serializes /api/video/record/{start,stop} so two simultaneous toggles
+# from the LCD page and the GCS cannot interleave and leave the
+# recorder in an inconsistent state.
+_RECORD_LOCK = asyncio.Lock()
+
+
+class CameraSwitchBody(BaseModel):
+    """Body for ``POST /api/video/camera/switch``."""
+
+    role: Literal["primary", "secondary"] = Field(
+        ..., description="Camera role to bind the device to."
+    )
+    device_path: str = Field(
+        ...,
+        min_length=1,
+        description="Filesystem device path of the target camera (e.g. /dev/video0).",
+    )
+
+
+class VideoConfigBody(BaseModel):
+    """Body for ``POST /api/video/config``.
+
+    Every field is optional; a request with no fields is a no-op
+    that returns the current snapshot. Fields are validated
+    individually and applied independently so a partial-update
+    request leaves the rest of the config untouched.
+    """
+
+    bitrate_kbps: int | None = Field(
+        default=None, ge=500, le=12000,
+        description="Encoder bitrate in kbps. Restarts the encoder.",
+    )
+    fec_k: int | None = Field(
+        default=None, ge=1, le=64,
+        description="Reed-Solomon K (data fragments per FEC block).",
+    )
+    fec_n: int | None = Field(
+        default=None, ge=2, le=128,
+        description="Reed-Solomon N (total fragments per FEC block).",
+    )
+    mcs: int | None = Field(
+        default=None, ge=0, le=7,
+        description="802.11 MCS index passed to wfb_tx -M.",
+    )
+    auto: bool | None = Field(
+        default=None,
+        description="Toggle closed-loop adaptive control.",
+    )
+    tier_idx: int | None = Field(
+        default=None, ge=0, le=8,
+        description="Pin a specific tier on the bitrate/FEC ladder. "
+                    "Implicitly sets auto=False.",
+    )
+    preset: Literal["conservative", "balanced", "aggressive"] | None = Field(
+        default=None,
+        description="Apply a named link preset's (mcs, fec_k, fec_n) trio. "
+                    "Leaves adaptive control as-is.",
+    )
+
+
+def _get_video_pipeline():
+    """Retrieve the video pipeline from the agent app.
+
+    Returns the pipeline object or None if not initialized.
+    """
+    app = get_agent_app()
+    return app.video_pipeline()
+
+
+def _empty_recording_block() -> dict[str, Any]:
+    return {
+        "recording": False,
+        "recording_filename": None,
+        "recording_started_at": None,
+    }
+
+
+def _recording_block(pipeline: Any) -> dict[str, Any]:
+    """Pull recording state from a pipeline + its recorder.
+
+    Tolerates both the production VideoRecorder (which exposes
+    ``is_recording`` / ``current_filename`` / ``started_at``) and the
+    DemoVideoPipeline (which only exposes ``recording`` and a synthetic
+    path). Demo path returns the basename of the synthetic path so the
+    LCD page and GCS see a non-null filename when "recording" is on.
+    """
+    if pipeline is None:
+        return _empty_recording_block()
+
+    recorder = getattr(pipeline, "recorder", None)
+    if recorder is not None:
+        try:
+            is_rec = bool(getattr(recorder, "is_recording", recorder.recording))
+        except Exception:
+            is_rec = False
+        if not is_rec:
+            return _empty_recording_block()
+        filename: str | None
+        try:
+            filename = recorder.current_filename  # type: ignore[attr-defined]
+        except AttributeError:
+            current_path = getattr(recorder, "current_path", "") or ""
+            filename = Path(current_path).name if current_path else None
+        try:
+            started_at = recorder.started_at  # type: ignore[attr-defined]
+        except AttributeError:
+            started_at = None
+        return {
+            "recording": True,
+            "recording_filename": filename or None,
+            "recording_started_at": started_at,
+        }
+
+    # Demo pipeline path: only the boolean flag and the synthetic path
+    # are available.
+    is_rec = bool(getattr(pipeline, "recording", False))
+    if not is_rec:
+        return _empty_recording_block()
+    fake_path = getattr(pipeline, "_recording_path", "") or ""
+    return {
+        "recording": True,
+        "recording_filename": Path(fake_path).name if fake_path else None,
+        "recording_started_at": None,
+    }
+
+
+async def _probe_mediamtx() -> dict | None:
+    """Check if mediamtx is alive by hitting its local API.
+
+    In multi-process mode the VideoPipeline object lives in the
+    ados-video service, not in ados-api. The API service therefore
+    cannot call pipeline.get_status(). Instead we probe mediamtx's
+    REST API at localhost:9997 to determine whether a stream is
+    active.
+
+    Returns a small dict with stream metadata or None if mediamtx is
+    unreachable / has no active streams.
+    """
+    try:
+        async with httpx.AsyncClient(timeout=2.0) as client:
+            resp = await client.get(f"http://127.0.0.1:{_MEDIAMTX_API_PORT}/v3/paths/list")
+            if resp.status_code != 200:
+                return None
+            data = resp.json()
+            items = data.get("items", [])
+            if not items:
+                return None
+            path = items[0]
+            return {
+                "running": True,
+                "stream_name": path.get("name", "main"),
+                "ready": path.get("ready", False),
+                "tracks": path.get("tracks", []),
+                "readers": len(path.get("readers", [])),
+                "webrtc_port": _MEDIAMTX_WEBRTC_PORT,
+            }
+    except Exception:
+        return None
+
+
+async def _probe_mediamtx_via_whep() -> dict | None:
+    """Liveness probe via the public WHEP endpoint.
+
+    The ground-station MediaMTX (started by ``ados-mediamtx-gs``) puts
+    auth on the management API at :9997, so ``_probe_mediamtx()`` fails
+    with 401 even while the WHEP surface on :8889 is serving frames.
+    Probe the WHEP path instead. A GET on the POST-only WHEP endpoint
+    returns 405 when bound — that's the canonical "endpoint exists
+    and MediaMTX is up" signal, no credentials needed.
+
+    Returns the same dict shape as ``_probe_mediamtx()``. Crucially a
+    405 means BOUND, not STREAMING — the endpoint exists but this probe
+    cannot tell whether a publisher is actually delivering frames. So
+    ``ready`` is False (degraded, not ready); ``running`` is True. The
+    authoritative readiness is the :9997 paths-list (``ready &&
+    source``); this whep probe is only the fallback when :9997 is
+    auth-blocked, and it must not over-claim a ready stream.
+    """
+    try:
+        async with httpx.AsyncClient(timeout=2.0) as client:
+            resp = await client.get(
+                f"http://127.0.0.1:{_MEDIAMTX_WEBRTC_PORT}/main/whep"
+            )
+            if resp.status_code in (200, 204, 405):
+                return {
+                    "running": True,
+                    "stream_name": "main",
+                    # Bound, not proven-streaming: do not claim ready off a 405.
+                    "ready": False,
+                    "tracks": [],
+                    "readers": 0,
+                    "webrtc_port": _MEDIAMTX_WEBRTC_PORT,
+                }
+    except Exception:
+        return None
+    return None
+
+
+def mediamtx_whep_alive_sync() -> bool:
+    """Synchronous version of the WHEP liveness probe.
+
+    Same signal as ``_probe_mediamtx_via_whep`` but callable from the
+    heartbeat builder, which runs sync inside an otherwise-async loop.
+    Uses a 1s timeout so a stalled MediaMTX cannot delay heartbeat
+    delivery beyond one tick. A 200/204/405 means the WHEP endpoint is
+    BOUND (mediamtx is up), NOT that a publisher is streaming — callers
+    that need true readiness use ``mediamtx_ready_sync`` instead.
+    """
+    try:
+        with httpx.Client(timeout=1.0) as client:
+            resp = client.get(
+                f"http://127.0.0.1:{_MEDIAMTX_WEBRTC_PORT}/main/whep"
+            )
+            return resp.status_code in (200, 204, 405)
+    except Exception:
+        return False
+
+
+def mediamtx_ready_sync() -> tuple[bool, dict | None]:
+    """Authoritative video-readiness verdict + live track info, sync.
+
+    The :9997 paths-list is the PRIMARY readiness signal: a publisher is
+    really delivering only when the ``main`` path reports ``ready`` with
+    a ``source``. The WHEP GET (405-when-bound) is used ONLY as the
+    fallback when :9997 is unreachable or auth-blocked (the GS gates its
+    management API), and a bound-but-not-streaming WHEP is treated as
+    degraded (False), never ready. This is the fix for "video keeps
+    disappearing": the dashboard used a flaky 1s WHEP GET as its only
+    readiness gate while ignoring the authoritative paths-list it already
+    fetched.
+
+    Returns ``(ready, track_info)`` where ``track_info`` is the same dict
+    ``mediamtx_track_info_sync`` returns (codec/bitrate enrichment), or
+    ``None`` when no live track was read.
+    """
+    # Primary: the :9997 paths-list. A 200 with a ready main path + a non-empty
+    # source is proof of a live publisher.
+    try:
+        with httpx.Client(timeout=1.0) as client:
+            resp = client.get(
+                f"http://127.0.0.1:{_MEDIAMTX_API_PORT}/v3/paths/list"
+            )
+        status = resp.status_code
+    except Exception:
+        status = None
+        resp = None
+
+    if status == 200 and resp is not None:
+        try:
+            data = resp.json()
+        except ValueError:
+            data = None
+        path = _main_path_from_list(data)
+        if path is not None:
+            ready = bool(path.get("ready", False)) and bool(path.get("source"))
+            return ready, _track_info_from_path(path)
+        # 200 but no path yet — mediamtx is up, nothing publishing.
+        return False, None
+
+    # Fallback only when :9997 was unreachable or auth-blocked (401/4xx/None):
+    # the WHEP GET proves mediamtx is bound, but NOT that frames are flowing, so
+    # it is degraded (not ready). This keeps the GS (auth-gated :9997) from
+    # reporting a false "not running" while still never over-claiming ready.
+    return False, None
+
+
+def _main_path_from_list(data: object) -> dict | None:
+    """Pull the ``main`` path object out of a :9997 ``/v3/paths/list`` body,
+    falling back to the first path. ``None`` on a malformed body."""
+    if not isinstance(data, dict):
+        return None
+    items = data.get("items", [])
+    if not isinstance(items, list) or not items:
+        return None
+    path = next(
+        (p for p in items if isinstance(p, dict) and p.get("name") == "main"),
+        items[0] if isinstance(items[0], dict) else None,
+    )
+    return path if isinstance(path, dict) else None
+
+
+def _track_info_from_path(path: dict) -> dict | None:
+    """Project the codec/bitrate enrichment fields out of a paths-list path
+    object, matching ``mediamtx_track_info_sync``'s shape. ``None`` when no
+    track is present."""
+    tracks = path.get("tracks") or []
+    if not isinstance(tracks, list):
+        tracks = []
+    out: dict[str, object] = {
+        "bytes_received": path.get("bytesReceived"),
+        "ready": bool(path.get("ready", False)),
+    }
+    for track in tracks:
+        if isinstance(track, str) and track.strip() and "codec" not in out:
+            out["codec"] = track.strip()
+    return out or None
+
+
+def mediamtx_track_info_sync() -> dict | None:
+    """Best-effort sync read of the live MediaMTX track for path ``main``.
+
+    Returns a small dict with ``codec``, ``width``, ``height`` and
+    ``bytes_received`` pulled out of ``/v3/paths/list`` when the
+    management API is reachable and at least one track is active.
+    Falls back to ``None`` quickly (1s timeout) so the dashboard
+    snapshot poll never stalls.
+    """
+    try:
+        with httpx.Client(timeout=1.0) as client:
+            resp = client.get(
+                f"http://127.0.0.1:{_MEDIAMTX_API_PORT}/v3/paths/list"
+            )
+            if resp.status_code != 200:
+                return None
+            data = resp.json()
+    except Exception:
+        return None
+    items = data.get("items", []) if isinstance(data, dict) else []
+    if not items:
+        return None
+    path = next(
+        (p for p in items if isinstance(p, dict) and p.get("name") == "main"),
+        items[0] if isinstance(items[0], dict) else None,
+    )
+    if not isinstance(path, dict):
+        return None
+    tracks = path.get("tracks") or []
+    if not isinstance(tracks, list):
+        return None
+    out: dict[str, Any] = {
+        "bytes_received": path.get("bytesReceived"),
+        "ready": bool(path.get("ready", False)),
+    }
+    for track in tracks:
+        if not isinstance(track, str):
+            continue
+        upper = track.strip()
+        if not upper:
+            continue
+        if "codec" not in out:
+            out["codec"] = upper
+    return out or None
+
+
+__all__ = [
+    "_MEDIAMTX_API_PORT",
+    "_MEDIAMTX_WEBRTC_PORT",
+    "_MEDIAMTX_HLS_PORT",
+    "_RECORD_LOCK",
+    "CameraSwitchBody",
+    "VideoConfigBody",
+    "_get_video_pipeline",
+    "_empty_recording_block",
+    "_recording_block",
+    "_probe_mediamtx",
+    "_probe_mediamtx_via_whep",
+    "mediamtx_whep_alive_sync",
+    "mediamtx_ready_sync",
+    "mediamtx_track_info_sync",
+]

@@ -1,0 +1,121 @@
+[
+  {
+    "category": "Jumper",
+    "name": "Jumper AION Nano 2400 TX",
+    "targets": [
+      {
+        "flashingMethod": "UART",
+        "name": "Jumper_AION_NANO_2400_TX_via_UART"
+      },
+      {
+        "flashingMethod": "WIFI",
+        "name": "Jumper_AION_NANO_2400_TX_via_WIFI"
+      }
+    ],
+    "userDefines": [
+      "REGULATORY_DOMAIN_ISM_2400",
+      "REGULATORY_DOMAIN_EU_CE_2400",
+      "BINDING_PHRASE",
+      "TLM_REPORT_INTERVAL_MS",
+      "UART_INVERTED",
+      "AUTO_WIFI_ON_INTERVAL",
+      "HOME_WIFI_SSID",
+      "HOME_WIFI_PASSWORD"
+    ],
+    "wikiUrl": "https://www.expresslrs.org/quick-start/transmitters/jumper-aion/",
+    "deviceType": "ExpressLRS",
+    "aliases": []
+  },
+  {
+    "category": "Jumper",
+    "name": "Jumper AION T-Pro 2400 TX",
+    "targets": [
+      {
+        "flashingMethod": "UART",
+        "name": "Jumper_AION_2400_T-Pro_TX_via_UART"
+      },
+      {
+        "flashingMethod": "WIFI",
+        "name": "Jumper_AION_2400_T-Pro_TX_via_WIFI"
+      },
+      {
+        "flashingMethod": "EdgeTxPassthrough",
+        "name": "Jumper_AION_2400_T-Pro_TX_via_ETX"
+      }
+    ],
+    "userDefines": [
+      "REGULATORY_DOMAIN_ISM_2400",
+      "REGULATORY_DOMAIN_EU_CE_2400",
+      "BINDING_PHRASE",
+      "TLM_REPORT_INTERVAL_MS",
+      "AUTO_WIFI_ON_INTERVAL",
+      "HOME_WIFI_SSID",
+      "HOME_WIFI_PASSWORD"
+    ],
+    "wikiUrl": "https://www.expresslrs.org/quick-start/transmitters/aion-internal/",
+    "deviceType": "ExpressLRS",
+    "aliases": []
+  },
+  {
+    "category": "Jumper",
+    "name": "Jumper AION T-Lite 2400 TX",
+    "targets": [
+      {
+        "flashingMethod": "UART",
+        "name": "Jumper_AION_2400_T-Lite_TX_via_UART"
+      },
+      {
+        "flashingMethod": "WIFI",
+        "name": "Jumper_AION_2400_T-Lite_TX_via_WIFI"
+      },
+      {
+        "flashingMethod": "EdgeTxPassthrough",
+        "name": "Jumper_AION_2400_T-Lite_TX_via_ETX"
+      }
+    ],
+    "userDefines": [
+      "REGULATORY_DOMAIN_ISM_2400",
+      "REGULATORY_DOMAIN_EU_CE_2400",
+      "BINDING_PHRASE",
+      "TLM_REPORT_INTERVAL_MS",
+      "AUTO_WIFI_ON_INTERVAL",
+      "HOME_WIFI_SSID",
+      "HOME_WIFI_PASSWORD"
+    ],
+    "wikiUrl": "https://www.expresslrs.org/quick-start/transmitters/jumper-internal/",
+    "deviceType": "ExpressLRS",
+    "aliases": []
+  },
+  {
+    "category": "Jumper",
+    "name": "Jumper AION Nano 2400 RX",
+    "targets": [
+      {
+        "flashingMethod": "UART",
+        "name": "Jumper_AION_Nano_2400_RX_via_UART"
+      },
+      {
+        "flashingMethod": "WIFI",
+        "name": "Jumper_AION_Nano_2400_RX_via_WIFI"
+      },
+      {
+        "flashingMethod": "BetaflightPassthrough",
+        "name": "Jumper_AION_Nano_2400_RX_via_BetaflightPassthrough"
+      }
+    ],
+    "userDefines": [
+      "REGULATORY_DOMAIN_ISM_2400",
+      "REGULATORY_DOMAIN_EU_CE_2400",
+      "BINDING_PHRASE",
+      "LOCK_ON_FIRST_CONNECTION",
+      "AUTO_WIFI_ON_INTERVAL",
+      "HOME_WIFI_SSID",
+      "HOME_WIFI_PASSWORD",
+      "RCVR_UART_BAUD",
+      "RCVR_INVERT_TX"
+    ],
+    "wikiUrl": "",
+    "deviceType": "ExpressLRS",
+    "aliases": []
+  }
+]

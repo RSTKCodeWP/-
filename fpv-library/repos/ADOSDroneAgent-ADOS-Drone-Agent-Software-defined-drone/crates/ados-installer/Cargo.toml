@@ -1,0 +1,53 @@
+[package]
+name = "ados-installer"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Rust installer for the ADOS Drone Agent: a step-graph orchestrator that turns a freshly-flashed SBC into a paired, running agent."
+
+[[bin]]
+name = "ados-installer"
+path = "src/main.rs"
+
+[dependencies]
+ados-macpin = { path = "../ados-macpin" }
+# Reused for the launchd plist renderer (`render_plist`) + the reverse-DNS
+# label mapper (`unit_to_label`) the macOS workstation install writes into
+# `~/Library/LaunchAgents`; the runtime `LaunchdManager` in the same module
+# then manages those jobs.
+ados-supervisor = { path = "../ados-supervisor" }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_norway = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+# Live install progress UI. Only `ratatui::crossterm` is used (cursor + clear +
+# styled writes) for a render-only "sticky block"; no alternate screen, no raw
+# mode, no cursor-position query, so it is safe under `curl … | sudo bash`.
+ratatui = { workspace = true }
+# In-process SHA256 of fetched artifacts (the mandatory check; the optional
+# Ed25519 signature is verified by shelling out to `minisign -V` like the
+# predecessor installer, so no signature crate is pulled in here).
+sha2 = { workspace = true }
+hex = { workspace = true }
+# ISO-8601 second-precision UTC timestamps for the install-result contract.
+time = { version = "0.3", features = ["std", "formatting", "macros"] }
+# 12-hex device-id minting when /proc/sys/kernel/random/uuid is unavailable.
+getrandom = { workspace = true }
+
+# Linux-only edges (systemd notify + journald + setsid/killpg for sandboxed
+# OS probes + mode bits via nix). Confined to a target section so the
+# pure-logic core (step graph, result contract, arg parser, checkpoints) still
+# builds and `cargo test`s on a non-Linux dev host; the edge call sites are
+# cfg-gated with inert fallbacks.
+[target.'cfg(target_os = "linux")'.dependencies]
+sd-notify = { workspace = true }
+tracing-journald = { workspace = true }
+nix = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3"

@@ -1,0 +1,17 @@
+{
+  "detailsFor": "Detalhes para {{name}}",
+  "submit": "Guardar definições",
+  "loading": "A carregar detalhes do pacote...",
+  "visitProjectPage": "Visitar página do projeto",
+  "maintainer": "Responsável: {{name}}",
+  "remove": "Remover",
+  "install": "Instalar",
+  "installing": "A instalar pacote...",
+  "removing": "A remover pacote...",
+  "fetchPackageFailed": "Falha a obter detalhes do pacote!",
+  "removePackageFailed": "Falha a remover pacote:",
+  "installPackageFailed": "Falha a instalar o pacote:",
+  "fetchPackagesFailed": "Falha a obter lista de pacotes:",
+  "upgradeFailed": "Falha a atualizar pacotes:",
+  "fetchUpgradableFailed": "Falha a obter pacotes atualizáveis:"
+}

@@ -1,0 +1,129 @@
+<!-- Settings View — config.ini editor -->
+<nav class="settings-nav mock-tweaks-nav" id="settings-nav">
+    <div class="mock-section-label settings-nav-label">Tweaks</div>
+    <button class="settings-section-btn active" data-section="camera">Camera</button>
+    <button class="settings-section-btn" data-section="detector">Detector</button>
+    <button class="settings-section-btn" data-section="tracker">Tracker</button>
+    <button class="settings-section-btn" data-section="mavlink">MAVLink</button>
+    <button class="settings-section-btn" data-section="web">Web</button>
+    <button class="settings-section-btn" data-section="osd">OSD</button>
+    <button class="settings-section-btn" data-section="autonomous">Autonomous</button>
+    <button class="settings-section-btn" data-section="rf_homing">RF Homing</button>
+    <button class="settings-section-btn" data-section="tak">TAK/ATAK</button>
+    <button class="settings-section-btn" data-section="logging">Logging</button>
+    <button class="settings-section-btn" data-section="system_logs">System Logs</button>
+    <button class="settings-section-btn" data-section="system_tools">System Tools</button>
+</nav>
+
+<div class="settings-content mock-tweaks-content" id="settings-content">
+    <!-- Mock-style panel head — mirrors tweaks-panel .panel-head in design_reference -->
+    <div class="mock-panel-head settings-panel-head">
+        <span class="mock-panel-ttl">Settings</span>
+        <span class="mock-panel-sub">config.ini editor</span>
+    </div>
+    <!-- Warning banner for autonomous section -->
+    <div class="settings-warning" id="settings-warning" style="display:none;">
+        ⚠ AUTONOMOUS STRIKE — Changes here affect autonomous engagement behavior.
+        Ensure geofence and safety parameters are correct before enabling.
+    </div>
+
+    <!-- Error banner -->
+    <div class="settings-error" id="settings-error" style="display:none;"></div>
+
+    <!-- Dynamic form container -->
+    <div class="settings-form mock-tweaks-card" id="settings-form"></div>
+
+    <!-- System Tools — folded from former #systems tab. Sparkline metrics,
+         subsystems matrix, pre-flight checklist. Polled by HydraSystems. -->
+    <div class="settings-systems-panel" id="settings-systems-panel" style="display:none;">
+        {% include 'systems.html' %}
+    </div>
+
+    <!-- System Log Viewer -->
+    <div class="log-viewer-panel" id="log-viewer-panel" style="display:none;">
+        <div class="log-viewer-controls">
+            <label class="log-viewer-label">Level</label>
+            <select id="log-level-filter">
+                <option value="ALL">ALL</option>
+                <option value="DEBUG">DEBUG</option>
+                <option value="INFO" selected>INFO</option>
+                <option value="WARNING">WARNING</option>
+                <option value="ERROR">ERROR</option>
+            </select>
+            <label class="log-viewer-label">Lines</label>
+            <select id="log-line-count">
+                <option value="25">25</option>
+                <option value="50" selected>50</option>
+                <option value="100">100</option>
+                <option value="200">200</option>
+            </select>
+            <button class="btn" id="log-refresh-btn">Refresh</button>
+            <label class="log-viewer-label log-auto-label">
+                <span class="log-auto-indicator" id="log-auto-indicator"></span>
+                Auto-refresh
+            </label>
+        </div>
+        <div class="log-viewer" id="log-viewer-output"></div>
+    </div>
+
+    <!-- Restart required notice -->
+    <div class="settings-restart" id="settings-restart" style="display:none;">
+        <span>⟳ Some changes require a service restart to take effect.</span>
+        <div id="restart-fields"></div>
+    </div>
+
+    <!-- Action bar -->
+    <div class="settings-actions">
+        <button class="btn btn-green" id="settings-apply">Apply Changes</button>
+        <button class="btn" id="settings-reset">Reset to Saved</button>
+        <button class="btn" id="settings-restore" title="Restore from last backup">Restore Backup</button>
+        <button class="btn btn-danger" id="settings-restart-btn" title="Restart the detection pipeline">Restart Pipeline</button>
+    </div>
+    <div class="settings-restart-warning" id="settings-restart-warning" style="display:none;">
+        <span style="color:var(--warning);font-size:var(--font-sm);">This will briefly interrupt detection while the pipeline reinitializes.</span>
+    </div>
+
+    <!-- Recovery Tools — visually separated from normal settings -->
+    <div class="settings-recovery">
+        <div class="settings-recovery-label mock-section-label">Recovery Tools</div>
+        <div class="settings-recovery-actions">
+            <button class="btn btn-recovery btn-danger-outline" id="settings-factory-reset" title="Restore factory default configuration">Factory Reset</button>
+            <button class="btn btn-recovery" id="settings-export" title="Download current config as JSON">Export Config</button>
+            <button class="btn btn-recovery" id="settings-import" title="Upload a JSON config file">Import Config</button>
+            <input type="file" id="settings-import-file" accept=".json" style="display:none;">
+            <button class="btn btn-recovery" id="settings-session-export" title="Download logs, images, and session data as ZIP">Download Session Data</button>
+        </div>
+    </div>
+
+    <!-- Alternate Views — pages that are not part of the four-view topbar
+         (Operator / TAK / Config / Settings). Mobile Control, Instructor
+         Overview, and Sortie Review have their own full-screen layouts
+         tailored to different contexts. Setup Wizard re-opens first-boot
+         configuration. -->
+    <div class="settings-recovery">
+        <div class="settings-recovery-label mock-section-label">Alternate Views</div>
+        <div class="settings-recovery-actions">
+            <a class="btn btn-recovery" href="/control" title="Tablet-optimized control surface for the field">Mobile Control</a>
+            <a class="btn btn-recovery" href="/fleet" title="Fleet overview for monitoring multiple platforms">Fleet View</a>
+            <a class="btn btn-recovery" href="/review" title="Post-sortie detection review and export">Sortie Review</a>
+            <a class="btn btn-recovery" href="/setup" title="Re-run first-boot configuration wizard">Setup Wizard</a>
+            <!-- Issue #295: this page existed but was linked from nowhere -->
+            <a class="btn btn-recovery" href="/capabilities" title="Mission-readiness rollup — every capability with status and blocking reasons">Capabilities</a>
+        </div>
+    </div>
+
+    <!-- Session — only shown when web password auth is enabled -->
+    <div class="settings-recovery" id="settings-session-block" style="display:none;">
+        <div class="settings-recovery-label mock-section-label">Session</div>
+        <div class="settings-recovery-actions">
+            <button class="btn btn-recovery btn-danger-outline" id="settings-logout"
+                    title="Sign out of this dashboard session">Log Out</button>
+        </div>
+    </div>
+
+    {% if morale_features_enabled %}
+    <div class="settings-footer" id="settings-power-footer" style="display:none;">
+        <span class="settings-footer-link" id="settings-power-user">Power User Options</span>
+    </div>
+    {% endif %}
+</div>

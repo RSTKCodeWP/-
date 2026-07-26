@@ -1,0 +1,66 @@
+# Changelog
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## Unreleased
+
+### Added
+
+ - RTP JPEG / Motion JPEG payload format per [RFC 2435](https://datatracker.ietf.org/doc/html/rfc2435). New headers `smolrtsp/jpeg.h` (8-byte main JPEG header struct + 4-byte Quantization Table header struct + their serializers, RFC 2435 §3.1 / §3.1.8) and `smolrtsp/jpeg_transport.h` (`SmolRTSP_JpegTransport`, a thin packetizer over `SmolRTSP_RtpTransport`). `SmolRTSP_JpegTransport_send_frame` takes a pre-parsed `SmolRTSP_JpegFrame` -- type, Q, width/height in 8-pixel blocks, two optional quantization-table slices, scan-data slice -- splits the scan data into MTU-sized RTP packets, stamps the 24-bit Fragment Offset per packet, emits the QT block on the first packet only when Q >= 128, and sets the RTP marker bit on the final packet. The new `SMOLRTSP_WITH_JPEG` CMake option (default `ON`) gates the sources and propagates as a `PUBLIC` compile definition alongside the other five codec gates.
+ - RFC 2435 §3.1.7 Restart Marker header, for Motion JPEG sources whose scan carries restart markers (a `DRI` marker plus inline `RSTn` markers -- e.g. the Logitech C920 and many UVC webcams). `smolrtsp/jpeg.h` gains `SmolRTSP_JpegRestartHeader` (16-bit Restart Interval, F/L bits, 14-bit Restart Count) with `SmolRTSP_JpegRestartHeader_serialize`, plus the `SMOLRTSP_JPEG_RESTART_HEADER_SIZE` and `SMOLRTSP_JPEG_TYPE_RESTART` (= 64) constants. `SmolRTSP_JpegFrame` gains a `restart_interval` field: set it non-zero and move `hdr.type` into `[64, 127]` (base type + `SMOLRTSP_JPEG_TYPE_RESTART`), and `SmolRTSP_JpegTransport_send_frame` emits the 4-byte Restart Marker header immediately after the main header on every packet, with F=L=1 and Restart Count `0x3FFF` -- the whole-frame-reassembly escape, since the packetizer splits scan data on arbitrary byte offsets rather than restart boundaries. Frames without restart markers (`restart_interval == 0`, `type < 64`) are unchanged. Without it the receiver reconstructs a JPEG lacking a `DRI` marker while the scan still contains `RSTn` markers, so its DC predictor desyncs at the first restart interval.
+ - Per-codec compile-time gates: `SMOLRTSP_WITH_H264`, `SMOLRTSP_WITH_H265`, `SMOLRTSP_WITH_H266`, `SMOLRTSP_WITH_AV1`, `SMOLRTSP_WITH_JPEGXS`. Every option defaults to `ON` (no behaviour change for existing consumers). Switching one off removes the matching `.c` source from the build, the matching header from the umbrella `<smolrtsp.h>`, and -- for the H.26x family -- the matching `SmolRTSP_NalHeader` variant plus the per-codec arms in `SmolRTSP_NalTransportConfig`, `SmolRTSP_NalHeader_*`, and `SmolRTSP_NalTransport_send_packet`. At least one of `SMOLRTSP_WITH_H264 / _H265 / _H266` must remain `ON` (enforced by `FATAL_ERROR` at configure time). Each enabled option becomes a `PUBLIC` compile definition so callers see the same gates as the library. Lets downstream firmwares strip codecs no shipped sensor can produce -- OpenIPC's `hi3516ev200` lite build drops 4 KB of stripped binary with H.266 + AV1 + JPEG XS disabled.
+
+## 0.2.0 - 2026-05-24
+
+### Added
+
+ - H.266 / VVC RTP payload format per [RFC 9328](https://datatracker.ietf.org/doc/html/rfc9328). New header `smolrtsp/nal/h266.h` (2-byte NAL header struct, FU header, all VVC NAL unit type constants from H.266 §7.4.2.2) and a third variant in `SmolRTSP_NalHeader` -- VVC NALs flow through the existing `SmolRTSP_NalTransport` like H.264 / H.265, sharing the FU fragmentation logic. `SmolRTSP_NalTransportConfig` gains a `max_h266_nalu_size` field (defaults to 1200). The example server gains an opt-in `/vvc` stream behind the `ENABLE_VVC` CMake option.
+ - AV1 RTP payload format per the [AOMedia AV1 RTP Specification](https://aomediacodec.github.io/av1-rtp-spec/). New headers `smolrtsp/av1.h` (1-byte §4.4 aggregation header, LEB128 helpers, OBU constants) and `smolrtsp/av1_transport.h` (`SmolRTSP_Av1Transport`, a thin packetizer over `SmolRTSP_RtpTransport`). `send_temporal_unit` parses a raw OBU stream, drops Temporal Delimiter and Tile List OBUs, clears `obu_has_size_field`, and emits one OBU per RTP packet (W=1) with Z/Y continuation flags on cross-packet fragments. The example server gains an opt-in `/av1` stream behind the `ENABLE_AV1` CMake option.
+ - JPEG XS RTP payload format per [RFC 9134](https://datatracker.ietf.org/doc/html/rfc9134). New headers `smolrtsp/jpegxs.h` (4-byte RFC 9134 §4.3 payload header struct + serializer) and `smolrtsp/jpegxs_transport.h` (`SmolRTSP_JpegXsTransport`, a thin packetizer over `SmolRTSP_RtpTransport`). Both codestream (`K=0`) and slice (`K=1`) packetization modes are supported, with progressive and interlaced framing, and a configurable MTU. The example server gains an opt-in `/jpegxs` stream behind the `ENABLE_JPEGXS` CMake option.
+ - RTCP Sender Report (SR) serialization per [RFC 3550 §6.4.1](https://datatracker.ietf.org/doc/html/rfc3550#section-6.4.1). New header `smolrtsp/types/rtcp.h` exposing `SmolRTSP_RtcpSr`, `SmolRTSP_RtcpSr_size`, and `SmolRTSP_RtcpSr_serialize`. Currently emits the fixed 28-byte SR header (RC = 0).
+ - RTCP Receiver Report (RR), SDES with single CNAME item, and BYE serialization. New types `SmolRTSP_RtcpRr`, `SmolRTSP_RtcpSdesCname`, `SmolRTSP_RtcpBye` with matching `_size` / `_serialize` functions in `smolrtsp/types/rtcp.h`. SDES and BYE handle the variable-length item-list padding to 32-bit boundaries automatically.
+ - `SmolRTSP_RtpTransport_ssrc`, `SmolRTSP_RtpTransport_pkt_count`, and `SmolRTSP_RtpTransport_octet_count` accessors so callers can populate the corresponding fields of an RTCP Sender Report. `pkt_count` and `octet_count` are now tracked inside `SmolRTSP_RtpTransport` and advance with each successful `_send_packet` call.
+ - `SmolRTSP_RtpTransport_new_with_ssrc` — a constructor that accepts an explicit SSRC instead of generating one via `rand()`. The plain `_new` is now a thin wrapper that supplies `rand()` as the SSRC.
+
+### Fixed
+
+ - Update the minimum required CMake version to 3.10.0 due to deprecation (see [metalang99/issues/33](https://github.com/hirrolot/metalang99/issues/33)).
+ - Fix the `SmolRTSP_NalTransportConfig_default` value for H.265 ([PR #17](https://github.com/OpenIPC/smolrtsp/pull/17)).
+
+### Security
+
+ - Fix a remotely-triggerable stack-overflow denial of service in RTSP parsing (reported by [LL-V](https://github.com/LL-V), [#58](https://github.com/OpenIPC/smolrtsp/issues/58)). Attacker-controlled header values and numeric fields were copied onto the stack via unbounded `alloca` (`CharSlice99_alloca_c_str`), so a multi-megabyte `CSeq`/`Content-Length` could crash the process. Integer fields (`CSeq`, `Content-Length`, RTSP version, status code) are now parsed with a bounded, overflow-checked parser that also rejects a negative `Content-Length` (previously wrapped to `SIZE_MAX`), and header values longer than the new `SMOLRTSP_MAX_HEADER_VALUE` (default 1024, override-able) are rejected with the new `SmolRTSP_ParseError_HeaderValueTooLong` parse error.
+
+## 0.1.3 - 2023-03-12
+
+### Fixed
+
+ - Fix the `DOWNLOAD_EXTRACT_TIMESTAMP` CMake warning (see [datatype99/issues/15](https://github.com/hirrolot/datatype99/issues/15)).
+
+## 0.1.2 - 2022-07-27
+
+### Fixed
+
+ - Suppress a compilation warning for an unused variable in `smolrtsp_vheader`.
+ - Overflow while computing an RTP timestamp.
+
+## 0.1.1 - 2022-03-31
+
+### Fixed
+
+ - Mark the following functions with `__attribute__((warn_unused_result))` (when available):
+   - `SmolRTSP_ParseError_print`.
+   - `SmolRTSP_MessageBody_empty`.
+   - `SmolRTSP_Request_uninit`.
+   - `SmolRTSP_Response_uninit`.
+   - `SmolRTSP_NalTransportConfig_default`.
+   - `smolrtsp_determine_start_code`.
+   - `smolrtsp_dgram_socket`.
+
+## 0.1.0 - 2022-03-30
+
+### Added
+
+ - This awesome library.

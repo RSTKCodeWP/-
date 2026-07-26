@@ -1,0 +1,39 @@
+[Unit]
+Description=ADOS Uplink Router (ground-station profile)
+After=NetworkManager.service
+PartOf=ados-supervisor.service
+Requires=ados-supervisor.service
+StartLimitInterval=60s
+StartLimitBurst=5
+
+[Service]
+# Join the shared accounting slice so MemoryCurrent/CPUUsage are
+# observable per unit (the slice sets MemoryAccounting=yes).
+Slice=ados.slice
+Type=simple
+User=root
+# The native uplink matrix is the only implementation; the install verifies the
+# binary is present before this unit starts. The native daemon also owns the AP,
+# USB-gadget tether, and the ethernet/wifi/modem managers in-process, so its
+# subsumed packaged units are masked (handled by the installer). The packaged
+# Python uplink entrypoints were deleted, so there is no fallback branch.
+ExecStart=/opt/ados/bin/ados-net
+Restart=on-failure
+RestartSec=10
+Environment=ADOS_CONFIG=/etc/ados/config.yaml
+EnvironmentFile=-/etc/ados/env
+
+# Needs to read /proc/net and modify the routing table.
+AmbientCapabilities=CAP_NET_ADMIN CAP_NET_RAW
+NoNewPrivileges=no
+ProtectSystem=strict
+ReadWritePaths=/var/ados /var/lib/ados /run/ados /etc/ados
+
+MemoryMax=96M
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ados-uplink-router
+
+[Install]
+WantedBy=ados-supervisor.service

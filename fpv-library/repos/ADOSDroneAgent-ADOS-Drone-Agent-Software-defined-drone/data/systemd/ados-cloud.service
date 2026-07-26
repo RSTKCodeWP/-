@@ -1,0 +1,67 @@
+[Unit]
+Description=ADOS Cloud Relay (MQTT + Convex Heartbeat)
+After=ados-mavlink.service
+PartOf=ados-supervisor.service
+# Skip cleanly when the binary was not fetched for this profile rather than
+# crash-looping "binary missing"; the installer's health gate is the loud
+# failure for a binary that SHOULD be present.
+ConditionPathExists=/opt/ados/bin/ados-cloud
+StartLimitInterval=60s
+StartLimitBurst=5
+
+[Service]
+# Join the shared accounting slice so MemoryCurrent/CPUUsage are
+# observable per unit (the slice sets MemoryAccounting=yes).
+Slice=ados.slice
+Type=simple
+# The native cloud relay is the only implementation; the Python service was
+# removed once the Rust binary passed its bench gate. The installer always
+# fetches the binary, so this normally just execs it; if it is somehow absent
+# the unit fails loudly rather than running a stale path. Cloud relay still defaults to
+# local mode — this service is the secondary, opt-in remote path, not
+# cloud-first.
+ExecStart=/bin/sh -c 'if [ -x /opt/ados/bin/ados-cloud ]; then exec /opt/ados/bin/ados-cloud; else echo "ados-cloud binary missing; reinstall to fetch it" >&2; exit 1; fi'
+Restart=on-failure
+RestartSec=5
+Environment=ADOS_CONFIG=/etc/ados/config.yaml
+EnvironmentFile=-/etc/ados/env
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+# Private /tmp for the bind orchestrator. wfb_bind_client.sh +
+# wfb_bind_server.sh both use `mktemp -d` to stage the tar.gz of
+# config + drone.key during the bind protocol. Without PrivateTmp,
+# ProtectSystem=strict makes /tmp read-only and mktemp fails.
+PrivateTmp=yes
+# /etc is writable because a remote plugin-install command unpacks the
+# plugin and writes its per-plugin unit + the shared slice under
+# /etc/systemd/system. The radio bind keygen no longer runs here (it moved
+# to the supervisor); runtime config writes land under /etc/ados.
+ReadWritePaths=/var/ados /var/lib/ados /run/ados /etc/ados /etc
+
+# No elevated capabilities needed: the cloud relay does HTTP + MQTT
+# heartbeat and, on a remote-install command, asks PID 1 to reload/enable
+# units over the system bus (which needs no caller capability). The bind
+# orchestrator that previously justified CAP_SYS_ADMIN/CAP_NET_ADMIN moved
+# to the supervisor, so the bounding set is emptied.
+CapabilityBoundingSet=
+
+# Memory cap sized for the bind orchestrator's worst case: the cloud
+# service itself (~30M Python runtime + plugins) plus the bind window's
+# transient children (wfb bind server ~30M, socat + wfb_tx + wfb_rx
+# ~10M each). Anything under ~100M caused the bind to silently OOM-thrash
+# inside the cgroup — wfb-server stuck in mem_cgroup swap reclaim, never
+# responding to the VERSION/BIND handshake. 256M leaves comfortable
+# headroom and matches the sibling video / mediamtx-gs scale.
+MemoryMax=256M
+# CPU cap removed — the bind protocol is bursty (a few seconds of work
+# every 60 s when unpaired, near-zero post-pair), so capping was
+# producing throttling exactly when the bind needed CPU to drive the
+# bind protocol's base64 + tar + sha1sum + key write through socat.
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ados-cloud
+
+[Install]
+WantedBy=ados-supervisor.service

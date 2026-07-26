@@ -1,0 +1,17 @@
+{
+  "detailsFor": "Details für {{name}}",
+  "submit": "Einstellungen speichern",
+  "loading": "Lade Paketdetails...",
+  "visitProjectPage": "Projektseite besuchen",
+  "maintainer": "Verantwortlicher: {{name}}",
+  "remove": "Entfernen",
+  "install": "Installieren",
+  "installing": "Paket wird installiert...",
+  "removing": "Paket wird entfernt...",
+  "fetchPackageFailed": "Fehler beim Abrufen der Paketdetails!",
+  "removePackageFailed": "Fehler beim Entfernen des Pakets:",
+  "installPackageFailed": "Fehler beim Installieren des Pakets:",
+  "fetchPackagesFailed": "Fehler beim Abrufen der Paketliste:",
+  "upgradeFailed": "Fehler beim Aktualisieren der Pakete:",
+  "fetchUpgradableFailed": "Fehler beim Laden von aktualisierbaren Paketen:"
+}

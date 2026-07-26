@@ -1,0 +1,62 @@
+using System;
+using Asv.Common;
+using Asv.IO;
+using Asv.XUnit;
+using TimeProviderExtensions;
+
+using Xunit;
+namespace Asv.Mavlink.Test;
+
+public abstract class ServerTestBase<TServer> : IDisposable
+{
+    private TServer? _server;
+
+    protected ServerTestBase(ITestOutputHelper log)
+    {
+        Log = log;
+        
+        ServerTime = new ManualTimeProvider();
+        Seq = new PacketSequenceCalculator();
+        Identity = new MavlinkIdentity(3, 4);
+        var loggerFactory = new TestLoggerFactory(log, ServerTime, "SERVER");
+        var messageFactory = MavlinkV2Protocol.CreateMessageFactory();
+        var protocol = Protocol.Create(builder =>
+        {
+            builder.SetLog(loggerFactory);
+            builder.SetTimeProvider(ServerTime);
+            builder.RegisterMavlinkV2Protocol(messageFactory);
+            builder.Formatters.RegisterSimpleFormatter();
+        });
+        Link = protocol.CreateVirtualConnection();
+        Core = new CoreServices(Link.Server, messageFactory, Seq, loggerFactory, ServerTime, new DefaultMeterFactory());
+    }
+
+    
+
+    protected abstract TServer CreateServer(MavlinkIdentity identity, CoreServices core);
+    protected TServer Server => _server ??= CreateServer(Identity, Core);
+    protected MavlinkIdentity Identity { get; }
+    protected ITestOutputHelper Log { get; }
+    protected CoreServices Core { get; }
+    protected PacketSequenceCalculator Seq { get; }
+    protected ManualTimeProvider ServerTime { get; }
+    protected IVirtualConnection Link { get; }
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            Link.Dispose();
+            if (_server is IDisposable server)
+            {
+                server.Dispose();
+            }
+        }
+    }
+
+    public void Dispose()
+    {
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+}

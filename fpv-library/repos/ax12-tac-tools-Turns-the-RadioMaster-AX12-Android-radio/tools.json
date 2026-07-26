@@ -1,0 +1,75 @@
+{
+  "categories": [
+    {
+      "name": "BRIDGE",
+      "tools": [
+        {
+          "label": "COT BRIDGE",
+          "description": "Aircraft position to ATAK and TAK. Start here.",
+          "cmd": "su 0 /data/data/com.termux/files/usr/bin/python3 ~/ax12-tac-tools/tools/cot_bridge.py",
+          "shortcut": "atak",
+          "requires": ["root", "serial:/dev/ttyS1"],
+          "long_running": true
+        },
+        {
+          "label": "ATAK TEST",
+          "description": "Send one CoT blip to verify ATAK is listening",
+          "cmd": "/data/data/com.termux/files/usr/bin/python3 ~/ax12-tac-tools/tools/test_cot.py",
+          "shortcut": "cot-test",
+          "requires": [],
+          "long_running": false,
+          "timeout": 15
+        },
+        {
+          "label": "MAVLINK GCS",
+          "description": "Serve MAVLink to a laptop GCS (QGC, Mission Planner)",
+          "cmd": "/data/data/com.termux/files/usr/bin/python3 ~/ax12-tac-tools/tools/mavlink_bridge.py bridge",
+          "shortcut": "mavlink",
+          "requires": [],
+          "long_running": true
+        }
+      ]
+    },
+    {
+      "name": "FLIGHT OPS",
+      "tools": [
+        {
+          "label": "QGC LAUNCH",
+          "description": "Start bridge (detached) + open QGroundControl on-device",
+          "cmd": "bash ~/ax12-tac-tools/scripts/qgc-launch.sh",
+          "shortcut": "qgc",
+          "requires": [],
+          "long_running": false,
+          "timeout": 20
+        }
+      ]
+    },
+    {
+      "name": "UTILITIES",
+      "tools": [
+        {
+          "label": "GNSS DIAG",
+          "description": "GNSS diagnostic - shows zero satellites (no antenna populated)",
+          "cmd": "su 0 /data/data/com.termux/files/usr/bin/python3 ~/ax12-tac-tools/tools/gps_position.py",
+          "shortcut": "gps-mon",
+          "requires": ["root"],
+          "long_running": true
+        }
+      ]
+    },
+    {
+      "name": "SYSTEM",
+      "tools": [
+        {
+          "label": "UPDATE",
+          "description": "Pull latest code",
+          "cmd": "__update__",
+          "shortcut": "update",
+          "requires": [],
+          "long_running": false,
+          "timeout": 60
+        }
+      ]
+    }
+  ]
+}

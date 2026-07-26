@@ -1,0 +1,65 @@
+apply plugin: 'com.android.application'
+apply plugin: 'kotlin-android'
+apply plugin: 'com.google.firebase.crashlytics'
+
+android {
+    compileSdkVersion rootProject.compileSdkVersion
+    //ndkVersion rootProject.myNdkVersion
+    defaultConfig {
+        applicationId "constantin.video.example"
+        minSdkVersion rootProject.minSdkVersion
+        targetSdkVersion rootProject.targetSdkVersion
+        versionCode 9
+        versionName "9.0"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    buildFeatures{
+        viewBinding true
+    }
+    // for firebase testing
+    //signingConfigs {
+    //   debug {
+    //        storeFile file("C:\\Users\\geier\\Desktop\\FPV_VR\\YOther\\safety\\keystore.jks")
+    //   }
+    //}
+    // add the test files (assets) to the example (they are not included in VideoCore to save memory)
+    sourceSets {
+        main.assets.srcDirs += '../TestVideos'
+    }
+}
+
+dependencies {
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+
+    //firebase
+    implementation 'com.google.firebase:firebase-core:20.1.2'
+    implementation 'com.google.firebase:firebase-crashlytics:18.2.9'
+    implementation('com.google.firebase:firebase-firestore:24.1.0')
+
+    implementation("androidx.appcompat:appcompat:$appcompatVersion")
+    implementation("androidx.constraintlayout:constraintlayout:$rootProject.constraintlayoutVersion")
+
+    testImplementation 'junit:junit:4.13.2'
+    androidTestImplementation 'androidx.test:runner:1.4.0'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.4.0'
+    androidTestImplementation 'androidx.test:rules:1.4.0'
+
+    implementation project(path: ':VideoCore')
+    implementation project(path: ':uvcintegration')
+    implementation project(path: ':TelemetryCore')
+
+    implementation "androidx.core:core-ktx:1.7.0"
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
+
+    implementation 'com.jaredrummler:android-device-names:2.0.0'
+    implementation 'com.jjoe64:graphview:4.2.2'
+}
+
+apply plugin: 'com.google.gms.google-services'

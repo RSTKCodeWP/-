@@ -1,0 +1,319 @@
+# Prebuilt RTL8812EU kernel-module pipeline.
+#
+# Builds the patched 8812eu module against the EXACT kernels the supported
+# boards run, so a fresh install can load a verified prebuilt module instead
+# of compiling on the device (slow, and crash-prone on marginal hardware).
+#
+# The board fleet is a DATA FILE: `.github/driver-matrix.json` is the canonical
+# "blessed kernel images" registry (one row = one supported kernel image, keyed
+# on the exact `uname -r` × arch a module must vermagic-match). The matrix job
+# loads it; the build job fans out over the rows. Coverage is per kernel image,
+# NOT per board, so one row serves every board sharing that kernel. Adding a row
+# is purely additive: any rig whose kernel isn't in the manifest cleanly falls
+# back to the on-device DKMS build (vermagic-strict).
+#
+# Two header-sourcing modes per row (`headers_source`):
+#   * "apt" (group A) — a durable public repo (Raspberry Pi, BeagleBoard rcn-ee,
+#     Radxa, Armbian). The build installs `headers_pkg` from `apt_list` in a
+#     matched `container`. A versionless `headers_pkg` (e.g. linux-headers-rpi-v8,
+#     linux-headers-vendor-rk35xx) tracks the repo's current kernel, so the daily
+#     refresh follows the kernel forward and the manifest kver stays in step.
+#   * "deb" (group B) — a vendor-BSP kernel whose headers age out of / are pinned
+#     to the flashed image (Allwinner A733, Radxa RK3588 rsdk). The exact headers
+#     `.deb` is captured once from a live rig and hosted on the `bsp-headers`
+#     release; the build fetches + `dpkg`-installs it (`headers_deb_url` =
+#     "<tag>/<asset>" on this repo's releases, or a full URL). This makes CI
+#     reproduce the flashed kernel byte-for-byte regardless of whether the vendor
+#     still hosts that version.
+#
+# The build installs the headers, derives the exact kernelrelease, runs
+# build-prebuilt-ko.sh against it (same patches + relax-cflags as the on-device
+# DKMS build), and emits the artifact + a manifest row. The publish job folds the
+# rows into drivers-manifest.json and ships everything as Release assets.
+#
+# Triggers:
+#   - tag 'drivers-v*'   -> permanent stable Release (signed when the key
+#                           secret is present; SHA256-only otherwise)
+#   - workflow_dispatch  -> manual run for matrix iteration
+#   - schedule (daily)   -> refresh the rolling 'prebuilt-drivers' prerelease
+#                           as distro kernels advance
+#
+# Artifacts carry a SHA256 always; an Ed25519/minisign signature is added when
+# ADOS_DRIVER_SIGNING_KEY is set (forks / unset key skip signing cleanly). The
+# agent accepts SHA256-only in its dev posture and requires signatures only
+# when a self-hoster provisions a key.
+name: driver-build
+
+on:
+  push:
+    tags:
+      - "drivers-v*"
+  workflow_dispatch:
+  schedule:
+    - cron: "17 4 * * *"
+
+permissions:
+  contents: write
+
+jobs:
+  matrix:
+    name: load matrix
+    runs-on: ubuntu-24.04-arm
+    outputs:
+      include: ${{ steps.load.outputs.include }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: load
+        name: Load the blessed-image matrix
+        run: |
+          set -euo pipefail
+          command -v jq >/dev/null || { sudo apt-get update && sudo apt-get install -y jq; }
+          # driver-matrix.json is a JSON array of row objects; feed it straight
+          # into strategy.matrix.include via fromJSON.
+          echo "include=$(jq -c . .github/driver-matrix.json)" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: build (${{ matrix.flavor }})
+    needs: matrix
+    runs-on: ubuntu-24.04-arm
+    container: ${{ matrix.container }}
+    # Force bash for every run step: some container bases (e.g. debian:bookworm)
+    # resolve the default `run` shell to dash, which rejects `set -o pipefail`.
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.matrix.outputs.include) }}
+    steps:
+      # The container base is minimal; checkout needs git, and apt fetches need
+      # TLS roots. Install both before actions/checkout can run.
+      - name: Prepare container
+        run: |
+          set -eux
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y git ca-certificates
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install build toolchain
+        run: |
+          set -eux
+          DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            build-essential bc kmod patch gnupg curl jq libelf-dev \
+            libssl-dev bison flex \
+            python3 python-is-python3
+          # Some vendor BSP header packages (e.g. Armbian's rk35xx line) run a
+          # `make modules_prepare`/`scripts` step in their postinst, which on a
+          # 6.1 kernel wants openssl headers (module signing) and the bison/flex
+          # parser generators — install them so the headers install cleanly on
+          # every base. Harmless on rows whose headers ship pre-prepared.
+          # Some vendor BSP kernels (e.g. the RK3566 5.10 line) invoke the
+          # unversioned `python` from their build scripts; Debian ships only
+          # `python3`, so python-is-python3 provides the `python` shim. Fall
+          # back to a manual symlink if that package is unavailable on a base.
+          command -v python >/dev/null || ln -sf "$(command -v python3)" /usr/local/bin/python
+          # minisign is used only by the publish job (signing); on older bases
+          # (Debian 11 bullseye) it may be absent and the build never signs, so
+          # install it best-effort here.
+          DEBIAN_FRONTEND=noninteractive apt-get install -y minisign || true
+
+      - name: Add vendor kernel apt repo (group A)
+        if: ${{ matrix.headers_source == 'apt' }}
+        run: |
+          set -euxo pipefail
+          # trusted=yes skips upstream repo-signature verification. Repo-signature
+          # verification of the public headers feed is not our trust boundary: the
+          # .ko we publish carries its own SHA256 (and minisign signature when a
+          # key is set), so the artifact's integrity does not depend on the
+          # upstream apt signature. (An optional apt_key_url can still be pinned.)
+          echo "${{ matrix.apt_list }}" | tee /etc/apt/sources.list.d/vendor-kernel.list
+          if [ -n "${{ matrix.apt_key_url }}" ]; then
+            curl -fsSL "${{ matrix.apt_key_url }}" -o /etc/apt/trusted.gpg.d/vendor-kernel.asc || true
+          fi
+          apt-get update
+
+      - name: Install kernel headers from apt (group A)
+        if: ${{ matrix.headers_source == 'apt' }}
+        run: |
+          set -euxo pipefail
+          DEBIAN_FRONTEND=noninteractive apt-get install -y "${{ matrix.headers_pkg }}"
+
+      - name: Install kernel headers from a pinned .deb (group B / BSP)
+        if: ${{ matrix.headers_source == 'deb' }}
+        run: |
+          set -euxo pipefail
+          # headers_deb_url is one or more space-separated tokens; each is either a
+          # full URL or "<release-tag>/<asset>" on this repo's releases (e.g. a
+          # kernel-headers .deb captured from a live rig + uploaded to bsp-headers).
+          mkdir -p /tmp/hdr
+          for tok in ${{ matrix.headers_deb_url }}; do
+            case "$tok" in
+              http*) url="$tok" ;;
+              *)     url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${tok}" ;;
+            esac
+            echo "fetching ${url}"
+            curl -fsSL "$url" -o "/tmp/hdr/$(basename "$tok")"
+          done
+          # Local .deb install pulls deps (linux-base, etc.) from the base repos.
+          DEBIAN_FRONTEND=noninteractive apt-get install -y /tmp/hdr/*.deb
+
+      - name: Derive kernelrelease
+        id: kver
+        run: |
+          set -euxo pipefail
+          # The headers install drops /lib/modules/<KVER>/build; that <KVER> is
+          # the exact release the module must match. Pick the newest dir that
+          # actually has a build/ tree (find avoids ls-parsing pitfalls).
+          KVER="$(for d in /lib/modules/*/build; do [ -d "$d" ] && basename "$(dirname "$d")"; done | sort -V | tail -n1)"
+          test -n "${KVER}" && test -d "/lib/modules/${KVER}/build"
+          echo "kver=${KVER}" >> "$GITHUB_OUTPUT"
+
+      - name: Build the module
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          # The build script prints the manifest row (one JSON object) on stdout
+          # and everything else on stderr. Keep only the JSON line so a stray
+          # stdout write can never corrupt the row the publish job slurps.
+          bash scripts/drivers/build-prebuilt-ko.sh "${{ steps.kver.outputs.kver }}" out \
+            | grep '^{' > "out/row-${{ matrix.flavor }}.json"
+          cat "out/row-${{ matrix.flavor }}.json"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ko-${{ matrix.flavor }}
+          path: out/*
+          if-no-files-found: error
+
+  publish:
+    name: publish manifest + modules
+    needs: build
+    # Publish whatever rows DID build, even if a row failed. Coverage is
+    # per-kernel-image and additive: one BSP row breaking on a toolchain quirk
+    # must not withhold the other verified .ko's from the fleet. `!cancelled()`
+    # runs this after a partial build; the assemble step below aborts loudly only
+    # if EVERY row failed (nothing to publish).
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dl
+
+      - name: Install jq + minisign
+        run: sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y jq minisign
+
+      - name: Assemble manifest + collect artifacts
+        run: |
+          set -euo pipefail
+          mkdir -p rel
+          find dl -name '8812eu-*.ko' -exec cp {} rel/ \;
+          find dl -name '8812eu-*.ko.sha256' -exec cp {} rel/ \;
+          # Collect the per-row manifest fragments that were actually produced.
+          rows=$(find dl -name 'row-*.json')
+          if [ -z "${rows}" ]; then
+            echo "::error::no driver rows built — nothing to publish" >&2
+            exit 1
+          fi
+          echo "publishing $(echo "${rows}" | wc -l) driver row(s):"
+          echo "${rows}"
+          # Stamp each fresh row with the kernel line it belongs to (the
+          # matrix flavor, carried in the row filename) and when it was
+          # published, so the retention below can bound per LINE. Every
+          # flavor shares one module name, so grouping on the module alone
+          # would let one line's kernel history evict another line's only row.
+          NOW="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          : > /tmp/fresh.ndjson
+          for r in ${rows}; do
+            fl="$(basename "${r}" .json)"; fl="${fl#row-}"
+            jq -c --arg flavor "${fl}" --arg ts "${NOW}" \
+              '. + {flavor: $flavor, published: $ts}' "${r}" >> /tmp/fresh.ndjson
+          done
+
+          # MERGE with what is already published rather than replacing it.
+          # The module assets are never pruned, but a from-scratch manifest
+          # drops every kernel this run did not rebuild, so a board one
+          # apt-upgrade behind stops being served a module that is still
+          # sitting on the release. Carry those rows forward, the fresh build
+          # winning per (module, arch, kver), bounded per kernel line.
+          KEEP_PER_LINE=6
+          if curl -fsSL --max-time 30 \
+               "https://github.com/${GITHUB_REPOSITORY}/releases/download/prebuilt-drivers/drivers-manifest.json" \
+               -o /tmp/published.json 2>/dev/null; then
+            echo "merging with the published manifest ($(jq '.drivers | length' /tmp/published.json) row(s))"
+          else
+            echo "no published manifest reachable; publishing this run's rows only"
+            echo '{"drivers":[]}' > /tmp/published.json
+          fi
+
+          # Drop carried-over rows whose asset is no longer downloadable so the
+          # manifest never advertises something that 404s.
+          : > /tmp/carried.ndjson
+          jq -r '.drivers[]? | @base64' /tmp/published.json > /tmp/carried.b64 || : > /tmp/carried.b64
+          while IFS= read -r enc; do
+            [ -n "${enc}" ] || continue
+            row="$(printf '%s' "${enc}" | base64 -d)"
+            f="$(printf '%s' "${row}" | jq -r '.file // empty')"
+            [ -n "${f}" ] || continue
+            if [ -f "rel/${f}" ]; then
+              printf '%s\n' "${row}" >> /tmp/carried.ndjson
+            elif curl -fsIL --max-time 20 \
+                 "https://github.com/${GITHUB_REPOSITORY}/releases/download/prebuilt-drivers/${f}" \
+                 >/dev/null 2>&1; then
+              printf '%s\n' "${row}" >> /tmp/carried.ndjson
+            else
+              echo "dropping stale manifest row (asset gone): ${f}"
+            fi
+          done < /tmp/carried.b64
+
+          # Fresh rows last so they win the per-(module,arch,kver) dedupe, then
+          # keep the newest KEEP_PER_LINE per kernel line. Rows published before
+          # this stamping carry no flavor and group under "legacy" until their
+          # own line is rebuilt, which re-stamps them.
+          jq -s --argjson keep "${KEEP_PER_LINE}" '
+            ((.[0] // []) + (.[1] // []))
+            | group_by(.module + "/" + .arch + "/" + .kver)
+            | map(last)
+            | group_by((.flavor // "legacy") + "/" + .module + "/" + .arch)
+            | map(sort_by(.published // "") | reverse | .[0:$keep])
+            | flatten
+            | {generated: now | todate, drivers: .}
+          ' <(jq -s '.' /tmp/carried.ndjson) <(jq -s '.' /tmp/fresh.ndjson) \
+            > rel/drivers-manifest.json
+          echo "manifest now advertises $(jq '.drivers | length' rel/drivers-manifest.json) row(s)"
+          ( cd rel && sha256sum drivers-manifest.json > drivers-manifest.json.sha256 )
+          cat rel/drivers-manifest.json
+
+      - name: Sign artifacts (only when the signing key is present)
+        env:
+          SIGNING_KEY: ${{ secrets.ADOS_DRIVER_SIGNING_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SIGNING_KEY}" ]; then
+            echo "No ADOS_DRIVER_SIGNING_KEY set; publishing SHA256-only (dev posture)."
+            exit 0
+          fi
+          printf '%s' "${SIGNING_KEY}" > /tmp/driver.key
+          for f in rel/*.ko rel/drivers-manifest.json; do
+            minisign -S -s /tmp/driver.key -m "${f}" -x "${f}.minisig"
+          done
+          rm -f /tmp/driver.key
+
+      - name: Publish rolling prerelease (non-tag runs)
+        if: ${{ github.ref_type != 'tag' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: prebuilt-drivers
+          prerelease: true
+          name: "Prebuilt RTL8812EU modules (rolling)"
+          files: rel/*
+
+      - name: Publish stable release (drivers-v* tags)
+        if: ${{ github.ref_type == 'tag' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          files: rel/*

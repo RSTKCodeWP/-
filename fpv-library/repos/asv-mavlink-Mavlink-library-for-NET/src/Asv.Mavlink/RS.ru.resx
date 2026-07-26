@@ -1,0 +1,338 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<root>
+	<!-- 
+		Microsoft ResX Schema
+
+		Version 1.3
+
+		The primary goals of this format is to allow a simple XML format 
+		that is mostly human readable. The generation and parsing of the 
+		various data types are done through the TypeConverter classes 
+		associated with the data types.
+
+		Example:
+
+		... ado.net/XML headers & schema ...
+		<resheader name="resmimetype">text/microsoft-resx</resheader>
+		<resheader name="version">1.3</resheader>
+		<resheader name="reader">System.Resources.ResXResourceReader, System.Windows.Forms, ...</resheader>
+		<resheader name="writer">System.Resources.ResXResourceWriter, System.Windows.Forms, ...</resheader>
+		<data name="Name1">this is my long string</data>
+		<data name="Color1" type="System.Drawing.Color, System.Drawing">Blue</data>
+		<data name="Bitmap1" mimetype="application/x-microsoft.net.object.binary.base64">
+			[base64 mime encoded serialized .NET Framework object]
+		</data>
+		<data name="Icon1" type="System.Drawing.Icon, System.Drawing" mimetype="application/x-microsoft.net.object.bytearray.base64">
+			[base64 mime encoded string representing a byte array form of the .NET Framework object]
+		</data>
+
+		There are any number of "resheader" rows that contain simple 
+		name/value pairs.
+
+		Each data row contains a name, and value. The row also contains a 
+		type or mimetype. Type corresponds to a .NET class that support 
+		text/value conversion through the TypeConverter architecture. 
+		Classes that don't support this are serialized and stored with the 
+		mimetype set.
+
+		The mimetype is used for serialized objects, and tells the 
+		ResXResourceReader how to depersist the object. This is currently not 
+		extensible. For a given mimetype the value must be set accordingly:
+
+		Note - application/x-microsoft.net.object.binary.base64 is the format 
+		that the ResXResourceWriter will generate, however the reader can 
+		read any of the formats listed below.
+
+		mimetype: application/x-microsoft.net.object.binary.base64
+		value   : The object must be serialized with 
+			: System.Serialization.Formatters.Binary.BinaryFormatter
+			: and then encoded with base64 encoding.
+
+		mimetype: application/x-microsoft.net.object.soap.base64
+		value   : The object must be serialized with 
+			: System.Runtime.Serialization.Formatters.Soap.SoapFormatter
+			: and then encoded with base64 encoding.
+
+		mimetype: application/x-microsoft.net.object.bytearray.base64
+		value   : The object must be serialized into a byte array 
+			: using a System.ComponentModel.TypeConverter
+			: and then encoded with base64 encoding.
+	-->
+	
+	<xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+		<xsd:element name="root" msdata:IsDataSet="true">
+			<xsd:complexType>
+				<xsd:choice maxOccurs="unbounded">
+					<xsd:element name="data">
+						<xsd:complexType>
+							<xsd:sequence>
+								<xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+								<xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+							</xsd:sequence>
+							<xsd:attribute name="name" type="xsd:string" msdata:Ordinal="1" />
+							<xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+							<xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+						</xsd:complexType>
+					</xsd:element>
+					<xsd:element name="resheader">
+						<xsd:complexType>
+							<xsd:sequence>
+								<xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+							</xsd:sequence>
+							<xsd:attribute name="name" type="xsd:string" use="required" />
+						</xsd:complexType>
+					</xsd:element>
+				</xsd:choice>
+			</xsd:complexType>
+		</xsd:element>
+	</xsd:schema>
+	<resheader name="resmimetype">
+		<value>text/microsoft-resx</value>
+	</resheader>
+	<resheader name="version">
+		<value>1.3</value>
+	</resheader>
+	<resheader name="reader">
+		<value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=2.0.3500.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+	</resheader>
+	<resheader name="writer">
+		<value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=2.0.3500.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+	</resheader>
+    <data name="MessageIdNotFoundException_MessageIdNotFoundException" xml:space="preserve">
+    <value>Mavlink packet version v2 with MessageId='{0}' not found in decoder</value>
+  </data>
+    <data name="DecoderV2_TryDecodePacket_Error_for_deserialize_mavlink_V2" xml:space="preserve">
+    <value>Error for deserialize mavlink V2 package with messageID {0}: {1}</value>
+  </data>
+    <data name="WheelKnownConstant_VerifyStx_Unknown_STX_value" xml:space="preserve">
+    <value>Unknown STX value. Need {0}. Get {1}</value>
+  </data>
+    <data name="PacketV2_Deserialize_Error_message_id_type" xml:space="preserve">
+    <value>Error message id type. Want {0}, Got {1}</value>
+  </data>
+    <data name="PacketV2Helper_VerifyCrc_Bad_X25Crc" xml:space="preserve">
+    <value>Bad X25Crc: want {0}, got {1}</value>
+  </data>
+    <data name="RemoteStreamFactory_CreateStream_Connection_string_is_invalid" xml:space="preserve">
+        <value>Строка подключения '{0}' имеет неверный формат</value>
+    </data>
+    <data name="Vehicle_ReadAllParams_Timeout_to_read_all_params_from_Vehicle" xml:space="preserve">
+    <value>Timeout ({0} ms) to read all params from Vehicle.</value>
+  </data>
+    <data name="Vehicle_ConvertToMavlinkUnionToParamValue_Integer_value_not_assigned_for_param" xml:space="preserve">
+    <value>Integer value not assigned for param '{0}' with type {1}</value>
+  </data>
+    <data name="Vehicle_ConvertToMavlinkUnionToParamValue_Real_value_not_assigned_for_param" xml:space="preserve">
+    <value>Real value not assigned for param '{0}' with type {1}</value>
+  </data>
+    <data name="Vehicle_ConvertToMavlinkUnionToParamValue_NeedMoreByte" xml:space="preserve">
+    <value>Author of this library doesn't know, how how to read 8 byte from float (4 byte) field</value>
+  </data>
+    <data name="VehicleBase_WaitCompleteWithDefaultTimeout_Timeout_to_execute" xml:space="preserve">
+    <value>Timeout to execute '{0}' (wait {1:g} time)</value>
+  </data>
+    <data name="VehicleArdupilot_GoTo_Altitude_of_end_point_is_null" xml:space="preserve">
+    <value>Altitude of end point is null</value>
+  </data>
+    <data name="GpsInfoHelper_GetDescription_Ideal" xml:space="preserve">
+        <value>Рекомендуется к использованию в системах, требующих максимально возможную точность во всё время их работы</value>
+    </data>
+    <data name="GpsInfoHelper_GetDisplayName_Ideal" xml:space="preserve">
+        <value>Идеальная</value>
+    </data>
+    <data name="GpsInfoHelper_GetDescription_Excellent" xml:space="preserve">
+        <value>Достаточная точность для использования результатов измерений в достаточно чувствительной аппаратуре и программах</value>
+    </data>
+    <data name="GpsInfoHelper_GetDescription_Good" xml:space="preserve">
+        <value>Рекомендуемый минимум для принятия решений по полученным результатам. Результаты могут быть использованы для достаточно точных навигационных указаний.</value>
+    </data>
+    <data name="GpsInfoHelper_GetDescription_Moderate" xml:space="preserve">
+        <value>Результаты можно использовать в вычислениях, однако рекомендуется озаботиться повышением точности, например, выйти на более открытое место.</value>
+    </data>
+    <data name="GpsInfoHelper_GetDescription_Fair" xml:space="preserve">
+        <value>Результаты могут использоваться только для грубого приближения местоположения</value>
+    </data>
+    <data name="GpsInfoHelper_GetDescription_Poor" xml:space="preserve">
+        <value>Выходная точность ниже половины футбольного поля. Обычно такие результаты должны быть отброшены.</value>
+    </data>
+    <data name="GpsInfoHelper_GetDisplayName_Excellent" xml:space="preserve">
+        <value>Отличная</value>
+    </data>
+    <data name="GpsInfoHelper_GetDisplayName_Good" xml:space="preserve">
+        <value>Хорошая</value>
+    </data>
+    <data name="GpsInfoHelper_GetDisplayName_Moderate" xml:space="preserve">
+        <value>Средняя</value>
+    </data>
+    <data name="GpsInfoHelper_GetDisplayName_Fair" xml:space="preserve">
+        <value>Ниже среднего </value>
+    </data>
+    <data name="GpsInfoHelper_GetDisplayName_Poor" xml:space="preserve">
+        <value>Плохая</value>
+    </data>
+    <data name="GpsInfoHelper_GetDescription_Unknown" xml:space="preserve">
+        <value>Неизвестно</value>
+    </data>
+    <data name="PayloadDiagnosticRtt_PayloadDiagnosticRtt_Payload" xml:space="preserve">
+      <value>Полезная нагрузка</value>
+  </data>
+	<data name="ArdupilotCopterMode_Acro_Description" xml:space="preserve">
+		<value>Держит высоту без саморегулировки</value>
+	</data>
+	<data name="ArdupilotCopterMode_AltHold_Description" xml:space="preserve">
+		<value>Держит высоту и саморегулирует тангаж и крен</value>
+	</data>
+	<data name="ArdupilotCopterMode_AutoTune_Description" xml:space="preserve">
+		<value>Автоматизированная процедура тангажа и крена для улучшения контроля аппаратом</value>
+	</data>
+	<data name="ArdupilotCopterMode_Auto_Description" xml:space="preserve">
+		<value>Выполняет предустановленную миссию</value>
+	</data>
+	<data name="ArdupilotCopterMode_Brake_Description" xml:space="preserve">
+		<value>Немедленно останавливает дрон</value>
+	</data>
+	<data name="ArdupilotCopterMode_Circle_Description" xml:space="preserve">
+		<value>Автоматически кружит вокруг точки перед дроном</value>
+	</data>
+	<data name="ArdupilotCopterMode_Drift_Description" xml:space="preserve">
+		<value>Работает как режим Stabilize, но координирует рысканье и тангаж как у самолета</value>
+	</data>
+	<data name="ArdupilotCopterMode_Flip_Description" xml:space="preserve">
+		<value>Взлет и выполнение автоматизированного переворота</value>
+	</data>
+	<data name="ArdupilotCopterMode_Guided_Description" xml:space="preserve">
+		<value>Осуществляется навигация по точкам, переданным от НБС</value>
+	</data>
+	<data name="ArdupilotCopterMode_GuidedNoGps_Description" xml:space="preserve">
+		<value>То же что и Guided, но для навигации используются только данные о положении объектов в воздухе</value>
+	</data>
+	<data name="ArdupilotCopterMode_Land_Description" xml:space="preserve">
+		<value>Высота уменьшается до уровня земли, пытается лететь прямо вниз</value>
+	</data>
+	<data name="ArdupilotCopterMode_Loiter_Description" xml:space="preserve">
+		<value>Держит одну высоту и позицию, для движения используется GPS</value>
+	</data>
+	<data name="ArdupilotCopterMode_PosHold_Description" xml:space="preserve">
+		<value>Работает как режим Loiter, но возможно ручное тангажирование и крен, если стики не отцентрованы</value>
+	</data>
+	<data name="ArdupilotCopterMode_Rtl_Description" xml:space="preserve">
+		<value>Возращается в точку над точкой взлета, так же возможна посадка</value>
+	</data>
+	<data name="ArdupilotCopterMode_SmartRtl_Description" xml:space="preserve">
+		<value>Работает как режим RTL, но отображает путь возвращения домой</value>
+	</data>
+	<data name="ArdupilotCopterMode_Sport_Description" xml:space="preserve">
+		<value>Работает как режим AltHold, но держит тангаж и крен если стики отцентрованы</value>
+	</data>
+	<data name="ArdupilotCopterMode_Stabilize_Description" xml:space="preserve">
+		<value>Выравнивает крылья при отпущенных стиках</value>
+	</data>
+	<data name="ArdupilotCopterMode_Throw_Description" xml:space="preserve">
+		<value>Зависает в воздухе после быстрого взлета</value>
+	</data>
+	<data name="ArdupilotPlaneMode_Acro_Description" xml:space="preserve">
+		<value>Режим контролируемой скорости без ограничений по положению в воздухе</value>
+	</data>
+	<data name="ArdupilotPlaneMode_Autotune_Description" xml:space="preserve">
+		<value>Работает как режим FlyByWireA, но умеет корректировать положение в воздухе во время полета</value>
+	</data>
+	<data name="ArdupilotPlaneMode_Auto_Description" xml:space="preserve">
+		<value>Следует миссии</value>
+	</data>
+	<data name="ArdupilotPlaneMode_Circle_Description" xml:space="preserve">
+		<value>Нежно поворачивает воздушное судно</value>
+	</data>
+	<data name="ArdupilotPlaneMode_Cruise_Description" xml:space="preserve">
+		<value>Работает как режим FlyByWireB, но со следованием курса по земле и следованием за местностью</value>
+	</data>
+	<data name="ArdupilotPlaneMode_FlyByWireA_Description" xml:space="preserve">
+		<value>Тангаж и крен соответствуют вводу со стиков до заданных пределов</value>
+	</data>
+	<data name="ArdupilotPlaneMode_FlyByWireB_Description" xml:space="preserve">
+		<value>Работает как режим FlyByWireA, но с автоматическим контролем скорости и высоты</value>
+	</data>
+	<data name="ArdupilotPlaneMode_Guided_Description" xml:space="preserve">
+		<value>Кружит вокруг заданной через НБС точки</value>
+	</data>
+	<data name="ArdupilotPlaneMode_Loiter_Description" xml:space="preserve">
+		<value>Кружит вокруг точки, в которой был установлен данный режим</value>
+	</data>
+	<data name="ArdupilotPlaneMode_Manual_Description" xml:space="preserve">
+		<value>Полностью ручной режим, без автоматики</value>
+	</data>
+	<data name="ArdupilotPlaneMode_Qautotune_Description" xml:space="preserve">
+		<value>Автоматизированная процедура тангажа и крена для улучшения контроля аппаратом</value>
+	</data>
+	<data name="ArdupilotPlaneMode_Qhover_Description" xml:space="preserve">
+		<value>Квадроплан поддерживает стабильную высоту, при этом можно изменять крен, тангаж и рысканье вручную</value>
+	</data>
+	<data name="ArdupilotPlaneMode_Qland_Description" xml:space="preserve">
+		<value>Попытается приземлить квадроплан в точке, в которой был выбран данный режим</value>
+	</data>
+	<data name="ArdupilotPlaneMode_Qloiter_Description" xml:space="preserve">
+		<value>Попытается автоматически держать текущее местоположение, направление и высоту</value>
+	</data>
+	<data name="ArdupilotPlaneMode_Qrtl_Description" xml:space="preserve">
+		<value>Возвращает квадроплан в точку над точкой взлета, а затем сажает его</value>
+	</data>
+	<data name="ArdupilotPlaneMode_Qstabilize_Description" xml:space="preserve">
+		<value>Позволяет управлять квадропланом в ручном режиме, автоматически выравнивая крен и тангаж судна</value>
+	</data>
+	<data name="ArdupilotPlaneMode_Rtl_Description" xml:space="preserve">
+		<value>Возвращается домой или к указанной точке, затем кружит вокруг этой точки</value>
+	</data>
+	<data name="ArdupilotPlaneMode_Stabilize_Description" xml:space="preserve">
+		<value>Выравнивание крыльев при отпускании стиков</value>
+	</data>
+	<data name="ArdupilotPlaneMode_Training_Description" xml:space="preserve">
+		<value>Ручное управление с ограничением уровня тангажа и крена</value>
+	</data>
+	<data name="CommandClientHelper_AutopilotRebootShutdown_DoNothingForAutopilot_Description" xml:space="preserve">
+		<value>Ничего не делать для автопилота</value>
+	</data>
+	<data name="CommandClientHelper_AutopilotRebootShutdown_RebootAutopilotAndKeepItInTheBootloaderUntilUpgraded_Description" xml:space="preserve">
+		<value>Перезагрузить автопилот и оставить его в загрузчике до обновления</value>
+	</data>
+	<data name="CommandClientHelper_AutopilotRebootShutdown_RebootAutopilot_Description" xml:space="preserve">
+		<value>Перезагрузить автопилот</value>
+	</data>
+	<data name="CommandClientHelper_AutopilotRebootShutdown_ShutdownAutopilot_Description" xml:space="preserve">
+		<value>Выключить автопилот</value>
+	</data>
+	<data name="CommandClientHelper_CompanionRebootShutdown_DoNothingForOnboardComputer_Description" xml:space="preserve">
+		<value>Ничего не делать для бортовоко компьютера</value>
+	</data>
+	<data name="CommandClientHelper_CompanionRebootShutdown_RebootOnboardComputerAndKeepItInTheBootloaderUntilUpgraded_Description" xml:space="preserve">
+		<value>Перезагрузить бортовой компьютер и оставить его в загрузчике до обновления</value>
+	</data>
+	<data name="CommandClientHelper_CompanionRebootShutdown_RebootOnboardComputer_Description" xml:space="preserve">
+		<value>Перезагрузить бортовой компьютер</value>
+	</data>
+	<data name="CommandClientHelper_CompanionRebootShutdown_ShutdownOnboardComputer_Description" xml:space="preserve">
+		<value>Выключить бортовой компьютер</value>
+	</data>
+	<data name="CommandClientHelper_RebootShutdown_UnknownCommand_Description" xml:space="preserve">
+		<value>Неизвестная команда</value>
+	</data>
+	<data name="ArdupilotCopterMode_AvoidAdsb_Description" xml:space="preserve">
+		<value>Режим уклонения пилотируемых судов, основанный на протоколе ADS-B. Данный режим нельзя делать настраиваемым пилотом.</value>
+	</data>
+	<data name="ArdupilotPlaneMode_Loiter_To_QLand_Description" xml:space="preserve">
+		<value>В этом режиме будет выполнено снижение неподвижного крыла LOITER до Q_RTL_ALT, а затем переключение в режим QLAND.</value>
+	</data>
+	<data name="ArdupilotPlaneMode_QAcro_Description" xml:space="preserve">
+		<value>Режим квадроплана для опытных пользователей, обеспечивающий стабилизацию на основе скорости, как у Copter ACRO.</value>
+	</data>
+	<data name="VehicleArdupilotPlane_InternalGoToGlob_Altitude_of_home_position_is_null" xml:space="preserve">
+		<value>Режим является внутренним и не может быть установлен напрямую</value>
+	</data>
+	<data name="ModeClient_SetMode_Mode_is_internal_and_cannot_be_set_directly" xml:space="preserve">
+		<value>Режим является внутренним и не может быть установлен напрямую</value>
+	</data>
+	<data name="ArduPlaneMode_TakeOff_Descrption" xml:space="preserve">
+		<value>Режим взлета</value>
+	</data>
+	<data name="ArduPlaneMode_AvoidAdsb_Description" xml:space="preserve">
+		<value>Режим предотвращения столкновения по данным АЗН-В</value>
+	</data>
+</root>

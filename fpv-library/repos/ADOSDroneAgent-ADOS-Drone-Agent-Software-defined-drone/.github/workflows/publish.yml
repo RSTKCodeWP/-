@@ -1,0 +1,40 @@
+name: Publish to PyPI
+
+# Manual fallback only. The tag-driven release pipeline (release.yml,
+# triggered on `v*` tag push) builds + signs the wheel and deploy-bundle,
+# cuts the GitHub Release, and publishes to PyPI. This workflow stays as an
+# opt-in manual re-publish for the rare case where a release's PyPI upload
+# needs to be re-run without re-cutting the tag. It does NOT trigger on
+# `release: published` anymore, so it cannot race release.yml or
+# double-publish to PyPI when release.yml creates the GitHub Release.
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: pypi
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build tools
+        run: pip install build
+
+      - name: Build package
+        run: python -m build
+
+      - name: Compute SHA256
+        run: cd dist && sha256sum *.whl > SHA256SUMS
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1

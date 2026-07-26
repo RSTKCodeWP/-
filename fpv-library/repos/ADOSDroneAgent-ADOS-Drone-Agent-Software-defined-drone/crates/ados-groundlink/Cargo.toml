@@ -1,0 +1,72 @@
+[package]
+name = "ados-groundlink"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Ground-station data-plane: WFB receive, channel acquisition, video UDP fan-out, and the self-healing local wireless mesh."
+
+[lib]
+name = "ados_groundlink"
+path = "src/lib.rs"
+
+[[bin]]
+name = "ados-groundlink"
+path = "src/main.rs"
+
+[dependencies]
+# Sibling Rust crates: the radio adapter/manager, the process orchestrator, and
+# the shared wire-contract types. Pulled in by path within the workspace.
+ados-radio = { path = "../ados-radio" }
+ados-supervisor = { path = "../ados-supervisor" }
+ados-protocol = { path = "../ados-protocol", features = ["tracing-layer"] }
+ados-config = { path = "../ados-config" }
+# The Atlas stream lane: the GS relay re-POSTs decoded WFB-aux datagrams into the
+# compute receiver via the LAN bearer.
+ados-atlas-transport = { path = "../ados-atlas-transport" }
+
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_norway = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow = { workspace = true }
+# ISO-8601 UTC timestamps for the link-stats `timestamp` field on the sidecar.
+time = { version = "0.3", features = ["std", "formatting"] }
+# Mesh pairing crypto. The session-key KDF is the CUSTOM 2-step HMAC-SHA256
+# construction (NOT rfc5869), built from the workspace hmac + sha2 deps; the
+# `hkdf` crate is deliberately NOT used.
+hmac = { workspace = true }
+sha2 = { workspace = true }
+# blake2b-8 → the 16-hex WFB key fingerprint (peer-public-half digest) the GS
+# pair install/status reports, matching the radio manager's fingerprint exactly.
+blake2 = { workspace = true }
+hex = { workspace = true }
+# base64 decode of the 64-byte wfb-ng key blob the pair-key install receives.
+base64 = { workspace = true }
+getrandom = { workspace = true }
+# X25519 ECDH for the invite key exchange (raw 32-byte public keys). Pure-Rust;
+# `static_secrets` enables the owned-key API the pairing flow needs. No `ring`.
+x25519-dalek = { version = "2", default-features = false, features = ["static_secrets"] }
+# ChaCha20Poly1305 AEAD for the invite bundle. Pure-Rust (RustCrypto), no `ring`.
+chacha20poly1305 = "0.10"
+# mDNS service discovery on the batman-adv fabric: the receiver advertises
+# `_ados-receiver._tcp` on bat0 and the relay browses for it. Pure-Rust daemon
+# (no Avahi/Bonjour dependency); the `async` default feature gives the flume
+# `recv_async()` the browse loop awaits.
+mdns-sd = "0.13"
+
+# Linux-only edges (systemd notify + journald + setsid/killpg + flock).
+# Confined to a target section so the pure-logic core still builds and
+# `cargo test`s on a non-Linux dev host; the edge call sites are cfg-gated
+# with inert fallbacks.
+[target.'cfg(target_os = "linux")'.dependencies]
+sd-notify = { workspace = true }
+tracing-journald = { workspace = true }
+nix = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3"
+# Stand up the compute event router in-process for the Atlas relay round-trip test.
+axum = { workspace = true }

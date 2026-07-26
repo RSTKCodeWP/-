@@ -1,0 +1,9 @@
+query getTags (
+  $owner: String!,
+  $repository: String!,
+){
+  gitTags(
+    owner: $owner,
+    repository: $repository
+  )
+}

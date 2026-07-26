@@ -1,0 +1,210 @@
+  /*NALU* modNALU=nullptr;
+     if(nalu.isSPS()){
+         h264_stream_t* h=nalu.toH264Stream();
+         //Do manipulations to h->sps...
+         modNALU=NALU::fromH264StreamAndFree(h,&nalu);
+     }*/
+
+ /*int s,t;
+    int res=find_nal_unit(const_cast<uint8_t*>(nalu.data),nalu.data_length,&s,&t);
+    LOGD("find nal %d %d %d",res,s,t);*/
+
+    //LOGD("::interpretNALU %d %s prefix %d",nalu.data_length,nalu.get_nal_name(nalu.get_nal_unit_type()).c_str(),nalu.hasValidPrefix());
+
+    /*h264_stream_t* h = h264_new();
+    read_debug_nal_unit(h,const_cast<uint8_t*>(nalu.getDataWithoutPrefix()),nalu.getDataSizeWithoutPrefix());
+    h264_free(h);
+
+    try{
+        std::this_thread::sleep_for(milliseconds(1000));
+    }catch (...){
+    }*/
+
+
+
+    /*if(nalu.isSPS()){
+
+            LOGD("NALU DATA %s",nalu.dataAsString().c_str());
+
+            h264_stream_t* h = h264_new();
+            //read_debug_nal_unit(h,const_cast<uint8_t*>(nalu.getDataWithoutPrefix()),nalu.getDataSizeWithoutPrefix());
+            read_nal_unit(h,const_cast<uint8_t*>(nalu.getDataWithoutPrefix()),nalu.getDataSizeWithoutPrefix());
+
+            //LOGD("Nalu unit type %d",h->nal->nal_unit_type);
+            //h->sps->vui_parameters_present_flag=0;
+            h->sps->vui_parameters_present_flag=0;
+            h->sps->constraint_set0_flag=1;
+            h->sps->constraint_set1_flag=1;
+            h->sps->num_ref_frames=3;
+
+
+            std::vector<uint8_t> data(1024);
+            int writeRet=write_nal_unit(h,data.data(),1024);
+            data.insert(data.begin(),0);
+            data.insert(data.begin(),0);
+            data.insert(data.begin(),0);
+            data.at(3)=1;
+            writeRet+=3;
+
+
+            LOGD("write ret %d",writeRet);
+            NALU newNALU(data.data(),writeRet);
+            LOGD("::newNALU %d %s prefix %d",newNALU.data_length,newNALU.get_nal_name().c_str(),nalu.hasValidPrefix());
+            LOGD("NALU DATA %s",newNALU.dataAsString().c_str());
+
+
+            read_debug_nal_unit(h,const_cast<uint8_t*>(newNALU.getDataWithoutPrefix()),newNALU.getDataSizeWithoutPrefix());
+
+            h264_free(h);
+            naluX=&newNALU;
+            //naluX=new NALU(SPS_X264_NO_VUI,sizeof(SPS_X264_NO_VUI));
+        }*/
+
+        /*if(nalu.isPPS()){
+            LOGD("NALU DATA %s",nalu.dataAsString().c_str());
+
+            h264_stream_t* h = h264_new();
+            //read_debug_nal_unit(h,const_cast<uint8_t*>(nalu.getDataWithoutPrefix()),nalu.getDataSizeWithoutPrefix());
+            read_nal_unit(h,const_cast<uint8_t*>(nalu.getDataWithoutPrefix()),nalu.getDataSizeWithoutPrefix());
+
+            //LOGD("Nalu unit type %d",h->nal->nal_unit_type);
+            //h->sps->vui_parameters_present_flag=0;
+
+            std::vector<uint8_t> data(1024);
+            int writeRet=write_nal_unit(h,data.data(),1024);
+            data.insert(data.begin(),0);
+            data.insert(data.begin(),0);
+            data.insert(data.begin(),0);
+            data.at(3)=1;
+            writeRet+=3;
+
+
+            LOGD("write ret %d",writeRet);
+            NALU newNALU(data.data(),writeRet);
+            LOGD("::newNALU %d %s prefix %d",newNALU.data_length,newNALU.get_nal_name().c_str(),nalu.hasValidPrefix());
+            LOGD("NALU DATA %s",newNALU.dataAsString().c_str());
+
+
+            read_debug_nal_unit(h,const_cast<uint8_t*>(newNALU.getDataWithoutPrefix()),newNALU.getDataSizeWithoutPrefix());
+
+            h264_free(h);
+            naluX=&newNALU;
+
+        }*/
+         /*std::stringstream properties;
+            properties << "system_clock" << std::endl;
+            properties << std::chrono::system_clock::period::num << std::endl;
+            properties << std::chrono::system_clock::period::den << std::endl;
+            properties << "steady = " <<std:: boolalpha << std::chrono::system_clock::is_steady << std::endl << std::endl;
+
+            properties << "high_resolution_clock" << std::endl;
+            properties << std::chrono::high_resolution_clock::period::num << std::endl;
+            properties << std::chrono::high_resolution_clock::period::den << std::endl;
+            properties << "steady = " << std::boolalpha << std::chrono::high_resolution_clock::is_steady << std::endl << std::endl;
+
+            properties << "steady_clock" << std::endl;
+            properties << std::chrono::steady_clock::period::num << std::endl;
+            properties << std::chrono::steady_clock::period::den << std::endl;
+            properties << "steady = " << std::boolalpha << std::chrono::steady_clock::is_steady << std::endl << std::endl;
+
+            LOGD("%s",properties.str().c_str());*/
+ // The runcam webcam has:
+// profile_idc=77
+// level_idc=41
+//
+// The rpi has
+// profile_idc=66
+// level_idc=40
+
+// https://www.iana.org/assignments/media-types/video/H264-SVC
+//      The default level is indicated by the level_idc byte,
+//      and, when profile_idc is equal to 66, 77, or 88 (the Baseline,
+//      Main, or Extended profile) and level_idc is equal to 11,
+//      additionally by bit 4 (constraint_set3_flag) of the profile-iop
+//      byte.  When profile_idc is equal to 66, 77, or 88 (the
+//      Baseline, Main, or Extended profile) and level_idc is equal to
+//      11, and bit 4 (constraint_set3_flag) of the profile-iop byte is
+//      equal to 1, the default level is Level 1b.
+
+Runcam webcam:
+D/NALU: NAL_UNIT_TYPE_SPS
+D/NALU: SPS:[profile_idc=77,constraint_set0_flag=0,constraint_set1_flag=0,constraint_set2_flag=0,constraint_set3_flag=0,constraint_set4_flag=0,constraint_set5_flag=0,reserved_zero_2bits=0,level_idc=41,seq_parameter_set_id=0,chroma_format_idc=1,residual_colour_transform_flag=0,bit_depth_luma_minus8=0,bit_depth_chroma_minus8=0,qpprime_y_zero_transform_bypass_flag=0,seq_scaling_matrix_present_flag=0,log2_max_frame_num_minus4=12,pic_order_cnt_type=0,log2_max_pic_order_cnt_lsb_minus4=12,delta_pic_order_always_zero_flag=0,offset_for_non_ref_pic=0,offset_for_top_to_bottom_field=0,num_ref_frames_in_pic_order_cnt_cycle=0,
+    num_ref_frames=1,gaps_in_frame_num_value_allowed_flag=0,pic_width_in_mbs_minus1=119,pic_height_in_map_units_minus1=67,frame_mbs_only_flag=1,mb_adaptive_frame_field_flag=0,direct_8x8_inference_flag=1,frame_cropping_flag=1,frame_crop_left_offset=0,frame_crop_right_offset=0, frame_crop_top_offset=0,frame_crop_bottom_offset=4,vui_parameters_present_flag=1,VUI:[aspect_ratio_info_present_flag=0,aspect_ratio_idc=0
+D/NALU: sar_width=0,sar_height=0,overscan_info_present_flag=0,overscan_appropriate_flag=0,video_signal_type_present_flag=1,video_format=5,video_full_range_flag=1,colour_description_present_flag=1,colour_primaries=1,transfer_characteristics=1,matrix_coefficients=1,chroma_loc_info_present_flag=0,chroma_sample_loc_type_top_field=0,chroma_sample_loc_type_bottom_field=0,timing_info_present_flag=1,num_units_in_tick=1500,time_scale=90000,fixed_frame_rate_flag=0,nal_hrd_parameters_present_flag=0,vcl_hrd_parameters_present_flag=0,low_delay_hrd_flag=0,pic_struct_present_flag=0,bitstream_restriction_flag=0,motion_vectors_over_pic_boundaries_flag=0,max_bytes_per_pic_denom=0,max_bits_per_mb_denom=0,log2_max_mv_length_horizontal=0,log2_max_mv_length_vertical=0,num_reorder_frames=0,max_dec_frame_buffering=0]]
+D/NALU: XSPS[0,0,0,1,103,77,0,41,141,141,64,60,1,19,242,205,192,64,64,80,0,0,93,192,0,21,249,0,64]
+D/NALU: NAL_UNIT_TYPE_PPS
+D/NALU: PPS:[pic_parameter_set_id=0,seq_parameter_set_id=0,entropy_coding_mode_flag=1,pic_order_present_flag=0,num_slice_groups_minus1=0,slice_group_map_type=0,slice_group_change_direction_flag=0,slice_group_change_rate_minus1=0,pic_size_in_map_units_minus1=0,num_ref_idx_l0_active_minus1=0,num_ref_idx_l1_active_minus1=0,weighted_pred_flag=0,weighted_bipred_idc=0,pic_init_qp_minus26=0,chroma_qp_index_offset=0,deblocking_filter_control_present_flag=0,constrained_intra_pred_flag=0,redundant_pic_cnt_present_flag=0,]
+D/NALU: XPPS[0,0,0,1,104,238,56,128]
+D/NALU: NAL_UNIT_TYPE_CODED_SLICE_IDR
+D/NALU: Slice header:first_mb_in_slice:2 slice_type:0 pic_parameter_set_id:2 frame_num:0
+D/NALU: NAL_UNIT_TYPE_CODED_SLICE_NON_IDR
+D/NALU: Slice header:first_mb_in_slice:2 slice_type:1 pic_parameter_set_id:2 frame_num:2
+D/NALU: NAL_UNIT_TYPE_CODED_SLICE_NON_IDR
+D/NALU: Slice header:first_mb_in_slice:2 slice_type:1 pic_parameter_set_id:2 frame_num:2
+D/NALU: NAL_UNIT_TYPE_CODED_SLICE_NON_IDR
+D/NALU: Slice header:first_mb_in_slice:2 slice_type:1 pic_parameter_set_id:2 frame_num:2
+
+
+RPI cam:
+D/NALU: NAL_UNIT_TYPE_SPS
+D/NALU: SPS:[profile_idc=66,constraint_set0_flag=1,constraint_set1_flag=0,constraint_set2_flag=0,constraint_set3_flag=0,constraint_set4_flag=0,constraint_set5_flag=0,reserved_zero_2bits=0,level_idc=40,seq_parameter_set_id=0,chroma_format_idc=1,residual_colour_transform_flag=0,bit_depth_luma_minus8=0,bit_depth_chroma_minus8=0,qpprime_y_zero_transform_bypass_flag=0,seq_scaling_matrix_present_flag=0,log2_max_frame_num_minus4=4,pic_order_cnt_type=2,log2_max_pic_order_cnt_lsb_minus4=0,delta_pic_order_always_zero_flag=0,offset_for_non_ref_pic=0,offset_for_top_to_bottom_field=0,num_ref_frames_in_pic_order_cnt_cycle=0,
+    num_ref_frames=1,gaps_in_frame_num_value_allowed_flag=0,pic_width_in_mbs_minus1=79,pic_height_in_map_units_minus1=44,frame_mbs_only_flag=1,mb_adaptive_frame_field_flag=0,direct_8x8_inference_flag=1,frame_cropping_flag=0,frame_crop_left_offset=0,frame_crop_right_offset=0, frame_crop_top_offset=0,frame_crop_bottom_offset=0,vui_parameters_present_flag=1,VUI:[aspect_ratio_info_present_flag=0,aspect_ratio_idc=0,sa
+D/NALU: _width=0,sar_height=0,overscan_info_present_flag=0,overscan_appropriate_flag=0,video_signal_type_present_flag=0,video_format=0,video_full_range_flag=0,colour_description_present_flag=0,colour_primaries=0,transfer_characteristics=0,matrix_coefficients=0,chroma_loc_info_present_flag=0,chroma_sample_loc_type_top_field=0,chroma_sample_loc_type_bottom_field=0,timing_info_present_flag=0,num_units_in_tick=0,time_scale=0,fixed_frame_rate_flag=0,nal_hrd_parameters_present_flag=0,vcl_hrd_parameters_present_flag=0,low_delay_hrd_flag=0,pic_struct_present_flag=0,bitstream_restriction_flag=1,motion_vectors_over_pic_boundaries_flag=1,max_bytes_per_pic_denom=0,max_bits_per_mb_denom=0,log2_max_mv_length_horizontal=8,log2_max_mv_length_vertical=8,num_reorder_frames=0,max_dec_frame_buffering=1]]
+D/NALU: XSPS[0,0,0,1,39,66,128,40,149,160,20,1,110,128,120,145,53]
+D/NALU: NAL_UNIT_TYPE_PPS
+D/NALU: PPS:[pic_parameter_set_id=0,seq_parameter_set_id=0,entropy_coding_mode_flag=0,pic_order_present_flag=0,num_slice_groups_minus1=0,slice_group_map_type=0,slice_group_change_direction_flag=0,slice_group_change_rate_minus1=0,pic_size_in_map_units_minus1=0,num_ref_idx_l0_active_minus1=0,num_ref_idx_l1_active_minus1=0,weighted_pred_flag=0,weighted_bipred_idc=0,pic_init_qp_minus26=9,chroma_qp_index_offset=0,deblocking_filter_control_present_flag=1,constrained_intra_pred_flag=0,redundant_pic_cnt_present_flag=0,]
+D/NALU: XPPS[0,0,0,1,40,206,2,92,128]
+D/NALU: NAL_UNIT_TYPE_CODED_SLICE_IDR
+D/NALU: Slice header:first_mb_in_slice:2 slice_type:0 pic_parameter_set_id:2 frame_num:0
+D/NALU: NAL_UNIT_TYPE_CODED_SLICE_NON_IDR
+D/NALU: Slice header:first_mb_in_slice:2 slice_type:1 pic_parameter_set_id:2 frame_num:2
+D/NALU: NAL_UNIT_TYPE_CODED_SLICE_NON_IDR
+D/NALU: Slice header:first_mb_in_slice:2 slice_type:1 pic_parameter_set_id:2 frame_num:2
+
+
+RPI cam with profile=high
+D/NALU: SPS:[profile_idc=100,constraint_set0_flag=0,constraint_set1_flag=0,constraint_set2_flag=0,constraint_set3_flag=0,constraint_set4_flag=0,constraint_set5_flag=0,reserved_zero_2bits=0,level_idc=40,seq_parameter_set_id=0,chroma_format_idc=1,residual_colour_transform_flag=0,bit_depth_luma_minus8=0,bit_depth_chroma_minus8=0,qpprime_y_zero_transform_bypass_flag=0,seq_scaling_matrix_present_flag=0,log2_max_frame_num_minus4=4,pic_order_cnt_type=2,log2_max_pic_order_cnt_lsb_minus4=0,delta_pic_order_always_zero_flag=0,offset_for_non_ref_pic=0,offset_for_top_to_bottom_field=0,num_ref_frames_in_pic_order_cnt_cycle=0,
+    num_ref_frames=1,gaps_in_frame_num_value_allowed_flag=0,pic_width_in_mbs_minus1=79,pic_height_in_map_units_minus1=44,frame_mbs_only_flag=1,mb_adaptive_frame_field_flag=0,direct_8x8_inference_flag=1,frame_cropping_flag=0,frame_crop_left_offset=0,frame_crop_right_offset=0, frame_crop_top_offset=0,frame_crop_bottom_offset=0,vui_parameters_present_flag=1,VUI:[aspect_ratio_info_present_flag=0,aspect_ratio_idc=0,s
+D/NALU: r_width=0,sar_height=0,overscan_info_present_flag=0,overscan_appropriate_flag=0,video_signal_type_present_flag=0,video_format=0,video_full_range_flag=0,colour_description_present_flag=0,colour_primaries=0,transfer_characteristics=0,matrix_coefficients=0,chroma_loc_info_present_flag=0,chroma_sample_loc_type_top_field=0,chroma_sample_loc_type_bottom_field=0,timing_info_present_flag=0,num_units_in_tick=0,time_scale=0,fixed_frame_rate_flag=0,nal_hrd_parameters_present_flag=0,vcl_hrd_parameters_present_flag=0,low_delay_hrd_flag=0,pic_struct_present_flag=0,bitstream_restriction_flag=1,motion_vectors_over_pic_boundaries_flag=1,max_bytes_per_pic_denom=0,max_bits_per_mb_denom=0,log2_max_mv_length_horizontal=8,log2_max_mv_length_vertical=8,num_reorder_frames=0,max_dec_frame_buffering=1]]
+D/NALU: XSPS[0,0,0,1,39,100,0,40,172,43,64,40,2,221,0,241,34,106]
+D/NALU: PPS:[pic_parameter_set_id=0,seq_parameter_set_id=0,entropy_coding_mode_flag=1,pic_order_present_flag=0,num_slice_groups_minus1=0,slice_group_map_type=0,slice_group_change_direction_flag=0,slice_group_change_rate_minus1=0,pic_size_in_map_units_minus1=0,num_ref_idx_l0_active_minus1=0,num_ref_idx_l1_active_minus1=0,weighted_pred_flag=0,weighted_bipred_idc=0,pic_init_qp_minus26=9,chroma_qp_index_offset=0,deblocking_filter_control_present_flag=1,constrained_intra_pred_flag=0,redundant_pic_cnt_present_flag=0,]
+D/NALU: XPPS[0,0,0,1,40,238,2,92,176]
+D/NALU: NAL_UNIT_TYPE_CODED_SLICE_IDR
+D/NALU: Slice header(430B):first_mb_in_slice:2 slice_type:0 pic_parameter_set_id:2 frame_num:0
+D/NALU: NAL_UNIT_TYPE_CODED_SLICE_IDR
+D/NALU: Slice header(5.284180kB):first_mb_in_slice:2 slice_type:0 pic_parameter_set_id:2 frame_num:0
+D/NALU: NAL_UNIT_TYPE_CODED_SLICE_IDR
+D/NALU: Slice header(5.289062kB):first_mb_in_slice:2 slice_type:0 pic_parameter_set_id:2 frame_num:0
+D/NALU: NAL_UNIT_TYPE_CODED_SLICE_IDR
+D/NALU: Slice header(7.270508kB):first_mb_in_slice:2 slice_type:0 pic_parameter_set_id:2 frame_num:0
+D/NALU: NAL_UNIT_TYPE_CODED_SLICE_IDR
+D/NALU: Slice header(7.967773kB):first_mb_in_slice:2 slice_type:0 pic_parameter_set_id:2 frame_num:0
+
+
+RPI cam with profile=high
+D/NALU: SPS:[profile_idc=100,constraint_set0_flag=0,constraint_set1_flag=0,constraint_set2_flag=0,constraint_set3_flag=0,constraint_set4_flag=0,constraint_set5_flag=0,reserved_zero_2bits=0,level_idc=40,seq_parameter_set_id=0,chroma_format_idc=1,residual_colour_transform_flag=0,bit_depth_luma_minus8=0,bit_depth_chroma_minus8=0,qpprime_y_zero_transform_bypass_flag=0,seq_scaling_matrix_present_flag=0,log2_max_frame_num_minus4=4,pic_order_cnt_type=2,log2_max_pic_order_cnt_lsb_minus4=0,delta_pic_order_always_zero_flag=0,offset_for_non_ref_pic=0,offset_for_top_to_bottom_field=0,num_ref_frames_in_pic_order_cnt_cycle=0,
+    num_ref_frames=1,gaps_in_frame_num_value_allowed_flag=0,pic_width_in_mbs_minus1=79,pic_height_in_map_units_minus1=44,frame_mbs_only_flag=1,mb_adaptive_frame_field_flag=0,direct_8x8_inference_flag=1,frame_cropping_flag=0,frame_crop_left_offset=0,frame_crop_right_offset=0, frame_crop_top_offset=0,frame_crop_bottom_offset=0,vui_parameters_present_flag=1,VUI:[aspect_ratio_info_present_flag=0,aspect_ratio_idc=0,s
+
+Runcam webcam:
+D/NALU: NAL_UNIT_TYPE_SPS
+D/NALU: SPS:[profile_idc=77,constraint_set0_flag=0,constraint_set1_flag=0,constraint_set2_flag=0,constraint_set3_flag=0,constraint_set4_flag=0,constraint_set5_flag=0,reserved_zero_2bits=0,level_idc=41,seq_parameter_set_id=0,chroma_format_idc=1,residual_colour_transform_flag=0,bit_depth_luma_minus8=0,bit_depth_chroma_minus8=0,qpprime_y_zero_transform_bypass_flag=0,seq_scaling_matrix_present_flag=0,log2_max_frame_num_minus4=12,pic_order_cnt_type=0,log2_max_pic_order_cnt_lsb_minus4=12,delta_pic_order_always_zero_flag=0,offset_for_non_ref_pic=0,offset_for_top_to_bottom_field=0,num_ref_frames_in_pic_order_cnt_cycle=0,
+    num_ref_frames=1,gaps_in_frame_num_value_allowed_flag=0,pic_width_in_mbs_minus1=119,pic_height_in_map_units_minus1=67,frame_mbs_only_flag=1,mb_adaptive_frame_field_flag=0,direct_8x8_inference_flag=1,frame_cropping_flag=1,frame_crop_left_offset=0,frame_crop_right_offset=0, frame_crop_top_offset=0,frame_crop_bottom_offset=4,vui_parameters_present_flag=1,VUI:[aspect_ratio_info_present_flag=0,aspect_ratio_idc=0
+D/NALU: sar_width=0,sar_height=0,overscan_info_present_flag=0,overscan_appropriate_flag=0,video_signal_type_present_flag=1,video_format=5,video_full_range_flag=1,colour_description_present_flag=1,colour_primaries=1,transfer_characteristics=1,matrix_coefficients=1,chroma_loc_info_present_flag=0,chroma_sample_loc_type_top_field=0,chroma_sample_loc_type_bottom_field=0,timing_info_present_flag=1,num_units_in_tick=1500,time_scale=90000,fixed_frame_rate_flag=0,nal_hrd_parameters_present_flag=0,vcl_hrd_parameters_present_flag=0,low_delay_hrd_flag=0,pic_struct_present_flag=0,bitstream_restriction_flag=0,motion_vectors_over_pic_boundaries_flag=0,max_bytes_per_pic_denom=0,max_bits_per_mb_denom=0,log2_max_mv_length_horizontal=0,log2_max_mv_length_vertical=0,num_reorder_frames=0,max_dec_frame_buffering=0]]
+
+
+
+
+
+SPS:[profile_idc=77,constraint_set0_flag=0,constraint_set1_flag=0,constraint_set2_flag=0,constraint_set3_flag=0,constraint_set4_flag=0,constraint_set5_flag=0,reserved_zero_2bits=0,level_idc=31,seq_parameter_set_id=0,chroma_format_idc=1,residual_colour_transform_flag=0,bit_depth_luma_minus8=0,bit_depth_chroma_minus8=0,qpprime_y_zero_transform_bypass_flag=0,seq_scaling_matrix_present_flag=0,log2_max_frame_num_minus4=12,pic_order_cnt_type=0,log2_max_pic_order_cnt_lsb_minus4=12,delta_pic_order_always_zero_flag=0,offset_for_non_ref_pic=0,offset_for_top_to_bottom_field=0,num_ref_frames_in_pic_order_cnt_cycle=0,
+    num_ref_frames=1,gaps_in_frame_num_value_allowed_flag=0,pic_width_in_mbs_minus1=79,pic_height_in_map_units_minus1=44,frame_mbs_only_flag=1,mb_adaptive_frame_field_flag=0,direct_8x8_inference_flag=1,frame_cropping_flag=0,frame_crop_left_offset=0,frame_crop_right_offset=0, frame_crop_top_offset=0,frame_crop_bottom_offset=0,vui_parameters_present_flag=1,VUI:[aspect_ratio_info_present_flag=0,aspect_ratio_idc=0,
+
+
+h265 that can be decoded fast
+ SPS:sps { sps_video_parameter_set_id: 0 sps_max_sub_layers_minus1: 0 sps_temporal_id_nesting_flag: 1 profile_tier_level { general { profile_space: 0 tier_flag: 0 profile_idc: 1 profile_compatibility_flag { 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 } progressive_source_flag: 0 interlaced_source_flag: 0 non_packed_constraint_flag: 0 frame_only_constraint_flag: 0 max_12bit_constraint_flag: 0 max_10bit_constraint_flag: 0 max_8bit_constraint_flag: 0 max_422chroma_constraint_flag: 0 max_420chroma_constraint_flag: 0 max_monochrome_constraint_flag: 0 intra_constraint_flag: 0 one_picture_only_constraint_flag: 0 lower_bit_rate_constraint_flag: 0 max_14bit_constraint_flag: 0 reserved_zero_33bits: 0 reserved_zero_34bits: 0 reserved_zero_43bits: 0 inbld_flag: 0 reserved_zero_bit: 0 } general_level_idc: 120 sub_layer_profile_present_flag { } sub_layer_level_present_flag { } } sps_seq_parameter_set_id: 0 chroma_format_idc: 1 pic_width_in_luma_samples: 1280 pic_height_in_luma_samples: 736 conformance_w
+2021-01-25 17:45:51.843 14779-14857/constantin.video.example D/NALU: ndow_flag: 1 conf_win_left_offset: 0 conf_win_right_offset: 0 conf_win_top_offset: 0 conf_win_bottom_offset: 8 bit_depth_luma_minus8: 0 bit_depth_chroma_minus8: 0 log2_max_pic_order_cnt_lsb_minus4: 4 sps_sub_layer_ordering_info_present_flag: 1 sps_max_dec_pic_buffering_minus1 { 1 } sps_max_num_reorder_pics { 0 } sps_max_latency_increase_plus1 { 0 } log2_min_luma_coding_block_size_minus3: 2 log2_diff_max_min_luma_coding_block_size: 0 log2_min_luma_transform_block_size_minus2: 0 log2_diff_max_min_luma_transform_block_size: 3 max_transform_hierarchy_depth_inter: 3 max_transform_hierarchy_depth_intra: 3 scaling_list_enabled_flag: 0 amp_enabled_flag: 1 sample_adaptive_offset_enabled_flag: 0 pcm_enabled_flag: 0 num_short_term_ref_pic_sets: 1 st_ref_pic_set { num_negative_pics: 1 num_positive_pics: 0 delta_poc_s0_minus1 { 0 } used_by_curr_pic_s0_flag { 1 } delta_poc_s1_minus1 { } used_by_curr_pic_s1_flag { } } long_term_ref_pics_present_flag: 0 sps_temporal_mvp_enabled_flag: 0 strong_intra_smoothing_enabled_flag: 0
+2021-01-25 17:45:51.843 14779-14857/constantin.video.example D/NALU: vui_parameters_present_flag: 0  sps_extension_present_flag: 0 }
+
+h265 that can be decoded slow:
+SPS:sps { sps_video_parameter_set_id: 1 sps_max_sub_layers_minus1: 0 sps_temporal_id_nesting_flag: 1 profile_tier_level { general { profile_space: 0 tier_flag: 0 profile_idc: 1 profile_compatibility_flag { 0 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 } progressive_source_flag: 1 interlaced_source_flag: 0 non_packed_constraint_flag: 0 frame_only_constraint_flag: 1 max_12bit_constraint_flag: 0 max_10bit_constraint_flag: 0 max_8bit_constraint_flag: 0 max_422chroma_constraint_flag: 0 max_420chroma_constraint_flag: 0 max_monochrome_constraint_flag: 0 intra_constraint_flag: 0 one_picture_only_constraint_flag: 0 lower_bit_rate_constraint_flag: 0 max_14bit_constraint_flag: 0 reserved_zero_33bits: 0 reserved_zero_34bits: 0 reserved_zero_43bits: 0 inbld_flag: 0 reserved_zero_bit: 0 } general_level_idc: 120 sub_layer_profile_present_flag { } sub_layer_level_present_flag { } } sps_seq_parameter_set_id: 1 chroma_format_idc: 1 pic_width_in_luma_samples: 1920 pic_height_in_luma_samples: 1088 conformance_
+2021-01-25 18:07:03.530 14779-15729/constantin.video.example D/NALU: indow_flag: 1 conf_win_left_offset: 0 conf_win_right_offset: 0 conf_win_top_offset: 0 conf_win_bottom_offset: 4 bit_depth_luma_minus8: 0 bit_depth_chroma_minus8: 0 log2_max_pic_order_cnt_lsb_minus4: 4 sps_sub_layer_ordering_info_present_flag: 0 sps_max_dec_pic_buffering_minus1 { 1 } sps_max_num_reorder_pics { 0 } sps_max_latency_increase_plus1 { 0 } log2_min_luma_coding_block_size_minus3: 1 log2_diff_max_min_luma_coding_block_size: 1 log2_min_luma_transform_block_size_minus2: 0 log2_diff_max_min_luma_transform_block_size: 3 max_transform_hierarchy_depth_inter: 0 max_transform_hierarchy_depth_intra: 0 scaling_list_enabled_flag: 0 amp_enabled_flag: 0 sample_adaptive_offset_enabled_flag: 0 pcm_enabled_flag: 0 num_short_term_ref_pic_sets: 1 st_ref_pic_set { num_negative_pics: 1 num_positive_pics: 0 delta_poc_s0_minus1 { 0 } used_by_curr_pic_s0_flag { 1 } delta_poc_s1_minus1 { } used_by_curr_pic_s1_flag { } } long_term_ref_pics_present_flag: 0 sps_temporal_mvp_enabled_flag: 1 strong_intra_smoothing_enabled_flag:
+2021-01-25 18:07:03.531 14779-15729/constantin.video.example D/NALU:  vui_parameters_present_flag: 0  sps_extension_present_flag: 0 }

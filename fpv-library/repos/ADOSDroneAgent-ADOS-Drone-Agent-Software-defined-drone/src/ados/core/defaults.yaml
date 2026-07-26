@@ -1,0 +1,105 @@
+agent:
+  device_id: ""
+  name: "my-drone"
+  tier: "auto"
+
+mavlink:
+  source: "auto"
+  serial_port: ""
+  baud_rate: 57600
+  system_id: 1
+  component_id: 191
+  endpoints:
+    - type: websocket
+      port: 8765
+      enabled: true
+
+video:
+  mode: "auto"
+  cloud_relay_url: ""
+
+network:
+  hotspot:
+    # Off by default; operators opt in via the Setup webapp's
+    # Network step (or by setting this field to true in
+    # /etc/ados/config.yaml). The Pydantic schema default in
+    # src/ados/core/config/network.py also reads false; keep both
+    # in sync.
+    enabled: false
+    password: "altnautica"
+  mac_pin:
+    # Auto-pin a stable MAC on an onboard adapter with no efuse MAC (it would
+    # otherwise randomize each boot and churn the DHCP lease / IP). On by
+    # default -- the auto path only writes a next-boot networkd .link and never
+    # touches the live interface. The Rust installer + supervisor read this too;
+    # keep in sync with the Pydantic default in src/ados/core/config/network.py.
+    enabled: true
+    apply_live_allowed: false
+  wifi_selfheal:
+    # Reactive self-heal for the onboard management-WiFi data path. The radio
+    # bring-up can leave the onboard WiFi associated-but-dead (a strong link and
+    # a valid IP yet no traffic, the gateway ARP never resolving); the supervisor
+    # watchdog re-associates it so the box keeps a working failover when its wired
+    # link is unplugged. On by default. It only ever touches onboard managed WiFi,
+    # never the radio adapter or wired. The Rust supervisor reads these fields
+    # too; keep in sync with the Pydantic default in
+    # src/ados/core/config/network.py.
+    enabled: true
+    fail_threshold: 2
+    cooldown_s: 60
+
+server:
+  mode: "local"
+  telemetry_rate: 2
+  heartbeat_interval: 5
+  mqtt_transport: "websockets"
+  mqtt_username: "ados"
+  mqtt_password: ""
+
+remote_access:
+  provider: "none"
+  public_urls: []
+  cloudflare:
+    enabled: false
+    token_path: "/etc/ados/secrets/cloudflare-tunnel-token"
+    service_name: "cloudflared"
+    setup_url: ""
+    api_url: ""
+    video_whep_url: ""
+    mavlink_ws_url: ""
+
+security:
+  tls:
+    enabled: false
+  api:
+    cors_enabled: true
+  setup_token_required: false
+
+api:
+  rest:
+    enabled: true
+    # IPv4 wildcard. The actual listener is dual-stack — a helper at
+    # service startup binds both AF_INET (this address) and AF_INET6
+    # (`::`) sockets so the agent answers on every interface family
+    # regardless of how the browser resolved the mDNS hostname.
+    host: "0.0.0.0"
+    port: 8080
+
+logging:
+  level: "info"
+  max_size_mb: 50
+  keep_count: 5
+
+pairing:
+  state_path: "/etc/ados/pairing.json"
+  convex_url: "https://convex-site.altnautica.com"
+  beacon_interval: 30
+  heartbeat_interval: 60
+  code_ttl: 900
+
+discovery:
+  mdns_enabled: true
+  service_type: "_ados._tcp.local."
+
+swarm:
+  enabled: false

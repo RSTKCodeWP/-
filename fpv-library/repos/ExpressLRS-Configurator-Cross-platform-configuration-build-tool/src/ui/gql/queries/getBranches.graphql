@@ -1,0 +1,9 @@
+query getBranches (
+  $owner: String!,
+  $repository: String!,
+){
+  gitBranches (
+    owner: $owner,
+    repository: $repository
+  )
+}

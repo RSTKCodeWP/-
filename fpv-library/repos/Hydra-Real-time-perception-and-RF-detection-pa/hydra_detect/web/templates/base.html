@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="lattice">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HYDRA DETECT — SORCC</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/variables.css">
+    <link rel="stylesheet" href="/static/css/base.css">
+    <link rel="stylesheet" href="/static/css/topbar.css">
+    <link rel="stylesheet" href="/static/css/ops.css">
+    <link rel="stylesheet" href="/static/css/config.css">
+    <link rel="stylesheet" href="/static/css/settings.css">
+    <link rel="stylesheet" href="/static/css/tak.css">
+    <link rel="stylesheet" href="/static/css/systems.css">
+    <link rel="stylesheet" href="/static/css/autonomy.css">
+    <link rel="stylesheet" href="/static/css/rf.css">
+    <!-- Leaflet (used by Cockpit TAK map on Ops + large map on TAK tab) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
+</head>
+<body class="view-ops">
+    <!-- ── MJPEG Stream (persists across views) ── -->
+    <img id="mjpeg-stream" alt="Live video feed">
+
+    <!-- ── Top Bar ── -->
+    <header class="topbar" data-mock="1" role="banner">
+        <!-- Logo lockup: SORCC shield (PNG) + HYDRA DETECT wordmark + OGT mark.
+             PNG asset is primary; inline SVG fallback renders if PNG 404s so
+             the lockup degrades gracefully on partial static deploys. -->
+        <div class="tb-lockup" id="tb-lockup">
+            <img class="tb-shield" id="tb-shield" src="/static/assets/sorcc_crest_transparent.png"
+                 alt="SORCC"
+                 data-fallback='<svg class=&quot;tb-shield&quot; viewBox=&quot;0 0 46 46&quot; xmlns=&quot;http://www.w3.org/2000/svg&quot; aria-label=&quot;SORCC shield&quot;><rect x=&quot;23&quot; y=&quot;3&quot; width=&quot;28&quot; height=&quot;28&quot; rx=&quot;3&quot; transform=&quot;rotate(45 23 3)&quot; fill=&quot;#385723&quot; stroke=&quot;#A6BC92&quot; stroke-width=&quot;1.2&quot;/><text x=&quot;23&quot; y=&quot;26&quot; text-anchor=&quot;middle&quot; fill=&quot;#EFF5EB&quot; font-family=&quot;Barlow Condensed&quot; font-size=&quot;10&quot; font-weight=&quot;700&quot; letter-spacing=&quot;0.1em&quot;>SORCC</text></svg>'>
+            <span class="tb-divider tb-divider-lockup" aria-hidden="true"></span>
+            <div class="tb-wordmark-block">
+                <span class="topbar-brand tb-wordmark">HYDRA DETECT</span>
+                <span class="tb-subtitle">OPERATOR DASHBOARD</span>
+            </div>
+            <img class="tb-ogt" id="tb-ogt" src="/static/assets/ogt_horizontal_white.png"
+                 alt="Oak Grove Technologies">
+        </div>
+
+        <span class="tb-divider tb-divider-nav" aria-hidden="true"></span>
+
+        <nav class="tb-nav" role="navigation" aria-label="View navigation">
+            <button class="topbar-tab active" data-view="ops" aria-label="Ops HUD view">Operator</button>
+            <button class="topbar-tab" data-view="tak" aria-label="TAK view">TAK</button>
+            <button class="topbar-tab" data-view="config" aria-label="Config view">Config</button>
+            <button class="topbar-tab" data-view="settings" aria-label="Settings view">Settings</button>
+        </nav>
+
+        <div class="tb-spacer"></div>
+
+        <!-- Platform / Callsign chips -->
+        <div class="tb-chips" aria-label="Platform and callsign">
+            <span class="tb-chip"><span class="tb-chip-label">PLT </span><span class="tb-chip-value" id="tb-plt-value">USV</span></span>
+            <span class="tb-chip"><span class="tb-chip-label">CS </span><span class="tb-chip-value tb-chip-value-cs" id="tb-cs-value">HYDRA-1</span></span>
+            <span class="tb-mode-badge" id="tb-mode-badge" data-mode="OBSERVE" title="Operating mode">OBSERVE</span>
+        </div>
+
+        <span class="tb-divider" aria-hidden="true"></span>
+
+        <!-- Health blips — spec order: CAM · MAV · GPS · KIS · TAK.
+             SIM pill sits beside the blips (only visible when simulated GPS). -->
+        <div class="tb-blips" aria-label="Subsystem health">
+            <span class="tb-blip" data-blip="cam" title="Camera">
+                <span class="tb-dot dim" id="dot-camera"></span>CAM
+            </span>
+            <span class="tb-blip" data-blip="mav" title="MAVLink">
+                <span class="tb-dot dim" id="dot-mavlink"></span>MAV
+            </span>
+            <span class="tb-blip" data-blip="gps" title="GPS Fix">
+                <span class="tb-dot dim" id="dot-gps"></span><span id="tb-gps-label">GPS --</span>
+            </span>
+            <span class="tb-blip" data-blip="kis" title="Kismet">
+                <span class="tb-dot dim" id="dot-kismet"></span>KIS
+            </span>
+            <span class="tb-blip" data-blip="tak" title="TAK">
+                <span class="tb-dot dim" id="dot-tak"></span>TAK
+            </span>
+            <span class="tb-blip" data-blip="sim" title="SIM GPS">
+                <span class="tb-dot dim" id="dot-sim"></span>SIM
+            </span>
+            <span class="tb-sim-pill sim-gps-pill" id="sim-gps-pill" hidden>SIM</span>
+        </div>
+
+        <span class="tb-divider" aria-hidden="true"></span>
+
+        <!-- Battery indicator (platform MAVLink battery, NOT Jetson power).
+             Tone follows /api/stats battery.level: OK=olive, LOW=amber,
+             CRITICAL=red, UNKNOWN=dim. Hidden until the first message
+             so it doesn't claim "0%" before MAVLink hands us data. -->
+        <div class="tb-battery" id="tb-battery" hidden
+             aria-label="Platform battery"
+             title="Platform battery (MAVLink SYS_STATUS — may differ from Jetson power source)">
+            <span class="tb-dot dim" id="tb-battery-dot"></span>
+            <span class="tb-battery-pct" id="tb-battery-pct">--%</span>
+        </div>
+
+        <span class="tb-divider" aria-hidden="true"></span>
+
+        <!-- FPS / Latency -->
+        <div class="tb-fps-block" aria-label="FPS and latency">
+            <span class="tb-fps-value" id="fps-display">--</span>
+            <span class="tb-fps-unit"> FPS</span>
+            <span class="tb-fps-sep">|</span>
+            <span class="tb-lat-value" id="tb-latency-value">--</span>
+            <span class="tb-lat-unit">ms</span>
+        </div>
+
+        <!-- Settings gear (opens Settings view) -->
+        <button class="tb-gear topbar-tab" data-view="settings"
+                aria-label="Open settings">⚙</button>
+
+        <!-- ABORT -->
+        <button class="tb-abort btn btn-danger btn-danger-lg" id="tb-abort"
+                aria-label="Emergency abort">⏻ ABORT</button>
+
+        <!-- Legacy bandwidth toggle retained for main.js + CSP-listener test.
+             Hidden in the mock layout (not in primitives.jsx) but still bound
+             so existing behaviour and regression coverage stay intact. -->
+        <button class="bandwidth-toggle" id="bandwidth-toggle" hidden
+                aria-label="Toggle low bandwidth mode">LOW BW</button>
+    </header>
+
+    <!-- ── Emergency Flash Overlay (activates when body[data-emerg="1"]) ── -->
+    <div id="emergency-flash" aria-hidden="true"></div>
+
+    {% if remote_abort_reachable %}
+    <!-- ── Remote Abort Reachable Banner (issue #150) ──
+         /api/abort is intentionally unauthenticated as a safety override.
+         When the dashboard is loaded from a non-loopback host, surface a
+         visible reminder so the operator knows any peer on the network
+         can issue an RTL/LOITER on this vehicle. -->
+    <div id="remote-abort-banner" class="remote-abort-banner" role="status" aria-live="polite">
+        <span class="remote-abort-banner-text">
+            Remote abort reachable: <code>POST /api/abort</code> on this dashboard is
+            unauthenticated by design. Any device on the network can trigger RTL.
+        </span>
+        <button class="remote-abort-banner-close" id="remote-abort-banner-close"
+                type="button" aria-label="Dismiss banner">×</button>
+    </div>
+    {% endif %}
+
+    <!-- ── Toast Notifications ── -->
+    <div class="toast-container" id="toast-container" role="alert" aria-live="polite"></div>
+
+    <!-- ── View: Ops (HUD) ── -->
+    <div class="view view-ops" id="view-ops">
+        {% include 'ops.html' %}
+    </div>
+
+    <!-- ── View: Config (Mission Configuration) ── -->
+    <div class="view view-config" id="view-config">
+        {% include 'config.html' %}
+    </div>
+
+    <!-- ── View: Settings ── -->
+    <div class="view view-settings" id="view-settings">
+        {% include 'settings.html' %}
+    </div>
+
+    <!-- ── View: TAK ── -->
+    <div class="view view-tak" id="view-tak">
+        {% include 'tak.html' %}
+    </div>
+
+    <!-- ── Strike Confirmation Modal ── -->
+    <div class="modal-overlay" id="strike-modal">
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="strike-modal-title" tabindex="-1">
+            <h3 id="strike-modal-title" style="color: var(--danger); margin-bottom: var(--s-3);">Confirm Strike</h3>
+            <p style="margin-bottom: var(--s-2);">Target: <strong id="strike-target-label">--</strong></p>
+            <p style="font-size: var(--font-sm); color: var(--text-dim); margin-bottom: var(--s-4);">
+                Platform will navigate toward the target. Manual GCS override is always available.
+            </p>
+            <div style="display: flex; gap: var(--s-2); justify-content: flex-end;">
+                <button class="btn" id="strike-cancel">Cancel</button>
+                <button class="btn btn-danger" id="strike-confirm">Confirm Strike</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Drop Confirmation Modal ── -->
+    <div class="modal-overlay" id="drop-modal">
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="drop-modal-title" tabindex="-1">
+            <h3 id="drop-modal-title" style="color: var(--warning); margin-bottom: var(--s-3);">Confirm Drop</h3>
+            <p style="margin-bottom: var(--s-2);">Target: <strong id="drop-target-label">--</strong></p>
+            <p style="font-size: var(--font-sm); color: var(--text-dim); margin-bottom: var(--s-4);">
+                Platform will approach target and release drop servo on arrival. Manual GCS override is always available.
+            </p>
+            <div style="display: flex; gap: var(--s-2); justify-content: flex-end;">
+                <button class="btn" id="drop-cancel">Cancel</button>
+                <button class="btn btn-danger" id="drop-confirm">Confirm Drop</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Approach Strike Confirmation Modal ── -->
+    <div class="modal-overlay" id="approach-strike-modal">
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="approach-strike-modal-title" tabindex="-1">
+            <h3 id="approach-strike-modal-title" style="color: var(--danger); margin-bottom: var(--s-3);">Confirm Continuous Strike</h3>
+            <p style="margin-bottom: var(--s-2);">Target: <strong id="approach-strike-target-label">--</strong></p>
+            <p style="font-size: var(--font-sm); color: var(--text-dim); margin-bottom: var(--s-4);">
+                Platform will continuously approach target at maximum speed with arm engaged. Manual GCS override is always available.
+            </p>
+            <div style="display: flex; gap: var(--s-2); justify-content: flex-end;">
+                <button class="btn" id="approach-strike-cancel">Cancel</button>
+                <button class="btn btn-danger" id="approach-strike-confirm">Confirm Strike</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── RF Hunt Target Confirmation Modal ── -->
+    <div class="modal-overlay" id="rf-target-modal">
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="rf-target-modal-title" tabindex="-1">
+            <h3 id="rf-target-modal-title" style="color: var(--olive-primary); margin-bottom: var(--s-3);">Set RF Hunt Target</h3>
+            <p style="margin-bottom: var(--s-2);">Target: <strong id="rf-target-label">--</strong></p>
+            <p style="font-size: var(--font-sm); color: var(--text-dim); margin-bottom: var(--s-4);">
+                Pipeline will switch to RF homing against this device. Active hunt will be replaced. Manual GCS override is always available.
+            </p>
+            <div style="display: flex; gap: var(--s-2); justify-content: flex-end;">
+                <button class="btn" id="rf-target-cancel">Cancel</button>
+                <button class="btn btn-primary" id="rf-target-confirm">Start Hunt</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Converged Flash Overlay (full-viewport border pulse) ── -->
+    <div class="rf-converge-flash" id="rf-converge-flash" aria-hidden="true"></div>
+
+    <!-- ── Keybinds Help Overlay (press ?) ── -->
+    <div id="keybinds-help" role="dialog" aria-modal="true" aria-labelledby="keybinds-help-title" style="display:none;">
+        <div class="keybinds-card">
+            <div class="keybinds-header">
+                <h3 id="keybinds-help-title" class="keybinds-title">Keyboard Shortcuts</h3>
+                <button class="keybinds-close" type="button" data-role="keybinds-close" aria-label="Close help">✕</button>
+            </div>
+            <div class="keybinds-section">
+                <div class="keybinds-section-title">Views</div>
+                <div class="keybinds-row"><kbd class="keybinds-kbd">1</kbd><span class="keybinds-desc">Ops</span></div>
+                <div class="keybinds-row"><kbd class="keybinds-kbd">2</kbd><span class="keybinds-desc">TAK</span></div>
+                <div class="keybinds-row"><kbd class="keybinds-kbd">3</kbd><span class="keybinds-desc">Config</span></div>
+                <div class="keybinds-row"><kbd class="keybinds-kbd">4</kbd><span class="keybinds-desc">Settings</span></div>
+            </div>
+            <div class="keybinds-section">
+                <div class="keybinds-section-title">Global</div>
+                <div class="keybinds-row"><kbd class="keybinds-kbd">?</kbd><span class="keybinds-desc">Toggle this help</span></div>
+                <div class="keybinds-row"><kbd class="keybinds-kbd">/</kbd><span class="keybinds-desc">Focus search in current view</span></div>
+                <div class="keybinds-row"><kbd class="keybinds-kbd">Esc</kbd><span class="keybinds-desc">Close any open overlay</span></div>
+                <div class="keybinds-row"><kbd class="keybinds-kbd">Ctrl</kbd><span class="keybinds-sep">+</span><kbd class="keybinds-kbd">K</kbd><span class="keybinds-desc">Open command palette</span></div>
+                <div class="keybinds-row"><kbd class="keybinds-kbd">Cmd</kbd><span class="keybinds-sep">+</span><kbd class="keybinds-kbd">K</kbd><span class="keybinds-desc">Open command palette (macOS)</span></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Command Palette Overlay (Ctrl+K / Cmd+K) ── -->
+    <div id="hydra-command-palette" role="dialog" aria-modal="true" aria-labelledby="hydra-command-palette-label" style="display:none;">
+        <div class="cmd-palette-card">
+            <label class="visually-hidden" id="hydra-command-palette-label" for="hydra-command-palette-input">Command palette search</label>
+            <input id="hydra-command-palette-input" class="cmd-palette-input"
+                   type="text" autocomplete="off" spellcheck="false"
+                   placeholder="Search tracks, peers, actions…">
+            <div id="hydra-command-palette-list" class="cmd-palette-list" role="listbox" aria-label="Command palette results"></div>
+        </div>
+    </div>
+
+    {% if morale_features_enabled %}
+    <!-- ── Sentience Easter Egg Overlay ── -->
+    <div id="sentience-overlay">
+        <div id="sentience-terminal"></div>
+        <div id="sentience-crosshair">⊕</div>
+    </div>
+
+    <!-- ── Power User Easter Egg Modal ── -->
+    <div class="modal-overlay" id="power-user-modal">
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="power-user-modal-title" tabindex="-1">
+            <h3 id="power-user-modal-title" style="color: var(--text-primary); margin-bottom: var(--s-3);">Advanced Configuration</h3>
+            <p style="margin-bottom: var(--s-4); font-size: var(--font-sm); color: var(--text-dim);">
+                Enable advanced configuration mode? This exposes low-level system parameters.
+            </p>
+            <div style="display: flex; gap: var(--s-2); justify-content: flex-end;">
+                <button class="btn" id="power-user-cancel">Cancel</button>
+                <button class="btn btn-green" id="power-user-enable">Enable</button>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ── Footer ── -->
+    <footer class="footer" role="contentinfo">
+        <span class="footer-text" id="footer-left">--</span>
+        <span class="footer-text">UNCLASSIFIED</span>
+        <span class="footer-text" id="footer-right">SORCC Payload Integrator</span>
+        <button class="footer-logout" id="footer-logout" style="display:none;" title="Log out">Logout</button>
+    </footer>
+
+    {% if remote_abort_reachable %}
+    <!-- Remote abort banner dismiss handler (issue #150) — inline so it works
+         even before main.js parses; banner is purely informational. -->
+    <script>
+        (function () {
+            var btn = document.getElementById('remote-abort-banner-close');
+            if (!btn) return;
+            btn.addEventListener('click', function () {
+                var b = document.getElementById('remote-abort-banner');
+                if (b) b.style.display = 'none';
+            });
+        })();
+    </script>
+    {% endif %}
+
+    <!-- ── Scripts ── -->
+    <script src="/static/js/vendor/Sortable.min.js"></script>
+    <script src="/static/js/app.js"></script>
+    <script src="/static/js/state/store.js"></script>
+    <script src="/static/js/router/view-router.js"></script>
+    <script src="/static/js/polling/poller-manager.js"></script>
+    <script src="/static/js/stream/stream-controller.js"></script>
+    <script src="/static/js/ui/toast.js"></script>
+    <script src="/static/js/ui/modal.js"></script>
+    <script src="/static/js/ui/sim-gps.js"></script>
+    <script src="/static/js/api/client.js"></script>
+    <script src="/static/js/preflight/preflight.js"></script>
+    {% if morale_features_enabled %}<script src="/static/js/easter.js"></script>{% endif %}
+    <script src="/static/js/keybinds.js"></script>
+    <script src="/static/js/command-palette.js"></script>
+    <script src="/static/js/main.js"></script>
+    <script src="/static/js/panels.js"></script>
+    <script src="/static/js/tak-map.js"></script>
+    <script src="/static/js/rf-map-layer.js"></script>
+    <script src="/static/js/rf-hunt.js"></script>
+    <script src="/static/js/rtl-spectrum-overlay.js"></script>
+    <script src="/static/js/ops.js"></script>
+    <script src="/static/js/config.js"></script>
+    <script src="/static/js/settings.js"></script>
+    <script src="/static/js/tak.js"></script>
+    <script src="/static/js/systems.js"></script>
+    <script src="/static/js/autonomy.js"></script>
+</body>
+</html>

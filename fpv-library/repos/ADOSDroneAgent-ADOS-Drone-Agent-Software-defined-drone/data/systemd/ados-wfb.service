@@ -1,0 +1,44 @@
+[Unit]
+Description=ADOS WFB-ng Link Manager
+After=ados-mavlink.service
+PartOf=ados-supervisor.service
+StartLimitInterval=60s
+StartLimitBurst=5
+
+[Service]
+# Join the shared accounting slice so MemoryCurrent/CPUUsage are
+# observable per unit (the slice sets MemoryAccounting=yes).
+Slice=ados.slice
+Type=simple
+# The native radio transmit plane. The install verifies the binary is present
+# before this unit starts (a missing binary fails the install health gate), so
+# a normal boot runs it directly. There is no packaged fallback — the Python
+# transmit plane was removed; a missing or broken binary fails loud.
+ExecStart=/opt/ados/bin/ados-radio
+Restart=on-failure
+RestartSec=5
+Environment=ADOS_CONFIG=/etc/ados/config.yaml
+EnvironmentFile=-/etc/ados/env
+
+# WFB needs raw socket + WiFi adapter access
+AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN
+NoNewPrivileges=no
+ProtectSystem=strict
+ReadWritePaths=/var/ados /run/ados /dev /etc/ados
+
+# The original 30M cap was sized for the bare manager + wfb_tx subprocess.
+# Adding the hop supervisor (band scanner, control-port broadcaster) plus
+# the bitrate controller pushes steady-state memory past 29M, which puts
+# the cgroup into hard reclaim and stalls the asyncio loop — the periodic
+# hop timer effectively stops firing because allocations queue. 96M gives
+# the supervisor's iw-scan output (~one channel-survey buffer) plus the
+# control-port broadcaster headroom without inviting unbounded growth.
+MemoryMax=96M
+CPUQuota=25%
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ados-wfb
+
+[Install]
+WantedBy=ados-supervisor.service

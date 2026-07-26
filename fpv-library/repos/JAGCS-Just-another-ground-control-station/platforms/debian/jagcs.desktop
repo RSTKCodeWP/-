@@ -1,0 +1,10 @@
+#!/usr/bin/env xdg-open
+[Desktop Entry]
+Type=Application
+Name=JAGCS
+GenericName=jagcs
+Exec=/usr/local/bin/jagcs.sh
+Terminal=false
+Categories=Science;Robotics;
+Comment=Just Another Ground Station
+Icon=/usr/local/share/icons/jagcs.svg

@@ -1,0 +1,40 @@
+[Unit]
+Description=ADOS WFB-ng receiver (mesh receiver role)
+After=ados-batman.service
+Wants=ados-batman.service
+PartOf=ados-supervisor.service
+# Only runs when the role sentinel reads `receiver`. role_manager owns this file.
+ConditionPathExists=/etc/ados/mesh/role
+StartLimitInterval=60s
+StartLimitBurst=5
+
+[Service]
+# Join the shared accounting slice so MemoryCurrent/CPUUsage are
+# observable per unit (the slice sets MemoryAccounting=yes).
+Slice=ados.slice
+Type=simple
+User=root
+# The native receiver loop is the only implementation; the install verifies the
+# binary is present before this unit starts. The binary takes the role on its
+# `--role` argument.
+ExecStart=/opt/ados/bin/ados-groundlink --role receiver
+Restart=on-failure
+RestartSec=5
+Environment=ADOS_CONFIG=/etc/ados/config.yaml
+EnvironmentFile=-/etc/ados/env
+
+# Receiver drives wfb_rx -a which binds a raw socket on the local NIC
+# plus a UDP listener on the mesh interface.
+AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN CAP_NET_BIND_SERVICE
+NoNewPrivileges=no
+ProtectSystem=strict
+ReadWritePaths=/var/ados /run/ados /dev /etc/ados
+
+MemoryMax=96M
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ados-wfb-receiver
+
+[Install]
+WantedBy=ados-supervisor.service

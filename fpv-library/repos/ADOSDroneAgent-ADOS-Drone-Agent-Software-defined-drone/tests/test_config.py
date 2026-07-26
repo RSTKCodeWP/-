@@ -1,0 +1,453 @@
+"""Tests for config loading, validation, and defaults."""
+
+from __future__ import annotations
+
+import tempfile
+
+import pytest
+import yaml
+
+from ados.core.config import ADOSConfig, load_config
+
+
+def test_default_config():
+    """ADOSConfig with no args should have sensible defaults."""
+    cfg = ADOSConfig()
+    assert cfg.agent.name == "my-drone"
+    assert cfg.mavlink.baud_rate == 57600
+    assert cfg.mavlink.system_id == 1
+    assert cfg.mavlink.component_id == 191
+    assert cfg.logging.level == "info"
+    assert cfg.swarm.enabled is False
+
+
+def test_device_id_auto_generated():
+    """Empty device_id should be auto-filled."""
+    cfg = ADOSConfig()
+    assert cfg.agent.device_id != ""
+    assert len(cfg.agent.device_id) == 8
+
+
+def test_load_config_from_yaml():
+    """Config loaded from YAML should override defaults."""
+    data = {
+        "agent": {"name": "test-drone", "tier": "tier3"},
+        "mavlink": {"baud_rate": 921600},
+    }
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+        yaml.dump(data, f)
+        f.flush()
+        cfg = load_config(f.name)
+
+    assert cfg.agent.name == "test-drone"
+    assert cfg.agent.tier == "tier3"
+    assert cfg.mavlink.baud_rate == 921600
+    # Defaults should still be intact
+    assert cfg.logging.level == "info"
+
+
+def test_load_config_no_file():
+    """Loading from a non-existent path should return defaults."""
+    cfg = load_config("/tmp/nonexistent-ados-config-12345.yaml")
+    assert cfg.agent.name == "my-drone"
+
+
+def test_config_extra_ignored():
+    """Unknown keys in YAML should be silently ignored."""
+    data = {
+        "agent": {"name": "test"},
+        "unknown_section": {"foo": "bar"},
+    }
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+        yaml.dump(data, f)
+        f.flush()
+        cfg = load_config(f.name)
+    assert cfg.agent.name == "test"
+
+
+def test_regulatory_defaults_unrestricted():
+    """A fresh config defaults the operating-region posture to unrestricted."""
+    cfg = ADOSConfig()
+    assert cfg.network.regulatory.mode == "unrestricted"
+    assert cfg.network.regulatory.region is None
+    assert cfg.network.regulatory.ack_operator is None
+    assert cfg.network.regulatory.ack_at is None
+
+
+def test_regulatory_no_block_reads_unrestricted():
+    """A config file with no network.regulatory block reads as unrestricted."""
+    data = {"agent": {"name": "x"}, "network": {"hotspot": {"enabled": True}}}
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+        yaml.dump(data, f)
+        f.flush()
+        cfg = load_config(f.name)
+    assert cfg.network.regulatory.mode == "unrestricted"
+    assert cfg.network.regulatory.region is None
+
+
+def test_crsf_lane_defaults_off_and_unpinned():
+    """A fresh config has no CRSF pin and the lane opted out."""
+    cfg = ADOSConfig()
+    assert cfg.radio.crsf.enabled is False
+    assert cfg.radio.crsf.device is None
+    assert cfg.radio.crsf.band == "dual"
+    assert cfg.radio.crsf.packet_rate_hz == 150
+    assert cfg.radio.crsf.tx_power_dbm is None
+    assert cfg.radio.crsf.mode == "crsf_rc"
+    assert cfg.radio.crsf.channel_source == "hid"
+    assert cfg.radio.crsf.mavlink_transport == "serial"
+    assert cfg.radio.crsf.mavlink_command_enabled is False
+    assert cfg.radio.crsf.relay_role == "none"
+
+
+def test_crsf_pin_round_trips_through_a_full_save():
+    """The radio.crsf block survives a model_dump() full-file rewrite.
+
+    Every config save rewrites the whole YAML from ``model_dump()``; a section
+    missing from the model would be silently dropped on the next write, erasing
+    the operator's pin. The section must therefore be modelled, not merely
+    tolerated by ``extra: ignore``.
+    """
+    data = {
+        "radio": {
+            "crsf": {
+                "enabled": True,
+                "device": "/dev/ttyUSB0",
+                "band": "900",
+                "packet_rate_hz": 250,
+                "tx_power_dbm": 20,
+                "mode": "mavlink",
+                "channel_source": "hybrid",
+                "mavlink_transport": "backpack_wifi",
+                "mavlink_command_enabled": True,
+                "relay_role": "repeater",
+            }
+        }
+    }
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+        yaml.dump(data, f)
+        f.flush()
+        cfg = load_config(f.name)
+    assert cfg.radio.crsf.enabled is True
+    assert cfg.radio.crsf.device == "/dev/ttyUSB0"
+    assert cfg.radio.crsf.band == "900"
+    assert cfg.radio.crsf.packet_rate_hz == 250
+    assert cfg.radio.crsf.tx_power_dbm == 20
+    assert cfg.radio.crsf.mode == "mavlink"
+    assert cfg.radio.crsf.channel_source == "hybrid"
+    assert cfg.radio.crsf.mavlink_transport == "backpack_wifi"
+    assert cfg.radio.crsf.mavlink_command_enabled is True
+    assert cfg.radio.crsf.relay_role == "repeater"
+    dumped = cfg.model_dump()
+    assert dumped["radio"]["crsf"] == data["radio"]["crsf"]
+
+
+def test_crsf_unset_nullables_dump_as_null():
+    """The unset nullable fields (device pin, TX power) dump as ``None`` — the
+    on-disk YAML carries explicit nulls, which every native reader of the block
+    tolerates. A ``region``-style Literal typo is rejected by validation rather
+    than silently defaulted (the native readers degrade loudly instead)."""
+    import pytest
+    from pydantic import ValidationError
+
+    from ados.core.config.radio import CrsfConfig
+
+    dumped = ADOSConfig().model_dump()["radio"]["crsf"]
+    assert dumped["device"] is None
+    assert dumped["tx_power_dbm"] is None
+    with pytest.raises(ValidationError):
+        CrsfConfig(band="5ghz")
+    with pytest.raises(ValidationError):
+        CrsfConfig(channel_source="bogus")
+
+
+def test_regulatory_region_round_trips():
+    """A pinned operating region round-trips through the YAML loader unchanged."""
+    data = {
+        "network": {
+            "regulatory": {
+                "mode": "region",
+                "region": "IN",
+                "ack_operator": "op1",
+                "ack_at": "2026-06-03T10:00:00+05:30",
+            }
+        }
+    }
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+        yaml.dump(data, f)
+        f.flush()
+        cfg = load_config(f.name)
+    reg = cfg.network.regulatory
+    assert reg.mode == "region"
+    assert reg.region == "IN"
+    assert reg.ack_operator == "op1"
+    assert reg.ack_at == "2026-06-03T10:00:00+05:30"
+    # model_dump is byte-stable through a YAML round-trip.
+    from ados.core.config import RegulatoryConfig
+
+    dumped = reg.model_dump()
+    reloaded = RegulatoryConfig(**yaml.safe_load(yaml.safe_dump(dumped)))
+    assert reloaded == reg
+
+
+def test_load_config_tolerates_unquoted_timestamp():
+    """An unquoted ISO-8601 timestamp (as the native config writers emit for
+    video.wfb.paired_at) must load as a string, not a datetime that would fail
+    the str-typed field and crash the API at startup."""
+    raw = (
+        "profile: drone\n"
+        "video:\n"
+        "  mode: auto\n"
+        "  wfb:\n"
+        "    paired_at: 2026-05-30T10:18:35+00:00\n"
+        "    auto_pair_enabled: false\n"
+    )
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+        f.write(raw)
+        f.flush()
+        cfg = load_config(f.name)
+    assert isinstance(cfg.video.wfb.paired_at, str)
+    assert cfg.video.wfb.paired_at == "2026-05-30T10:18:35+00:00"
+
+
+def test_mavlink_endpoints_default():
+    """Default endpoints should include one WebSocket on 8765."""
+    cfg = ADOSConfig()
+    assert len(cfg.mavlink.endpoints) >= 1
+    assert cfg.mavlink.endpoints[0].type == "websocket"
+    assert cfg.mavlink.endpoints[0].port == 8765
+
+
+def test_ws_proxy_enforce_auth_defaults_off_and_round_trips():
+    """The WS-proxy auth-enforcement flag defaults off and survives a round trip
+    through the config model (so it is not stripped and can be set the sanctioned
+    way rather than hand-editing the on-disk config)."""
+    assert ADOSConfig().mavlink.ws_proxy_enforce_auth is False
+    with tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False) as f:
+        yaml.safe_dump({"mavlink": {"ws_proxy_enforce_auth": True}}, f)
+        path = f.name
+    cfg = load_config(path)
+    assert cfg.mavlink.ws_proxy_enforce_auth is True
+
+
+def test_security_defaults():
+    """Security defaults should be reasonable."""
+    cfg = ADOSConfig()
+    assert cfg.security.tls.enabled is True
+    assert cfg.security.api.cors_enabled is True
+    assert len(cfg.security.api.cors_origins) >= 1
+    assert "*" not in cfg.security.api.cors_origins
+    assert "http://localhost:4000" in cfg.security.api.cors_origins
+
+
+def test_cors_origins_additive_merge():
+    """Custom cors_origins config keeps the default Mission Control origins.
+
+    A deployment yaml that sets `cors_origins:` to a custom list
+    must not accidentally drop the dev / local Mission Control
+    origin. The effective allowlist is always defaults+configured+extras.
+    """
+    from ados.core.config import ApiSecurityConfig
+
+    cfg = ApiSecurityConfig(cors_origins=["https://team.example.com"])
+    effective = cfg.effective_cors_origins
+    assert "http://localhost:4000" in effective
+    assert "https://team.example.com" in effective
+    # No duplicates.
+    assert len(effective) == len(set(effective))
+
+
+def test_cors_origins_extra_merges():
+    """`cors_origins_extra` augments on top of defaults."""
+    from ados.core.config import ApiSecurityConfig
+
+    cfg = ApiSecurityConfig(cors_origins_extra=["https://team.example.com"])
+    effective = cfg.effective_cors_origins
+    assert "http://localhost:4000" in effective
+    assert "https://team.example.com" in effective
+
+
+def test_cors_origins_env_override_replaces(monkeypatch):
+    """`ADOS_CORS_ORIGINS_OVERRIDE` env var fully replaces the allowlist."""
+    from ados.core.config import ApiSecurityConfig
+
+    monkeypatch.setenv(
+        "ADOS_CORS_ORIGINS_OVERRIDE",
+        "https://only-this.example.com, https://and-this.example.com ",
+    )
+    cfg = ApiSecurityConfig()
+    effective = cfg.effective_cors_origins
+    assert effective == [
+        "https://only-this.example.com",
+        "https://and-this.example.com",
+    ]
+    assert "http://localhost:4000" not in effective
+
+
+# ─── Per-board VideoConfig.use_gst_air_pipeline default ───────────────────────
+
+
+def test_use_gst_air_pipeline_defaults_true_on_rockchip(monkeypatch):
+    """On Rockchip boards the in-process GStreamer pipeline is preferred
+    so encoding can offload to ``mpph264enc`` on the VPU. The
+    AirPipeline's own encoder chooser falls back to ``x264enc`` if
+    ``mpph264enc`` is missing at runtime, so this default is safe even
+    on a Rockchip rig without the rockchip-mpp gstreamer plugin
+    installed."""
+    from ados.core.config.video import VideoConfig
+
+    class _FakeBoard:
+        soc = "RK3582"
+
+    monkeypatch.setattr(
+        "ados.hal.detect.detect_board", lambda *a, **kw: _FakeBoard()
+    )
+    cfg = VideoConfig()
+    assert cfg.use_gst_air_pipeline is True
+
+
+def test_use_gst_air_pipeline_defaults_false_on_pi(monkeypatch):
+    """On non-Rockchip boards (Pi 4B BCM2711, Cubie A7Z Allwinner, etc.)
+    the per-board default is False so we stay on the bench-validated
+    legacy bash pipeline. Operators can still opt in via config.yaml."""
+    from ados.core.config.video import VideoConfig
+
+    class _FakeBoard:
+        soc = "BCM2711"
+
+    monkeypatch.setattr(
+        "ados.hal.detect.detect_board", lambda *a, **kw: _FakeBoard()
+    )
+    cfg = VideoConfig()
+    assert cfg.use_gst_air_pipeline is False
+
+
+def test_use_gst_air_pipeline_respects_explicit_config(monkeypatch):
+    """An explicit ``use_gst_air_pipeline: false`` in config.yaml wins
+    over the per-board True default. The operator override path must
+    never be silently flipped by a future board-detection refactor."""
+    from ados.core.config.video import VideoConfig
+
+    class _FakeBoard:
+        soc = "RK3588"  # Would otherwise default to True
+
+    monkeypatch.setattr(
+        "ados.hal.detect.detect_board", lambda *a, **kw: _FakeBoard()
+    )
+    cfg = VideoConfig(use_gst_air_pipeline=False)
+    assert cfg.use_gst_air_pipeline is False
+
+
+def test_use_gst_air_pipeline_falls_back_to_false_on_detect_failure(
+    monkeypatch,
+):
+    """Board fingerprint probe failures (HAL not importable in a unit
+    test fixture, /proc unreadable in a container) must never crash
+    config loading. The default factory swallows the exception and
+    returns the conservative False."""
+    from ados.core.config.video import VideoConfig
+
+    def _boom(*a, **kw):
+        raise RuntimeError("simulated /proc parse failure")
+
+    monkeypatch.setattr(
+        "ados.hal.detect.detect_board", _boom
+    )
+    cfg = VideoConfig()
+    assert cfg.use_gst_air_pipeline is False
+
+
+def test_camera_leg_management_field_defaults_match_rust():
+    """A CameraLeg with only id/source declared defaults every management field
+    to the same value the Rust `CameraLeg` does (name/orientation/owner/fov/mount/
+    calibration/match absent, purpose empty, enabled True), so a leg declared
+    before the roster fields existed reads identically on both halves."""
+    from ados.core.config.video import CameraLeg
+
+    leg = CameraLeg(id="belly", source="/dev/video2")
+    assert leg.name is None
+    assert leg.orientation is None
+    assert leg.purpose == []
+    assert leg.enabled is True
+    assert leg.owner is None
+    assert leg.fov_deg is None
+    assert leg.mount_pitch_deg is None
+    assert leg.calibration is None
+    assert leg.camera_match is None
+
+
+def test_camera_leg_management_fields_round_trip():
+    """The full management field set parses, including the ``match`` wire key
+    aliased to ``camera_match`` (``match`` is a Python keyword)."""
+    from ados.core.config.video import CameraLeg
+
+    leg = CameraLeg.model_validate(
+        {
+            "id": "belly",
+            "source": "/dev/video2",
+            "role": "primary",
+            "codec": "h265",
+            "name": "Belly cam",
+            "orientation": "down",
+            "purpose": ["detect", "precision-landing"],
+            "enabled": False,
+            "owner": "operator",
+            "fov_deg": 82.5,
+            "mount_pitch_deg": -45.0,
+            "calibration": "belly-v1",
+            "match": {"usb": "046d:0825:ABC123"},
+        }
+    )
+    assert leg.name == "Belly cam"
+    assert leg.orientation == "down"
+    assert leg.purpose == ["detect", "precision-landing"]
+    assert leg.enabled is False
+    assert leg.owner == "operator"
+    assert leg.fov_deg == 82.5
+    assert leg.mount_pitch_deg == -45.0
+    assert leg.calibration == "belly-v1"
+    assert leg.camera_match is not None
+    assert leg.camera_match.usb == "046d:0825:ABC123"
+    # A CSI fingerprint parses the sensor + port.
+    csi = CameraLeg.model_validate(
+        {"id": "nadir", "source": "/dev/video0", "match": {"csi_sensor": "imx219", "csi_port": 1}}
+    )
+    assert csi.camera_match is not None
+    assert csi.camera_match.csi_sensor == "imx219"
+    assert csi.camera_match.csi_port == 1
+    assert csi.camera_match.usb is None
+
+
+def test_profile_accepts_workstation_and_compute():
+    """The config profile enum accepts every profile a fleet node runs as. A
+    workstation or compute node sets its profile explicitly, so its config must
+    validate across the drone / ground-station / workstation / compute set."""
+    from ados.core.config.agent import AgentConfig
+
+    for profile in ("auto", "drone", "ground_station", "workstation", "compute"):
+        assert AgentConfig(profile=profile).profile == profile
+
+    with pytest.raises(ValueError):
+        AgentConfig(profile="not-a-profile")
+
+
+def test_packaged_defaults_carry_no_orphan_top_level_keys():
+    """Every top-level key in the packaged defaults must be a config field.
+
+    The model ignores unknown keys (``extra: ignore``) and the config
+    persist path is a full model-dump rewrite, so a defaults block with
+    no matching model field is silently dropped at load and can never
+    round-trip through a write — dead config. Guard the 1:1
+    correspondence so the next orphan block cannot land.
+    """
+    from importlib.resources import files
+
+    text = files("ados.core").joinpath("defaults.yaml").read_text(encoding="utf-8")
+    data = yaml.safe_load(text)
+    assert isinstance(data, dict) and data, "packaged defaults must parse to a mapping"
+
+    orphans = sorted(set(data) - set(ADOSConfig.model_fields))
+    assert not orphans, (
+        f"defaults.yaml top-level keys with no ADOSConfig field: {orphans}; "
+        "declare a model field or delete the block"
+    )

@@ -1,0 +1,63 @@
+[package]
+name = "ados-display"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Display layer: the off-thread framebuffer writer (latest-wins, dup-skip), the SPI-LCD/OLED probe + geometry parse, the RGB565/RGB888/xRGB packers, the SSD1306/SH1106 OLED driver, and the boot-time display probe with apply-verify-auto-revert."
+
+[lib]
+name = "ados_display"
+path = "src/lib.rs"
+
+[[bin]]
+name = "ados-display"
+path = "src/bin/ados-display.rs"
+
+[[bin]]
+name = "ados-display-probe"
+path = "src/bin/ados-display-probe.rs"
+
+[[bin]]
+name = "ados-oled-i2c"
+path = "src/bin/ados-oled-i2c.rs"
+
+[dependencies]
+# The button + touch gesture FSMs (pure, host-portable) the navigator drives
+# the physical input from: front-panel press classification + touch strokes.
+ados-hid = { path = "../ados-hid" }
+# The producer-side log-shipping layer (feature-gated in ados-protocol) feeds
+# the logging daemon's ingest socket alongside journald; never on the hot path.
+ados-protocol = { path = "../ados-protocol", features = ["tracing-layer"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow = { workspace = true }
+tokio = { workspace = true }
+time = { version = "0.3", features = ["std", "formatting", "local-offset"] }
+# Blocking HTTP client for the agent's local REST API — the same source the
+# Python LCD service polls at the configured cadence. HTTP-only (localhost),
+# no TLS stack pulled in.
+ureq = { workspace = true }
+# Framebuffer mmap. Pure-Rust (no C build-script); the real /dev/fbN map is
+# target-gated, but the type is used in the cross-platform writer signatures.
+memmap2 = "0.9"
+# LCD page rendering stack — all pure Rust, cross-builds for the musl SBC.
+embedded-graphics = { workspace = true }
+ab_glyph = { workspace = true }
+image = { workspace = true }
+qrcode = { workspace = true }
+png = { workspace = true }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+nix = { workspace = true }
+tracing-journald = { workspace = true }
+sd-notify = { workspace = true }
+# Touchscreen evdev reader (ADS7846). The `tokio` feature unlocks the async
+# `EventStream` the touch reader drains in the daemon's select! loop. Only the
+# node-open + read path is Linux-gated; the coordinate transform stays pure.
+evdev = { version = "0.12", features = ["tokio"] }
+
+[dev-dependencies]
+tempfile = "3"

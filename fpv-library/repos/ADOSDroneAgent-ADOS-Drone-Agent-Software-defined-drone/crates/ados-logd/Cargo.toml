@@ -1,0 +1,69 @@
+[package]
+name = "ados-logd"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Durable local logging and telemetry store: a single-writer SQLite database fed by every process, queryable over the LAN, the CLI, and the local socket."
+
+# lib + a daemon binary skeleton. The lib carries the storage layer (schema,
+# migrations, PRAGMA setup) and re-exports the shared wire contracts; the
+# ingestion socket, the hardware collector, and the query API land in later
+# chunks. The binary ships dark: it inits logging and exits, with no socket
+# bound and no systemd unit installed, until those chunks land.
+[[bin]]
+name = "ados-logd"
+path = "src/main.rs"
+
+[dependencies]
+# Global allocator. The long-running daemon serves a constant stream of
+# short-lived read-only SQLite connections off the blocking pool and a steady
+# ingest + hardware-sample churn; the system allocator answers that pattern by
+# growing per-thread heap arenas it then keeps resident. mimalloc bounds the
+# fragmentation and returns freed pages to the OS, holding the resident set down.
+mimalloc = "0.1"
+# Shared wire contracts: the versioned ingest frames, the read-API envelope,
+# and the secret-field redaction applied at ingest.
+ados-protocol = { path = "../ados-protocol" }
+# Embedded single-writer SQLite. Only this daemon opens the store read-write.
+rusqlite = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+rmp-serde = { workspace = true }
+# The open fields/tags/detail maps in the shared wire contracts are keyed
+# `rmpv::Value`; the writer encodes them to msgpack blobs for the store.
+rmpv = { workspace = true }
+# Compact, fixed-width encoding for the truncated raw-frame head captured by the
+# frame-stream tap (a few bytes of payload for diagnosis, not the full frame).
+base64 = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+# HTTP framework + compression for the query API and export path. The same
+# axum Router is served on the trusted unix socket and the LAN TCP port; hyper
+# and the tokio glue carry the per-connection serving, http/http-body-util the
+# request/response and chunked streaming bodies, zstd the compressed export.
+axum = { workspace = true }
+tower = { workspace = true }
+tower-http = { workspace = true }
+hyper = { workspace = true }
+hyper-util = { workspace = true }
+http = { workspace = true }
+http-body-util = { workspace = true }
+bytes = { workspace = true }
+futures = { workspace = true }
+async-stream = { workspace = true }
+zstd = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3"
+
+# Linux-only edge: systemd readiness/watchdog notify + journald log layer for
+# the daemon. Confined to a target section so the pure storage core still builds
+# and tests on a non-Linux dev host.
+[target.'cfg(target_os = "linux")'.dependencies]
+sd-notify = { workspace = true }
+tracing-journald = { workspace = true }
+nix = { workspace = true }

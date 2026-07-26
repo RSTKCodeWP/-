@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<resources>
+
+    <string-array name="video_test_files">
+        <item>jetson/h264/1/test.h264</item>
+        <item>jetson/h264/2/test.h264</item>
+        <item>jetson/h264/3/test.h264</item>
+        <item>jetson/h264/4/test.h264</item>
+        <item>jetson/h264/5/test.h264</item>
+        <item>jetson/h264/6/test.h264</item>
+        <item>jetson/h264/7/test.h264</item>
+        <item>jetson/h264/8/test.h264</item>
+        <item>jetson/h264/9/test.h264</item>
+        <item>jetson/h264/10/test.h264</item>
+        <item>jetson/h264/11/test.h264</item>
+        <item>jetson/h264/12/test.h264</item>
+        <item>jetson/h264/13/test.h264</item>
+        <item>jetson/h264/14/test.h264</item>
+        <item>jetson/h264/15/test.h264</item>
+        <item>jetson/h264/16/test.h264</item>
+        <item>jetson/h264/17/test.h264</item>
+
+        <item>jetson/h265/1/test.h265</item>
+        <item>jetson/h265/2/test.h265</item>
+        <item>jetson/h265/3/test.h265</item>
+        <item>jetson/h265/4/test.h265</item>
+        <item>jetson/h265/5/test.h265</item>
+        <item>jetson/h265/6/test.h265</item>
+        <item>jetson/h265/7/test.h265</item>
+
+        <item>rpi_cam/old/rpi.h264</item>
+        <item>rpi_cam/1/test.h264</item>
+        <item>rpi_cam/2/test.h264</item>
+        <item>rpi_cam/3/test.h264</item>
+        <item>rpi_cam/4/test.h264</item>
+        <item>rpi_cam/5/test.h264</item>
+        <item>webcam/zp_webcam.fpv</item>
+        <item>runcam/runcam-h264.fpv</item>
+        <item>runcam/1/test.h264</item>
+        <item>runcam/2/test.h264</item>
+
+
+        <item>x265/testZ.h265</item>
+        <item>x264/testVideo.h264</item>
+        <item>webcam/720p_usb.h264"</item>
+        <item>360/insta_interference.h264"</item>
+        <item>360/insta_webbn_1_shortened.h264</item>
+        <item>360/insta_webbn_2.h264</item>
+        <item>360/insta_mjpeg_test.mp4</item>
+        <item>360/testRoom1_1920Mono.mp4</item>
+
+        <item>allwinner/1080p_30fps_2mb.h264</item>
+        <item>allwinner/1080p_30fps_4mb.h264</item>
+        <item>allwinner/1080p_30fps_4mb.h265</item>
+
+        <item>rv1126/rec_gop1_1080p90.h264</item>
+        <item>rv1126/rec_gop1_1080p90_poc2.h264</item>
+        <item>rv1126/rec_gop1_1080p90_poc2_second.h264</item>
+        <item>rv1126/rec_gop1_1080p90_poc2_mpp.h264</item>
+        <item>rv1126/t1.h264</item>
+        <item>rv1126/t1.h265</item>
+        <item>rv1126/t_x1.h264</item>
+        <item>rv1126/t_x2.h264</item>
+        <item>rv1126/t_x3.h264</item>
+        <item>rv1126/t_x4.h264</item>
+        <item>rv1126/t_x5.h264</item>
+        <item>rv1126/tx4.h264</item>
+
+        <item>dji_fpv/out.h264</item>
+    </string-array>
+
+    <!-- The test files that are written into the database -->
+    <string-array name="video_test_files_for_db">
+        <item>jetson/h264/1/test.h264</item>
+        <item>jetson/h264/2/test.h264</item>
+
+        <item>rpi_cam/1/test.h264</item>
+        <item>rpi_cam/2/test.h264</item>
+
+        <item>runcam/1/test.h264</item>
+        <item>runcam/2/test.h264</item>
+
+        <item>x264/testVideo.h264</item>
+        <item>webcam/720p_usb.h264"</item>
+        <item>360/insta_webbn_2.h264</item>
+
+        <!--<item>jetson/h265/1/test.h265</item>-->
+
+        <item>dji_fpv/out.h264</item>
+    </string-array>
+
+</resources>

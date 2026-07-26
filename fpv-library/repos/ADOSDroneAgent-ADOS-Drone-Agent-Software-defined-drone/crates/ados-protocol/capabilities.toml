@@ -1,0 +1,877 @@
+# ADOS capability catalog — single source of truth.
+#
+# Codegen (`cargo run -p ados-capabilities-codegen`) emits, from this file:
+#   - Python: src/ados/plugins/_capabilities_generated.py  (agent catalog)
+#   - Rust:   crates/ados-protocol/src/capabilities.rs       (agent catalog)
+#   - TS:     ADOSMissionControl/src/lib/plugins/agent-capabilities.generated.ts (agent mirror)
+#   - TS:     ADOSMissionControl/src/lib/plugins/gcs-capabilities.generated.ts   (GCS catalog)
+#
+# Two sections:
+#   [[agent]] — capabilities a plugin manifest may declare for the agent half.
+#               `enforced = true` marks those with a runtime gate today.
+#   [[gcs]]   — capabilities for the GCS half (UI slots + GCS data access).
+#
+# category is one of: hardware | flight_control | data_network | compute_process | ui_slot
+# risk is one of:     low | medium | high | critical
+#
+# Edit here, then run codegen. Do not edit the generated files by hand.
+
+# ===========================================================================
+# AGENT capabilities (49)
+# ===========================================================================
+
+[[agent]]
+id = "event.publish"
+label = "Publish events on the plugin event bus"
+description = "Lets the plugin emit events on topics it has been granted access to. Other plugins and host services that subscribe to the same topic will receive the payload."
+category = "data_network"
+risk = "low"
+risk_reason = "Bus messages are sandboxed and do not affect flight."
+enforced = true
+
+[[agent]]
+id = "event.subscribe"
+label = "Receive events from the plugin event bus"
+description = "Lets the plugin subscribe to topics it has been granted access to. The plugin sees payloads from other plugins and from host services that publish on those topics."
+category = "data_network"
+risk = "low"
+risk_reason = "Read-only on a sandboxed in-process bus."
+enforced = true
+
+[[agent]]
+id = "mavlink.read"
+label = "Read MAVLink messages from the flight controller"
+description = "Lets the plugin observe the live MAVLink message stream, including telemetry, mode changes, and status text. Useful for analytics, logging, and dashboards."
+category = "flight_control"
+risk = "low"
+risk_reason = "Read-only on the MAVLink stream."
+enforced = false
+
+[[agent]]
+id = "mavlink.write"
+label = "Send MAVLink commands to the flight controller"
+description = "Lets the plugin inject MAVLink commands to the autopilot, including mode changes, arming, and parameter writes. An untrusted plugin with this capability can take control of the aircraft."
+category = "flight_control"
+risk = "high"
+risk_reason = "Can change flight mode, arm motors, and alter parameters in flight."
+enforced = false
+
+[[agent]]
+id = "mavlink.component.camera"
+label = "Act as a MAVLink camera component"
+description = "Lets the plugin register itself as a MAVLink camera component and respond to camera-related MAVLink messages from the GCS and the autopilot."
+category = "flight_control"
+risk = "medium"
+risk_reason = "Owns a MAVLink component id; can interfere with the real camera if mis-configured."
+enforced = false
+
+[[agent]]
+id = "mavlink.component.gimbal"
+label = "Act as a MAVLink gimbal component"
+description = "Lets the plugin register itself as a MAVLink gimbal manager or device and handle gimbal control messages. Required by gimbal driver plugins."
+category = "flight_control"
+risk = "medium"
+risk_reason = "Owns a MAVLink component id and can move the gimbal."
+enforced = false
+
+[[agent]]
+id = "mavlink.component.payload"
+label = "Act as a MAVLink payload component"
+description = "Lets the plugin register itself as a MAVLink payload component for actuators, droppers, and other mission-specific hardware."
+category = "flight_control"
+risk = "medium"
+risk_reason = "Owns a MAVLink component id and can trigger payload actuators."
+enforced = false
+
+[[agent]]
+id = "mavlink.component.peripheral"
+label = "Act as a generic MAVLink peripheral component"
+description = "Lets the plugin claim a MAVLink component id for a peripheral that does not fit the camera, gimbal, or payload categories. Used by sensor bridges and experimental devices."
+category = "flight_control"
+risk = "medium"
+risk_reason = "Owns a MAVLink component id on the same bus as the autopilot."
+enforced = false
+
+[[agent]]
+id = "mavlink.component.vio"
+label = "Act as a MAVLink visual-inertial-odometry source"
+description = "Lets the plugin register as a VIO source that publishes pose estimates over MAVLink. The autopilot can fuse these directly into the EKF, so a faulty source can cause unsafe flight behavior."
+category = "flight_control"
+risk = "high"
+risk_reason = "Pose estimates feed the EKF and influence position control."
+enforced = false
+
+[[agent]]
+id = "estimator.pose.inject"
+label = "Inject pose estimates into the EKF"
+description = "Lets the plugin push pose samples (position, attitude, or both) directly into the autopilot state estimator. A bad pose stream produces unsafe position commands and fly-aways."
+category = "flight_control"
+risk = "high"
+risk_reason = "Directly biases the EKF; a malicious or buggy plugin can crash the aircraft."
+enforced = false
+
+[[agent]]
+id = "telemetry.read"
+label = "Read telemetry streams from the agent"
+description = "Lets the plugin read the same telemetry feed the GCS consumes (battery, GPS, attitude, mode). Useful for logging and analytics."
+category = "data_network"
+risk = "low"
+risk_reason = "Read-only on existing telemetry topics."
+enforced = false
+
+[[agent]]
+id = "telemetry.extend"
+label = "Publish new telemetry fields to the GCS"
+description = "Lets the plugin add new fields to the telemetry stream that ships to the GCS. Used by sensor plugins that surface custom readings on the dashboard."
+category = "data_network"
+risk = "low"
+risk_reason = "Adds fields; does not alter existing ones."
+enforced = false
+
+[[agent]]
+id = "sensor.camera.register"
+label = "Register a camera as a system sensor"
+description = "Lets the plugin declare a camera device the rest of the agent and the GCS can address (live preview, recording, mission usage)."
+category = "hardware"
+risk = "medium"
+risk_reason = "Camera streams may be recorded and uploaded; sensor identity matters for safety."
+enforced = false
+
+[[agent]]
+id = "sensor.depth.register"
+label = "Register a depth sensor as a system sensor"
+description = "Lets the plugin declare a depth-camera or stereo sensor. Downstream services can consume depth maps for obstacle avoidance and SLAM."
+category = "hardware"
+risk = "medium"
+risk_reason = "Depth data may feed obstacle avoidance; faulty data can influence avoidance decisions."
+enforced = false
+
+[[agent]]
+id = "sensor.lidar.register"
+label = "Register a LiDAR as a system sensor"
+description = "Lets the plugin declare a LiDAR device. Downstream services can consume point clouds for mapping and obstacle avoidance."
+category = "hardware"
+risk = "medium"
+risk_reason = "Point clouds may feed obstacle avoidance; faulty data can influence avoidance decisions."
+enforced = false
+
+[[agent]]
+id = "sensor.imu.register"
+label = "Register an auxiliary IMU as a system sensor"
+description = "Lets the plugin declare a secondary IMU device the rest of the agent can address. Often paired with VIO and odometry workflows."
+category = "hardware"
+risk = "medium"
+risk_reason = "IMU output may feed state estimation downstream."
+enforced = false
+
+[[agent]]
+id = "sensor.payload.register"
+label = "Register a payload device as a system sensor"
+description = "Lets the plugin declare a payload device (sprayer, dropper, sampler) so missions and the GCS can address it."
+category = "hardware"
+risk = "medium"
+risk_reason = "Payload identity drives mission actions; mis-registration can trigger the wrong actuator."
+enforced = false
+
+[[agent]]
+id = "hardware.uart"
+label = "Open UART serial ports on the host"
+description = "Lets the plugin open and exchange data over UART serial ports. Required by GPS, range-finder, and modem drivers."
+category = "hardware"
+risk = "medium"
+risk_reason = "Serial ports may be shared with the autopilot or critical peripherals."
+enforced = false
+
+[[agent]]
+id = "hardware.i2c"
+label = "Read and write I2C devices on the host"
+description = "Lets the plugin talk to I2C devices on the SBC's I2C buses. Used by sensor drivers and small peripherals."
+category = "hardware"
+risk = "medium"
+risk_reason = "I2C buses are shared; a misbehaving plugin can stall the bus for other devices."
+enforced = false
+
+[[agent]]
+id = "hardware.spi"
+label = "Read and write SPI devices on the host"
+description = "Lets the plugin talk to SPI devices on the SBC's SPI buses. Used by displays and high-rate sensor drivers."
+category = "hardware"
+risk = "medium"
+risk_reason = "SPI buses are shared with on-board peripherals like the front-panel display."
+enforced = false
+
+[[agent]]
+id = "hardware.gpio"
+label = "Read and toggle GPIO pins on the host"
+description = "Lets the plugin read input pins and drive output pins on the SBC. Used by switches, LEDs, and discrete peripheral control."
+category = "hardware"
+risk = "medium"
+risk_reason = "GPIO outputs can drive external hardware; mis-driven pins can damage attached devices."
+enforced = false
+
+[[agent]]
+id = "hardware.gpio_out"
+label = "Drive GPIO output lines (status buzzer or LED)"
+description = "Lets the plugin drive a host GPIO output line high or low and play a bounded buzzer or LED beep pattern through the agent's GPIO-output service. Output-only; it does not read input pins."
+category = "hardware"
+risk = "high"
+risk_reason = "Drives physical output hardware; a mis-driven pin can energize or damage an attached device."
+enforced = true
+
+[[agent]]
+id = "hardware.usb"
+label = "Claim raw USB devices on the host"
+description = "Lets the plugin attach to and exchange bulk transfers with USB devices. Required by vendor SDK drivers that talk to specific USB peripherals."
+category = "hardware"
+risk = "medium"
+risk_reason = "Claiming a USB device prevents other software from using it."
+enforced = false
+
+[[agent]]
+id = "hardware.usb.uvc"
+label = "Read frames from USB UVC cameras"
+description = "Lets the plugin capture video frames from USB Video Class cameras. Required by webcam and machine-vision drivers."
+category = "hardware"
+risk = "medium"
+risk_reason = "Video frames may be recorded, transmitted, or processed off-vehicle."
+enforced = false
+
+[[agent]]
+id = "hardware.camera.csi"
+label = "Read frames from MIPI CSI cameras"
+description = "Lets the plugin capture video frames from CSI-attached cameras on the SBC's camera connector. Required by native camera drivers."
+category = "hardware"
+risk = "medium"
+risk_reason = "Video frames may be recorded, transmitted, or processed off-vehicle."
+enforced = false
+
+[[agent]]
+id = "video.source.set"
+label = "Configure the agent's video stream sources"
+description = "Lets the plugin declare the camera and stream sources the agent's video pipeline should serve (one primary plus optional secondary legs), so a smart-camera or pod driver can auto-configure its own feeds without an operator hand-typing them. Applying a new source list restarts the video pipeline."
+category = "data_network"
+risk = "medium"
+risk_reason = "Reconfigures which video sources the vehicle serves and restarts the video pipeline; a wrong source list can black out the operator's video."
+enforced = true
+
+[[agent]]
+id = "hardware.audio"
+label = "Access audio capture and playback devices"
+description = "Lets the plugin record from microphones or play to speakers connected to the host. Required by audio alert and voice plugins."
+category = "hardware"
+risk = "medium"
+risk_reason = "Audio capture may pick up private conversations near the aircraft."
+enforced = false
+
+[[agent]]
+id = "vehicle.command"
+label = "Issue high-level vehicle commands"
+description = "Lets the plugin send high-level vehicle commands (arm, takeoff, RTL, land, mode change) through the agent's command pipeline rather than raw MAVLink."
+category = "flight_control"
+risk = "high"
+risk_reason = "Can arm, take off, or land the aircraft."
+enforced = false
+
+[[agent]]
+id = "mission.read"
+label = "Read mission plans loaded on the agent"
+description = "Lets the plugin read the active mission, waypoints, fences, and rally points stored on the agent."
+category = "flight_control"
+risk = "low"
+risk_reason = "Read-only on mission data."
+enforced = false
+
+[[agent]]
+id = "mission.write"
+label = "Upload or modify mission plans on the agent"
+description = "Lets the plugin upload new missions, edit waypoints, or change fence and rally definitions. Used by mission-planner and pattern-generator plugins."
+category = "flight_control"
+risk = "high"
+risk_reason = "Mission changes drive autonomous flight paths."
+enforced = false
+
+[[agent]]
+id = "network.outbound"
+label = "Open outbound network connections"
+description = "Lets the plugin make outbound TCP, UDP, and HTTP connections from the agent host. Required by plugins that talk to external services."
+category = "data_network"
+risk = "medium"
+risk_reason = "Exfiltration risk; outbound traffic can carry telemetry off the aircraft."
+enforced = false
+
+[[agent]]
+id = "filesystem.host"
+label = "Read and write files on the host filesystem"
+description = "Lets the plugin read and write files outside its own data directory. Required by plugins that ingest logs, maps, or other host-provided files."
+category = "compute_process"
+risk = "medium"
+risk_reason = "Broad host filesystem access; mis-use can corrupt agent state."
+enforced = false
+
+[[agent]]
+id = "recording.write"
+label = "Write recordings into the agent recording store"
+description = "Lets the plugin save video, telemetry, or analysis outputs into the agent's recording store so the GCS and post-flight tools can find them."
+category = "data_network"
+risk = "low"
+risk_reason = "Writes are sandboxed to the recording directory."
+enforced = false
+
+[[agent]]
+id = "process.spawn"
+label = "Spawn subprocesses on the agent host"
+description = "Lets the plugin launch helper subprocesses listed in its manifest's spawn allowlist. Required to ship vendor-binary drivers and language runtimes outside the Python plugin host."
+category = "compute_process"
+risk = "high"
+risk_reason = "Subprocesses run outside the plugin host sandbox and with the plugin's privileges."
+enforced = false
+
+[[agent]]
+id = "vision.frame.read"
+label = "Read camera frames from the vision engine"
+description = "Lets the plugin subscribe to normalized camera frames the vision engine publishes (resolution and pixel format set by the engine). Frames are shared read-only; the plugin does not open the camera itself."
+category = "compute_process"
+risk = "medium"
+risk_reason = "Frames may contain sensitive imagery; a frame consumer can process it off the normal recording path."
+enforced = true
+
+[[agent]]
+id = "vision.model.register"
+label = "Register an inference model with the vision engine"
+description = "Lets the plugin register an inference model (and its input format and output classes) so the vision engine can load and run it, or so the plugin can run it against shared frames. Registered models appear to detection consumers."
+category = "compute_process"
+risk = "medium"
+risk_reason = "A model can consume the shared accelerator and CPU; a heavy or faulty model can starve other vision consumers."
+enforced = true
+
+[[agent]]
+id = "vision.detection.publish"
+label = "Publish detections to the vision engine"
+description = "Lets the plugin publish detection results (bounding boxes, class labels, confidence, track ids) that other plugins, overlays, and mission logic can consume. Detections are derived data; they do not command the vehicle."
+category = "data_network"
+risk = "low"
+risk_reason = "Detections are derived data on a sandboxed topic and do not affect flight."
+enforced = true
+
+[[agent]]
+id = "vision.detection.subscribe"
+label = "Subscribe to detections from the vision engine"
+description = "Lets the plugin receive the detection batches the vision engine publishes (bounding boxes, class labels, confidence, and the tracker's stable track id and lock state on the locked object). Detections are derived data; subscribing does not command the vehicle or open the camera."
+category = "data_network"
+risk = "low"
+risk_reason = "Detections are derived data on a sandboxed topic and do not affect flight."
+enforced = true
+
+[[agent]]
+id = "vision.track.designate"
+label = "Set the vision engine's follow target"
+description = "Lets the plugin choose which object the vision engine's single-object tracker locks onto (the follow target), by naming the box to track. This selects a target for downstream follow / framing logic; designation alone does not command the vehicle."
+category = "data_network"
+risk = "medium"
+risk_reason = "Choosing the follow target steers downstream follow/framing behaviour, though designation alone does not command flight."
+enforced = true
+
+[[agent]]
+id = "button.subscribe"
+label = "Subscribe to onboard button press events"
+description = "Lets the plugin receive press events (short, long, chord) from the host's front-panel buttons. Used by node plugins that drive an on-device workflow from physical buttons. Read-only; it does not remap or consume the buttons from other consumers."
+category = "hardware"
+risk = "medium"
+risk_reason = "Button events drive plugin actions; an input source should be reviewed like any other."
+enforced = false
+
+[[agent]]
+id = "flight.guided_setpoint"
+label = "Emit guided-mode setpoints"
+description = "Lets the plugin command the flight controller with guided-mode position or velocity setpoints (and the guided-mode entry and exit handshake) through a scoped sender, instead of raw MAVLink writes. The setpoint stream is the only flight-command surface this capability grants."
+category = "flight_control"
+risk = "high"
+risk_reason = "Commands vehicle motion in guided mode; a faulty stream can fly the aircraft."
+enforced = false
+
+[[agent]]
+id = "mavlink.tunnel"
+label = "Send and receive MAVLink TUNNEL payloads"
+description = "Lets the plugin exchange application payloads over MAVLink TUNNEL frames (a private payload_type) on the existing link, without the full MAVLink write surface. Used for plugin-to-plugin or node-to-node application data carried inside the MAVLink stream."
+category = "flight_control"
+risk = "high"
+risk_reason = "Shares the flight-control link; a misbehaving tunnel can congest MAVLink traffic."
+enforced = false
+
+[[agent]]
+id = "radio.aux_stream"
+label = "Open and use an auxiliary radio stream"
+description = "Lets the plugin open a dedicated auxiliary stream on the radio link (a separate radio-port from the data and control planes) managed by the radio service, and read or write application frames on it. Used by plugins that need an isolated low-rate channel between nodes."
+category = "data_network"
+risk = "high"
+risk_reason = "Consumes radio airtime on the shared adapter and owns an application channel between nodes."
+enforced = false
+
+[[agent]]
+id = "display.oled.page"
+label = "Contribute a page to the onboard display"
+description = "Lets the plugin register a page (its rendered content and touch or hit zones) on the host's onboard display, so a plugin can present status without recompiling the display service. The host owns page switching and arbitration between contributed pages."
+category = "hardware"
+risk = "low"
+risk_reason = "Draws to the local display only; no effect on flight or the network."
+enforced = false
+
+[[agent]]
+id = "compute.job.submit"
+label = "Submit a job to the compute node"
+description = "Lets the plugin submit a job to a paired compute node: a reconstruction over a keyframe bag, or a streaming offload session that sends frames to the node and receives detections or poses back. The job runs off the drone on the node's accelerator; the plugin does not get raw compute access."
+category = "compute_process"
+risk = "medium"
+risk_reason = "Sends data off the drone to another node and consumes shared compute; a streaming offload also moves imagery off the normal path."
+enforced = true
+
+[[agent]]
+id = "compute.job.read"
+label = "Read compute-node job status and results"
+description = "Lets the plugin poll the status and progress of jobs it submitted and learn where the finished artifact can be fetched. Read-only on the job interface; it does not start work or command the vehicle."
+category = "compute_process"
+risk = "low"
+risk_reason = "Read-only on the job interface; no effect on flight or on other plugins' jobs."
+enforced = true
+
+[[agent]]
+id = "compute.dataset.write"
+label = "Upload a dataset to the compute node"
+description = "Lets the plugin upload an input dataset (a keyframe bag, or the frames of a live session) to a paired compute node for a job to consume. The data leaves the drone for the node's local store."
+category = "compute_process"
+risk = "medium"
+risk_reason = "Moves captured data (imagery, keyframes) off the drone to another node."
+enforced = true
+
+[[agent]]
+id = "compute.stream.open"
+label = "Open a streaming perception offload session"
+description = "Lets the plugin open a continuous perception-offload session to a paired compute node: the drone streams its camera to the node, the node runs the plugin's detection model on its accelerator, and detections return onto the drone's shared detection bus. The plugin runs its model off the drone (or on the local accelerator when the runtime picks local) transparently, and holds a handle to close the session and read its live health. Whether inference runs locally or on the node is the runtime's tier decision."
+category = "compute_process"
+risk = "medium"
+risk_reason = "Streams live camera imagery off the drone to another node and consumes shared compute; the returned detections drive on-board behaviours through the safety gate."
+enforced = true
+
+[[agent]]
+id = "mcp.expose"
+label = "Expose the plugin's tools to the AI-control (MCP) surface"
+description = "Lets the plugin publish its declared tools, resources, and prompts to an MCP client, and lets the host route a tool invocation into the plugin. Exposure alone grants no host authority: each tool acts only through the plugin's OTHER granted capabilities, so a tool can never do anything the plugin could not already do."
+category = "data_network"
+risk = "medium"
+risk_reason = "Publishes a callable interface to an AI client; the effect of any call is still bounded by the plugin's other capabilities and the MCP token's scope."
+enforced = true
+
+# ===========================================================================
+# GCS capabilities (20): 10 UI slots + 10 data/command/mission/cloud
+# ===========================================================================
+
+[[gcs]]
+id = "ui.slot.fc-tab"
+label = "Add a tab to the flight controller panel"
+description = "Lets the plugin add a tab to the per-drone flight controller area. The tab renders inside a sandboxed iframe with no host DOM access."
+category = "ui_slot"
+risk = "low"
+risk_reason = "Sandboxed iframe; no host DOM access."
+
+[[gcs]]
+id = "ui.slot.hardware-tab"
+label = "Add a tab to the hardware page"
+description = "Lets the plugin add a tab on the Hardware page so the operator can inspect or configure devices the plugin manages."
+category = "ui_slot"
+risk = "low"
+risk_reason = "Sandboxed iframe inside the Hardware page."
+
+[[gcs]]
+id = "ui.slot.mission-template"
+label = "Register a mission template"
+description = "Lets the plugin add a new entry to the mission template picker so the operator can start missions with the plugin's parameters."
+category = "ui_slot"
+risk = "low"
+risk_reason = "Template metadata only; missions still need approval."
+
+[[gcs]]
+id = "ui.slot.map-overlay"
+label = "Draw an overlay on the map"
+description = "Lets the plugin draw geometry on the map view (polygons, markers, heatmaps). The overlay is rendered in a sandboxed canvas."
+category = "ui_slot"
+risk = "low"
+risk_reason = "Visual layer only; no flight-control effect."
+
+[[gcs]]
+id = "ui.slot.video-overlay"
+label = "Draw an overlay on the live video"
+description = "Lets the plugin draw overlays on top of the live video feed (detection boxes, telemetry HUDs). The overlay is rendered above the player."
+category = "ui_slot"
+risk = "low"
+risk_reason = "Visual layer above the video element."
+
+[[gcs]]
+id = "ui.slot.notification-channel"
+label = "Show notifications in the GCS"
+description = "Lets the plugin push notifications into the GCS notification center so it can surface alerts and status changes to the operator."
+category = "ui_slot"
+risk = "low"
+risk_reason = "Toasts only; the operator can mute or dismiss any channel."
+
+[[gcs]]
+id = "ui.slot.settings-section"
+label = "Add a section to the Settings page"
+description = "Lets the plugin add its own section to the GCS Settings page so the operator can configure the plugin from a single place."
+category = "ui_slot"
+risk = "low"
+risk_reason = "Sandboxed iframe inside the Settings page."
+
+[[gcs]]
+id = "ui.slot.flight-skill"
+label = "Contribute a flight skill to the cockpit"
+description = "Lets the plugin register a flight skill that appears in the cockpit Skill Bar, can be bound to a hotkey or gamepad button, and activated by the operator. Activation flips the plugin's per-drone config; the cockpit's arm and confirmation gates still apply."
+category = "ui_slot"
+risk = "medium"
+risk_reason = "A bindable skill triggers plugin behavior; the plugin still needs its own flight-control capabilities to act, and the cockpit's arm/confirm gates still apply."
+
+[[gcs]]
+id = "ui.slot.node-detail-tab"
+label = "Add a tab to the node detail panel"
+description = "Lets the plugin add a per-node tab inside the node detail panel on any node profile (drone, ground station, compute). The tab is scoped to the currently selected node."
+category = "ui_slot"
+risk = "low"
+risk_reason = "Sandboxed iframe scoped to one node."
+
+[[gcs]]
+id = "ui.slot.cockpit-panel"
+label = "Add a panel to the cockpit quick settings"
+description = "Lets the plugin add a panel to the in-flight cockpit quick-settings surface, scoped to the currently selected drone."
+category = "ui_slot"
+risk = "low"
+risk_reason = "Sandboxed iframe scoped to the cockpit of one drone."
+
+[[gcs]]
+id = "telemetry.subscribe"
+label = "Read live telemetry from drones"
+description = "Lets the plugin subscribe to live telemetry streams (attitude, GPS, battery, mode) for the drones the operator has paired with the GCS."
+category = "data_network"
+risk = "low"
+risk_reason = "Read-only on the telemetry stream."
+
+[[gcs]]
+id = "command.send"
+label = "Send commands to drones from the GCS"
+description = "Lets the plugin send commands to a paired drone through the GCS bridge (arm, takeoff, mode change). The operator approves each install but in-flight commands fire without further prompts."
+category = "flight_control"
+risk = "medium"
+risk_reason = "Commands take effect immediately during a flight."
+
+[[gcs]]
+id = "recording.write"
+label = "Save recordings to the GCS library"
+description = "Lets the plugin write recordings (video, telemetry CSV, analysis output) into the GCS recording library so the operator can replay them later."
+category = "data_network"
+risk = "low"
+risk_reason = "Writes are scoped to the recording library."
+
+[[gcs]]
+id = "mission.read"
+label = "Read mission plans loaded in the GCS"
+description = "Lets the plugin read the active mission, waypoints, fences, and rally points that the operator has loaded into the GCS planner."
+category = "flight_control"
+risk = "low"
+risk_reason = "Read-only on mission data."
+
+[[gcs]]
+id = "mission.write"
+label = "Edit mission plans in the GCS"
+description = "Lets the plugin upload, edit, or replace missions in the GCS planner. Used by pattern generators and mission-template plugins."
+category = "flight_control"
+risk = "high"
+risk_reason = "Mission changes drive autonomous flight paths."
+
+[[gcs]]
+id = "cloud.read"
+label = "Read fleet data from the cloud"
+description = "Lets the plugin read shared fleet data from the cloud backend (drone status rows, paired devices, fleet roster)."
+category = "data_network"
+risk = "low"
+risk_reason = "Read-only on the cloud rows the user is authorised for."
+
+[[gcs]]
+id = "cloud.write"
+label = "Write fleet data to the cloud"
+description = "Lets the plugin write fleet data to the cloud backend. Used by plugins that synchronise mission outputs or sensor catalogues across operators."
+category = "data_network"
+risk = "medium"
+risk_reason = "Cloud writes can affect other operators on the same fleet."
+
+[[gcs]]
+id = "perception.read"
+label = "Read perception state in the GCS"
+description = "Lets the plugin read the drone's perception state — where detection runs (on the drone or offloaded to a compute node), the bound compute node, and the live session health (feed freshness, throughput). Read-only on derived data; it does not open or read the camera."
+category = "data_network"
+risk = "low"
+risk_reason = "Read-only on derived detection metadata; no camera access."
+
+[[gcs]]
+id = "perception.subscribe"
+label = "Subscribe to live detections in the GCS"
+description = "Lets the plugin subscribe to the live detection stream (bounding boxes, classes, track ids) for the drones the operator has paired, the same detections the cockpit already renders. Read-only; the detections are derived data, not the raw camera feed."
+category = "data_network"
+risk = "low"
+risk_reason = "Read-only on the derived detection stream; no camera access."
+
+[[gcs]]
+id = "mcp.expose"
+label = "Expose the plugin's GCS tools to the AI-control (MCP) surface"
+description = "Lets the plugin publish its declared GCS-half tools, resources, and prompts to an MCP client. A GCS-only tool routes through the GCS bridge (command / mission), so its effect is still bounded by the plugin's other GCS capabilities and the MCP token's scope."
+category = "data_network"
+risk = "medium"
+risk_reason = "Publishes a callable interface to an AI client; effect is bounded by the plugin's other capabilities and the token scope."
+
+# ===========================================================================
+# Plugin RPC dispatch table (43): wire method -> dispatch-level required cap.
+#
+# The single source of truth for the gate the plugin IPC server applies BEFORE
+# routing a request. Codegen emits this into both the Rust host
+# (crates/ados-protocol/src/dispatch.rs, consumed by ados-plugin-host) and the
+# Python host (src/ados/plugins/_dispatch_generated.py, consumed by
+# ipc/dispatch.py) so the two copies cannot drift.
+#
+# required_cap absent  -> the method is ungated at the dispatch level (the event
+#                         surface and ping are open; per-topic checks run inline
+#                         in the handler).
+# inline = true        -> the method's cap is decided inline by the handler from
+#                         the request payload (the component-kind / driver-kind
+#                         classification), so the dispatch gate is None but the
+#                         method is NOT open — codegen emits None and the marker
+#                         documents that an inline gate exists.
+#
+# Every method id here is the exact wire string. Edit here, then run codegen.
+# ===========================================================================
+
+# ---- ungated event surface (per-topic check inline) ----
+[[method]]
+id = "event.publish"
+
+[[method]]
+id = "event.subscribe"
+
+[[method]]
+id = "ping"
+
+# ---- MCP tool invocation (host -> plugin request/response) ----
+# The one host->plugin request method: the host asks the plugin to run one of
+# its declared tools and awaits a correlated response. Gated on mcp.expose so a
+# plugin without it never has a tool invoked, checked by the runner against the
+# same generated table the host uses.
+[[method]]
+id = "tool.invoke"
+required_cap = "mcp.expose"
+
+# ---- telemetry ----
+[[method]]
+id = "telemetry.subscribe"
+required_cap = "telemetry.read"
+
+[[method]]
+id = "telemetry.extend"
+required_cap = "telemetry.extend"
+
+# ---- mission / recording ----
+[[method]]
+id = "mission.read"
+required_cap = "mission.read"
+
+[[method]]
+id = "mission.write"
+required_cap = "mission.write"
+
+[[method]]
+id = "recording.start"
+required_cap = "recording.write"
+
+[[method]]
+id = "recording.stop"
+required_cap = "recording.write"
+
+# ---- mavlink ----
+[[method]]
+id = "mavlink.subscribe"
+required_cap = "mavlink.read"
+
+[[method]]
+id = "mavlink.send"
+required_cap = "mavlink.write"
+
+# Send one application payload over a MAVLink TUNNEL frame tagged with a private
+# payload_type, a transparent opaque pipe separate from the full MAVLink write
+# surface. Fully gated at the dispatch level on the tunnel capability.
+[[method]]
+id = "mavlink.tunnel.send"
+required_cap = "mavlink.tunnel"
+
+[[method]]
+id = "mavlink.register_component"
+# The matching component-kind cap is decided inline from the requested kind.
+inline = true
+
+# ---- peripheral / driver / camera ----
+[[method]]
+id = "peripheral.register_driver"
+# The exact sensor.*.register cap depends on the driver kind; handler enforces.
+inline = true
+
+[[method]]
+id = "peripheral.unregister_driver"
+inline = true
+
+[[method]]
+id = "camera.claim"
+required_cap = "sensor.camera.register"
+
+[[method]]
+id = "camera.release"
+required_cap = "sensor.camera.register"
+
+[[method]]
+id = "camera.get_frame"
+required_cap = "sensor.camera.register"
+
+# ---- video source configuration ----
+# Declare the camera/stream source list the agent's video pipeline serves (one
+# primary leg plus optional secondary legs). The host forwards it to the
+# supervisor's video command socket, which persists video.cameras and restarts
+# the video service. Fully gated at the dispatch level on the video-source cap.
+[[method]]
+id = "video.source.set"
+required_cap = "video.source.set"
+
+# ---- config kv (per-drone / global) ----
+[[method]]
+id = "config.get"
+
+[[method]]
+id = "config.set"
+
+# ---- vendor binary spawn ----
+[[method]]
+id = "process.spawn"
+required_cap = "process.spawn"
+
+# ---- vision: frame subscribe, model register, inference, detection publish ----
+# The host proxies these to the vision engine, which owns the cameras and the
+# inference backend. Every row carries a dispatch-level cap so a vision method
+# can never reach a host (Rust or Python) ungated.
+[[method]]
+id = "vision.subscribe_frames"
+required_cap = "vision.frame.read"
+
+[[method]]
+id = "vision.register_model"
+required_cap = "vision.model.register"
+
+[[method]]
+id = "vision.infer"
+required_cap = "vision.model.register"
+
+[[method]]
+id = "vision.publish_detection"
+required_cap = "vision.detection.publish"
+
+[[method]]
+id = "vision.subscribe_detections"
+required_cap = "vision.detection.subscribe"
+
+[[method]]
+id = "vision.designate_track"
+required_cap = "vision.track.designate"
+
+# ---- display ----
+# Set the content (title, rows, touch zones) of the host's reserved data-driven
+# display page. The host writes the page sidecar the display reads, so the
+# method is fully gated at the dispatch level on the display capability.
+[[method]]
+id = "display.page.set"
+required_cap = "display.oled.page"
+
+# ---- gpio output (status buzzer / LED) ----
+# Drive a host GPIO output line, and play a bounded buzzer/LED beep pattern. The
+# host forwards each to the gpio-output service's command socket. Fully gated at
+# the dispatch level on the GPIO-output capability.
+[[method]]
+id = "gpio.output.set"
+required_cap = "hardware.gpio_out"
+
+[[method]]
+id = "gpio.buzzer.beep"
+required_cap = "hardware.gpio_out"
+
+# ---- guided setpoint sender ----
+# Send one position/velocity setpoint to the flight controller via the scoped
+# guided-setpoint sender (a single MAVLink SET_POSITION_TARGET frame), instead of
+# the raw MAVLink write surface. Fully gated at the dispatch level on the
+# guided-setpoint capability. The method is a single-shot send: it owns no flight
+# state or mode, so a caller that wants to hold a velocity must re-send (the
+# autopilot brakes a few seconds after the last setpoint) and must itself confirm
+# the vehicle is in its guided mode.
+[[method]]
+id = "flight.guided_setpoint.send"
+required_cap = "flight.guided_setpoint"
+
+# ---- auxiliary radio stream ----
+# Open or close a dedicated auxiliary stream on the radio link (a separate
+# radio-port from the data and control planes) managed by the radio service. The
+# host forwards each to the radio service's command socket, which starts (open) or
+# stops (close) the additional transmit/receive pair on the shared adapter. The
+# stream is SAFE-BY-DEFAULT: nothing starts at boot; it exists only between an
+# explicit open and the matching close (or plugin disconnect). Fully gated at the
+# dispatch level on the auxiliary-stream capability.
+[[method]]
+id = "radio.aux_stream.open"
+required_cap = "radio.aux_stream"
+
+[[method]]
+id = "radio.aux_stream.close"
+required_cap = "radio.aux_stream"
+
+# ---- compute offload ----
+# A plugin offloads heavy compute (reconstruction / perception / SLAM) to a
+# paired compute node. The host routes each call to its compute connection; the
+# results flow back on the plugin's own `plugin.<id>.*` bus namespace.
+[[method]]
+id = "compute.dataset.write"
+required_cap = "compute.dataset.write"
+
+[[method]]
+id = "compute.job.submit"
+required_cap = "compute.job.submit"
+
+[[method]]
+id = "compute.job.read"
+required_cap = "compute.job.read"
+
+# Reading a job's outputs is the same read surface as reading its status.
+[[method]]
+id = "compute.job.outputs"
+required_cap = "compute.job.read"
+
+# Cancelling a job is part of the submit surface (the submitter cancels).
+[[method]]
+id = "compute.job.cancel"
+required_cap = "compute.job.submit"
+
+# ---- streaming perception offload ----
+# A plugin opens a continuous perception-offload session: the drone streams its
+# camera to a paired compute node, the node runs the detector, and detections
+# return onto the drone's shared detection bus. `open` starts (or resolves to
+# local for) the session; `close` stops it; `health` reads its live state from
+# the node's session registry. All three are the same open-a-stream surface, so
+# they share the one open capability (the opener manages its own session).
+[[method]]
+id = "compute.stream.open"
+required_cap = "compute.stream.open"
+
+[[method]]
+id = "compute.stream.close"
+required_cap = "compute.stream.open"
+
+[[method]]
+id = "compute.stream.health"
+required_cap = "compute.stream.open"

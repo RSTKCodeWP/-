@@ -1,0 +1,54 @@
+apply plugin: 'com.android.library'
+group='com.github.Consti10'
+
+android {
+    compileSdkVersion rootProject.compileSdkVersion
+    //ndkVersion rootProject.myNdkVersion
+    defaultConfig {
+        minSdkVersion rootProject.minSdkVersion
+        targetSdkVersion rootProject.targetSdkVersion
+        externalNativeBuild {
+            cmake {
+                cppFlags "-std=c++17"
+                arguments "-DANDROID_STL=c++_shared"
+            }
+        }
+        ndk {
+            abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+    externalNativeBuild {
+        cmake {
+            path file('CMakeLists.txt')
+        }
+    }
+
+    // looks like prefab is just not ready yet ( too many compile errors for me)
+    buildFeatures {
+        //prefabPublishing true
+    }
+    //prefab {
+    //   TelemetryReceiver {
+    //       headers "src/main/cpp/TelemetryReceiver"
+    //        //headers "src/main/cpp/SharedCppC"
+    //         //headers "src/main/cpp/WFBTelemetryData"
+    //        //headers "../VideoTelemetryShared/Helper"
+    //        //headers "../VideoTelemetryShared/InputOutput"
+    //   }
+    //}
+}
+
+dependencies {
+    //implementation fileTree(dir: 'libs', include: ['*.jar'])
+    implementation('com.google.android.gms:play-services-location:19.0.1')
+    implementation "androidx.appcompat:appcompat:$rootProject.appcompatVersion"
+    implementation "androidx.preference:preference:$rootProject.androidxpreferenceVersion"
+    implementation "com.github.Consti10:prefs-plus:$rootProject.myPrefsPlusVersion"
+    implementation project(':Shared')
+}

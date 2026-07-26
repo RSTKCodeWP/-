@@ -1,0 +1,71 @@
+[package]
+name = "ados-plugin-host"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Plugin RPC host: serves a per-plugin Unix socket, verifies the capability token at handshake, and gates each request on its required capability before routing to a host service."
+
+# The crate is lib + daemon binary. The lib is the host wiring; the binary is
+# the runnable daemon that serves the enabled subprocess plugins.
+[[bin]]
+name = "ados-plugin-host"
+path = "src/bin/ados-plugin-host.rs"
+
+[dependencies]
+# The wire (frame + envelope + capability token) lives in ados-protocol and is
+# byte-parity tested against the Python supervisor. This crate speaks it
+# unchanged; it never re-implements the framing or the token. The `mavlink`
+# feature pulls in the guided-setpoint builder + the v2 serializer the host uses
+# to turn a validated setpoint request into the exact SET_POSITION_TARGET frame
+# it writes to the MAVLink socket (the same codec the router and the native
+# command surface build their FC frames with), so a setpoint this host emits is
+# byte-identical to one any other surface would.
+ados-protocol = { path = "../ados-protocol", features = ["tracing-layer", "mavlink"] }
+# The compute-offload HTTP client (submit/dataset/read/cancel/outputs). The host
+# forwards a plugin's gated `compute.*` calls to its paired compute node through
+# this client; it never re-implements the job API.
+ados-compute = { path = "../ados-compute" }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+# JSON Schema (Draft-07) value validation: the agent's half of the shared
+# parameter validator, so a config write is checked against the plugin's
+# declared schema before it is persisted — never trusting the GCS form.
+jsonschema = "0.18"
+rmp-serde = { workspace = true }
+rmpv = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow = { workspace = true }
+# Lifecycle additions: archive parse, the canonical payload hash, Ed25519
+# signature verify, and the YAML manifest model. These power the install/
+# enable/disable/remove controller and the .adosplug reader; the crate stays
+# lib-only and never spawns a process from a test.
+sha2 = { workspace = true }
+hex = { workspace = true }
+base64 = { workspace = true }
+ed25519-dalek = { workspace = true }
+zip = { workspace = true }
+serde_norway = { workspace = true }
+# OS RNG for the persisted HMAC issuer secret (32 bytes, owner-only on disk).
+# The shared secret lets a runner spawned by a separate systemd unit present a
+# token the daemon can verify; a per-process random secret could not.
+getrandom = { workspace = true }
+
+# Linux-only edge: setting the socket file mode to 0o660 after bind, the
+# advisory file lock around the state read-modify-write, and the daemon's
+# systemd readiness/watchdog notify + journald log layer. Confined to a target
+# section so the pure-logic core still builds and tests on a non-Linux dev
+# host (where the mode set, the lock, and the notify are no-ops).
+[target.'cfg(target_os = "linux")'.dependencies]
+nix = { workspace = true }
+sd-notify = { workspace = true }
+tracing-journald = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3"
+# Test-only: serve the ados-compute job-API router over loopback so the
+# compute-offload host route can be driven end-to-end against a real client.
+axum = { workspace = true }

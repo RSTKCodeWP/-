@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string-array name="entriesVideoStream" >
+        <item>RTP H264</item>
+        <item>RAW H264</item>
+        <item>RTP H265</item>
+        <item>RAW H265</item>
+        <item>CUSTOM</item>
+        <item>CUSTOM2</item>
+        <item>DJI</item>
+    </string-array>
+
+    <string-array name="entriesVIDEO_SOURCE" >
+        <item>UDP</item>
+        <item>FILE</item>
+        <item>ASSETS</item>
+        <item>VIA_FFMPEG_URL</item>
+        <item>EXTERNAL(DJI)</item>
+        <item>EXTERNAL(UVC)</item>
+    </string-array>
+
+
+    <string-array name="entriesVS_VIDEO_VIEW_TYPE" >
+        <item>MONO</item>
+        <item>STEREO</item>
+        <item>360 Insta 1</item>
+        <item>360 Insta 2</item>
+        <item>X4</item>
+        <item>X5</item>
+        <item>X6</item>
+        <item>X7</item>
+        <item>X8</item>
+    </string-array>
+
+    <!-- for streaming -->
+    <string-array name="entriesVideoTransmitterStreamMode" >
+        <item>RTP H264</item>
+        <item>RAW H264</item>
+        <item>CUSTOM1</item>
+        <item>CUSTOM2</item>
+    </string-array>
+
+</resources>

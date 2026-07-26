@@ -1,0 +1,513 @@
+"""PluginContext and its capability-gated facades.
+
+This is the public surface plugin authors program against. Each
+property on :class:`PluginContext` is a thin facade backed by an IPC
+call to the supervisor. Capability checks happen on the supervisor
+side; the facades just shape arguments and decode responses.
+
+Separated from :mod:`ados.plugins.ipc_client` to keep that module's
+size budget reasonable. ``ipc_client`` imports from here and
+re-exports the public names so existing imports keep working.
+"""
+
+from __future__ import annotations
+
+import fnmatch
+from collections.abc import Awaitable, Callable
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
+from ados.core.logging import get_logger
+
+if TYPE_CHECKING:
+    from ados.plugins.ipc_client import PluginIpcClient
+    from ados.sdk.vision import VisionClient
+
+
+def _matches(pattern: str, topic: str) -> bool:
+    """Glob match on the topic. Wildcards behave like ``mavlink.*``."""
+    return fnmatch.fnmatchcase(topic, pattern)
+
+
+# ---------------------------------------------------------------------
+# Facades
+# ---------------------------------------------------------------------
+
+
+class _EventsClient:
+    def __init__(self, ipc: PluginIpcClient) -> None:
+        self._ipc = ipc
+
+    async def publish(self, topic: str, payload: dict | None = None) -> int:
+        return await self._ipc.event_publish(topic, payload or {})
+
+    async def subscribe(
+        self,
+        topic_pattern: str,
+        callback: Callable[[dict], Awaitable[None] | None],
+    ) -> None:
+        await self._ipc.event_subscribe(topic_pattern, callback)
+
+
+class _MAVLinkClient:
+    """``ctx.mavlink`` facade.
+
+    Wraps the supervisor's MAVLink router through the IPC bridge. The
+    v1.0 hand-injected ``RouterHandle`` pattern (used by the gimbal
+    plugin to send CommandLong / CommandInt directly) is retired in
+    favor of ``ctx.mavlink.send``; the runner exposes a back-compat
+    shim that adapts the old shape into this surface so existing
+    plugins keep working without source changes.
+    """
+
+    def __init__(self, ipc: PluginIpcClient) -> None:
+        self._ipc = ipc
+
+    async def send(
+        self, msg_bytes: bytes, component_id: int | None = None
+    ) -> dict:
+        return await self._ipc.mavlink_send(
+            msg_bytes, component_id=component_id
+        )
+
+    async def subscribe(
+        self,
+        msg_name: str,
+        callback: Callable[[dict], Awaitable[None] | None],
+    ) -> None:
+        await self._ipc.mavlink_subscribe(msg_name, callback)
+
+    async def register_component(self, comp_id: int, kind: str) -> dict:
+        return await self._ipc.mavlink_register_component(comp_id, kind)
+
+
+def _driver_ref(driver: Any) -> str:
+    """Map a driver instance to a short opaque reference the IPC carries.
+
+    The host doesn't see the live Python object; it just records the
+    plugin's claim. The actual frame pump or command-emit loop runs
+    in the plugin process address space.
+    """
+    try:
+        return getattr(driver, "driver_id", None) or type(driver).__name__
+    except Exception:  # noqa: BLE001
+        return "driver"
+
+
+class _PeripheralManagerClient:
+    """``ctx.peripheral_manager`` facade.
+
+    Exposes register_*_driver for the six driver kinds (camera, lidar,
+    gimbal, gps, esc, payload-actuator) plus camera-path claim. Each
+    register call routes the driver instance's id back to the host's
+    driver registry; the driver itself keeps running in the plugin
+    address space.
+    """
+
+    def __init__(self, ipc: PluginIpcClient) -> None:
+        self._ipc = ipc
+
+    async def register_camera_driver(self, driver: Any) -> dict:
+        return await self._ipc.peripheral_register_driver(
+            "camera", _driver_ref(driver)
+        )
+
+    async def register_lidar_driver(self, driver: Any) -> dict:
+        return await self._ipc.peripheral_register_driver(
+            "lidar", _driver_ref(driver)
+        )
+
+    async def register_gimbal_driver(self, driver: Any) -> dict:
+        return await self._ipc.peripheral_register_driver(
+            "gimbal", _driver_ref(driver)
+        )
+
+    async def register_gps_driver(self, driver: Any) -> dict:
+        return await self._ipc.peripheral_register_driver(
+            "gps", _driver_ref(driver)
+        )
+
+    async def register_esc_driver(self, driver: Any) -> dict:
+        return await self._ipc.peripheral_register_driver(
+            "esc", _driver_ref(driver)
+        )
+
+    async def register_payload_actuator_driver(self, driver: Any) -> dict:
+        return await self._ipc.peripheral_register_driver(
+            "payload-actuator", _driver_ref(driver)
+        )
+
+    async def unregister(self, handle_id: str) -> dict:
+        return await self._ipc.peripheral_unregister_driver(handle_id)
+
+    async def unregister_camera_driver(self, driver: Any) -> None:
+        # Legacy synchronous-looking shape used by v1.0 thermal-camera
+        # plugin. The handle id is not returned because v1.0 callers
+        # do not retain one; we tag by driver_ref so the host can find
+        # the matching install. The supervisor records the absence as
+        # a best-effort release on the plugin's next disconnect.
+        ref = _driver_ref(driver)
+        # No-op on the supervisor side until v1.1 GCS exposes
+        # explicit handle ids. The release_plugin path on disconnect
+        # cleans up regardless.
+        _ = ref
+
+    async def claim_camera(
+        self, device_path: str, exclusive: bool = True
+    ) -> dict:
+        return await self._ipc.camera_claim(device_path, exclusive)
+
+
+class _CameraClient:
+    """``ctx.camera`` facade.
+
+    Provides path-level claim/release plus a frame-pull primitive that
+    vision plugins consume. The supervisor mediates which plugin holds
+    exclusive ownership of a ``/dev/videoN`` path so a second plugin
+    requesting exclusive on the same path is refused before any V4L2
+    handle is opened.
+
+    The ``get_frame`` method is the building block for vision behaviors
+    that run as plugins (Follow Me, ActiveTrack, Precision Landing).
+    It returns the latest frame on the supervisor's behalf — the
+    plugin polls at its own desired rate and the supervisor enforces
+    a host-side cap so a runaway plugin cannot DOS the camera pipeline.
+    """
+
+    def __init__(self, ipc: PluginIpcClient) -> None:
+        self._ipc = ipc
+
+    async def claim(self, device_path: str, exclusive: bool = True) -> dict:
+        return await self._ipc.camera_claim(device_path, exclusive)
+
+    async def release(self, device_path: str) -> dict:
+        return await self._ipc.camera_release(device_path)
+
+    async def get_frame(
+        self,
+        device_path: str,
+        *,
+        format: str = "nv12",
+        timeout_ms: int = 1000,
+    ) -> dict:
+        """Return the latest captured frame from ``device_path``.
+
+        Returns a dict shaped as::
+
+            {
+              "frame_id": int,
+              "width": int,
+              "height": int,
+              "format": "nv12" | "rgb888" | ...,
+              "data": bytes,
+              "ts_ns": int,
+              "stale": bool,
+            }
+
+        ``stale`` is True when the supervisor returns the previously
+        captured frame because no new frame arrived within
+        ``timeout_ms``. A plugin should treat repeated stale frames as
+        a tracker-loss signal (the camera or capture pipeline stalled).
+
+        Raises ``RpcError`` when the device is not claimed by this
+        plugin or the format is unsupported.
+        """
+        return await self._ipc.camera_get_frame(
+            device_path, format=format, timeout_ms=timeout_ms
+        )
+
+
+class _VideoClient:
+    """``ctx.video`` facade.
+
+    A driver plugin (e.g. a smart-camera / optical-pod driver) declares the
+    camera and stream sources the agent's video pipeline should serve, so the
+    operator never hand-types an RTSP URL. The host forwards the source list to
+    the supervisor, which persists it and restarts the video pipeline.
+    """
+
+    def __init__(self, ipc: PluginIpcClient) -> None:
+        self._ipc = ipc
+
+    async def set_source(self, cameras: list[dict]) -> dict:
+        """Configure the video pipeline's stream sources.
+
+        ``cameras`` is a list of legs, each ``{"id", "source", "role"?,
+        "codec"?}``: ``id`` names the stream path (the primary leg is
+        ``main``), ``source`` is an RTSP/URL the pipeline pulls or
+        ``publisher`` for a locally-encoded leg, and ``role`` (e.g. ``eo`` /
+        ``ir`` / ``eo_wide``) and ``codec`` are advisory. Applying a new list
+        restarts the video pipeline. Requires the ``video.source.set``
+        capability.
+
+        Returns ``{"ok": bool, "count": int, "restarted": bool}`` (or a
+        ``not_available`` shape when the supervisor is unreachable).
+        """
+        return await self._ipc.video_source_set(cameras)
+
+
+class _FlightClient:
+    """``ctx.flight`` facade.
+
+    A flight-behavior plugin (e.g. Follow Me, Orbit) commands the vehicle in
+    guided mode through a scoped setpoint sender rather than raw MAVLink writes,
+    so the host can gate the flight-command surface with a single capability
+    (``flight.guided_setpoint``). The host forwards the setpoint to the MAVLink
+    router, which encodes the appropriate ``SET_POSITION_TARGET_*`` message.
+    """
+
+    def __init__(self, ipc: PluginIpcClient) -> None:
+        self._ipc = ipc
+
+    async def guided_setpoint(
+        self,
+        *,
+        kind: str,
+        coordinate_frame: int,
+        type_mask: int,
+        x: float = 0.0,
+        y: float = 0.0,
+        z: float = 0.0,
+        vx: float = 0.0,
+        vy: float = 0.0,
+        vz: float = 0.0,
+        afx: float = 0.0,
+        afy: float = 0.0,
+        afz: float = 0.0,
+        yaw: float = 0.0,
+        yaw_rate: float = 0.0,
+    ) -> dict:
+        """Command a guided-mode position/velocity/acceleration setpoint.
+
+        ``kind`` selects the frame family: ``"global_int"`` (lat/lon in 1e7,
+        alt in m) or ``"local_ned"`` (metres). ``coordinate_frame`` is a
+        ``MAV_FRAME_*`` integer and ``type_mask`` is the ignore-axis bitmask
+        (a set bit ignores that axis). Unset axes default to zero. Requires the
+        ``flight.guided_setpoint`` capability.
+
+        Returns ``{"ok": bool, ...}`` (or a ``not_available`` shape when the
+        MAVLink router is unreachable).
+        """
+        return await self._ipc.flight_guided_setpoint_send(
+            {
+                "kind": kind,
+                "coordinate_frame": int(coordinate_frame),
+                "type_mask": int(type_mask),
+                "x": float(x),
+                "y": float(y),
+                "z": float(z),
+                "vx": float(vx),
+                "vy": float(vy),
+                "vz": float(vz),
+                "afx": float(afx),
+                "afy": float(afy),
+                "afz": float(afz),
+                "yaw": float(yaw),
+                "yaw_rate": float(yaw_rate),
+            }
+        )
+
+
+class _TelemetryClient:
+    def __init__(self, ipc: PluginIpcClient) -> None:
+        self._ipc = ipc
+
+    async def extend(self, channel: str, payload: dict) -> dict:
+        return await self._ipc.telemetry_extend(channel, payload)
+
+
+class _ConfigClient:
+    """Live config kv with per-drone or global scope.
+
+    Read order: drone scope (when bound) -> global -> default.
+    """
+
+    def __init__(self, ipc: PluginIpcClient, static_config: dict) -> None:
+        self._ipc = ipc
+        self._static = dict(static_config or {})
+
+    def static(self, key: str, default: Any = None) -> Any:
+        """Read the manifest-supplied config dict; synchronous."""
+        return self._static.get(key, default)
+
+    async def get(self, key: str, default: Any = None) -> Any:
+        return await self._ipc.config_get(key, default=default)
+
+    async def set(self, key: str, value: Any, scope: str = "drone") -> dict:
+        return await self._ipc.config_set(key, value, scope=scope)
+
+
+class _ProcessClient:
+    def __init__(self, ipc: PluginIpcClient) -> None:
+        self._ipc = ipc
+
+    async def spawn(
+        self,
+        basename: str,
+        args: list[str] | None = None,
+        env: dict[str, str] | None = None,
+    ) -> dict:
+        return await self._ipc.process_spawn(basename, args=args, env=env)
+
+
+class _LifecycleClient:
+    """Subscribe to GCS-side mount events.
+
+    ``on_pause`` fires when the operator switches away from the drone
+    whose detail panel hosts this plugin's UI. ``on_resume`` fires
+    when the operator switches back. Plugins persist transient state
+    via ``ctx.config.set`` during pause.
+    """
+
+    def __init__(self, ipc: PluginIpcClient) -> None:
+        self._ipc = ipc
+
+    async def on_pause(
+        self, handler: Callable[[dict], Awaitable[None] | None]
+    ) -> None:
+        await self._ipc.event_subscribe(
+            f"plugin.{self._ipc._plugin_id}.lifecycle.pause", handler
+        )
+
+    async def on_resume(
+        self, handler: Callable[[dict], Awaitable[None] | None]
+    ) -> None:
+        await self._ipc.event_subscribe(
+            f"plugin.{self._ipc._plugin_id}.lifecycle.resume", handler
+        )
+
+
+# ---------------------------------------------------------------------
+# PluginContext
+# ---------------------------------------------------------------------
+
+
+class _ToolsClient:
+    """``ctx.tools`` facade: register MCP tool handlers.
+
+    A plugin declares its tools in the manifest (``agent.contributes.tools``)
+    and registers a handler for each here. The host routes a ``tool.invoke``
+    for a declared tool name to the registered handler and returns its result
+    to the MCP client. Requires the ``mcp.expose`` capability, which the host
+    and the runner both gate on, so registering a handler without the grant
+    still cannot be invoked.
+    """
+
+    def __init__(self, ipc: PluginIpcClient) -> None:
+        self._ipc = ipc
+
+    def register(self, name: str, handler: Callable[[dict], Any]) -> None:
+        """Register ``handler`` as the callable for the declared tool ``name``.
+        The handler takes the tool's argument dict and returns a JSON-able
+        result (a dict is returned verbatim; anything else is wrapped in
+        ``{"result": ...}``). It may be sync or async."""
+        self._ipc.register_tool(name, handler)
+
+    def tool(self, name: str | None = None) -> Callable[[Callable], Callable]:
+        """Decorator form. ``@ctx.tools.tool("start_follow")`` registers the
+        wrapped function as the handler for that tool (the tool name defaults
+        to the function name). Returns the function unchanged so it stays
+        callable in-process."""
+
+        def _decorate(func: Callable[[dict], Any]) -> Callable[[dict], Any]:
+            self._ipc.register_tool(name or func.__name__, func)
+            return func
+
+        return _decorate
+
+
+class PluginContext:
+    """The object handed to every lifecycle hook on the plugin class.
+
+    v1.0 shipped a thin shape with identity and ``events`` only;
+    reference plugins compensated by hand-injecting internal handles.
+    v1.1 fills the SDK: every host-facing surface is a
+    capability-gated facade on this class. Plugins program against
+    the typed interface; the IPC client is an implementation detail.
+
+    Backward-compat aliases:
+
+    * ``ctx.peripherals`` is an alias for ``ctx.peripheral_manager``.
+    * ``_BarePluginContext`` (in :mod:`ados.plugins.ipc_client`) is a
+      strict subclass for v1.0 lifecycle hooks that did not connect.
+    """
+
+    def __init__(
+        self,
+        *,
+        plugin_id: str,
+        plugin_version: str,
+        config: dict,
+        ipc: PluginIpcClient,
+        agent_id: str = "",
+        data_dir: Path | None = None,
+        config_dir: Path | None = None,
+        temp_dir: Path | None = None,
+    ) -> None:
+        self.plugin_id = plugin_id
+        self.plugin_version = plugin_version
+        self.config = config
+        self.agent_id = agent_id
+        self.data_dir = data_dir
+        self.config_dir = config_dir
+        self.temp_dir = temp_dir
+        self.log = get_logger(f"plugin.{plugin_id}")
+        self.events = _EventsClient(ipc)
+        self.mavlink = _MAVLinkClient(ipc)
+        self.peripheral_manager = _PeripheralManagerClient(ipc)
+        # Legacy alias kept so v1.0 plugins (e.g., the thermal camera)
+        # keep working without changes to their on_start body.
+        self.peripherals = self.peripheral_manager
+        self.camera = _CameraClient(ipc)
+        # Video-source facade: a camera / pod driver declares the pipeline's
+        # stream sources (the host forwards to the supervisor, which persists the
+        # list + restarts the pipeline). The host gates the video-source cap.
+        self.video = _VideoClient(ipc)
+        # Flight facade: a flight-behavior plugin commands guided-mode setpoints
+        # through a scoped sender (the host gates the flight-command cap and
+        # forwards to the MAVLink router) rather than raw MAVLink writes.
+        self.flight = _FlightClient(ipc)
+        # Vision engine facade: frame subscription (shared-memory ring),
+        # model registration, inference, detection publishing, and
+        # visual-odometry pose injection. The host gates the vision caps.
+        # Imported lazily so the plugins package does not pull the full SDK
+        # graph (which re-imports this module via the test harness) at load.
+        from ados.sdk.vision import VisionClient
+
+        self.vision = VisionClient(ipc)
+        # Compute-offload facade: register a dataset, submit a reconstruct /
+        # perception / SLAM job to the paired compute node, read status +
+        # outputs, cancel. The host gates the compute caps and routes each call
+        # to its compute connection; results flow on the plugin's own bus
+        # namespace. Imported lazily for the same reason as the vision facade.
+        from ados.sdk.compute import ComputeClient
+
+        self.compute = ComputeClient(ipc)
+        self.telemetry = _TelemetryClient(ipc)
+        self.config_kv = _ConfigClient(ipc, config)
+        self.process = _ProcessClient(ipc)
+        self.lifecycle = _LifecycleClient(ipc)
+        # MCP tool facade: register a handler for each tool the plugin declares
+        # in its manifest, so an AI client can invoke it via the MCP surface.
+        self.tools = _ToolsClient(ipc)
+        self._ipc = ipc
+
+    async def ping_supervisor(self) -> dict:
+        return await self._ipc.ping()
+
+
+__all__ = [
+    "PluginContext",
+    "VisionClient",
+    "_EventsClient",
+    "_MAVLinkClient",
+    "_PeripheralManagerClient",
+    "_VideoClient",
+    "_FlightClient",
+    "_TelemetryClient",
+    "_ConfigClient",
+    "_ProcessClient",
+    "_LifecycleClient",
+    "_ToolsClient",
+    "_matches",
+]

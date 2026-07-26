@@ -1,0 +1,19 @@
+id: ados.rtl8812eu-radio
+display_name: "RTL8812EU radio adapter"
+transport: usb
+match:
+  vid: "0x0bda"
+capabilities:
+  - wfb-ng
+  - radio
+actions:
+  - id: restart_radio
+    display_name: "Restart radio"
+    requires_confirm: false
+extra:
+  description: "USB Realtek 8812EU 802.11ac adapter used by the WFB-ng radio link."
+  category: radio
+  pids:
+    - "0x8812"
+    - "0x881a"
+    - "0x881c"

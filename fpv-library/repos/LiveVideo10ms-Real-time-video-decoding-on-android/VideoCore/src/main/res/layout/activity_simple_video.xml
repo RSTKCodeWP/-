@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:paddingBottom="0dp"
+    android:paddingLeft="0dp"
+    android:paddingRight="0dp"
+    android:paddingTop="0dp"
+    android:background="@android:color/black"
+    tools:context="constantin.video.impl.SimpleVideoActivity">
+
+    <constantin.video.core.external.AspectFrameLayout
+        android:id="@+id/afl_video"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+        <SurfaceView
+            android:id="@+id/sv_video"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_gravity="center"/>
+
+    </constantin.video.core.external.AspectFrameLayout>
+
+    <Button
+        android:layout_width="50dp"
+        android:layout_height="50dp"
+        android:id="@+id/tb_show_decoding_info"
+        android:text="DI"
+        tools:ignore="HardcodedText">
+    </Button>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:id="@+id/tv_decoding_stats"
+        android:text="Decoding info"
+        android:textColor="@color/colorWhite"
+        android:background="@color/colorBackground"
+        android:visibility="invisible"
+        tools:ignore="HardcodedText">
+    </TextView>
+
+
+</FrameLayout>

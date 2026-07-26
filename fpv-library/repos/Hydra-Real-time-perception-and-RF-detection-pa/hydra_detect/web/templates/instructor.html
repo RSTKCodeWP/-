@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hydra Fleet View</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        /* Mobile-first, dark theme matching Hydra aesthetic */
+        :root {
+            --bg: #0a0f14;
+            --card-bg: #141b22;
+            --text: #e0e6ed;
+            --accent: #385723;
+            --danger: #B60205;
+            --warning: #FF9F1C;
+            --success: #0E8A16;
+            --border: #1e2830;
+            --border-default: #1e2830;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'JetBrains Mono', 'Courier New', monospace;
+            background: var(--bg); color: var(--text);
+            padding: 12px;
+        }
+        h1 { font-size: 18px; padding: 8px 0; color: var(--accent); }
+
+        .config-bar {
+            display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap;
+            align-items: center;
+        }
+        .config-bar input {
+            background: var(--card-bg); border: 1px solid var(--border-default);
+            color: var(--text); padding: 6px 10px; border-radius: 4px;
+            font-family: inherit; font-size: 13px; flex: 1; min-width: 200px;
+        }
+        .config-bar button {
+            background: var(--accent); color: white; border: none;
+            padding: 6px 16px; border-radius: 4px; cursor: pointer;
+            font-family: inherit;
+        }
+
+        .vehicle-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 12px;
+        }
+        .vehicle-card {
+            background: var(--card-bg); border: 1px solid var(--border-default);
+            border-radius: 8px; padding: 12px; position: relative;
+        }
+        .vehicle-card.offline { opacity: 0.5; }
+        .vehicle-card.detecting { border-color: var(--success); }
+        .vehicle-card.degraded { border-color: var(--warning); }
+
+        .card-header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 8px;
+        }
+        .callsign { font-size: 16px; font-weight: 700; }
+        .status-pill {
+            padding: 2px 8px; border-radius: 10px; font-size: 11px;
+            font-weight: 600; text-transform: uppercase;
+        }
+        .status-pill.ready { background: var(--success); color: white; }
+        .status-pill.detecting { background: var(--accent); color: white; }
+        .status-pill.degraded { background: var(--warning); color: black; }
+        .status-pill.offline { background: #555; color: white; }
+
+        .card-stats {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 4px;
+            font-size: 12px; margin-bottom: 8px;
+        }
+        .card-stats .label { color: #888; }
+
+        .abort-btn {
+            background: var(--danger); color: white; border: none;
+            padding: 8px 16px; border-radius: 6px; cursor: pointer;
+            font-family: inherit; font-weight: 700; font-size: 12px;
+            text-transform: uppercase; width: 100%; margin-top: 8px;
+        }
+        .abort-btn:active { transform: scale(0.95); }
+
+        .open-btn {
+            background: transparent; border: 1px solid var(--border-default);
+            color: var(--text); padding: 4px 12px; border-radius: 4px;
+            cursor: pointer; font-family: inherit; font-size: 11px;
+        }
+
+        .alert-feed {
+            margin-top: 16px; max-height: 200px; overflow-y: auto;
+            background: var(--card-bg); border-radius: 8px; padding: 8px;
+        }
+        .alert-item {
+            font-size: 12px; padding: 4px 0; border-bottom: 1px solid var(--border-default);
+        }
+        .alert-time { color: #888; }
+        .alert-callsign { color: var(--accent); }
+        .alert-feed-placeholder { color: #888; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <h1>HYDRA FLEET VIEW</h1>
+
+    <div class="config-bar">
+        <input id="endpoints-input" placeholder="Jetson IPs (comma-separated, e.g., 192.168.x.x, 192.168.x.y)" />
+        <button id="save-btn">Save</button>
+    </div>
+
+    <div class="vehicle-grid" id="vehicle-grid"></div>
+
+    <div class="alert-feed" id="alert-feed" role="log" aria-live="polite" aria-label="Fleet detection alert feed">
+        <div class="alert-feed-placeholder">Detection alerts will appear here...</div>
+    </div>
+
+    <script src="/static/js/instructor.js"></script>
+</body>
+</html>

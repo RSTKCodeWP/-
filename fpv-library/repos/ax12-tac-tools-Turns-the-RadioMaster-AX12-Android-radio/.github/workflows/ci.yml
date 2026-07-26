@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install tools
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
+
+      - name: Python syntax
+        run: find . -name '*.py' -not -path './.git/*' -print0 | xargs -0 python3 -m py_compile
+
+      - name: tools.json valid JSON
+        run: python3 -c "import json; json.load(open('tools.json'))"
+
+      - name: Launcher/config consistency
+        run: python3 scripts/check_launcher_consistency.py
+
+      - name: CoT bridge unit tests
+        run: python3 tests/test_cot_bridge.py
+
+      - name: Launch smoke test
+        run: python3 tests/test_launch_smoke.py
+
+      - name: Shell scripts
+        run: shellcheck -S error install.sh shortcuts/*.sh

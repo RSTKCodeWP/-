@@ -1,0 +1,1040 @@
+//! Cloud status heartbeat loop.
+//!
+//! Every 5 s, when paired, POST the frozen [`HeartbeatPayload`] to
+//! `{convex}/agent/status` with `X-ADOS-Key` auth. Ports
+//! `src/ados/services/cloud/heartbeat_loop.py`.
+//!
+//! ## Native enrichment
+//!
+//! The Python payload folds in psutil/systemctl/board enrichment: CPU/mem/disk
+//! samples, per-service status, the radio block, LCD/display fields, CAN buses,
+//! etc. The live status the GCS needs (resources + FC link + service fleet) is
+//! built natively in Rust by the [`crate::loops::enrichment`] producer each tick
+//! and folded over the deterministic native base here via [`build_payload`].
+//!
+//! The base itself ([`HeartbeatBase`] → [`native_payload`]) carries only the
+//! fields the loop always has without probing (device identity, version, board),
+//! with every enrichment field left `Option` + skip-if-none on the frozen
+//! payload. So even if the enrichment producer returns nothing, the loop emits a
+//! valid heartbeat with the required fields (`deviceId`/`version`/
+//! `uptimeSeconds`) and absence reads as honest "unknown" rather than a
+//! fabricated `0` / `false` / `"stopped"` (operating rule 37). The wire
+//! `HeartbeatPayload` (frozen + golden-tested) stays byte-identical.
+
+use std::time::Duration;
+
+use crate::heartbeat::{
+    ClusterSlave, ConfigErrorEntry, CrsfBlock, HeartbeatPayload, LinkedPeerHb, RadioBlock,
+    RemoteAccess, VideoStreamHb,
+};
+
+/// The compute-node heartbeat sidecar written by `ados-compute`
+/// (`/run/ados/compute-heartbeat.json`). Absent on a non-compute node — then
+/// every compute field stays `None` and is omitted from the heartbeat.
+const COMPUTE_HEARTBEAT_SIDECAR: &str = "/run/ados/compute-heartbeat.json";
+
+/// A compute sidecar not re-written within this window is treated as absent, so
+/// a dead/hung `ados-compute` (whose tmpfs file persists) never makes the relay
+/// fold a frozen-but-live compute state forever (operating rule 44). 4x the
+/// producer's 5 s write cadence.
+const COMPUTE_SIDECAR_STALE_MS: i64 = 20_000;
+
+#[derive(Debug, Default, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ComputeSidecar {
+    /// The producer's sidecar schema version (absent ⇒ `0` from an older writer).
+    #[serde(default)]
+    version: u16,
+    /// The producer's write time; absent/stale ⇒ the sidecar is treated as gone.
+    generated_at_ms: Option<i64>,
+    compute_role: Option<String>,
+    compute_cluster_master_id: Option<String>,
+    compute_queue_depth: Option<i64>,
+    compute_active_jobs: Option<i64>,
+    /// Live streaming perception-offload sessions (a node serving N drones).
+    compute_active_sessions: Option<i64>,
+    compute_workers_idle: Option<i64>,
+    compute_cluster_aggregate_workers_idle: Option<i64>,
+    compute_cluster_slaves: Option<Vec<ClusterSlave>>,
+}
+
+/// Read + parse the compute heartbeat sidecar at `path`, or `None` when it is
+/// absent, unparseable, missing its write-time, or STALE (older than the
+/// staleness budget at `now_ms`). A stale file folds to absent compute fields,
+/// so a dead/hung producer stops asserting frozen state on the heartbeat.
+fn read_compute_sidecar_from(path: &std::path::Path, now_ms: i64) -> Option<ComputeSidecar> {
+    let text = std::fs::read_to_string(path).ok()?;
+    let sidecar: ComputeSidecar = serde_json::from_str(&text).ok()?;
+    match sidecar.generated_at_ms {
+        Some(gen) if now_ms.saturating_sub(gen) <= COMPUTE_SIDECAR_STALE_MS => {
+            // Best-effort drift signal: warn (never reject) on a producer/reader
+            // version mismatch, then fold the sidecar in anyway.
+            ados_protocol::sidecar::check_sidecar_version(
+                "compute-heartbeat",
+                sidecar.version,
+                ados_compute::COMPUTE_HEARTBEAT_SIDECAR_VERSION,
+            );
+            Some(sidecar)
+        }
+        _ => None,
+    }
+}
+
+fn read_compute_sidecar(now_ms: i64) -> Option<ComputeSidecar> {
+    read_compute_sidecar_from(std::path::Path::new(COMPUTE_HEARTBEAT_SIDECAR), now_ms)
+}
+
+const VIDEO_STREAMS_SIDECAR: &str = "/run/ados/video-streams.json";
+
+/// A video-streams sidecar not re-stamped within this window is treated as
+/// absent, so a stopped pipeline's lingering tmpfs file stops advertising dead
+/// legs (Rule 44). 4x the ~5 s healthy-tick re-stamp cadence.
+const VIDEO_STREAMS_STALE_MS: i64 = 20_000;
+
+#[derive(Debug, Default, serde::Deserialize)]
+struct VideoStreamsSidecarDoc {
+    #[serde(default)]
+    updated_at_unix: f64,
+    #[serde(default)]
+    streams: Vec<VideoStreamHb>,
+}
+
+/// Read + parse the video-streams sidecar, folding its per-leg list onto the
+/// heartbeat so a cloud-relayed multi-stream node's legs reach the GCS switcher.
+/// `None` when absent, unparseable, empty, or STALE.
+fn read_video_streams_sidecar_from(
+    path: &std::path::Path,
+    now_ms: i64,
+) -> Option<Vec<VideoStreamHb>> {
+    let text = std::fs::read_to_string(path).ok()?;
+    let doc: VideoStreamsSidecarDoc = serde_json::from_str(&text).ok()?;
+    let gen_ms = (doc.updated_at_unix * 1000.0) as i64;
+    if gen_ms > 0
+        && now_ms.saturating_sub(gen_ms) <= VIDEO_STREAMS_STALE_MS
+        && !doc.streams.is_empty()
+    {
+        Some(doc.streams)
+    } else {
+        None
+    }
+}
+
+fn read_video_streams_sidecar(now_ms: i64) -> Option<Vec<VideoStreamHb>> {
+    read_video_streams_sidecar_from(std::path::Path::new(VIDEO_STREAMS_SIDECAR), now_ms)
+}
+
+const LINKED_PEERS_SIDECAR: &str = "/run/ados/linked-peers.json";
+
+/// A linked-peer whose last beacon is older than this is dropped, matching the
+/// listener's 60 s prune window (`LINKED_PEER_STALE_AFTER_S`). Per-entry gating
+/// also covers the dead-writer case: a stale file's entries are all old, so the
+/// whole list reads absent rather than republishing ghost peers (Rule 44).
+const LINKED_PEER_STALE_MS: i64 = 60_000;
+
+/// One raw peer row as the `linked-peers.json` sidecar writes it (snake_case,
+/// the receive listener's `LinkedPeer`). Deserialized then remapped to the
+/// camelCase [`LinkedPeerHb`] wire shape; the sidecar's `version` /
+/// `wall_time_unix` header keys are ignored (unknown fields).
+#[derive(Debug, Default, serde::Deserialize)]
+struct LinkedPeersSidecarDoc {
+    #[serde(default)]
+    peers: Vec<LinkedPeerRow>,
+}
+
+#[derive(Debug, Default, serde::Deserialize)]
+struct LinkedPeerRow {
+    #[serde(default)]
+    device_id: String,
+    #[serde(default)]
+    role: String,
+    #[serde(default)]
+    channel: u8,
+    #[serde(default)]
+    rssi_dbm: i8,
+    #[serde(default)]
+    last_seen_unix: f64,
+}
+
+/// Read + parse the linked-peers sidecar, folding the fresh peer set onto the
+/// heartbeat as `linkedPeers[]` so a GCS paired only to this ground node can
+/// transitively enrol each relayed drone. Each entry is freshness-gated on the
+/// listener's prune window; `None` when absent, unparseable, or every entry is
+/// stale/id-less.
+fn read_linked_peers_sidecar_from(
+    path: &std::path::Path,
+    now_ms: i64,
+) -> Option<Vec<LinkedPeerHb>> {
+    let text = std::fs::read_to_string(path).ok()?;
+    let doc: LinkedPeersSidecarDoc = serde_json::from_str(&text).ok()?;
+    let out: Vec<LinkedPeerHb> = doc
+        .peers
+        .into_iter()
+        .filter(|p| !p.device_id.is_empty())
+        .filter(|p| {
+            let seen_ms = (p.last_seen_unix * 1000.0) as i64;
+            seen_ms > 0 && now_ms.saturating_sub(seen_ms) <= LINKED_PEER_STALE_MS
+        })
+        .map(|p| LinkedPeerHb {
+            device_id: p.device_id,
+            role: p.role,
+            channel: p.channel,
+            rssi_dbm: p.rssi_dbm,
+            seen_at_unix: p.last_seen_unix,
+        })
+        .collect();
+    if out.is_empty() {
+        None
+    } else {
+        Some(out)
+    }
+}
+
+fn read_linked_peers_sidecar(now_ms: i64) -> Option<Vec<LinkedPeerHb>> {
+    read_linked_peers_sidecar_from(std::path::Path::new(LINKED_PEERS_SIDECAR), now_ms)
+}
+
+/// The CRSF RC-lane state sidecar written by `ados-crsf` (~1 Hz while running,
+/// a 5 s keep-alive while idling). Absent on a node without the lane.
+const CRSF_STATS_SIDECAR: &str = "/run/ados/crsf-stats.json";
+
+/// A CRSF sidecar not re-written within this window is treated as absent, so a
+/// dead lane service's lingering tmpfs file never keeps the heartbeat carrying
+/// a frozen lane state (operating rule 44). The sidecar body carries no write
+/// time, so the gate keys on the file mtime (the plugin-state precedent);
+/// double the lane's slowest (idle keep-alive) rewrite cadence.
+const CRSF_STATS_STALE: Duration = Duration::from_secs(10);
+
+/// Read + parse the CRSF lane sidecar at `path`, mtime-staleness-gated against
+/// `now`. `None` when the file is absent, unreadable, unparseable, or stale —
+/// the heartbeat then omits the `crsf` block entirely (never an all-null
+/// fabrication). A future mtime (clock skew) counts as fresh. The sidecar's
+/// own `v` field feeds the shared best-effort version-drift warning.
+fn read_crsf_sidecar_from(path: &std::path::Path, now: std::time::SystemTime) -> Option<CrsfBlock> {
+    let fresh = std::fs::metadata(path)
+        .and_then(|m| m.modified())
+        .map(|mtime| {
+            now.duration_since(mtime)
+                .map(|age| age <= CRSF_STATS_STALE)
+                .unwrap_or(true)
+        })
+        .unwrap_or(false);
+    if !fresh {
+        return None;
+    }
+    let text = std::fs::read_to_string(path).ok()?;
+    let block: CrsfBlock = serde_json::from_str(&text).ok()?;
+    if let (Some(got), Some(expected)) = (
+        block.v,
+        ados_protocol::contracts::sidecar_version("crsf-stats"),
+    ) {
+        ados_protocol::sidecar::check_sidecar_version("crsf-stats", got as u16, expected);
+    }
+    Some(block)
+}
+
+fn read_crsf_sidecar() -> Option<CrsfBlock> {
+    read_crsf_sidecar_from(
+        std::path::Path::new(CRSF_STATS_SIDECAR),
+        std::time::SystemTime::now(),
+    )
+}
+
+/// Local epoch ms for the staleness gate.
+fn now_epoch_ms() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0)
+}
+
+/// The directory every plugin / feature writes its own state sidecar into
+/// (`<id>-state.json`): sandboxed plugins via the plugin host, plus first-party
+/// services (e.g. `ados-atlas`) that surface telemetry the same way. The
+/// heartbeat ferries each slice opaquely under `pluginState[<id>]`.
+const PLUGIN_STATE_DIR: &str = "/run/ados/plugins";
+
+/// A plugin sidecar not re-written within this window is treated as absent, so a
+/// dead/hung producer (whose tmpfs file persists) never makes the relay fold a
+/// frozen-but-live slice forever (operating rule 44). Mirrors the on-box
+/// `/api/plugins/{id}/state` 10 s gate, with a little slack.
+const PLUGIN_STATE_STALE: Duration = Duration::from_secs(15);
+
+/// Read every fresh plugin/feature state sidecar in `dir` into a map keyed by id
+/// (the filename minus `-state.json`), each value the sidecar's JSON verbatim.
+/// The core never inspects a slice's shape — each plugin owns + validates its
+/// own. Staleness is gated on the file mtime (uniform across every producer's
+/// sidecar format, whatever its payload looks like), so a producer that stopped
+/// writing drops out. An absent dir (a non-plugin device) yields an empty map.
+/// `now` is the reference instant the mtime ages against (injected for tests).
+fn read_plugin_state_sidecars_from(
+    dir: &std::path::Path,
+    now: std::time::SystemTime,
+) -> serde_json::Map<String, serde_json::Value> {
+    let mut out = serde_json::Map::new();
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return out;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let Some(id) = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .and_then(|n| n.strip_suffix("-state.json"))
+        else {
+            continue;
+        };
+        // mtime staleness gate. A future mtime (clock skew) counts as fresh.
+        let fresh = std::fs::metadata(&path)
+            .and_then(|m| m.modified())
+            .map(|mtime| {
+                now.duration_since(mtime)
+                    .map(|age| age <= PLUGIN_STATE_STALE)
+                    .unwrap_or(true)
+            })
+            .unwrap_or(false);
+        if !fresh {
+            continue;
+        }
+        let Ok(text) = std::fs::read_to_string(&path) else {
+            continue;
+        };
+        let Ok(val) = serde_json::from_str::<serde_json::Value>(&text) else {
+            continue;
+        };
+        out.insert(id.to_string(), val);
+    }
+    out
+}
+
+fn read_plugin_state_sidecars() -> serde_json::Map<String, serde_json::Value> {
+    read_plugin_state_sidecars_from(
+        std::path::Path::new(PLUGIN_STATE_DIR),
+        std::time::SystemTime::now(),
+    )
+}
+
+/// The directory services publish their config-status sidecar into
+/// (`config-status-<service>.json`) at startup. Honors the `ADOS_RUN_DIR`
+/// override (default `/run/ados`), matching the `ados_config::write_config_status`
+/// writer, so a redirected runtime layout (a non-root dev host or a test) reads
+/// the same dir it wrote.
+fn config_status_dir() -> std::path::PathBuf {
+    std::env::var_os("ADOS_RUN_DIR")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| std::path::PathBuf::from("/run/ados"))
+}
+
+/// The readable slice of a `config-status-<service>.json` sidecar. The writer
+/// also stamps `generated_at_ms`; the heartbeat only needs the service label and
+/// its current error.
+#[derive(Debug, Default, serde::Deserialize)]
+struct ConfigStatusSidecar {
+    /// The sidecar schema version. `#[serde(default)]` makes a file written by an
+    /// older agent (no `version` key) read back as `0`, a best-effort drift
+    /// signal rather than a parse failure.
+    #[serde(default)]
+    version: u16,
+    service: Option<String>,
+    error: Option<String>,
+}
+
+/// Read every `config-status-<service>.json` sidecar in `dir` and collect the
+/// ones whose current error is non-null into a `{service, error}` list. A service
+/// with a valid config publishes `error: null` and is omitted, so the list
+/// carries only LIVE config faults. The atomic writer's `.json.tmp.<pid>` staging
+/// files do not end in `.json`, so they are skipped, as is any unrelated file.
+/// The result is sorted by service so the wire is deterministic (`read_dir` order
+/// is unspecified). An absent dir (a node with no config-status sidecars) yields
+/// an empty vec.
+fn read_config_error_sidecars_from(dir: &std::path::Path) -> Vec<ConfigErrorEntry> {
+    let mut out = Vec::new();
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return out;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let is_status = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .map(|n| n.starts_with("config-status-") && n.ends_with(".json"))
+            .unwrap_or(false);
+        if !is_status {
+            continue;
+        }
+        let Ok(text) = std::fs::read_to_string(&path) else {
+            continue;
+        };
+        let Ok(status) = serde_json::from_str::<ConfigStatusSidecar>(&text) else {
+            continue;
+        };
+        // Best-effort schema-drift signal: an older file (version 0) warns but is
+        // still used. Never a reject.
+        ados_protocol::sidecar::check_sidecar_version(
+            "config-status",
+            status.version,
+            ados_config::CONFIG_STATUS_SIDECAR_VERSION,
+        );
+        if let (Some(service), Some(error)) = (status.service, status.error) {
+            out.push(ConfigErrorEntry { service, error });
+        }
+    }
+    out.sort_by(|a, b| a.service.cmp(&b.service));
+    out
+}
+
+fn read_config_error_sidecars() -> Vec<ConfigErrorEntry> {
+    read_config_error_sidecars_from(&config_status_dir())
+}
+
+/// Heartbeat cadence. Mirrors the Python loop's 5 s base sleep.
+pub const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
+
+/// The deterministic, native inputs the loop always has without any probing:
+/// the device identity, version, profile, and uptime. Everything else is
+/// enrichment folded from the sidecar.
+#[derive(Debug, Clone)]
+pub struct HeartbeatBase {
+    pub device_id: String,
+    pub version: String,
+    pub profile: Option<String>,
+    pub role: Option<String>,
+    pub uptime_seconds: i64,
+    pub board_name: String,
+    pub board_tier: i64,
+    pub board_soc: String,
+    pub board_arch: String,
+    /// NPU throughput (TOPS) from the board sidecar; 0 when the board has no NPU.
+    /// Feeds the perception-tier decision on the cloud beacon.
+    pub board_npu_tops: f64,
+    /// The board profile declares CPU-ONNX local inference (an NPU-less but
+    /// CPU-strong board runs the detector on-board). Feeds the perception-tier
+    /// decision alongside `board_npu_tops`; false on an older board sidecar.
+    pub board_local_inference: bool,
+}
+
+/// Build the heartbeat wire object from the native base plus an optional
+/// enrichment JSON object. The enrichment is the Python sidecar's contents
+/// (already in the frozen wire shape — camelCase root keys, snake_case `radio`);
+/// its keys are folded OVER the native base, then the required base fields
+/// (`deviceId` / `version` / `uptimeSeconds`) are re-asserted so a producer can
+/// never drop or diverge them, and the top level is null-stripped (Convex
+/// `v.optional` rejects an explicit null). A `None` enrichment yields the
+/// native-only object with an all-`absent` radio block and no optional fields.
+///
+/// Returns a `serde_json::Value` (the POST body): the producer owns the full
+/// payload shape, and operating at the value level keeps the merge faithful
+/// without forcing every frozen field to be deserialize-tolerant. The frozen
+/// [`HeartbeatPayload`] is the source of the native base object's shape +
+/// casing. This is the testable per-tick assembly; the loop calls it then POSTs.
+pub fn build_payload(
+    base: &HeartbeatBase,
+    enrichment: Option<&serde_json::Value>,
+) -> serde_json::Value {
+    // The native base, in the frozen wire shape (camelCase root, snake_case
+    // radio, required fields set, optionals absent).
+    let native = native_payload(base).to_value();
+    let mut obj = native.as_object().cloned().unwrap_or_default();
+
+    // Fold the enrichment keys over the base.
+    if let Some(serde_json::Value::Object(map)) = enrichment {
+        for (k, v) in map {
+            obj.insert(k.clone(), v.clone());
+        }
+    }
+
+    // Re-assert the required base identity so a producer cannot drop or diverge
+    // it (the wire contract demands these three).
+    obj.insert("deviceId".to_string(), serde_json::json!(base.device_id));
+    obj.insert("version".to_string(), serde_json::json!(base.version));
+    obj.insert(
+        "uptimeSeconds".to_string(),
+        serde_json::json!(base.uptime_seconds),
+    );
+
+    // Null-strip the top level: Convex `v.optional(T)` accepts absent-or-T, not
+    // an explicit null. The nested `radio` object keeps its own nulls (matching
+    // the Python loop, which strips only top-level keys).
+    obj.retain(|_, v| !v.is_null());
+    serde_json::Value::Object(obj)
+}
+
+/// A payload carrying only the required + native fields, an all-`absent` radio
+/// block, and no optional enrichment.
+fn native_payload(base: &HeartbeatBase) -> HeartbeatPayload {
+    // Fold the compute-node sidecar (compute profile only; None elsewhere, and
+    // None when the file is stale so a dead producer is not folded forever).
+    let compute = read_compute_sidecar(now_epoch_ms()).unwrap_or_default();
+    let video_streams = read_video_streams_sidecar(now_epoch_ms());
+    // Fold the WFB linked-peers list (None on a drone / a peerless ground node,
+    // and None when every entry is stale so a dead listener is not folded
+    // forever). A ground station relaying drones surfaces `linkedPeers[]` here.
+    let linked_peers = read_linked_peers_sidecar(now_epoch_ms());
+    // Fold the CRSF RC-lane state (None on a node without the lane, and None
+    // when the file is stale so a dead lane service is not folded forever).
+    let crsf = read_crsf_sidecar();
+    // Ferry every fresh plugin/feature state slice opaquely (empty map omitted).
+    let plugin_state = {
+        let slices = read_plugin_state_sidecars();
+        if slices.is_empty() {
+            None
+        } else {
+            Some(slices)
+        }
+    };
+    // Surface any LIVE service config-parse fault from the config-status sidecars
+    // (empty ⇒ omitted, so a healthy node's wire is unchanged).
+    let config_errors = {
+        let errs = read_config_error_sidecars();
+        if errs.is_empty() {
+            None
+        } else {
+            Some(errs)
+        }
+    };
+    // The perception tier this node runs on: the canonical ados_offload::pick_tier
+    // decision from the board's local compute path (an NPU, or the profile-declared
+    // CPU-ONNX local inference) + the live offload-link the reconciler writes (a
+    // paired, reachable workstation flips compute_node_paired + bearer_acceptable
+    // true and names the target). Absent / stale ⇒ no link ⇒ a board with a local
+    // path reads `local` and one without any path reads `none`; the offload target
+    // stays absent until a workstation is actually paired (rule 44). Fed
+    // identically to /api/status via `TierInputs::for_drone`.
+    let has_accelerator = base.board_npu_tops > 0.0;
+    let offload_link = ados_protocol::offload_link::read_offload_link(now_epoch_ms());
+    let (link_paired, link_bearer_ok) = offload_link
+        .as_ref()
+        .map(|l| (l.paired, l.bearer_acceptable))
+        .unwrap_or((false, false));
+    let perception_tier = match ados_offload::pick_tier(&ados_offload::TierInputs::for_drone(
+        has_accelerator,
+        base.board_local_inference,
+        link_paired,
+        link_bearer_ok,
+    )) {
+        Some(ados_offload::PerceptionTier::Local) => "local",
+        Some(ados_offload::PerceptionTier::Offload) => "offload",
+        Some(ados_offload::PerceptionTier::Hybrid) => "hybrid",
+        None => "none",
+    }
+    .to_string();
+    // Surface the target only on an actual offload path (rule 44).
+    let perception_offload_target = offload_link
+        .filter(|l| l.is_offload_path())
+        .and_then(|l| l.target);
+
+    HeartbeatPayload {
+        device_id: base.device_id.clone(),
+        version: base.version.clone(),
+        profile: base.profile.clone(),
+        role: base.role.clone(),
+        uptime_seconds: base.uptime_seconds,
+        board_name: base.board_name.clone(),
+        board_tier: base.board_tier,
+        board_soc: base.board_soc.clone(),
+        board_arch: base.board_arch.clone(),
+        npu_tops: base.board_npu_tops,
+        has_accelerator,
+        perception_tier,
+        perception_offload_target,
+        // Unmeasured by the native loop: omitted (None) so the wire says
+        // "unknown" rather than asserting a 0 / false / "stopped" reading the
+        // loop never took (operating rule 37). The Python enrichment producer
+        // folds the real values over these absences each tick.
+        cpu_percent: None,
+        memory_percent: None,
+        disk_percent: None,
+        temperature: None,
+        memory_used_mb: 0,
+        memory_total_mb: 0,
+        disk_used_gb: 0.0,
+        disk_total_gb: 0.0,
+        cpu_cores: 0,
+        board_ram_mb: 0,
+        cpu_history: vec![],
+        memory_history: vec![],
+        fc_connected: None,
+        fc_port: String::new(),
+        fc_baud: 0,
+        // The FC link gated-truth detail is the enrichment producer's to lift from
+        // the state snapshot; the native base leaves it absent (honest "unknown").
+        transport_open: None,
+        mavlink_alive: None,
+        heartbeat_age_s: None,
+        fc_source: None,
+        fc_link_hint: None,
+        // The FC variant is the enrichment producer's to lift from the state
+        // snapshot; the native base leaves it absent (honest "unknown").
+        fc_variant: None,
+        services: None,
+        last_ip: String::new(),
+        mdns_host: String::new(),
+        setup_url: String::new(),
+        api_url: String::new(),
+        agent_version: base.version.clone(),
+        video_state: None,
+        video_whep_port: 0,
+        mavlink_ws_port: 0,
+        mavlink_ws_url: None,
+        video_whep_url: None,
+        mission_control_url: None,
+        remote_access: RemoteAccess {
+            provider: "none".to_string(),
+            public_urls: vec![],
+        },
+        last_plugin_update_check_at: None,
+        peripherals: None,
+        radio: RadioBlock::absent(),
+        crsf,
+        wfb_adapter_chipset: None,
+        // No radio view in the native base ⇒ no injection verdict: the key is
+        // omitted (never a fabricated false) until the radio enrichment folds
+        // a real scan outcome over the base.
+        wfb_adapter_injection_ok: None,
+        lcd_active_page: None,
+        ui_theme: None,
+        lcd_touch_calibrated: None,
+        lcd_rotation: None,
+        lcd_snapshot_url: None,
+        lcd_last_touch_at: None,
+        lcd_last_gesture: None,
+        video_local_decoder_active: None,
+        video_local_decoder_type: None,
+        video_local_decoder_fps: None,
+        video_recording: None,
+        video_pipeline_flavor: None,
+        video_encoder_name: None,
+        video_encoder_hw_accel: None,
+        video_camera_source: None,
+        video_pipeline_state: None,
+        video_streams,
+        linked_peers,
+        display_type: None,
+        can_buses: None,
+        compute_role: compute.compute_role,
+        compute_cluster_master_id: compute.compute_cluster_master_id,
+        compute_queue_depth: compute.compute_queue_depth,
+        compute_active_jobs: compute.compute_active_jobs,
+        compute_active_sessions: compute.compute_active_sessions,
+        compute_workers_idle: compute.compute_workers_idle,
+        compute_cluster_aggregate_workers_idle: compute.compute_cluster_aggregate_workers_idle,
+        compute_cluster_slaves: compute.compute_cluster_slaves,
+        plugin_state,
+        config_errors,
+    }
+}
+
+/// POST one heartbeat to `{convex}/agent/status` with `X-ADOS-Key`. Best-effort:
+/// a transport error or non-200 is logged, never fatal. Mirrors the Python
+/// loop's POST (header auth, not URL).
+pub async fn post_heartbeat(
+    client: &reqwest::Client,
+    convex_url: &str,
+    api_key: &str,
+    body: &serde_json::Value,
+) {
+    let url = format!("{}/agent/status", convex_url.trim_end_matches('/'));
+    match client
+        .post(&url)
+        .header("X-ADOS-Key", api_key)
+        .json(body)
+        .send()
+        .await
+    {
+        Ok(resp) if resp.status().is_success() => {
+            tracing::debug!("cloud status sent");
+        }
+        Ok(resp) => {
+            tracing::warn!(status = resp.status().as_u16(), "cloud status rejected");
+        }
+        Err(e) => {
+            tracing::debug!(error = %e, "cloud heartbeat failed");
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn base() -> HeartbeatBase {
+        HeartbeatBase {
+            device_id: "dev1".to_string(),
+            version: "0.1.0".to_string(),
+            profile: Some("drone".to_string()),
+            role: None,
+            uptime_seconds: 42,
+            board_name: "rock-5c-lite".to_string(),
+            board_tier: 3,
+            board_soc: "rk3582".to_string(),
+            board_arch: "aarch64".to_string(),
+            board_npu_tops: 6.0,
+            board_local_inference: false,
+        }
+    }
+
+    fn write_sidecar(dir: &std::path::Path, body: serde_json::Value) -> std::path::PathBuf {
+        use std::io::Write;
+        std::fs::create_dir_all(dir).unwrap();
+        let path = dir.join("compute-heartbeat.json");
+        std::fs::File::create(&path)
+            .unwrap()
+            .write_all(body.to_string().as_bytes())
+            .unwrap();
+        path
+    }
+
+    #[test]
+    fn a_fresh_compute_sidecar_folds_but_a_stale_or_missing_one_does_not() {
+        let dir = std::env::temp_dir().join(format!("ados-cloud-hb-{}", std::process::id()));
+        let path = write_sidecar(
+            &dir,
+            serde_json::json!({
+                "generatedAtMs": 1_000_000,
+                "computeRole": "master",
+                "computeClusterMasterId": "node-a",
+                "computeQueueDepth": 2,
+                "computeActiveJobs": 1,
+                "computeActiveSessions": 4,
+                "computeWorkersIdle": 3,
+                "computeClusterAggregateWorkersIdle": 5,
+                "computeClusterSlaves": [
+                    {"nodeId": "s1", "accelerators": ["mps"], "workersIdle": 1, "queueDepth": 0}
+                ]
+            }),
+        );
+        // Fresh (within the 20 s budget) → folds.
+        let fresh = read_compute_sidecar_from(&path, 1_000_000 + 5_000).unwrap();
+        assert_eq!(fresh.compute_role.as_deref(), Some("master"));
+        assert_eq!(fresh.compute_workers_idle, Some(3));
+        // Live streaming offload sessions fold onto the heartbeat too (distinct
+        // from queued/active reconstruction jobs).
+        assert_eq!(fresh.compute_active_sessions, Some(4));
+        assert_eq!(fresh.compute_cluster_slaves.unwrap()[0].node_id, "s1");
+        // Stale (past the budget) → None: a dead/hung producer is not folded.
+        assert!(read_compute_sidecar_from(&path, 1_000_000 + 25_000).is_none());
+        // Missing file → None.
+        assert!(read_compute_sidecar_from(&dir.join("nope.json"), 1_000_000).is_none());
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn a_sidecar_without_a_write_time_is_treated_as_absent() {
+        let dir = std::env::temp_dir().join(format!("ados-cloud-hb-nots-{}", std::process::id()));
+        // No generatedAtMs → conservative: treated as gone (cannot age-gate it).
+        let path = write_sidecar(
+            &dir,
+            serde_json::json!({ "computeRole": "master", "computeWorkersIdle": 3 }),
+        );
+        assert!(read_compute_sidecar_from(&path, 1_000_000).is_none());
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    fn write_named(dir: &std::path::Path, name: &str, body: &str) {
+        use std::io::Write;
+        std::fs::create_dir_all(dir).unwrap();
+        std::fs::File::create(dir.join(name))
+            .unwrap()
+            .write_all(body.as_bytes())
+            .unwrap();
+    }
+
+    #[test]
+    fn fresh_plugin_sidecars_fold_keyed_by_id_with_the_slice_verbatim() {
+        let dir = std::env::temp_dir().join(format!("ados-cloud-plugins-{}", std::process::id()));
+        write_named(
+            &dir,
+            "atlas-state.json",
+            r#"{"state":"active","gaussianCount":42}"#,
+        );
+        write_named(&dir, "follow-me-state.json", r#"{"lock":"locked"}"#);
+        write_named(&dir, "bad-state.json", "{ not json");
+        write_named(&dir, "notes.txt", "ignored: not a *-state.json file");
+
+        let out = read_plugin_state_sidecars_from(&dir, std::time::SystemTime::now());
+        // Keyed by id (filename minus -state.json); the slice is opaque/verbatim.
+        assert_eq!(out["atlas"]["state"], "active");
+        assert_eq!(out["atlas"]["gaussianCount"], 42);
+        assert_eq!(out["follow-me"]["lock"], "locked");
+        // Malformed JSON + non-state files are skipped, never the whole read.
+        assert!(!out.contains_key("bad"));
+        assert!(!out.contains_key("notes"));
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn a_stale_plugin_sidecar_is_dropped() {
+        let dir =
+            std::env::temp_dir().join(format!("ados-cloud-plugins-stale-{}", std::process::id()));
+        write_named(&dir, "atlas-state.json", r#"{"state":"active"}"#);
+        // A reference `now` an hour after the just-written file -> past the gate.
+        let later = std::time::SystemTime::now() + std::time::Duration::from_secs(3600);
+        assert!(read_plugin_state_sidecars_from(&dir, later).is_empty());
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn an_absent_plugin_dir_is_an_empty_map() {
+        let dir = std::env::temp_dir().join("ados-cloud-plugins-nope-does-not-exist");
+        assert!(read_plugin_state_sidecars_from(&dir, std::time::SystemTime::now()).is_empty());
+    }
+
+    #[test]
+    fn linked_peers_fold_fresh_remap_camelcase_and_drop_stale_and_idless() {
+        let dir = std::env::temp_dir().join(format!("ados-cloud-linked-{}", std::process::id()));
+        let now_s = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs_f64();
+        let now_ms = (now_s * 1000.0) as i64;
+        // A fresh peer, a stale one (2 min old, past the 60 s window), and an
+        // id-less entry — only the fresh, id-bearing peer survives.
+        let body = format!(
+            r#"{{"version":1,"wall_time_unix":{now_s},"peers":[
+                {{"device_id":"drone-a","role":"drone","channel":149,"rssi_dbm":-51,"last_seen_unix":{now_s}}},
+                {{"device_id":"drone-old","role":"drone","channel":157,"rssi_dbm":-70,"last_seen_unix":{}}},
+                {{"device_id":"","role":"drone","channel":153,"rssi_dbm":-60,"last_seen_unix":{now_s}}}
+            ]}}"#,
+            now_s - 120.0
+        );
+        write_named(&dir, "linked-peers.json", &body);
+        let out = read_linked_peers_sidecar_from(&dir.join("linked-peers.json"), now_ms).unwrap();
+        assert_eq!(out.len(), 1);
+        // The wire keys are the camelCase set the GCS `LinkedPeer` consumes and
+        // the strict cloud validator declares (nothing snake_case survives).
+        let v = serde_json::to_value(&out[0]).unwrap();
+        assert_eq!(v["deviceId"], "drone-a");
+        assert_eq!(v["role"], "drone");
+        assert_eq!(v["channel"], 149);
+        assert_eq!(v["rssiDbm"], -51);
+        assert!((v["seenAtUnix"].as_f64().unwrap() - now_s).abs() < 1.0);
+        for k in v.as_object().unwrap().keys() {
+            assert!(!k.contains('_'), "{k} must be camelCase on the wire");
+        }
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn linked_peers_absent_when_missing_or_every_entry_stale() {
+        // A missing file reads None so a drone / a peerless ground node stays
+        // byte-identical (never an empty `linkedPeers`).
+        let missing = std::path::Path::new("/run/ados/does-not-exist-linked-peers.json");
+        assert!(read_linked_peers_sidecar_from(missing, 1_000_000).is_none());
+        // A file whose only peer is stale reads None — the dead-writer case
+        // never republishes a ghost peer as a confident list (Rule 44).
+        let dir =
+            std::env::temp_dir().join(format!("ados-cloud-linked-stale-{}", std::process::id()));
+        write_named(
+            &dir,
+            "linked-peers.json",
+            r#"{"peers":[{"device_id":"d","role":"drone","channel":1,"rssi_dbm":-1,"last_seen_unix":1.0}]}"#,
+        );
+        // A reference `now` far in the future puts the sole entry past the gate.
+        assert!(
+            read_linked_peers_sidecar_from(&dir.join("linked-peers.json"), 10_000_000_000)
+                .is_none()
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn a_fresh_crsf_sidecar_folds_and_a_stale_or_bad_one_reads_absent() {
+        let dir = std::env::temp_dir().join(format!("ados-cloud-crsf-{}", std::process::id()));
+        // The exact sidecar body the lane writes, including its extra derived
+        // `flyable` field — outside the pinned block, ignored by the parse.
+        write_named(
+            &dir,
+            "crsf-stats.json",
+            r#"{"v":1,"state":"link_ok","rssi_dbm":-51,"lq_uplink":99,"lq_downlink":97,
+                "snr_db":8,"band":null,"packet_rate_hz":150,"tx_power_mw":100,
+                "tx_frames_per_s":149.8,"rx_frames_per_s":12.0,"rf_unverified":false,
+                "flyable":true,"mode":"crsf_rc","channel_source":"hid","relay_role":null,
+                "fc_command_down_gated":null}"#,
+        );
+        let path = dir.join("crsf-stats.json");
+        let fresh = read_crsf_sidecar_from(&path, std::time::SystemTime::now()).unwrap();
+        assert_eq!(fresh.state.as_deref(), Some("link_ok"));
+        assert_eq!(fresh.rssi_dbm, Some(-51));
+        assert_eq!(fresh.packet_rate_hz, Some(150));
+        // The measured TX power carries under the sidecar's real key. A
+        // `tx_power_dbm` field here silently dropped it to null (serde ignored
+        // the unmatched key), so a cloud-reached node showed no power (rule 44).
+        assert_eq!(fresh.tx_power_mw, Some(100));
+        assert_eq!(fresh.rf_unverified, Some(false));
+        // A crsf_rc lane has no MAVLink-over-ELRS command path to gate.
+        assert!(fresh.fc_command_down_gated.is_none());
+        assert_eq!(fresh.band, None);
+        assert_eq!(fresh.relay_role, None);
+        // Stale mtime (a reference `now` an hour later) → absent, so a dead
+        // lane service's lingering file stops asserting a live lane.
+        let later = std::time::SystemTime::now() + Duration::from_secs(3600);
+        assert!(read_crsf_sidecar_from(&path, later).is_none());
+        // Missing + malformed both read absent, never a default block.
+        assert!(
+            read_crsf_sidecar_from(&dir.join("nope.json"), std::time::SystemTime::now()).is_none()
+        );
+        write_named(&dir, "crsf-bad.json", "{ not json");
+        assert!(
+            read_crsf_sidecar_from(&dir.join("crsf-bad.json"), std::time::SystemTime::now())
+                .is_none()
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn a_mavlink_standby_crsf_sidecar_carries_the_command_down_gate() {
+        // The exact body the lane writes while standing by in mavlink mode: the
+        // MAVLink router owns the carrier telemetry-only, so the command-down
+        // gate reads true. A consumer of only the crsf block must see it.
+        let dir = std::env::temp_dir().join(format!("ados-cloud-crsf-mav-{}", std::process::id()));
+        write_named(
+            &dir,
+            "crsf-stats.json",
+            r#"{"v":1,"state":"ready","rssi_dbm":null,"lq_uplink":null,"lq_downlink":null,
+                "snr_db":null,"band":null,"packet_rate_hz":null,"tx_power_mw":null,
+                "tx_frames_per_s":null,"rx_frames_per_s":null,"rf_unverified":null,
+                "flyable":false,"mode":"mavlink","channel_source":null,"pic":null,
+                "relay_role":null,"fc_command_down_gated":true}"#,
+        );
+        let path = dir.join("crsf-stats.json");
+        let fresh = read_crsf_sidecar_from(&path, std::time::SystemTime::now()).unwrap();
+        assert_eq!(fresh.state.as_deref(), Some("ready"));
+        assert_eq!(fresh.mode.as_deref(), Some("mavlink"));
+        assert_eq!(fresh.fc_command_down_gated, Some(true));
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn config_status_sidecars_surface_only_live_errors_sorted_by_service() {
+        let dir = std::env::temp_dir().join(format!("ados-cloud-cfgstatus-{}", std::process::id()));
+        // Two faulty services (unsorted on disk), one healthy (null error → skip).
+        write_named(
+            &dir,
+            "config-status-mavlink.json",
+            r#"{"service":"mavlink","error":"invalid type: string, expected u32","generated_at_ms":1}"#,
+        );
+        write_named(
+            &dir,
+            "config-status-cloud.json",
+            r#"{"service":"cloud","error":"unknown field `bogus`","generated_at_ms":2}"#,
+        );
+        write_named(
+            &dir,
+            "config-status-supervisor.json",
+            r#"{"service":"supervisor","error":null,"generated_at_ms":3}"#,
+        );
+        // Non-matching + staging + malformed files are ignored, never the read.
+        write_named(&dir, "config-status-bad.json", "{ not json");
+        write_named(
+            &dir,
+            "config-status-ground_station.json.tmp.999",
+            r#"{"service":"ground_station","error":"x"}"#,
+        );
+        write_named(&dir, "notes.txt", "unrelated");
+
+        let out = read_config_error_sidecars_from(&dir);
+        // Only the two live errors, sorted by service (cloud before mavlink).
+        assert_eq!(out.len(), 2);
+        assert_eq!(out[0].service, "cloud");
+        assert_eq!(out[0].error, "unknown field `bogus`");
+        assert_eq!(out[1].service, "mavlink");
+        // The healthy (null-error) service and the staging/malformed/other files
+        // are absent.
+        assert!(!out.iter().any(|e| e.service == "supervisor"));
+        assert!(!out.iter().any(|e| e.service == "ground_station"));
+        assert!(!out.iter().any(|e| e.service == "bad"));
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn an_absent_config_status_dir_is_an_empty_list() {
+        let dir = std::env::temp_dir().join("ados-cloud-cfgstatus-nope-does-not-exist");
+        assert!(read_config_error_sidecars_from(&dir).is_empty());
+    }
+
+    #[test]
+    fn config_status_version_matches_registry() {
+        // The const lives in the writer crate (ados-config); this reader crate
+        // sees both it and the shared registry, so the drift gate lives here.
+        assert_eq!(
+            ados_config::CONFIG_STATUS_SIDECAR_VERSION,
+            ados_protocol::contracts::sidecar_version("config-status").unwrap()
+        );
+    }
+
+    #[test]
+    fn native_only_payload_has_required_fields_and_strips_optionals() {
+        let v = build_payload(&base(), None);
+        let obj = v.as_object().unwrap();
+        // Required-on-wire present.
+        assert_eq!(obj["deviceId"], "dev1");
+        assert_eq!(obj["version"], "0.1.0");
+        assert_eq!(obj["uptimeSeconds"], 42);
+        assert_eq!(obj["boardName"], "rock-5c-lite");
+        // role None is stripped; no optional enrichment present.
+        assert!(!obj.contains_key("role"));
+        assert!(!obj.contains_key("temperature"));
+        assert!(!obj.contains_key("peripherals"));
+        // The unmeasured-by-native fields are OMITTED, not asserted as 0/false/
+        // "stopped"/[] (operating rule 37). They reappear only via the producer.
+        assert!(!obj.contains_key("cpuPercent"));
+        assert!(!obj.contains_key("memoryPercent"));
+        assert!(!obj.contains_key("diskPercent"));
+        assert!(!obj.contains_key("fcConnected"));
+        assert!(!obj.contains_key("services"));
+        assert!(!obj.contains_key("videoState"));
+        // No top-level key is JSON null.
+        for (k, val) in obj {
+            assert!(!val.is_null(), "{k} must not be null on the wire");
+        }
+        // radio is the absent block.
+        assert_eq!(obj["radio"]["state"], "absent");
+    }
+
+    #[test]
+    fn cloud_beacon_carries_the_perception_tier() {
+        // The base() board is an NPU part (6 TOPS), so the beacon reports the
+        // accelerator + a `local` tier (pick_tier). The offload target is absent
+        // (null-stripped) until a workstation is paired.
+        let v = build_payload(&base(), None);
+        let obj = v.as_object().unwrap();
+        assert_eq!(obj["npuTops"], 6.0);
+        assert_eq!(obj["hasAccelerator"], true);
+        assert_eq!(obj["perceptionTier"], "local");
+        assert!(
+            !obj.contains_key("perceptionOffloadTarget"),
+            "no paired workstation ⇒ the offload target is absent, not null"
+        );
+    }
+
+    #[test]
+    fn enrichment_folds_over_the_native_base() {
+        // The producer supplies CPU/temperature + a populated radio block, in the
+        // frozen wire shape. They overlay the native zeros.
+        let enrich = serde_json::json!({
+            "cpuPercent": 12.5,
+            "temperature": 47.0,
+            "videoState": "running",
+            "videoWhepPort": 8889,
+            "radio": {
+                "state": "connected",
+                "channel": 149,
+                "freq_mhz": 5745,
+                "paired": true,
+                "adapter_injection_ok": true
+            },
+            "wfbAdapterInjectionOk": true
+        });
+        let v = build_payload(&base(), Some(&enrich));
+        let obj = v.as_object().unwrap();
+        assert_eq!(obj["cpuPercent"], 12.5);
+        assert_eq!(obj["temperature"], 47.0);
+        assert_eq!(obj["videoState"], "running");
+        // The required base fields survive the fold.
+        assert_eq!(obj["deviceId"], "dev1");
+        assert_eq!(obj["uptimeSeconds"], 42);
+        // The radio sub-block stays snake_case after the fold.
+        assert_eq!(obj["radio"]["freq_mhz"], 5745);
+        assert_eq!(obj["radio"]["state"], "connected");
+        assert_eq!(obj["wfbAdapterInjectionOk"], true);
+    }
+}

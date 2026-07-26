@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <com.mapzen.prefsplusx.IntListPreference
+        android:key="@string/VIDEO_TRANSMITTER_STREAM_MODE"
+        android:title="@string/VIDEO_TRANSMITTER_STREAM_MODE"
+        android:entries="@array/entriesVideoTransmitterStreamMode"
+        android:defaultValue="0" />
+
+    <EditTextPreference
+        android:key="@string/VIDEO_TRANSMITTER_UDP_IP"
+        android:title="@string/VIDEO_TRANSMITTER_UDP_IP"
+        android:defaultValue="192.168.1.1" />
+
+    <com.mapzen.prefsplusx.EditIntPreference
+        android:key="@string/VIDEO_TRANSMITTER_ENCODER_BITRATE_MBITS"
+        android:title="@string/VIDEO_TRANSMITTER_ENCODER_BITRATE_MBITS"
+        android:defaultValue="5"
+        />
+
+    <com.mapzen.prefsplusx.EditIntPreference
+        android:key="@string/VIDEO_TRANSMITTER_CAMERA_ENCODER_FPS"
+        android:title="@string/VIDEO_TRANSMITTER_CAMERA_ENCODER_FPS"
+        android:defaultValue="30"
+        />
+
+
+    <com.mapzen.prefsplusx.EditIntPreference
+        android:key="@string/VIDEO_TRANSMITTER_CAMERA_ENCODER_W_PX"
+        android:title="@string/VIDEO_TRANSMITTER_CAMERA_ENCODER_W_PX"
+        android:defaultValue="1280"
+        />
+    <com.mapzen.prefsplusx.EditIntPreference
+        android:key="@string/VIDEO_TRANSMITTER_CAMERA_ENCODER_H_PX"
+        android:title="@string/VIDEO_TRANSMITTER_CAMERA_ENCODER_H_PX"
+        android:defaultValue="720"
+        />
+
+</PreferenceScreen>

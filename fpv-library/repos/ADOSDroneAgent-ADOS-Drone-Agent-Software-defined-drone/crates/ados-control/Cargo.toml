@@ -1,0 +1,128 @@
+[package]
+name = "ados-control"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Native HTTP control surface: the same status/pairing/command API the GCS speaks, served on the trusted local socket and the LAN port, with no Python runtime."
+
+# lib + a daemon binary. The lib carries the dual-listener serve loop, the
+# LAN-edge auth, the shared app state, and the route Router; the binary inits
+# logging + systemd notify and runs the lifecycle. The binary ships dark — no
+# supervisor registration and no systemd unit enable it yet, so it has no effect
+# at the install layer until the wiring chunk lands. The crate is inert.
+[[bin]]
+name = "ados-control"
+path = "src/main.rs"
+
+[dependencies]
+# Shared wire contracts: the versioned IPC frames the status/command chunks
+# decode, reused so the native surface speaks the exact same seams the Python API
+# does. The `mavlink` feature pulls in the ardupilotmega codec the command route
+# builds its COMMAND_LONG frames with (the same codec the router serializes the
+# FC send path with), so a frame this surface writes to the MAVLink socket is
+# byte-identical to one the router would have written.
+ados-protocol = { path = "../ados-protocol", features = ["mavlink"] }
+# The canonical perception-tier decision (pick_tier) so the status surfaces
+# report the same tier the drone runs on, not a second implementation.
+ados-offload = { path = "../ados-offload" }
+ados-config = { path = "../ados-config" }
+# Gamepad enumeration + the primary-device sidecar reader, reused by the
+# ground-station input read routes so the native surface lists controllers off
+# the exact evdev seam + the `ground-station-input.json` `{primary}` file the
+# Python input service writes. The evdev dependency inside this crate is itself
+# Linux-target-gated, so a non-Linux dev build keeps the empty-list fallback.
+ados-hid = { path = "../ados-hid" }
+# The shared MAC-pin engine: the canonical .link filename, the .link removal, the
+# gated live re-tag, and the state/networkd paths the mac-pin write routes reuse,
+# so a pin the native surface writes resolves to the exact same .link + state the
+# supervisor reconciler and the Python route produced. Linux-target legs inside
+# the crate are cfg-gated, so a non-Linux dev build keeps the safe fallbacks.
+ados-macpin = { path = "../ados-macpin" }
+# The ground-station video recorder lifecycle, reused by the recording write
+# routes so the front holds one long-lived recorder (the ffmpeg child must
+# outlive a single request: start and stop are separate HTTP calls). The crate
+# carries only the recorder logic + the process-group teardown; this surface is
+# the thin REST wrapper over its start()/stop().
+ados-video = { path = "../ados-video" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+# Dynamic msgpack values for the vision-socket envelope (designate route).
+rmpv = { workspace = true }
+rmp-serde = { workspace = true }
+# YAML reader for the slice of /etc/ados/config.yaml the pairing-info route
+# projects (device identity, profile, the radio peer). The same reader the cloud
+# relay uses, so a config the Python agent wrote reads identically here.
+serde_norway = { workspace = true }
+# Random bytes for the pairing API key + pairing code the claim/unpair writers
+# mint, matching the Python `secrets` source in format (the bytes are random
+# either way; the encoding + length + charset match byte-for-byte).
+getrandom = { workspace = true }
+# URL-safe base64 (no padding) for the API key body, mirroring Python
+# `secrets.token_urlsafe`.
+base64 = { workspace = true }
+# blake2b-8 over the WFB pair public-key half rendered as the 16-hex fingerprint
+# the pair-status read reports, matching the radio manager's fingerprint exactly.
+blake2 = { workspace = true }
+hex = { workspace = true }
+# sha256 for the signing-enroll key fingerprint (the first 8 hex of sha256(key)
+# the route returns; the raw key never leaves the route, only this digest does).
+sha2 = { workspace = true }
+# HMAC-SHA256 for the proxied-route request signing gate: a verified hex digest
+# over the timestamp + body, compared in constant time. Same primitive the
+# ground-station WS ticket derives its key with.
+hmac = { workspace = true }
+# UTC clock for the signing-enroll `enrolled_at` ISO-8601 timestamp and the
+# MAVLink signing initial-timestamp (10us units since the 2015 signing epoch).
+# Matches the sibling crates' `time` usage.
+time = { version = "0.3", features = ["std", "formatting"] }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow = { workspace = true }
+# Typed send-path errors for the MAVLink command socket client (an absent socket
+# vs a framing fault), so the command route maps each to the right HTTP status.
+thiserror = { workspace = true }
+# HTTP framework + per-connection serving. The same axum Router is served on the
+# trusted unix socket and the LAN TCP port; hyper + the tokio glue carry the
+# per-connection accept loop, http the request/response types. The `client`
+# feature adds hyper's client-side connection driver the reverse-proxy front uses
+# to forward un-migrated routes to the residual FastAPI over its internal Unix
+# socket (a per-request HTTP/1.1 handshake on a fresh `UnixStream`).
+hyper = { workspace = true, features = ["client"] }
+# The `ws` feature adds the native WebSocket extractor the ground-station relay
+# routes use (the uplink-matrix change stream + the PIC arbiter transition
+# stream), so those upgrades are served by the front directly rather than
+# proxied to the residual. The `multipart` feature adds the streaming multipart
+# extractor the custom-model upload route reads the file + metadata parts with.
+axum = { workspace = true, features = ["ws", "multipart"] }
+tower = { workspace = true }
+tower-http = { workspace = true }
+hyper-util = { workspace = true }
+http = { workspace = true }
+# Streaming request + response bodies for the reverse-proxy passthrough: the
+# front forwards the request body and relays the upstream response body without
+# buffering either, so a large upload or an SSE stream passes through unbroken.
+http-body-util = { workspace = true }
+bytes = { workspace = true }
+# Raw IPV6_V6ONLY on the AF_INET6 listener so the dual-stack front opens one
+# AF_INET (0.0.0.0) and one AF_INET6 (::) socket on the same port without the two
+# contending for IPv4-mapped traffic. socket2 is pure Rust (libc only, no C
+# build), so it cross-compiles to the musl SBC target cleanly.
+socket2 = { version = "0.5", features = ["all"] }
+# Cross-platform host hardware read for the workstation / macOS fallback: when the
+# logging store has no merged snapshot (its collector is not running off-SBC), the
+# system + status routes read CPU/memory/disk/cores/board directly off this.
+sysinfo = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3"
+
+# Linux-only edge: systemd readiness/watchdog notify + journald log layer for
+# the daemon, and the nix group-ownership helper for the trusted socket. Confined
+# to a target section so the pure surface still builds and tests on a non-Linux
+# dev host.
+[target.'cfg(target_os = "linux")'.dependencies]
+sd-notify = { workspace = true }
+tracing-journald = { workspace = true }
+nix = { workspace = true }

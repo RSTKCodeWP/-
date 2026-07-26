@@ -1,0 +1,579 @@
+/* eslint global-require: off, no-console: off */
+/**
+ * This module executes inside of electron's main process. You can start
+ * electron renderer process from here and communicate with the other processes
+ * through IPC.
+ *
+ * When running `yarn build` or `yarn build-main`, this file is compiled to
+ * `./src/main.js` using webpack. This gives us some performance wins.
+ */
+import 'reflect-metadata';
+import path from 'path';
+import { app, BrowserWindow, dialog, ipcMain, shell, session } from 'electron';
+import { mkdirp } from 'mkdirp';
+import winston from 'winston';
+import fs from 'fs';
+import { URL } from 'url';
+import MenuBuilder from './menu';
+import ApiServer from '../api';
+import {
+  ChooseFolderResponseBody,
+  DownloadFileRequestBody,
+  IpcRequest,
+  OpenFileLocationRequestBody,
+  SaveFileRequestBody,
+  SaveFileResponseBody,
+  UpdateBuildStatusRequestBody,
+} from '../ipc';
+import Updater from '../app/updater';
+import WinstonLoggerService from '../api/src/logger/WinstonLogger';
+
+import packageJson from '../../package.json';
+
+const logsPath = path.join(app.getPath('userData'), 'logs');
+const logsFilename = 'expressslrs-configurator.log';
+const winstonLogger = winston.createLogger({
+  level: 'debug',
+  format: winston.format.simple(),
+  defaultMeta: {},
+  transports: [
+    new winston.transports.Console({
+      format: winston.format.combine(
+        winston.format.timestamp(),
+        winston.format.prettyPrint(),
+      ),
+    }),
+    new winston.transports.File({
+      dirname: logsPath,
+      filename: logsFilename,
+      maxFiles: 10,
+      maxsize: 5_000_000, // in bytes
+      format: winston.format.combine(
+        winston.format.timestamp(),
+        winston.format.prettyPrint(),
+        winston.format.json(),
+      ),
+    }),
+  ],
+});
+
+const logger = new WinstonLoggerService(winstonLogger);
+logger.log('path', {
+  PATH: process.env.PATH,
+});
+
+function resolveHtmlPath(htmlFileName: string, qs?: string) {
+  if (process.env.NODE_ENV === 'development') {
+    const port = process.env.PORT || 1212;
+    const url = new URL(`http://localhost:${port}?${qs}`);
+    url.pathname = htmlFileName;
+    return url.href;
+  }
+  return `file://${path.resolve(
+    __dirname,
+    '../renderer/',
+    `${htmlFileName}?${qs}`,
+  )}`;
+}
+
+const isWindows = process.platform.startsWith('win');
+const isMacOS = process.platform.startsWith('darwin');
+logger.log(`platform: ${process.platform}`);
+logger.log(`os release: ${process.getSystemVersion()}`);
+
+const isOSSupported = !(
+  isWindows && parseFloat(process.getSystemVersion()) < 6.2
+);
+
+let userDataDirectory = app.getPath('userData');
+
+if (isWindows) {
+  const dirtyUserDataDirectory = app.isPackaged
+    ? path.join('c:', 'ProgramData', packageJson.name)
+    : path.join('c:', 'ProgramData', `${packageJson.name}-dev`);
+  try {
+    const isASCII = (str: string) => {
+      return /^[\x20-\x7F]*$/.test(str);
+    };
+    if (!isASCII(userDataDirectory)) {
+      mkdirp.sync(dirtyUserDataDirectory);
+      userDataDirectory = dirtyUserDataDirectory;
+      logger.log(
+        `Non-ASCII path detected, using ${dirtyUserDataDirectory} directory for firmware storage`,
+      );
+    } else {
+      logger.log(
+        `using appdata path ${userDataDirectory} for firmware storage`,
+      );
+    }
+  } catch (err) {
+    logger.error(
+      'failed to create c:/.expresslrs directory, will use usual path',
+      undefined,
+      {
+        err,
+      },
+    );
+  }
+}
+
+const handleFatalError = (err: Error | object | null | undefined | unknown) => {
+  logger.error(`handling fatal error: ${err}`);
+  try {
+    dialog
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore
+      .showMessageBox(undefined, {
+        type: 'error',
+        buttons: ['Okay'],
+        title: 'Oops! Something went wrong!',
+        detail: 'Help us improve your experience by sending an error report',
+        message: `Error: ${err}`,
+      })
+      .then(() => {
+        console.log('received resp from message box');
+        process.exit(1);
+      })
+      .catch((dialogErr) => {
+        logger.error('failed to show error dialog', dialogErr.stack);
+        process.exit(1);
+      });
+  } catch (e) {
+    /*
+      This API can be called safely before the ready event the app module emits, it is usually used to report errors
+      in early stage of startup. If called before the app readyevent on Linux, the message will be emitted to stderr,
+      and no GUI dialog will appear.
+     */
+    dialog.showErrorBox('Oops! Something went wrong!', `Error: ${err}`);
+    process.exit(1);
+  }
+};
+process.on('uncaughtException', (err) => {
+  logger.error(`uncaughtException ${err.message}`, err.stack);
+  handleFatalError(err);
+});
+process.on('unhandledRejection', (err) => {
+  logger.error(`unhandledRejection: ${err}`);
+  handleFatalError(err);
+});
+
+// Improve application compatibility with ISPs who fake IPv6 compatibility.
+// More about this issue: https://github.com/ExpressLRS/ExpressLRS-Configurator/issues/638
+// cli switch docs: https://www.electronjs.org/docs/latest/api/command-line-switches#--dns-result-orderorder
+app.commandLine.appendSwitch('dns-result-order', 'ipv4first');
+
+if (app.commandLine.hasSwitch('disable-gpu')) {
+  app.disableHardwareAcceleration();
+  app.commandLine.appendSwitch('disable-software-rasterizer');
+}
+
+let mainWindow: BrowserWindow | null = null;
+let updater: Updater | null = null;
+const localServer: ApiServer = new ApiServer();
+
+if (process.env.NODE_ENV === 'production') {
+  const sourceMapSupport = require('source-map-support');
+  sourceMapSupport.install();
+}
+
+const createWindow = async () => {
+  const RESOURCES_PATH = app.isPackaged
+    ? path.join(process.resourcesPath, 'assets')
+    : path.join(__dirname, '../../assets');
+
+  const getAssetPath = (...paths: string[]): string => {
+    return path.join(RESOURCES_PATH, ...paths);
+  };
+
+  logger.log('trying to get port');
+  const port = await ApiServer.getPort(3500);
+  logger.log(`received unused port`, { port });
+
+  logger.log('starting server...');
+  const firmwaresPath = path.join(userDataDirectory, 'firmwares', 'github');
+  await mkdirp(firmwaresPath);
+  const firmwareCloudCachePath = path.join(
+    userDataDirectory,
+    'firmwares',
+    'cloud',
+  );
+  await mkdirp(firmwareCloudCachePath);
+  const targetsStoragePath = path.join(
+    userDataDirectory,
+    'firmwares',
+    'targets',
+  );
+  const userDefinesStoragePath = path.join(
+    userDataDirectory,
+    'firmwares',
+    'userDefines',
+  );
+
+  const dependenciesPath = app.isPackaged
+    ? path.join(process.resourcesPath, '../dependencies')
+    : path.join(__dirname, '../../dependencies');
+
+  const getPlatformioPath = path.join(dependenciesPath, 'get-platformio.py');
+  const platformioStateTempStoragePath = path.join(
+    userDataDirectory,
+    'platformio-temp-state-storage',
+  );
+
+  const localApiServerEnv = process.env;
+
+  /* Set the temp directory for the PlatformIO Installer */
+  localApiServerEnv.PLATFORMIO_INSTALLER_TMPDIR = userDataDirectory;
+
+  if (isWindows) {
+    const publicFolder = 'C:\\Users\\Public';
+    try {
+      // As of 2023-04-25, Platform IO installer fails on "building wheel for platformio"
+      // if the path to the installer temporary directory is too long, so use the Public
+      // User folder instead of the app data directory
+      if (fs.existsSync(publicFolder)) {
+        const testFile = path.join(publicFolder, `${Date.now()}.txt`);
+        fs.writeFileSync(testFile, '');
+        fs.unlinkSync(testFile);
+        localApiServerEnv.PLATFORMIO_INSTALLER_TMPDIR = publicFolder;
+        logger.log(
+          `using public folder ${publicFolder} for PlatformIO Installer`,
+        );
+      } else {
+        logger.log(
+          `using appdata path ${userDataDirectory} for PlatformIO Installer`,
+        );
+      }
+    } catch (err) {
+      logger.error(
+        `${publicFolder} not writable, using ${userDataDirectory} for PlatformIO Installer`,
+        undefined,
+        {
+          err,
+        },
+      );
+    }
+  }
+
+  /*
+    We manually prepend $PATH on Windows and macOS machines with portable Git and Python locations.
+   */
+  let PATH = process.env.PATH ?? '';
+  const prependPATH = (pth: string, item: string): string => {
+    if (pth.indexOf(item) > -1) {
+      return pth;
+    }
+    if (pth.length > 0) {
+      return `${item}${path.delimiter}${pth}`;
+    }
+    return item;
+  };
+
+  if (isWindows) {
+    const portablePythonLocation = path.join(
+      dependenciesPath,
+      'windows_amd64/python',
+    );
+    const portableGitLocation = path.join(
+      dependenciesPath,
+      'windows_amd64/PortableGit/bin',
+    );
+    PATH = prependPATH(PATH, portablePythonLocation);
+    PATH = prependPATH(PATH, portableGitLocation);
+  }
+  if (isMacOS) {
+    const macDependenciesPath = path.join(
+      dependenciesPath,
+      `darwin_${process.arch}`,
+    );
+    const portablePythonLocation = path.join(
+      macDependenciesPath,
+      'python-portable/bin',
+    );
+    const portableGitLocation = path.join(
+      macDependenciesPath,
+      'git-portable/bin',
+    );
+    // fall back to the system tools when the portable dependencies have not
+    // been downloaded, for example during local development
+    if (fs.existsSync(portablePythonLocation)) {
+      PATH = prependPATH(PATH, portablePythonLocation);
+    }
+    if (fs.existsSync(portableGitLocation)) {
+      PATH = prependPATH(PATH, portableGitLocation);
+      localApiServerEnv.GIT_EXEC_PATH = path.join(
+        macDependenciesPath,
+        'git-portable/libexec/git-core',
+      );
+    }
+  }
+  localApiServerEnv.PATH = PATH;
+
+  const devicesPath = app.isPackaged
+    ? path.join(process.resourcesPath, 'devices')
+    : path.join(__dirname, '../../devices');
+
+  const localesPath = app.isPackaged
+    ? path.join(process.resourcesPath, 'i18n', 'locales')
+    : path.join(__dirname, '../', 'i18n', 'locales');
+
+  logger.log('localesPath', { localesPath });
+
+  logger.log('local api server PATH', {
+    PATH,
+  });
+
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [
+          `script-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:1212 http://localhost:${port}`,
+        ],
+      },
+    });
+  });
+
+  await localServer.start(
+    {
+      configuratorGit: {
+        url: packageJson.repository.url.replaceAll('git+', ''),
+        owner: packageJson.build.publish.owner,
+        repositoryName: packageJson.build.publish.repo,
+      },
+      multicastDnsSimulatorEnabled:
+        process.env.MULTICAST_DNS_SIMULATOR_ENABLED === 'true',
+      firmwaresPath,
+      cloudCacheServer: 'https://artifactory.expresslrs.org',
+      firmwareCloudCachePath,
+      getPlatformioPath,
+      platformioStateTempStoragePath,
+      PATH,
+      env: localApiServerEnv,
+      devicesPath,
+      targetsStoragePath,
+      userDefinesStoragePath,
+      userDataPath: app.getPath('userData'),
+      localesPath,
+    },
+    logger,
+    port,
+  );
+  logger.log('server started');
+
+  mainWindow = new BrowserWindow({
+    show: false,
+    width: 1400,
+    height: 920,
+    icon: getAssetPath('icon.png'),
+    // TODO: improve electron.js security
+    webPreferences: {
+      // nodeIntegration: true,
+      // sandbox: false,
+      // contextIsolation: false,
+      preload: app.isPackaged
+        ? path.join(__dirname, 'preload.js')
+        : path.join(__dirname, '../../.erb/dll/preload.js'),
+    },
+  });
+  mainWindow.on('close', (e) => {
+    if (buildInProgress) {
+      const choice = dialog.showMessageBoxSync(mainWindow!, {
+        type: 'question',
+        buttons: ['Yes', 'No'],
+        title: 'Are you sure you want to quit?',
+        message: 'It looks like you have a build in progress',
+      });
+      if (choice === 1) {
+        e.preventDefault();
+      }
+    }
+  });
+
+  const baseUrl = `http://localhost:${port}`;
+  const apiUrl = `${baseUrl}/graphql`;
+  const subscriptionsUrl = `ws://localhost:${port}/graphql`;
+  mainWindow.loadURL(
+    resolveHtmlPath(
+      'index.html',
+      `base_url=${baseUrl}&api_url=${apiUrl}&subscriptions_url=${subscriptionsUrl}`,
+    ),
+  );
+
+  // TODO: Use 'ready-to-show' event
+  //        https://github.com/electron/electron/blob/master/docs/api/browser-window.md#using-ready-to-show-event
+  mainWindow.webContents.on('did-finish-load', () => {
+    if (!mainWindow) {
+      throw new Error('"mainWindow" is not defined');
+    }
+
+    if (process.env.START_MINIMIZED) {
+      mainWindow.minimize();
+    } else {
+      mainWindow.show();
+      mainWindow.focus();
+    }
+
+    // set the window title based on package.json
+    const windowTitle = require('../../release/app/package.json').productName;
+    mainWindow.setTitle(windowTitle);
+  });
+
+  mainWindow.on('closed', () => {
+    mainWindow = null;
+  });
+
+  // mainWindow.setMenuBarVisibility(false);
+  const menuBuilder = new MenuBuilder(mainWindow);
+  menuBuilder.buildMenu();
+
+  // Open urls in the user's browser
+  mainWindow.webContents.setWindowOpenHandler((edata) => {
+    shell.openExternal(edata.url);
+    return { action: 'deny' };
+  });
+
+  updater = new Updater(logger, mainWindow, baseUrl);
+};
+/**
+ * Add event listeners...
+ */
+
+app.on('window-all-closed', () => {
+  // Respect the OSX convention of having the application in memory even
+  // after all windows have been closed
+  if (process.platform !== 'darwin') {
+    localServer.stop();
+    app.quit();
+  }
+});
+
+if (!isOSSupported) {
+  app
+    .whenReady()
+    .then(() => {
+      dialog
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
+        .showMessageBox(undefined, {
+          type: 'error',
+          buttons: ['Okay'],
+          title: 'ExpressLRS Configurator',
+          detail: 'Unsupported OS Version Detected',
+          message: ``,
+        })
+        .then(() => {
+          process.exit(1);
+        })
+        .catch((dialogErr) => {
+          logger.error('failed to show error dialog', dialogErr.stack);
+          process.exit(1);
+        });
+    })
+    .catch((err: Error) => {
+      logger.error(`Unsupported OS dialog error ${err}`);
+    });
+} else {
+  app
+    .whenReady()
+    .then(createWindow)
+    .catch((err: Error) => {
+      logger.error(`createWindow error ${err}`);
+      handleFatalError(err);
+    })
+    .then(() => {
+      return updater?.checkForUpdates();
+    })
+    .catch((err: Error) => {
+      logger.error(`Auto update error ${err}`);
+    });
+}
+
+app.on('activate', () => {
+  // On macOS, it's common to re-create a window in the app when the
+  // dock icon is clicked and there are no other windows open.
+  if (mainWindow === null) {
+    createWindow();
+  }
+});
+
+/*
+  Handle IPC requests from the User Interface
+ */
+ipcMain.on(
+  IpcRequest.OpenFileLocation,
+  (_, arg: OpenFileLocationRequestBody) => {
+    logger.log('received a request to show item in folder', {
+      path: arg.path,
+    });
+    shell.showItemInFolder(arg.path);
+  },
+);
+
+ipcMain.handle(
+  IpcRequest.ChooseFolder,
+  async (): Promise<ChooseFolderResponseBody> => {
+    const result = await dialog.showOpenDialog({
+      title: 'Select firmware source folder',
+      message: 'Folder must contain platformio.ini file',
+      properties: ['openDirectory'],
+    });
+    if (result.canceled || result.filePaths.length === 0) {
+      return {
+        success: false,
+        directoryPath: '',
+      };
+    }
+    return {
+      success: true,
+      directoryPath: result.filePaths[0],
+    };
+  },
+);
+
+ipcMain.on(IpcRequest.OpenLogsFolder, () => {
+  const logsLocation = path.join(logsPath, logsFilename);
+  logger.log('received a request to logs path', {
+    logsLocation,
+  });
+  shell.showItemInFolder(logsLocation);
+});
+
+let buildInProgress = false;
+ipcMain.on(
+  IpcRequest.UpdateBuildStatus,
+  (_, arg: UpdateBuildStatusRequestBody) => {
+    buildInProgress = arg.buildInProgress;
+    logger.log('received a request to update build status', {
+      arg,
+    });
+  },
+);
+
+ipcMain.handle(
+  IpcRequest.SaveFile,
+  async (_, args: [SaveFileRequestBody]): Promise<SaveFileResponseBody> => {
+    const arg = args[0];
+    const result = await dialog.showSaveDialog({
+      title: 'Save File',
+      defaultPath: arg.defaultPath,
+    });
+    if (result.canceled || !result.filePath || result.filePath.length === 0) {
+      return {
+        success: false,
+        path: '',
+      };
+    }
+    await fs.promises.writeFile(result.filePath, arg.data);
+    return {
+      success: true,
+      path: result.filePath,
+    };
+  },
+);
+
+ipcMain.on(IpcRequest.DownloadFile, (event, arg: DownloadFileRequestBody) => {
+  logger.log('received a request to download file', {
+    url: arg.url,
+  });
+  event.sender.downloadURL(arg.url);
+});

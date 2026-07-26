@@ -1,0 +1,327 @@
+{
+  "name": "expresslrs-configurator",
+  "productName": "ExpressLRS Configurator",
+  "description": "Cross platform build & configuration tool for the ExpressLRS firmware",
+  "scripts": {
+    "build": "concurrently \"yarn build:main\" \"yarn build:renderer\"",
+    "build-dll": "cross-env NODE_OPTIONS=\"--no-experimental-strip-types --import ts-node/esm --no-warnings\" NODE_ENV=development webpack --config .erb/configs/webpack.config.renderer.dev.dll.ts",
+    "build:main": "cross-env NODE_OPTIONS=\"--no-experimental-strip-types --import ts-node/esm --no-warnings\" NODE_ENV=production webpack --config .erb/configs/webpack.config.main.prod.ts",
+    "build:renderer": "cross-env NODE_OPTIONS=\"--no-experimental-strip-types --import ts-node/esm --no-warnings\" NODE_ENV=production webpack --config .erb/configs/webpack.config.renderer.prod.ts",
+    "rebuild": "electron-rebuild --parallel --types prod,dev,optional --module-dir ./release/app",
+    "lint": "eslint . --cache",
+    "lint:fix": "eslint . --cache --fix",
+    "package": "yarn build && electron-builder build --publish never",
+    "postinstall": "ts-node .erb/scripts/check-native-deps.js && electron-builder install-app-deps && yarn build-dll && yarn-deduplicate yarn.lock",
+    "start": "ts-node .erb/scripts/check-port-in-use.js && cross-env yarn start:renderer",
+    "start:main": "cross-env NODE_OPTIONS=\"--no-experimental-strip-types --no-warnings\" NODE_ENV=development electron ./.erb/scripts/start-main.js",
+    "start:preload": "cross-env NODE_OPTIONS=\"--no-experimental-strip-types --import ts-node/esm --no-warnings\" NODE_ENV=development TS_NODE_TRANSPILE_ONLY=true webpack --config ./.erb/configs/webpack.config.preload.dev.ts",
+    "start:renderer": "cross-env NODE_OPTIONS=\"--no-experimental-strip-types --import ts-node/esm --no-warnings\" NODE_ENV=development TS_NODE_TRANSPILE_ONLY=true webpack serve --config ./.erb/configs/webpack.config.renderer.dev.ts",
+    "test": "jest --passWithNoTests",
+    "gql-codegen": "graphql-codegen --config codegen.yml && yarn lint:fix",
+    "prepare": "husky",
+    "typecheck": "tsc --project tsconfig.json --noEmit --skipLibCheck"
+  },
+  "author": {
+    "name": "ExpressLRS Configurator Contributors",
+    "email": "info@expresslrs.org",
+    "url": "https://github.com/ExpressLRS/ExpressLRS-Configurator/graphs/contributors"
+  },
+  "main": "./src/main/main.ts",
+  "build": {
+    "productName": "ExpressLRS Configurator",
+    "appId": "org.expresslrs.configurator",
+    "files": [
+      "dist/",
+      "release/app/dist/",
+      "main/",
+      "node_modules/",
+      "package.json",
+      "devices/"
+    ],
+    "afterPack": ".erb/scripts/mac-dependencies.js",
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "type": "distribution",
+      "artifactName": "${productName}-${version}-${arch}.${ext}",
+      "hardenedRuntime": true,
+      "entitlements": "assets/entitlements.mac.plist",
+      "entitlementsInherit": "assets/entitlements.mac.plist",
+      "gatekeeperAssess": false,
+      "category": "public.app-category.developer-tools",
+      "extraFiles": [
+        "dependencies/get-platformio.py"
+      ]
+    },
+    "dmg": {
+      "contents": [
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "extraFiles": [
+        "dependencies/windows_amd64",
+        "dependencies/get-platformio.py"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "linux": {
+      "target": [
+        "zip",
+        "deb",
+        "pacman",
+        "rpm"
+      ],
+      "category": "Development",
+      "extraFiles": [
+        "dependencies/get-platformio.py"
+      ]
+    },
+    "rpm": {
+      "executableArgs": [
+        "--no-sandbox"
+      ],
+      "depends": [
+        "git",
+        "python3"
+      ]
+    },
+    "pacman": {
+      "executableArgs": [
+        "--no-sandbox"
+      ],
+      "depends": [
+        "git",
+        "python3"
+      ]
+    },
+    "snap": {
+      "executableArgs": [
+        "--no-sandbox"
+      ],
+      "stagePackages": [
+        "default",
+        "git",
+        "python3"
+      ]
+    },
+    "deb": {
+      "executableArgs": [
+        "--no-sandbox"
+      ],
+      "depends": [
+        "git",
+        "python3",
+        "python3-setuptools",
+        "libnotify4",
+        "libxtst6",
+        "libnss3"
+      ]
+    },
+    "directories": {
+      "app": "release/app",
+      "buildResources": "assets",
+      "output": "release"
+    },
+    "extraResources": [
+      "./assets/**",
+      "./devices/**",
+      {
+        "from": "./src/i18n",
+        "to": "i18n"
+      }
+    ],
+    "publish": {
+      "provider": "github",
+      "owner": "ExpressLRS",
+      "repo": "ExpressLRS-Configurator"
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ExpressLRS/ExpressLRS-Configurator"
+  },
+  "license": "GPL-3.0-or-later",
+  "bugs": {
+    "url": ""
+  },
+  "keywords": [
+    "expresslrs"
+  ],
+  "homepage": "",
+  "jest": {
+    "preset": "ts-jest",
+    "testEnvironment": "node",
+    "moduleDirectories": [
+      "node_modules",
+      "release/app/node_modules",
+      "src"
+    ],
+    "moduleFileExtensions": [
+      "js",
+      "jsx",
+      "ts",
+      "tsx",
+      "json"
+    ],
+    "testMatch": [
+      "<rootDir>/src/api/**/*.test.ts",
+      "<rootDir>/src/ui/**/*.test.ts"
+    ],
+    "testPathIgnorePatterns": [
+      "release/app/dist",
+      ".erb/dll"
+    ]
+  },
+  "resolutions": {},
+  "devDependencies": {
+    "@electron/rebuild": "^4.0.0",
+    "@graphql-codegen/cli": "^6.0.0",
+    "@graphql-codegen/introspection": "^5.0.0",
+    "@graphql-codegen/typescript": "^5.0.0",
+    "@graphql-codegen/typescript-operations": "^5.0.0",
+    "@graphql-codegen/typed-document-node": "^5.0.0",
+    "@pmmmwh/react-refresh-webpack-plugin": "^0.6.0",
+    "@teamsupercell/typings-for-css-modules-loader": "^2.5.2",
+    "@testing-library/jest-dom": "^6.0.0",
+    "@testing-library/react": "^16.0.0",
+    "@types/autosuggest-highlight": "^3.2.3",
+    "@types/cors": "^2.8.17",
+    "@types/cross-spawn": "^6.0.6",
+    "@types/jest": "^29.0.0",
+    "@types/lodash.clonedeep": "^4.5.9",
+    "@types/lodash.debounce": "^4.0.9",
+    "@types/lodash.uniqueid": "^4.0.9",
+    "@types/multicast-dns": "^7.2.4",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@types/rimraf": "^4.0.5",
+    "@types/uuid": "^9.0.7",
+    "@types/webpack-bundle-analyzer": "^4.6.3",
+    "@types/webpack-env": "^1.18.4",
+    "@types/webpack-node-externals": "^3.0.4",
+    "@eslint/js": "^9.0.0",
+    "@stylistic/eslint-plugin": "^4.0.0",
+    "typescript-eslint": "^8.0.0",
+    "chalk": "^4.1.0",
+    "concurrently": "^9.0.0",
+    "core-js": "^3.35.0",
+    "cross-env": "^7.0.3",
+    "css-loader": "^7.0.0",
+    "css-minimizer-webpack-plugin": "^7.0.0",
+    "detect-port": "^2.0.0",
+    "electron": "^41.0.0",
+    "electron-builder": "^26.8.0",
+    "eslint": "^9.0.0",
+    "eslint-plugin-jsx-a11y": "^6.10.0",
+    "eslint-plugin-react": "^7.37.0",
+    "eslint-plugin-react-hooks": "^5.0.0",
+    "globals": "^16.0.0",
+    "file-loader": "^6.0.0",
+    "html-webpack-plugin": "^5.6.0",
+    "husky": "^9.0.0",
+    "identity-obj-proxy": "^3.0.0",
+    "jest": "^29.0.0",
+    "jest-environment-jsdom": "^29.7.0",
+    "mini-css-extract-plugin": "^2.7.6",
+    "react-refresh": "^0.16.0",
+    "rimraf": "^5.0.5",
+    "sass": "^1.69.7",
+    "sass-loader": "^16.0.0",
+    "style-loader": "^4.0.0",
+    "terser-webpack-plugin": "^5.3.10",
+    "ts-jest": "^29.1.1",
+    "ts-loader": "^9.5.1",
+    "tsconfig-paths-webpack-plugin": "^4.1.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.6.2",
+    "url-loader": "^4.1.0",
+    "webpack": "^5.73.0",
+    "webpack-bundle-analyzer": "^5.0.0",
+    "webpack-cli": "^6.0.0",
+    "webpack-dev-server": "^5.0.0",
+    "webpack-merge": "^6.0.0",
+    "yarn-deduplicate": "^6.0.2"
+  },
+  "dependencies": {
+    "@apollo/client": "^4.0.0",
+    "@apollo/server": "^5.0.0",
+    "@as-integrations/express5": "^1.0.0",
+    "@emotion/react": "^11.11.3",
+    "@emotion/styled": "^11.11.0",
+    "@fontsource/roboto": "^5.0.8",
+    "@mui/icons-material": "^7.0.0",
+    "@mui/material": "^7.0.0",
+    "@octokit/rest": "^22.0.0",
+    "autosuggest-highlight": "^3.2.1",
+    "bluejay-rtttl-parse": "^2.0.2",
+    "class-validator": "^0.15.0",
+    "cors": "^2.8.5",
+    "cross-spawn": "^7.0.3",
+    "electron-updater": "^6.8.0",
+    "express": "^5.1.0",
+    "extract-zip": "^2.0.1",
+    "form-data": "^4.0.0",
+    "get-port": "^5.1.1",
+    "graphql": "^16.7.1",
+    "graphql-scalars": "^1.23.0",
+    "@graphql-yoga/subscription": "^5.0.0",
+    "graphql-tag": "^2.12.6",
+    "graphql-ws": "^6.0.6",
+    "i18next": "^26.0.0",
+    "i18next-browser-languagedetector": "^8.0.0",
+    "i18next-http-backend": "^3.0.0",
+    "lodash.clonedeep": "^4.5.0",
+    "lodash.debounce": "^4.0.8",
+    "lodash.uniqueid": "^4.0.1",
+    "mkdirp": "^3.0.1",
+    "multicast-dns": "^7.2.5",
+    "quick-score": "0.2.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-i18next": "^17.0.0",
+    "react-router": "^7.0.0",
+    "reflect-metadata": "^0.2.1",
+    "regenerator-runtime": "^0.14.1",
+    "sanitize-filename": "^1.6.3",
+    "semver": "^7.3.8",
+    "simple-git": "^3.28.0",
+    "source-map-support": "^0.5.21",
+    "ts-node": "^10.9.2",
+    "type-graphql": "2.0.0-rc.3",
+    "typedi": "^0.10.0",
+    "winston": "^3.11.0",
+    "ws": "^8.16.0"
+  },
+  "devEngines": {
+    "node": ">=24.x",
+    "npm": ">=6.x",
+    "yarn": ">=1.21.3"
+  },
+  "browserslist": [],
+  "renovate": {
+    "extends": [
+      "bliss"
+    ],
+    "baseBranches": [
+      "next"
+    ]
+  }
+}

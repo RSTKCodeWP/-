@@ -1,0 +1,8 @@
+{
+  "disconnect": "Bağlantıyı kes",
+  "connect": "Bağlan",
+  "connectDevice": "Cihaza bağlan",
+  "rebooting": "Yeniden başlatılıyor...",
+  "adbCheck": "Device connected - checking for ADB, this can take up to 30 seconds...",
+  "adbDetectionFailed": "Failed detecting ADB, please (re-)root your device!"
+}

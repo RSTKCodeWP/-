@@ -1,0 +1,10 @@
+{
+  "recoveryTitle": "Suggerimenti di prevenzione/ripristino:",
+  "recoveryText": "Se si verificano problemi con wtfOS, prova ad avviare in modalità sicura tenendo premuto il pulsante di associazione sul dispositivo per 30 secondi durante l'accensione. Dovresti essere in grado di disinstallare e reinstallare wtfOS o chiedere un ulteriore aiuto.",
+  "browserNotSupported": "Browser non supportato!",
+  "browserNotSupportedText": "Il tuo browser non supporta la funzione webusb. Prova ad utilizzare un",
+  "browserNotSupportedLink": "browser che offra questa funzione.",
+  "browserSupported": "I browser supportati (e testati) sono:",
+  "browserSupportedAndroid": "Alcuni telefoni Android",
+  "browserSupportedOther": "Altri browser basati su Chromium"
+}

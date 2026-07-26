@@ -1,0 +1,288 @@
+using System;
+using System.Collections.Immutable;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using Asv.Common;
+using Asv.Mavlink.Common;
+
+using Microsoft.Extensions.Logging;
+using ObservableCollections;
+using R3;
+using ZLogger;
+
+
+namespace Asv.Mavlink;
+
+public class MissionClientExConfig: MissionClientConfig
+{
+    private int _deviceUploadTimeoutMs = 3000;
+
+    /// <summary>
+    /// Timeout for waiting next upload request from device.
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException"></exception>
+    public int DeviceUploadTimeoutMs
+    {
+        get => _deviceUploadTimeoutMs;
+        set => _deviceUploadTimeoutMs = value >= 0 
+            ? value 
+            : throw new ArgumentOutOfRangeException(nameof(DeviceUploadTimeoutMs));
+    }
+}
+
+public sealed class MissionClientEx : MavlinkMicroserviceClient, IMissionClientEx
+{
+    private readonly ILogger _logger;
+    private readonly IMissionClient _client;
+    private readonly ICommandClient _commandClient;
+    private readonly ObservableList<MissionItem> _missionSource;
+    private readonly ReactiveProperty<bool> _isMissionSynced;
+    private readonly ReactiveProperty<double> _allMissionDistance;
+    private readonly TimeSpan _deviceUploadTimeout;
+    private readonly CancellationTokenSource _disposeCancel;
+
+    public MissionClientEx(
+        IMissionClient client, 
+        ICommandClient commandClient,
+        MissionClientExConfig config)
+        :base(MissionHelper.MicroserviceExName, client.Identity, client.Core)
+    {
+        ArgumentNullException.ThrowIfNull(commandClient);
+        _client = client ?? throw new ArgumentNullException(nameof(client));
+        _commandClient = commandClient;
+        _logger = client.Core.LoggerFactory.CreateLogger<MissionClientEx>();
+        var config1 = config ?? throw new ArgumentNullException(nameof(config));
+        _disposeCancel = new CancellationTokenSource();
+        _deviceUploadTimeout = TimeSpan.FromMilliseconds(config1.DeviceUploadTimeoutMs);
+        _missionSource = new ObservableList<MissionItem>();
+        _isMissionSynced = new ReactiveProperty<bool>(false);
+        _allMissionDistance = new ReactiveProperty<double>(double.NaN);
+        _obs1 = _isMissionSynced.Subscribe(_ => UpdateMissionsDistance());
+    }
+    
+    public IMissionClient Base => _client;
+    public IReadOnlyObservableList<MissionItem> MissionItems => _missionSource;
+    public ReadOnlyReactiveProperty<bool> IsSynced => _isMissionSynced;
+    public ReadOnlyReactiveProperty<ushort> Current => _client.MissionCurrent;
+    public ReadOnlyReactiveProperty<ushort> Reached => _client.MissionReached;
+    public ReadOnlyReactiveProperty<double> AllMissionsDistance => _allMissionDistance;
+    
+    public Task SetCurrent(ushort index, CancellationToken cancel = default)
+    {
+        return _client.MissionSetCurrent(index, cancel);
+    }
+
+    public Task StartMission(ushort startIndex, ushort stopIndex, CancellationToken cancel = default)
+    {
+        return _commandClient.CommandLongAndCheckResult(
+            packet => MissionHelper.SetStartMissionCommandArgs(packet, startIndex, stopIndex), cancel: cancel);
+    }
+
+    public async Task<MissionItem[]> Download(CancellationToken cancel, Action<double>? progress = null)
+    {
+        _logger.ZLogInformation($"Begin download mission");
+        progress?.Invoke(0);
+        var count = await _client.MissionRequestCount(cancel).ConfigureAwait(false);
+        var result = new MissionItem[count];
+        _missionSource.Clear();
+        var current = 0;
+        for (int i = 0; i < count; i++)
+        {
+            var item = await _client.MissionRequestItem((ushort) i,cancel).ConfigureAwait(false);
+            result[i] = AddMissionItem(item);
+            current++;
+            progress?.Invoke((double)current / count);
+        }
+
+        if (result.Length != count)
+        {
+            await Base
+                .SendMissionAck(MavMissionResult.MavMissionError, cancel: cancel)
+                .ConfigureAwait(false);
+            return [];
+        }
+
+        await Base
+            .SendMissionAck(MavMissionResult.MavMissionAccepted, cancel: cancel)
+            .ConfigureAwait(false);
+        _isMissionSynced.Value = true;
+        return result;
+    }
+
+    public async Task ClearRemote( CancellationToken cancel)
+    {
+        _logger.ZLogInformation($"Begin clear mission");
+        _missionSource.Clear();
+        await _client.ClearAll(MavMissionType.MavMissionTypeMission, cancel).ConfigureAwait(false);
+        _isMissionSynced.Value = true;
+    }
+
+    public async Task Upload(CancellationToken cancel, Action<double>? progress = null)
+    {
+        _logger.ZLogInformation($"Begin upload mission");
+        progress?.Invoke(0);
+        await _client.ClearAll(MavMissionType.MavMissionTypeMission ,cancel).ConfigureAwait(false);
+
+        using var linkedCancel = CancellationTokenSource.CreateLinkedTokenSource(cancel, DisposeCancel);
+        var tcs = new TaskCompletionSource<Unit>();
+        await using var c1 = linkedCancel.Token.Register(() => tcs.TrySetCanceled(), false);
+        var current = 0;
+        var lastUpdateTime = DateTime.Now;
+        await using var checkTimer = Base.Core.TimeProvider.CreateTimer(_ =>
+        {
+            if (DateTime.Now - lastUpdateTime <= _deviceUploadTimeout)
+            {
+                return;
+            }
+            
+            _logger.ZLogWarning($"Mission upload timeout");
+            tcs.TrySetException(new MavlinkException("Mission upload timeout"));
+        }, null, _deviceUploadTimeout, _deviceUploadTimeout); 
+        using var sub1 = _client.OnMissionRequest.SubscribeAwait(linkedCancel.Token,
+            async (req, _, c) =>
+        {
+            _logger.ZLogDebug($"UAV request {req.Seq} item");
+            lastUpdateTime = DateTime.Now;
+            current++;
+            progress?.Invoke((double)current / _missionSource.Count);
+            var item = _missionSource.FirstOrDefault(i => i.Index == req.Seq);
+            if (item == null)
+            {
+                tcs.TrySetException(new MavlinkException($"Requested mission item with index '{req.Seq}' not found in local store"));
+                return;
+            }
+            
+            await _client.WriteMissionItem(item, c).ConfigureAwait(false);
+        } );
+
+        using var sub2 = _client.OnMissionAck.Subscribe(p =>
+        {
+            lastUpdateTime = DateTime.Now;
+            if (p.Type == MavMissionResult.MavMissionAccepted)
+            {
+                tcs.TrySetResult(Unit.Default);
+            }
+            else
+            {
+                tcs.TrySetException(new MavlinkException($"Error to upload mission to vehicle:{p.Type:G}"));
+            }
+        });
+
+        await _client.MissionSetCount((ushort) _missionSource.Count, linkedCancel.Token).ConfigureAwait(false);
+        await tcs.Task.ConfigureAwait(false);
+        progress?.Invoke(1);
+        _isMissionSynced.Value = true;
+    }
+
+    public MissionItem Create()
+    {
+        if (_missionSource.Count > ushort.MaxValue)
+        {
+            throw new ArgumentOutOfRangeException();
+        } 
+        
+        return AddMissionItem(new MissionItemIntPayload
+        {
+            Seq = (ushort)_missionSource.Count,
+            TargetComponent = _client.Identity.Self.ComponentId,
+            TargetSystem = _client.Identity.Self.SystemId,
+        });
+    }
+
+    public void Remove(ushort index)
+    {
+        _isMissionSynced.Value = false;
+        _missionSource.RemoveAt(index);
+        EnsureIndex();
+    }
+
+    private void EnsureIndex()
+    {
+        for (var i = 0; i < _missionSource.Count; i++)
+        {
+            var i1 = i;
+            _missionSource[i].Edit(x=>x.Seq = (ushort)i1);
+        }
+    }
+
+    public void ClearLocal()
+    {
+        _isMissionSynced.Value = false;
+        _missionSource.Clear();
+        EnsureIndex();
+    }
+
+    private MissionItem AddMissionItem(MissionItemIntPayload item)
+    {
+        var missionItem = new MissionItem(item);
+        _missionSource.Add(missionItem);
+        EnsureIndex();
+        missionItem.OnChanged.Subscribe(_ =>
+        {
+            _isMissionSynced.OnNext(false);
+        });// subscribe will be disposed by MissionItem 
+        return missionItem;
+    }
+    
+    private void UpdateMissionsDistance()
+    {
+        var missions = _missionSource.Where(i =>
+                i.Command.Value == MavCmd.MavCmdNavWaypoint || 
+                i.Command.Value == MavCmd.MavCmdNavSplineWaypoint
+        ).ToArray();
+        var dist = 0.0;
+        for (var i = 0; i < missions.Length - 1; i++)
+        {
+            dist += missions[i].Location.Value.DistanceTo(missions[i + 1].Location.Value);
+        }
+        _allMissionDistance.Value = dist / 1000.0;
+    }
+    
+    #region Dispose
+    
+    private readonly IDisposable _obs1;
+    
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _isMissionSynced.Dispose();
+            _allMissionDistance.Dispose();
+            _disposeCancel.Dispose();
+            _obs1.Dispose();
+            foreach (var item in _missionSource)
+            {
+                item.Dispose();
+            }
+        }
+        base.Dispose(disposing);
+        
+    }
+    protected override async ValueTask DisposeAsyncCore()
+    {
+        await CastAndDispose(_isMissionSynced).ConfigureAwait(false);
+        await CastAndDispose(_allMissionDistance).ConfigureAwait(false);
+        await CastAndDispose(_disposeCancel).ConfigureAwait(false);
+        await CastAndDispose(_obs1).ConfigureAwait(false);
+
+        var cached = _missionSource.ToImmutableArray();
+        _missionSource.Clear();
+        foreach (var item in cached)
+        {
+            await item.DisposeAsync().ConfigureAwait(false);
+        }
+
+        await base.DisposeAsyncCore().ConfigureAwait(false);
+        return;
+
+        static async ValueTask CastAndDispose(IDisposable resource)
+        {
+            if (resource is IAsyncDisposable resourceAsyncDisposable)
+                await resourceAsyncDisposable.DisposeAsync().ConfigureAwait(false);
+            else
+                resource.Dispose();
+        }
+    }
+    #endregion
+}

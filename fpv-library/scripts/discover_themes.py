@@ -26,6 +26,17 @@ SEARCHES = [
     "drone ground station",
     "mavlink fpv",
     "betaflight osd",
+    # Round 2 — IP control, LTE, DJI mods, swarm GCS, fiber C-UAV
+    "openhd lte mavlink",
+    "fpv rtsp ethernet camera",
+    "wtfos dji fpv",
+    "elrs wifi joystick",
+    "drone swarm ground station",
+    "fiber optic drone tether",
+    "mavlink osd overlay",
+    "fpv ip camera ground station",
+    "meshtastic drone telemetry",
+    "madflight esp32 fpv",
 ]
 
 # Owners likely to have related ecosystem repos
@@ -48,6 +59,23 @@ OWNERS = [
     "DroneBridge",
     "betaflight",
     "ArduPilot",
+    # Round 2 — ecosystems from themed discovery
+    "fpv-wtf",
+    "altnautica",
+    "skybrush-io",
+    "asv-soft",
+    "KenLagoni",
+    "flyspark015",
+    "rmeadomavic",
+    "coroiu",
+    "ExpressLRS",
+    "zenos01",
+    "jusstinn",
+    "Consti10",
+    "Dexon-Drones",
+    "iBz-04",
+    "kaack",
+    "MishkaRogachev",
 ]
 
 

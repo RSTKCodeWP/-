@@ -1,0 +1,69 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PackageTags>mavlink;drone;PX4;Ardupilot;.net</PackageTags>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <Description>Mavlink .NET library for vehicle control Px4, Ardupilot </Description>
+    <PackageIcon>asv-mavlink-128.png</PackageIcon>
+    <PackageLicenseFile>LICENSE</PackageLicenseFile>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <Configurations>Debug;Release</Configurations>
+    <Platforms>AnyCPU</Platforms>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  
+  <ItemGroup>
+    <PackageReference Include="Asv.Cfg" Version="$(AsvCommonVersion)" />
+    <PackageReference Include="Asv.Common" Version="$(AsvCommonVersion)" />
+    <PackageReference Include="Asv.IO" Version="$(AsvCommonVersion)" />
+    <PackageReference Include="Asv.Store" Version="$(AsvCommonVersion)" />
+    <PackageReference Include="ZLogger" Version="2.5.10" />
+    <PackageReference Include="TestableIO.System.IO.Abstractions" Version="22.1.1" />
+    <PackageReference Include="System.IO.Abstractions" Version="22.1.1" />
+  </ItemGroup>
+    
+  <ItemGroup>
+    <Compile Update="RS.Designer.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>RS.resx</DependentUpon>
+    </Compile>
+    <Compile Update="ParamsDesc.Designer.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>ParamsDesc.resx</DependentUpon>
+    </Compile>
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Update="RS.resx">
+      <Generator>PublicResXFileCodeGenerator</Generator>
+      <LastGenOutput>RS.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
+    <EmbeddedResource Update="RS.ru.resx">
+      <DependentUpon>RS.resx</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Update="ParamsDesc.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <LastGenOutput>ParamsDesc.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
+  </ItemGroup>
+ 
+  <ItemGroup>
+    <None Include="..\..\img\asv-mavlink-128.png">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+    <None Include="..\..\LICENSE">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+    <None Include="..\..\README.md">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+  </ItemGroup>
+    
+  <ItemGroup>
+    <InternalsVisibleTo Include="Asv.Mavlink.Test" />
+  </ItemGroup>
+</Project>

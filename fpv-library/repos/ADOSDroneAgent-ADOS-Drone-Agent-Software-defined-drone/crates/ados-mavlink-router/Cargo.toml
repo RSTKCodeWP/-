@@ -1,0 +1,25 @@
+[package]
+name = "ados-mavlink-router"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Owns the flight-controller serial link, fans MAVLink frames to the IPC socket, and produces the vehicle-state snapshot on the state socket."
+
+[dependencies]
+ados-protocol = { path = "../ados-protocol", features = ["mavlink", "tracing-layer"] }
+ados-config = { path = "../ados-config" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_norway = { workspace = true }
+tokio = { workspace = true }
+tokio-serial = "5.4"
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow = { workspace = true }
+time = { version = "0.3", features = ["std", "formatting"] }
+tokio-tungstenite = "0.24"
+futures-util = { version = "0.3", default-features = false, features = ["sink"] }
+
+[dev-dependencies]
+tempfile = "3"

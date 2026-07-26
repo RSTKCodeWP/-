@@ -1,0 +1,949 @@
+/* ── Config View — mock-aligned visual shell ──
+ * Visual vocabulary sourced from the Phase 2 mock tweaks panel:
+ *   design_handoff_hydra_alignment/design_reference/Hydra Dashboard.html (tweaks-panel)
+ *   design_handoff_hydra_alignment/design_reference/src/other-views.jsx   (card heads)
+ * Panel gradients are 180deg vertical. Section labels are Barlow Condensed
+ * 700 / 10px / 0.18em uppercase. Radii are flat 2px. All colors are tokens
+ * except the mock's specific gradient stops, which the mock hand-writes.
+ * JS contracts: .panel .panel-header .panel-title .panel-body IDs and
+ * classes are preserved for pipeline.js and config.js to drive collapse +
+ * dynamic render. */
+
+/* Panel toolbar (visibility toggle) */
+.panel-toolbar {
+    position: relative;
+    padding: var(--s-1) var(--s-3);
+    display: flex;
+    justify-content: flex-end;
+}
+
+.panel-visibility-btn {
+    font-size: var(--font-xs);
+    padding: 4px 10px;
+    display: flex;
+    align-items: center;
+    gap: var(--s-1);
+}
+
+.panel-visibility-icon {
+    font-size: var(--font-base);
+    line-height: 1;
+}
+
+.panel-visibility-menu {
+    display: none;
+    position: absolute;
+    top: 100%;
+    right: var(--s-3);
+    background: var(--card-bg);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius);
+    padding: var(--s-2);
+    z-index: 20;
+    min-width: 180px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+
+.panel-visibility-menu.open {
+    display: block;
+}
+
+.panel-vis-row {
+    display: flex;
+    align-items: center;
+    gap: var(--s-2);
+    padding: 3px var(--s-1);
+    font-size: var(--font-sm);
+    color: var(--text-primary);
+    cursor: pointer;
+    border-radius: var(--radius);
+}
+
+.panel-vis-row:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.panel-vis-row input {
+    accent-color: var(--olive-primary);
+}
+
+/* ── Mock shell: right-column card stack ── */
+body.view-config #view-config {
+    display: flex;
+    justify-content: flex-end;
+}
+
+#view-config > .panel-toolbar,
+#view-config > .operations-panels {
+    position: relative;
+    z-index: 2;
+}
+
+.operations-panels.mock-card-stack,
+.operations-panels {
+    width: 40%;
+    max-height: calc(100vh - var(--topbar-height) - var(--footer-height) - 8px);
+    overflow-y: auto;
+    padding: 0 var(--s-2) var(--s-2);
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-2);
+    background: var(--bg-panel);
+    border-left: 1px solid var(--border-default);
+}
+
+.panel-toolbar {
+    width: 40%;
+    background: var(--bg-panel);
+    border-left: 1px solid var(--border-default);
+}
+
+/* ── Mock panel card (design_reference Hydra Dashboard.html:33-47) ── */
+.panel.mock-panel,
+.panel {
+    background: linear-gradient(180deg, #0f1214, #0a0d10);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius);
+    overflow: visible;
+    transition: border-color var(--transition-normal);
+}
+
+.panel:hover {
+    border-color: var(--border-hover);
+}
+
+.panel.sortable-ghost {
+    opacity: 0.4;
+    border-color: var(--olive-primary);
+    box-shadow: var(--glow-subtle);
+}
+
+.panel.sortable-drag {
+    box-shadow: 0 2px 16px rgba(0, 0, 0, 0.5);
+}
+
+.panel.hidden {
+    display: none;
+}
+
+/* ── Mock panel head (10px 14px, border-bottom divider, dark cap) ── */
+.panel-header.mock-panel-head,
+.panel-header {
+    display: flex;
+    align-items: center;
+    gap: var(--s-2);
+    padding: 10px 14px;
+    background: var(--bg-panel-alt);
+    border-bottom: 1px solid var(--border-default);
+    border-radius: var(--radius) var(--radius) 0 0;
+    user-select: none;
+    position: relative;
+    min-height: 38px;
+}
+
+.panel.collapsed .panel-header {
+    border-radius: var(--radius);
+    border-bottom-color: transparent;
+}
+
+.panel-drag-handle {
+    cursor: grab;
+    color: var(--text-dim);
+    font-size: var(--font-sm);
+    line-height: 1;
+    padding: 2px;
+    transition: color var(--transition-fast);
+    opacity: 0.5;
+}
+
+.panel:hover .panel-drag-handle {
+    opacity: 1;
+}
+
+.panel-drag-handle:hover {
+    color: var(--ogt-muted);
+}
+
+.panel-drag-handle:active {
+    cursor: grabbing;
+    color: var(--ogt-warm);
+}
+
+/* ── Mock section label (Barlow Condensed 700 / 0.18em uppercase) ── */
+.panel-title.mock-section-label,
+.panel-title {
+    flex: 1;
+    font-family: var(--font-cond);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin: 0;
+}
+
+.panel-collapse-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    font-size: 14px;
+    cursor: pointer;
+    padding: 4px 8px;
+    line-height: 1;
+    transition: transform var(--transition-normal), color var(--transition-fast);
+    border-radius: var(--radius);
+}
+
+.panel-collapse-btn:hover {
+    color: var(--text-primary);
+}
+
+.panel.collapsed .panel-collapse-btn {
+    transform: rotate(-90deg);
+}
+
+/* ── Mock panel body (12px 14px interior padding) ── */
+.panel-body.mock-panel-body,
+.panel-body {
+    padding: 12px 14px;
+    max-height: 2000px;
+    overflow: visible;
+    transition: max-height var(--transition-slow), padding var(--transition-slow), opacity var(--transition-normal);
+    opacity: 1;
+    position: relative;
+}
+
+.panel.collapsed .panel-body {
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    opacity: 0;
+    overflow: hidden;
+}
+
+.panel.collapsed .panel-title {
+    color: var(--text-dim);
+}
+
+/* ── Panel Badges ── */
+.panel-badges {
+    display: flex;
+    gap: var(--s-1);
+    flex-wrap: wrap;
+    margin-bottom: var(--s-2);
+}
+
+.panel-badges .badge {
+    font-family: var(--font-cond);
+    font-size: var(--font-xs);
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: var(--radius);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+/* ── Panel Stat Grid ── */
+.panel-stat-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--s-1);
+    margin-bottom: var(--s-2);
+}
+
+.panel-stat-grid.panel-stat-grid-3 {
+    grid-template-columns: 1fr 1fr 1fr;
+}
+
+.panel-stat {
+    background: var(--bg-panel);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius);
+    padding: 6px 8px;
+    position: relative;
+    overflow: hidden;
+}
+
+.panel-stat::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--olive-primary);
+    opacity: 0.35;
+}
+
+.panel-stat-label {
+    font-family: var(--font-cond);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--text-dim);
+    font-weight: 700;
+    display: block;
+    line-height: 1.1;
+}
+
+.panel-stat-value {
+    font-family: var(--font-mono);
+    font-size: var(--font-data);
+    font-weight: 700;
+    color: var(--text-data);
+    display: block;
+    margin-top: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    line-height: 1.3;
+}
+
+.panel-stat-value.accent {
+    color: var(--ogt-muted);
+    text-shadow: 0 0 6px rgba(166, 188, 146, 0.15);
+}
+
+/* ── Mode Buttons ── */
+.panel-mode-btns {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: var(--s-1);
+}
+
+.panel-mode-btns .btn {
+    font-size: var(--font-xs);
+    padding: 4px 8px;
+    min-height: 26px;
+}
+.panel-mode-btns .btn.mode-active {
+    background: var(--olive-primary);
+    color: var(--ogt-light);
+    border-color: var(--olive-primary);
+    box-shadow: var(--glow-subtle);
+}
+.panel-mode-btns .btn.btn-danger.mode-active {
+    background: var(--danger);
+    border-color: var(--danger);
+}
+
+/* ── Mode / Armed Badge Colors ── */
+.mode-badge { transition: all 0.3s ease; }
+.mode-badge.auto { background: var(--olive-primary); color: var(--ogt-warm); }
+.mode-badge.loiter, .mode-badge.hold { background: var(--warning); color: var(--bg-void); }
+.mode-badge.guided { background: var(--danger); color: var(--ogt-light); }
+.mode-badge.rtl { background: var(--danger); color: var(--ogt-light); }
+.mode-badge.sending { animation: pulse-glow 0.5s ease-in-out infinite; }
+.mode-badge.failed { background: var(--danger); animation: none; }
+.armed-badge.armed { background: var(--danger); color: var(--ogt-light); }
+.armed-badge.disarmed { background: var(--olive-primary); color: var(--ogt-warm); }
+
+/* ── Target Panel ── */
+.panel-lock-indicator {
+    padding: 6px 10px;
+    border-radius: var(--radius);
+    font-family: var(--font-cond);
+    font-size: var(--font-sm);
+    font-weight: 700;
+    text-align: center;
+    margin-bottom: var(--s-2);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+}
+
+.panel-lock-indicator.tracking {
+    background: rgba(56, 87, 35, 0.12);
+    color: var(--ogt-muted);
+    border: 1px solid var(--olive-primary);
+    box-shadow: var(--glow-subtle);
+}
+
+.panel-lock-indicator.strike-active {
+    background: var(--danger-bg);
+    color: var(--danger);
+    border: 1px solid var(--danger);
+    box-shadow: inset 0 0 8px rgba(197, 48, 48, 0.12);
+    animation: panel-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes panel-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.55; }
+}
+
+.panel-track-list {
+    max-height: 200px;
+    overflow-y: auto;
+    background: var(--bg-panel);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius);
+    margin-bottom: var(--s-2);
+}
+
+.panel-track-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 10px;
+    font-size: var(--font-sm);
+    border-bottom: 1px solid var(--divider);
+    transition: background var(--transition-fast);
+    line-height: 1.3;
+}
+
+.panel-track-item:last-child { border-bottom: none; }
+.panel-track-item:hover { background: rgba(255, 255, 255, 0.03); }
+
+.panel-track-item.locked {
+    background: rgba(56, 87, 35, 0.15);
+    border-left: 2px solid var(--olive-primary);
+    box-shadow: inset 0 0 8px rgba(56, 87, 35, 0.08);
+}
+
+.track-info {
+    display: flex;
+    align-items: center;
+    gap: var(--s-1);
+    min-width: 0;
+}
+
+.panel-track-item .track-id {
+    font-family: var(--font-mono);
+    color: var(--ogt-muted);
+    font-weight: 700;
+    font-size: var(--font-xs);
+}
+
+.panel-track-item .track-label {
+    color: var(--text-data);
+    font-weight: 500;
+    font-size: var(--font-sm);
+}
+
+.panel-track-item .track-conf {
+    font-family: var(--font-mono);
+    color: var(--text-dim);
+    font-size: var(--font-xs);
+    text-align: right;
+    min-width: 32px;
+}
+
+.track-actions {
+    display: flex;
+    gap: 2px;
+    flex-shrink: 0;
+}
+
+.track-btn {
+    font-size: 10px;
+    padding: 2px 6px;
+    min-height: 20px;
+}
+
+.track-lock-badge {
+    font-family: var(--font-cond);
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    padding: 2px 6px;
+    border-radius: var(--radius);
+    background: rgba(56, 87, 35, 0.35);
+    color: var(--ogt-muted);
+}
+.track-lock-badge.strike {
+    background: rgba(197, 48, 48, 0.25);
+    color: var(--danger);
+}
+
+.panel-track-empty {
+    color: var(--text-dim);
+    padding: 10px;
+    font-size: var(--font-xs);
+    text-align: center;
+    font-family: var(--font-cond);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    font-style: italic;
+}
+
+.panel-target-actions {
+    display: flex;
+    gap: var(--s-1);
+}
+
+/* ── Pipeline / System Stats ── */
+.panel-sys-stats {
+    background: var(--bg-panel);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius);
+    padding: 8px 10px;
+    margin-bottom: var(--s-2);
+}
+
+.panel-sys-row {
+    display: flex;
+    align-items: center;
+    gap: var(--s-1);
+    padding: 2px 0;
+}
+
+.panel-sys-label {
+    font-family: var(--font-cond);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--text-dim);
+    font-weight: 700;
+    width: 32px;
+    flex-shrink: 0;
+}
+
+.panel-sys-val {
+    font-family: var(--font-mono);
+    font-size: var(--font-xs);
+    font-weight: 600;
+    width: 80px;
+    flex-shrink: 0;
+    color: var(--text-data);
+}
+
+.panel-sys-row .color-bar {
+    flex: 1;
+    height: 3px;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.panel-pipeline-btns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--s-1);
+    margin-top: var(--s-2);
+}
+
+/* ── Detection Config (field labels per mock data-label style) ── */
+.panel-field {
+    margin-bottom: var(--s-3);
+}
+
+.panel-field:last-child {
+    margin-bottom: 0;
+}
+
+.panel-field-label {
+    font-family: var(--font-cond);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--text-dim);
+    font-weight: 700;
+    margin-bottom: var(--s-1);
+    display: block;
+}
+
+.panel-field-label-sub {
+    font-size: 10px;
+    letter-spacing: 0.15em;
+}
+
+.panel-field-note {
+    font-size: 10px;
+    color: var(--text-dim);
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+.panel-field select,
+.panel-field input[type="text"],
+.panel-field input[type="number"] {
+    width: 100%;
+    background: var(--bg-panel);
+    border: 1px solid var(--border-default);
+    color: var(--text-primary);
+    padding: 5px 8px;
+    border-radius: var(--radius);
+    font-family: var(--font-mono);
+    font-size: var(--font-sm);
+}
+
+/* ── Mission Profile ── */
+.panel-profile-desc {
+    font-size: var(--font-xs);
+    color: var(--text-dim);
+    margin-top: var(--s-1);
+    line-height: 1.3;
+    min-height: 1.25em;
+}
+
+.panel-field-value {
+    font-family: var(--font-mono);
+    font-size: var(--font-sm);
+    color: var(--text-data);
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.panel-range-row {
+    display: flex;
+    align-items: center;
+    gap: var(--s-2);
+}
+
+.panel-range-row input[type="range"] { flex: 1; }
+
+.panel-range-val {
+    font-family: var(--font-mono);
+    font-size: var(--font-sm);
+    font-weight: 700;
+    color: var(--ogt-muted);
+    min-width: 32px;
+    text-align: right;
+}
+
+.panel-alert-btns {
+    display: flex;
+    gap: var(--s-1);
+    margin-bottom: var(--s-1);
+}
+
+/* Reusable inline rows inside a panel-field. Replaces repeated
+   style="display:flex;align-items:center;gap:8px" wrappers. */
+.panel-row-inline {
+    display: flex;
+    align-items: center;
+    gap: var(--s-2);
+}
+.panel-row-inline-tight {
+    display: flex;
+    align-items: center;
+    gap: var(--s-1);
+}
+.panel-row-btns {
+    display: flex;
+    gap: var(--s-2);
+    margin-top: var(--s-2);
+}
+
+/* Panel-header trailing badge (e.g. mission badge, RF state badge).
+   Pushes the badge to the right of the header row, leaving room for
+   the collapse chevron after it. */
+.panel-header-badge {
+    margin-left: auto;
+    margin-right: var(--s-2);
+}
+
+/* Empty-state placeholders rendered from JS (detection log, TAK list). */
+.panel-det-empty {
+    color: var(--text-dim);
+    font-size: var(--font-sm);
+    padding: var(--s-2);
+    text-align: center;
+}
+.panel-tak-target-empty {
+    color: var(--text-dim);
+    font-size: var(--font-xs);
+    padding: 2px 0;
+}
+
+/* TAK unicast target list rows. */
+.panel-tak-target-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 0;
+}
+.panel-tak-target-addr {
+    font-size: var(--font-xs);
+    color: var(--text-dim);
+    flex: 1;
+}
+.panel-tak-target-del {
+    color: var(--danger);
+    border-color: var(--danger);
+    padding: 0 4px;
+    min-width: 0;
+    line-height: 1.2;
+}
+
+.btn-sm {
+    font-size: var(--font-xs) !important;
+    padding: 3px 8px !important;
+    min-height: 22px !important;
+}
+
+.panel-alert-class-list {
+    max-height: 140px;
+    overflow-y: auto;
+    background: var(--bg-panel);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius);
+    padding: 4px;
+}
+
+.panel-alert-cat-hdr {
+    font-family: var(--font-cond);
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--ogt-muted);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    padding: 4px 4px 2px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.panel-alert-class-row {
+    display: flex;
+    align-items: center;
+    gap: var(--s-1);
+    padding: 2px 4px;
+    font-size: var(--font-sm);
+    cursor: pointer;
+    color: var(--text-primary);
+    line-height: 1.4;
+}
+
+.panel-alert-class-row input {
+    accent-color: var(--olive-primary);
+}
+
+/* ── RF Hunt Panel ── */
+.panel-header .badge {
+    font-family: var(--font-cond);
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    padding: 2px 8px;
+    border-radius: var(--radius);
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-dim);
+    border: 1px solid var(--border-default);
+}
+
+.panel-rf-best-pos {
+    font-family: var(--font-mono);
+    font-size: var(--font-xs);
+    color: var(--ogt-muted);
+    margin-top: var(--s-1);
+}
+
+.panel-rf-btns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--s-1);
+    margin-top: var(--s-2);
+}
+
+/* ── Detection Log ── */
+.panel-det-log {
+    max-height: 160px;
+    overflow-y: auto;
+    font-family: var(--font-mono);
+    font-size: var(--font-xs);
+    background: var(--bg-panel);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius);
+    padding: 4px 8px;
+}
+
+.panel-det-entry {
+    padding: 2px 0;
+    border-bottom: 1px solid var(--divider);
+    display: flex;
+    gap: var(--s-1);
+    align-items: baseline;
+    line-height: 1.4;
+}
+
+.panel-det-entry:last-child { border-bottom: none; }
+.panel-det-time { color: var(--text-dim); font-size: 10px; }
+.panel-det-label { color: var(--ogt-muted); font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.panel-det-conf { color: var(--text-dim); text-align: right; min-width: 28px; }
+.panel-det-pos { color: var(--warning); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px; display: inline-block; }
+
+/* ── Scrollbars ── */
+.operations-panels::-webkit-scrollbar { width: 4px; }
+.operations-panels::-webkit-scrollbar-track { background: transparent; }
+.operations-panels::-webkit-scrollbar-thumb { background: rgba(56, 87, 35, 0.3); border-radius: var(--radius); }
+.operations-panels::-webkit-scrollbar-thumb:hover { background: rgba(56, 87, 35, 0.5); }
+
+.panel-track-list::-webkit-scrollbar,
+.panel-det-log::-webkit-scrollbar,
+.panel-alert-class-list::-webkit-scrollbar { width: 3px; }
+.panel-track-list::-webkit-scrollbar-thumb,
+.panel-det-log::-webkit-scrollbar-thumb,
+.panel-alert-class-list::-webkit-scrollbar-thumb { background: rgba(56, 87, 35, 0.3); border-radius: var(--radius); }
+
+/* ── Responsive: Steam Deck / tablet (≤1365px) ── */
+@media (max-width: 1365px) {
+    .operations-panels {
+        width: 50%;
+    }
+}
+
+/* ── Responsive: below 1280px — single column, full width ── */
+@media (max-width: 1279px) {
+    .operations-panels {
+        width: 100%;
+        max-height: 55vh;
+        margin-top: calc(100vh - 55vh - var(--topbar-height) - var(--footer-height));
+    }
+
+    .panel-toolbar {
+        width: 100%;
+        position: absolute;
+        top: calc(100vh - 55vh - var(--topbar-height) - var(--footer-height));
+        z-index: 10;
+    }
+
+    .panel-stat-grid.panel-stat-grid-3 {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+/* ── Responsive: iPad / small tablet (≤1024px) ── */
+@media (max-width: 1024px) {
+    .panel-stat-grid,
+    .panel-stat-grid.panel-stat-grid-3 {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .panel-field-label {
+        font-size: var(--font-xs);
+    }
+}
+
+/* ── Touch target: Steam Deck / tablet ── */
+@media (pointer: coarse) {
+    .panel-drag-handle {
+        padding: 4px;
+        font-size: var(--font-md);
+    }
+
+    .panel-collapse-btn {
+        padding: 6px 8px;
+    }
+
+    .panel-track-item {
+        padding: 8px 10px;
+        min-height: 36px;
+    }
+
+    .track-btn {
+        font-size: var(--font-xs);
+        padding: 4px 8px;
+        min-height: 30px;
+    }
+}
+
+/* ── Video Overlay: Target Lock Indicator ── */
+.ops-lock-indicator {
+    position: fixed;
+    top: calc(var(--topbar-height) + var(--s-3));
+    left: 30%;
+    transform: translateX(-50%);
+    z-index: 10;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-radius: var(--radius);
+    padding: var(--s-1) var(--s-3);
+    display: flex;
+    align-items: center;
+    gap: var(--s-2);
+    border: 1px solid var(--olive-primary);
+    box-shadow: var(--glow-green);
+}
+
+.ops-lock-indicator.strike {
+    border-color: var(--danger);
+    box-shadow: var(--glow-danger);
+}
+
+.ops-lock-indicator .lock-icon {
+    font-size: var(--font-lg);
+    color: var(--ogt-muted);
+}
+.ops-lock-indicator.strike .lock-icon {
+    color: var(--danger);
+}
+.ops-lock-indicator .lock-label {
+    font-family: var(--font-cond);
+    font-size: var(--font-sm);
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text-primary);
+}
+.ops-lock-indicator .lock-mode {
+    font-family: var(--font-mono);
+    font-size: var(--font-xs);
+    color: var(--ogt-muted);
+}
+.ops-lock-indicator.strike .lock-mode {
+    color: var(--danger);
+}
+
+/* ── Loading & Stream States ── */
+.ops-loading {
+    position: fixed;
+    top: var(--topbar-height);
+    left: 0;
+    width: 60%;
+    bottom: var(--footer-height);
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--s-3);
+    color: var(--text-dim);
+    font-size: var(--font-sm);
+    background: var(--bg-panel);
+}
+
+.ops-loading-spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid var(--border-default);
+    border-top-color: var(--olive-primary);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.ops-stream-lost {
+    position: fixed;
+    top: calc(var(--topbar-height) + var(--s-3));
+    left: 30%;
+    transform: translateX(-50%);
+    z-index: 15;
+    background: var(--danger-bg);
+    border: 1px solid var(--danger);
+    border-radius: var(--radius);
+    padding: var(--s-1) var(--s-3);
+    color: var(--danger);
+    font-family: var(--font-cond);
+    font-size: var(--font-sm);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* ── Responsive ── */
+@media (max-width: 1279px) {
+    .ops-loading { width: 100%; }
+    .ops-lock-indicator { left: 50%; }
+    .ops-stream-lost { left: 50%; }
+}

@@ -1,0 +1,240 @@
+"""Argv / config builders for the mediamtx subprocess and the ffmpeg sidecar.
+
+Pure builders with no side effects. Both functions return data
+structures the manager hands to the subprocess spawner. Keeping the
+long argv lists and the YAML dict here keeps ``manager.py`` focused on
+process lifecycle, restart logic, and graceful shutdown.
+"""
+
+from __future__ import annotations
+
+import socket
+from pathlib import Path
+
+from .rtsp_config import GROUND_RTSP_PATH
+
+
+def _physical_lan_interfaces() -> list[str]:
+    """Physical wired/WiFi interface names for WebRTC ICE host-candidate
+    gathering, excluding loopback, virtual, container, and mesh interfaces, so
+    the offer carries only real reachable networks (not loopback / IPv6
+    link-local / docker / mesh candidates that just fail their checks)."""
+    skip = ("lo", "docker", "veth", "br-", "bat", "tap", "tun", "wg", "virbr", "vmnet")
+    names: list[str] = []
+    try:
+        for _idx, name in socket.if_nameindex():
+            if not name.startswith(skip) and name.startswith(("e", "w")):
+                names.append(name)
+    except OSError:
+        pass
+    return names
+
+
+def build_mediamtx_yaml(
+    api_port: int,
+    rtsp_port: int,
+    webrtc_port: int,
+    lan_ips: list[str],
+) -> dict:
+    """Return the ground-profile mediamtx YAML config as a dict.
+
+    Same base shape as the air-side generator but the ``/main`` path is
+    declared with ``source: publisher`` so ffmpeg can push into it. WHEP is
+    served directly at ``:8889/main/whep`` (no alias path).
+
+    Caller is responsible for serialising to disk and threading the
+    final path through to the mediamtx subprocess.
+    """
+    config: dict = {
+        "logLevel": "warn",
+        "api": True,
+        "apiAddress": f":{api_port}",
+        "rtsp": True,
+        "rtspAddress": f":{rtsp_port}",
+        # Per-reader write queue depth, measured in RTP packets
+        # (not bytes). When a reader's queue overflows, mediamtx
+        # logs "reader is too slow, discarding N frames" and the
+        # reader's stream becomes corrupted — the canonical
+        # browser-WebRTC "freeze on last frame, refresh restores"
+        # symptom. Headroom math: at ~30 fps and worst-case
+        # 50 RTP packets per frame for 1280x720 H.264 = 1500
+        # packets/sec; 4096 holds ~2.7 s of buffer. Survives a
+        # routine Chrome GC pause, a paint frame, a tab focus
+        # change, and a brief Pi 4B swap-in stall — all the
+        # things the earlier 512-packet ceiling caught and
+        # turned into reader eviction. Memory cost: ~5 MB per
+        # active reader. Acceptable.
+        "writeQueueSize": 4096,
+        # NB: do NOT override readTimeout / writeTimeout below
+        # the gortsplib defaults (10 s / 10 s). A 5 s ceiling
+        # under low-RAM swap pressure caught system stutters
+        # the 10 s default absorbs, and produced a deterministic
+        # 120 s publisher eviction cycle on Pi 4B 1 GB boards.
+        # The 10 s default gives the kernel enough room to page
+        # mediamtx's working set back in without tearing the
+        # publisher session.
+        "udpMaxPayloadSize": 1472,
+        "webrtc": True,
+        "webrtcAddress": f":{webrtc_port}",
+        "webrtcAllowOrigin": "*",
+        # Bind WebRTC media to ALL interfaces (":8189") and gather ICE host
+        # candidates from the real physical interfaces per session, so video
+        # follows an interface/IP change (ethernet->WiFi failover, DHCP)
+        # instead of being pinned to the single IP captured at config-gen time.
+        "webrtcIPsFromInterfaces": True,
+        "webrtcIPsFromInterfacesList": _physical_lan_interfaces(),
+        "webrtcHandshakeTimeout": "15s",
+        "webrtcLocalUDPAddress": ":8189",
+        "webrtcLocalTCPAddress": ":8189",
+        "webrtcICEServers2": [
+            {"url": "stun:stun.l.google.com:19302"},
+            {"url": "stun:stun1.l.google.com:19302"},
+            {"url": "stun:stun2.l.google.com:19302"},
+            {"url": "stun:stun.cloudflare.com:3478"},
+            {"url": "stun:global.stun.twilio.com:3478"},
+        ],
+        # LL-HLS as a parallel transport. mediamtx serves the same
+        # /main path simultaneously over WebRTC and HLS. WebRTC's
+        # failure mode under load is "freeze on last frame and
+        # require renegotiation"; HLS's failure mode is "drift
+        # latency by a second, keep playing." Browsers that hit
+        # a WebRTC freeze can fall back to the HLS endpoint at
+        # http://<host>:8888/<path>/index.m3u8 and keep watching.
+        # Works with the existing -c copy publish path — mediamtx
+        # remuxes H.264 NAL units into fragmented MP4 without
+        # re-encoding. Target latency on LAN: ~600 ms. Memory
+        # cost: ~10-15 MB extra for the segmenter.
+        "hls": True,
+        "hlsAddress": ":8888",
+        "hlsAllowOrigin": "*",
+        "hlsAlwaysRemux": True,
+        # MPEG-TS HLS, NOT fmp4 and NOT lowLatency. Variant history
+        # on this rig:
+        #   lowLatency — HLS.js + LL-HLS CAN-BLOCK-RELOAD requests
+        #     saturated the HTTP/1.1 6-connection-per-origin pool and
+        #     the player froze while MediaMTX kept publishing.
+        #   fmp4 — MediaMTX served the playlist + init.mp4 correctly
+        #     but returned HTTP 404 for every segment file (verified
+        #     against /v3/hlsmuxers/list — outboundFramesDiscarded
+        #     stayed at 0 across a 7-minute uptime, meaning zero
+        #     frames ever made it to a served segment). HLS.js
+        #     fetched the playlist, hit 404 on every segment, gave
+        #     up. MediaMTX v1.17.1 fmp4-muxer bug under our config.
+        #   mpegts — original HLS variant, longest-tested code path
+        #     in MediaMTX. Higher latency (~6-10 s glass-to-glass on
+        #     LAN) but actually serves segments. Acceptable tradeoff
+        #     given the alternative is a frozen player.
+        # WebRTC stays available at /<path>/whep for operators who
+        # need <1 s latency. HLS is the freeze-resistant fallback.
+        "hlsVariant": "mpegts",
+        "hlsSegmentCount": 7,
+        "hlsSegmentDuration": "1s",
+        "paths": {
+            # ffmpeg pushes RTSP here with -c copy from udp://:5600.
+            # Browsers reach WebRTC directly at :8889/main/whep — mediamtx
+            # serves WHEP for any published path, so no separate alias path
+            # is declared (a self-pull alias was redundant with /main/whep
+            # and only added a second idle internal reader).
+            GROUND_RTSP_PATH: {"source": "publisher"},
+        },
+    }
+    if lan_ips:
+        config["webrtcAdditionalHosts"] = lan_ips
+    return config
+
+
+def build_ffmpeg_ingest_argv(
+    binary: str,
+    sdp_path: Path,
+    rtsp_url: str,
+) -> list[str]:
+    """Return the argv that drives the UDP-RTP-to-RTSP ffmpeg sidecar.
+
+    Reads via ``-f sdp -i <path>`` so ffmpeg knows the codec without
+    an RTSP DESCRIBE round-trip (wfb_rx is a one-way broadcaster, no
+    RTSP server to query). ``-c copy`` keeps it zero-transcode.
+    """
+    return [
+        binary,
+        "-fflags", "nobuffer",
+        "-flags", "low_delay",
+        # NB: do NOT add `-max_delay 0` here. We tried it as a
+        # latency micro-optimization and it broke codec discovery
+        # — ffmpeg returned "Could not find codec parameters for
+        # stream 0 (Video: h264, none): unspecified size" because
+        # the flag overrode the probesize/analyzeduration window.
+        # The codec params (width/height/profile/level) only
+        # arrive inline in the first IDR, which can take a couple
+        # of seconds after wfb_rx hands over the first packets.
+        "-protocol_whitelist", "file,udp,rtp",
+        # `-probesize 5M -analyzeduration 5M` give ffmpeg up to
+        # 5 seconds (or 5 MB) to discover the H.264 SPS/PPS from
+        # the incoming RTP stream. The SDP carries only the
+        # encoding name + clock rate; codec config (width/height/
+        # profile/level) arrives inline in the first IDR.
+        # NB: bench validation surfaced a race when this was
+        # tightened to 1M/1s — even with the drone encoder at
+        # keyint=15 (IDR every 500 ms), the first RTP packets
+        # landing in ffmpeg's parser are mid-GOP P-frames with
+        # no SPS/PPS, and ffmpeg threw `decode_slice_header
+        # error` + `unspecified size` before an IDR arrived.
+        # 20M/20s is the safety margin: cold restarts under load
+        # (Pi 4B class, swap pressure, GOP > 1 s) sometimes wait
+        # past 5 s for the first IDR and the older 5M/5s caused
+        # an `unspecified size` death loop with mandatory 5 s
+        # backoff between each retry. 20 s is invisible on a
+        # healthy boot because probe exits as soon as an IDR is
+        # found, not after the full window.
+        "-probesize", "20M",
+        "-analyzeduration", "20M",
+        # RTP demuxer reorder + max-delay window. ffmpeg's default
+        # `max_delay = 500_000` (500 ms) is what produces the
+        # `[sdp @ ...] max delay reached. need to consume packet`
+        # + `RTP: missed N packets` cascade on any sub-second
+        # system stutter (swap thrash, USB sysfs walk, kernel
+        # task-group rebalance). Widening to 2 s lets the demuxer
+        # absorb a brief stall and resume without dropping a
+        # whole burst of packets. `reorder_queue_size` is the
+        # max number of packets held for reorder; bumping from
+        # the libav default 500 to a matched 256 keeps the
+        # buffer bounded for a 4 Mbps live stream.
+        "-max_delay", "2000000",
+        "-reorder_queue_size", "256",
+        "-f", "sdp",
+        "-i", str(sdp_path),
+        "-c:v", "copy",
+        # Re-inject SPS/PPS NAL units inline before every IDR frame.
+        # The drone encoder emits parameter sets only at stream start,
+        # so a WebRTC depacketizer that loses sync after a transient
+        # RTP packet loss can never recover — Chrome's libwebrtc
+        # freezes on the last decoded frame indefinitely while the
+        # PeerConnection stays "connected". With dump_extra=freq=
+        # keyframe, ffmpeg writes the SPS+PPS pair before every IDR
+        # (typical interval ~1s at our 30 fps + GOP 15), so the
+        # depacketizer re-bootstraps the decoder context on the next
+        # keyframe and resumes playback. Zero re-encoding cost (the
+        # bsf operates on the NAL unit stream, not YUV pixels), zero
+        # added latency.
+        "-bsf:v", "dump_extra=freq=keyframe",
+        # NO h264_mp4toannexb here: rtph264depay already emits
+        # Annex-B (start-code-prefixed) NAL units; the bsf was a
+        # leftover from the old `-f h264 -i udp://` path that
+        # received raw bytes. Applying it twice corrupts the
+        # bitstream's NAL boundaries.
+        # `-muxdelay 0 -muxpreload 0 -flush_packets 1` strip
+        # ffmpeg's default 0.7 s mux delay + 0.5 s preload +
+        # output-side packet aggregation; for live RTSP push we
+        # want every packet emitted as soon as encoded.
+        "-muxdelay", "0",
+        "-muxpreload", "0",
+        "-flush_packets", "1",
+        "-f", "rtsp",
+        "-rtsp_transport", "tcp",
+        rtsp_url,
+    ]
+
+
+__all__ = [
+    "build_mediamtx_yaml",
+    "build_ffmpeg_ingest_argv",
+]

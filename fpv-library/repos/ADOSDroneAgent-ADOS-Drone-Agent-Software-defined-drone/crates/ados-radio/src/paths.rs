@@ -1,0 +1,191 @@
+//! Runtime file paths for the WFB radio service, mirroring the Python
+//! constants in `core/paths.py`. All paths are in `/run/ados` (tmpfs) or
+//! `/etc/ados/wfb` (persistent). Use the functions rather than the string
+//! literals directly so the `ADOS_RUN_DIR` env override is honoured.
+
+/// Contract E sidecar JSON files written by this service.
+pub const WFB_STATS_JSON: &str = "/run/ados/wfb-stats.json";
+pub const HOP_SUPERVISOR_JSON: &str = "/run/ados/hop-supervisor.json";
+pub const PEER_PRESENCE_JSON: &str = "/run/ados/peer-presence.json";
+
+/// Schema version of the `wfb-stats.json` sidecar. Both the drone radio and the
+/// ground-station receiver write this file, so both reference this one const
+/// (they must agree on the schema version). Bump when the field set changes
+/// incompatibly; a reader compares it best-effort via
+/// `ados_protocol::sidecar::check_sidecar_version` and reads anyway on a
+/// mismatch. Kept in step with the registry in `contracts.toml`.
+pub const WFB_STATS_SIDECAR_VERSION: u16 = 1;
+
+/// Schema version of the `hop-supervisor.json` sidecar. Written by both the
+/// drone hop supervisor and the ground-station hop-follow persister, so both
+/// reference this one const. Bump on an incompatible field-set change.
+pub const HOP_SUPERVISOR_SIDECAR_VERSION: u16 = 1;
+/// In-memory channel hint (no file, but this is the path if we ever write one).
+pub const WFB_LOCKED_CHANNEL: &str = "/run/ados/wfb-locked-channel";
+
+/// Persistent WFB key directory.
+pub const WFB_KEY_DIR: &str = "/etc/ados/wfb";
+/// Drone TX keypair (present ⟺ this rig is WFB-paired as a drone).
+pub const WFB_TX_KEY: &str = "/etc/ados/wfb/tx.key";
+/// Drone RX key (decrypts the GS uplink). Present ⟺ the stats RX can run.
+pub const WFB_RX_KEY: &str = "/etc/ados/wfb/rx.key";
+/// The canonical drone key shared with the ground station after bind.
+pub const DRONE_KEY: &str = "/etc/drone.key";
+
+/// Cross-process bind-liveness sentinel written by the supervisor while a bind
+/// session owns the radio adapter. `{"active": <bool>}`.
+pub const BIND_STATE_SENTINEL: &str = "/run/ados/bind-state.json";
+
+/// Command socket this service listens on for the operator radio knobs
+/// (FEC ratio, MCS index, TX power, auto/manual link tier). One
+/// newline-JSON request → one newline-JSON response per connection. The
+/// REST layer connects here when the native radio is the running transmit
+/// plane (the packaged Python manager owns the same knobs otherwise).
+/// Sibling to mavlink.sock / supervisor.sock under the run dir; use
+/// `run_path("wfb-cmd.sock")` so the `ADOS_RUN_DIR` env override is honoured.
+pub const WFB_CMD_SOCK: &str = "/run/ados/wfb-cmd.sock";
+
+/// Command socket the radio service listens on for an operator-triggered
+/// coordinated channel hop. One newline-JSON request → one newline-JSON
+/// response per connection. The REST layer (POST /api/wfb/channel) connects
+/// here to drive a coordinated hop through the existing announce + dwell-sync
+/// path so the ground station follows. Sibling to `wfb-cmd.sock`; use
+/// `run_path("radio-cmd.sock")` so the `ADOS_RUN_DIR` env override is honoured.
+pub const RADIO_CMD_SOCK: &str = "/run/ados/radio-cmd.sock";
+
+/// Command socket the radio service listens on for the auxiliary-stream open /
+/// close requests a plugin drives through the plugin host. One newline-JSON
+/// request → one newline-JSON response per connection. The auxiliary stream is
+/// an additive transmit/receive pair on a separate radio-port; it is never
+/// started at boot — only an explicit `open` brings it up, and a `close` (or the
+/// plugin disconnecting) tears it down. Sibling to `wfb-cmd.sock` /
+/// `radio-cmd.sock`; use `run_path("radio-aux.sock")` so the `ADOS_RUN_DIR` env
+/// override is honoured.
+pub const RADIO_AUX_SOCK: &str = "/run/ados/radio-aux.sock";
+
+/// Return the run directory, honouring the `ADOS_RUN_DIR` env override.
+pub fn run_dir() -> String {
+    std::env::var("ADOS_RUN_DIR").unwrap_or_else(|_| "/run/ados".to_string())
+}
+
+/// Return the path to a run-dir file, honouring the env override.
+pub fn run_path(name: &str) -> String {
+    format!("{}/{}", run_dir(), name)
+}
+
+/// Atomic JSON write: write to `.tmp` then rename, matching the Python
+/// `tmp.write + tmp.replace` pattern so a crash mid-write never leaves a
+/// truncated sidecar file.
+pub fn write_sidecar(path: &str, value: &serde_json::Value) -> std::io::Result<()> {
+    let tmp = format!("{}.tmp", path);
+    let body = serde_json::to_vec(value)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+    std::fs::write(&tmp, &body)?;
+    std::fs::rename(&tmp, path)?;
+    Ok(())
+}
+
+/// Read the cross-process bind-liveness sentinel. Synchronous and cheap enough
+/// to call from a hot loop without a socket round-trip.
+///
+/// Returns `obj["active"]` (coerced to bool) from `bind-state.json`, or `false`
+/// on any error: file missing, unreadable, not valid JSON, not an object, or the
+/// `active` key absent. The supervisor writes this file while a bind session
+/// owns the radio adapter; the hop loop reads it to suppress channel changes
+/// that would corrupt the bind key exchange.
+pub fn read_bind_sentinel_active() -> bool {
+    let path = run_path("bind-state.json");
+    let Ok(text) = std::fs::read_to_string(&path) else {
+        return false;
+    };
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(&text) else {
+        return false;
+    };
+    // Best-effort schema-drift signal: warn (never reject) when the sentinel was
+    // written by an agent with a different schema version. The writer const lives
+    // in the supervisor crate, so compare against the shared registry.
+    let got = value.get("version").and_then(|v| v.as_u64()).unwrap_or(0) as u16;
+    if let Some(ours) = ados_protocol::contracts::sidecar_version("bind-state") {
+        ados_protocol::sidecar::check_sidecar_version("bind-state", got, ours);
+    }
+    value
+        .as_object()
+        .and_then(|obj| obj.get("active"))
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Serialize tests that mutate the `ADOS_RUN_DIR` process-global env var.
+    fn env_guard() -> std::sync::MutexGuard<'static, ()> {
+        static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+        LOCK.lock().unwrap_or_else(|p| p.into_inner())
+    }
+
+    #[test]
+    fn wfb_stats_sidecar_version_matches_registry() {
+        // The per-file const and the sidecar registry are the two sources of
+        // truth for this sidecar's schema version; a drift is caught here.
+        assert_eq!(
+            WFB_STATS_SIDECAR_VERSION,
+            ados_protocol::contracts::sidecar_version("wfb-stats").unwrap()
+        );
+    }
+
+    #[test]
+    fn hop_supervisor_sidecar_version_matches_registry() {
+        assert_eq!(
+            HOP_SUPERVISOR_SIDECAR_VERSION,
+            ados_protocol::contracts::sidecar_version("hop-supervisor").unwrap()
+        );
+    }
+
+    #[test]
+    fn bind_sentinel_missing_file_is_false() {
+        let _g = env_guard();
+        let dir = tempfile::tempdir().unwrap();
+        std::env::set_var("ADOS_RUN_DIR", dir.path());
+        // No bind-state.json written → false.
+        assert!(!read_bind_sentinel_active());
+        std::env::remove_var("ADOS_RUN_DIR");
+    }
+
+    #[test]
+    fn bind_sentinel_active_true_reads_true() {
+        let _g = env_guard();
+        let dir = tempfile::tempdir().unwrap();
+        std::env::set_var("ADOS_RUN_DIR", dir.path());
+        std::fs::write(dir.path().join("bind-state.json"), r#"{"active": true}"#).unwrap();
+        assert!(read_bind_sentinel_active());
+        std::env::remove_var("ADOS_RUN_DIR");
+    }
+
+    #[test]
+    fn bind_sentinel_active_false_reads_false() {
+        let _g = env_guard();
+        let dir = tempfile::tempdir().unwrap();
+        std::env::set_var("ADOS_RUN_DIR", dir.path());
+        std::fs::write(dir.path().join("bind-state.json"), r#"{"active": false}"#).unwrap();
+        assert!(!read_bind_sentinel_active());
+        std::env::remove_var("ADOS_RUN_DIR");
+    }
+
+    #[test]
+    fn bind_sentinel_garbled_json_is_false() {
+        let _g = env_guard();
+        let dir = tempfile::tempdir().unwrap();
+        std::env::set_var("ADOS_RUN_DIR", dir.path());
+        std::fs::write(dir.path().join("bind-state.json"), "not json at all").unwrap();
+        assert!(!read_bind_sentinel_active());
+        // A non-object (a bare array) is also false.
+        std::fs::write(dir.path().join("bind-state.json"), "[1, 2, 3]").unwrap();
+        assert!(!read_bind_sentinel_active());
+        // An object missing the active key is false.
+        std::fs::write(dir.path().join("bind-state.json"), r#"{"other": 1}"#).unwrap();
+        assert!(!read_bind_sentinel_active());
+        std::env::remove_var("ADOS_RUN_DIR");
+    }
+}

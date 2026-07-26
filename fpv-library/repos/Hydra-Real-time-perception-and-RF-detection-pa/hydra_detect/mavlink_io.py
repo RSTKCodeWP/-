@@ -1,0 +1,1351 @@
+"""MAVLink connection, GPS tracking, status-text alerts, and vehicle commands."""
+
+from __future__ import annotations
+
+import datetime
+import logging
+import math
+import threading
+import time
+from collections import deque, namedtuple
+from typing import Any, Callable, Dict, Optional
+
+logger = logging.getLogger(__name__)
+
+
+# Result of a confirmed set_mode call. ``accepted`` is True only when the
+# HEARTBEAT-mode-change ground truth (or COMMAND_ACK ACCEPTED, where the
+# autopilot emits one) was observed before the timeout. ``realized_mode`` is
+# the mode name observed in the next HEARTBEAT after the call. ``timeout`` is
+# True when neither signal arrived within the window.
+SetModeResult = namedtuple(
+    "SetModeResult",
+    ["accepted", "realized_mode", "ack_received", "timeout"],
+)
+
+
+class MAVLinkIO:
+    """Manages a MAVLink connection for alerts and vehicle commands.
+
+    Features:
+    - GPS listener thread (GLOBAL_POSITION_INT / GPS_RAW_INT)
+    - Per-label alert throttling with configurable interval
+    - MGRS coordinate formatting (falls back to lat/lon)
+    - STATUSTEXT alerts to GCS
+    - Vehicle commands: LOITER mode, ROI targeting
+    """
+
+    def __init__(
+        self,
+        connection_string: str = "/dev/ttyACM0",
+        baud: int = 115200,
+        source_system: int = 1,
+        alert_statustext: bool = True,
+        alert_interval_sec: float = 5.0,
+        severity: int = 2,
+        min_gps_fix: int = 3,
+        auto_loiter: bool = False,
+        guided_roi: bool = False,
+        alert_classes: set[str] | None = None,
+        global_max_per_sec: float = 2.0,
+        priority_labels: list[str] | None = None,
+        sim_gps_lat: float | None = None,
+        sim_gps_lon: float | None = None,
+    ):
+        self._conn_str = connection_string
+        self._baud = baud
+        self._source_system = source_system
+        self._alert_statustext = alert_statustext
+        self._alert_interval = alert_interval_sec
+        self._severity = max(0, min(severity, 7))
+        self._min_gps_fix = min_gps_fix
+        self._auto_loiter = auto_loiter
+        self._guided_roi = guided_roi
+        self._alert_classes = alert_classes  # None = alert on all classes
+        self._global_max_per_sec = global_max_per_sec
+        self._priority_labels = set(
+            lbl.lower().strip() for lbl in (priority_labels or [])
+        )
+        self._sim_gps_lat = sim_gps_lat
+        self._sim_gps_lon = sim_gps_lon
+        self._sim_gps_alt = 30.0
+        self._is_sim_gps = False
+
+        self._mav = None
+        self._last_alert_times: Dict[str, float] = {}
+        self._global_alert_times: deque = deque()  # timestamps of recent global alerts
+        self._lock = threading.Lock()
+
+        # GPS state (lat/lon/alt in MAVLink int format, hdg/cog in centidegrees)
+        # cog = course over ground from GPS_RAW_INT; compared against compass
+        # heading to flag magnetic interference (issue #298).
+        self._gps: Dict[str, Any] = {
+            "lat": None, "lon": None, "alt": None, "fix": 0, "hdg": None,
+            "cog": None, "ground_speed": None,
+            "last_update": 0.0,
+            # Freshness of the GPS_RAW_INT-sourced fields (fix/cog/
+            # ground_speed). 0.0 = never received. Separate from last_update:
+            # that key's 0.0 means "skip freshness check" to the autonomy
+            # gates, a semantic this stamp must not inherit.
+            "raw_last_update": 0.0,
+        }
+        self._gps_lock = threading.Lock()
+        self._stop_evt = threading.Event()
+
+        # Vehicle telemetry (battery, speed, altitude — updated by _gps_listener)
+        self._telemetry: Dict[str, Any] = {
+            "armed": False,
+            "battery_v": None,
+            "battery_pct": None,
+            "battery_last_update": 0.0,  # monotonic; 0 = never
+            "groundspeed": None,
+            "airspeed": None,
+            "altitude": None,
+            "heading": None,
+            "climb": None,
+        }
+
+        # Battery monitor — populated by attach_battery_monitor() once the
+        # pipeline knows the configured thresholds + callsign. None here
+        # means we still keep raw battery_v / battery_pct telemetry but
+        # do not compute a level or fire STATUSTEXT alerts.
+        self._battery_monitor = None  # type: Any
+
+        # Vehicle attitude (radians, populated from ATTITUDE msg 30).
+        # ArduPilot convention: positive roll = right wing down, positive
+        # pitch = nose up, yaw = body heading (0..2pi).
+        self._attitude: Dict[str, Any] = {
+            "roll": None,
+            "pitch": None,
+            "yaw": None,
+            "last_update": 0.0,
+        }
+
+        # RC channel values (updated by _message_reader from RC_CHANNELS).
+        # last_update is monotonic, 0.0 = never received — same convention
+        # as _gps / _attitude. Safety consumers (hardware-arm dead-man gate,
+        # #285) must check freshness: the values alone cannot distinguish a
+        # live feed from a cache frozen by RC/telemetry loss.
+        self._rc_channels: list[int] = []
+        self._rc_channels_last_update: float = 0.0
+        self._rc_channels_lock = threading.Lock()
+
+        # Vehicle mode state (from HEARTBEAT)
+        self._vehicle_mode: Optional[str] = None
+        self._vehicle_mode_lock = threading.Lock()
+        self._reverse_mode_map: dict[int, str] | None = None
+        # Signaled by _update_vehicle_mode whenever the cached mode changes.
+        # set_mode(wait_for_ack=True) waits on this to confirm realization.
+        self._mode_change_event = threading.Event()
+
+        # MAVLink command callbacks (set by pipeline)
+        self._cmd_callbacks: Dict[str, Callable] = {}
+        self._cmd_callbacks_lock = threading.Lock()
+
+        # Serializes all MAVLink sends (prevents interleaving from video thread)
+        self._send_lock = threading.Lock()
+
+        # Cached mode map (static after connection)
+        self._mode_map: dict | None = None
+
+        # MAV_CMD_USER IDs for Hydra commands
+        self.CMD_LOCK = 31010     # MAV_CMD_USER_1: param1=track_id
+        self.CMD_STRIKE = 31011   # MAV_CMD_USER_2: param1=track_id
+        self.CMD_UNLOCK = 31012   # MAV_CMD_USER_3: no params
+
+        # NAMED_VALUE_INT names for Lua/custom GCS
+        self.NV_LOCK = "HYDRA_LCK"      # value=track_id (10 char max)
+        self.NV_STRIKE = "HYDRA_STK"    # value=track_id
+        self.NV_UNLOCK = "HYDRA_ULK"    # value=0
+
+        # STATUSTEXT send-rate diagnostic
+        self._st_send_count = 0
+        self._st_count_start = time.monotonic()
+
+        # MGRS converter (optional)
+        self._mgrs = None
+        try:
+            import mgrs
+            self._mgrs = mgrs.MGRS()
+        except ImportError:
+            logger.info("mgrs library not installed; using lat/lon format.")
+
+        # Register with web server so /api/stats can surface flight data
+        # without the pipeline hot loop needing to plumb each field through.
+        try:
+            from hydra_detect.web.server import set_mavlink
+            set_mavlink(self)
+        except Exception as exc:  # pragma: no cover - import-time defensive
+            logger.debug("MAVLinkIO not registered with web server: %s", exc)
+
+    # ------------------------------------------------------------------
+    def connect(self) -> bool:
+        """Establish MAVLink connection and start GPS listener."""
+        try:
+            from pymavlink import mavutil
+
+            logger.info("Connecting MAVLink: %s @ %d baud", self._conn_str, self._baud)
+            self._mav = mavutil.mavlink_connection(
+                self._conn_str,
+                baud=self._baud,
+                source_system=self._source_system,
+                source_component=191,  # MAV_COMP_ID_ONBOARD_COMPUTER
+                autoreconnect=True,
+            )
+            hb = self._mav.wait_heartbeat(timeout=10)
+            if hb is None:
+                logger.warning("MAVLink heartbeat timeout — continuing without target")
+            logger.info(
+                "MAVLink heartbeat from system %d component %d",
+                self._mav.target_system,
+                self._mav.target_component,
+            )
+
+            # Request GPS data stream
+            from pymavlink.dialects.v20 import common as mavlink2
+            self._mav.mav.request_data_stream_send(
+                self._mav.target_system,
+                self._mav.target_component,
+                mavlink2.MAV_DATA_STREAM_POSITION,
+                2,  # 2 Hz
+                1,  # start
+            )
+            for stream_id in (
+                mavlink2.MAV_DATA_STREAM_EXTENDED_STATUS,
+                mavlink2.MAV_DATA_STREAM_EXTRA1,
+                # RC_CHANNELS feeds the hardware-arm dead-man gate. Request
+                # it explicitly instead of relying on the FC's default
+                # SRx_RC_CHAN rate, so the freshness guard (#285) measures
+                # a stream we actually solicited.
+                mavlink2.MAV_DATA_STREAM_RC_CHANNELS,
+            ):
+                self._mav.mav.request_data_stream_send(
+                    self._mav.target_system,
+                    self._mav.target_component,
+                    stream_id,
+                    2,  # 2 Hz
+                    1,  # start
+                )
+
+            # Start single reader thread (avoids serial port contention)
+            self._stop_evt.clear()
+            self._reader_thread = threading.Thread(
+                target=self._message_reader, daemon=True, name="mav-reader"
+            )
+            self._reader_thread.start()
+
+            return True
+        except Exception as exc:
+            logger.error("MAVLink connection failed: %s", exc)
+            return False
+
+    def close(self) -> None:
+        """Stop reader thread and close MAVLink connection."""
+        self._stop_evt.set()
+        if hasattr(self, "_reader_thread") and self._reader_thread is not None:
+            self._reader_thread.join(timeout=3)
+        if self._mav is not None:
+            self._mav.close()
+            self._mav = None
+
+    # ------------------------------------------------------------------
+    # Single reader thread (replaces separate GPS + command listeners
+    # to avoid serial port contention / recv_match race condition)
+    # ------------------------------------------------------------------
+    _ALL_MSG_TYPES = [
+        "GLOBAL_POSITION_INT", "GPS_RAW_INT", "HEARTBEAT",
+        "SYS_STATUS", "VFR_HUD", "RC_CHANNELS", "ATTITUDE",
+        "COMMAND_LONG", "NAMED_VALUE_INT",
+    ]
+
+    def _message_reader(self) -> None:
+        """Single thread that reads all MAVLink messages and dispatches."""
+        audit = logging.getLogger("hydra.audit")
+        while not self._stop_evt.is_set():
+            if self._mav is None:
+                break
+            try:
+                msg = self._mav.recv_match(
+                    type=self._ALL_MSG_TYPES,
+                    timeout=1,
+                )
+                if msg is None:
+                    continue
+                msg_type = msg.get_type()
+
+                # ── Telemetry / GPS messages ──
+                if msg_type == "GLOBAL_POSITION_INT":
+                    with self._gps_lock:
+                        self._gps["lat"] = msg.lat
+                        self._gps["lon"] = msg.lon
+                        self._gps["alt"] = msg.alt
+                        self._gps["hdg"] = msg.hdg  # centidegrees
+                        self._gps["last_update"] = time.monotonic()
+                elif msg_type == "GPS_RAW_INT":
+                    self._handle_gps_raw_int(msg)
+                elif msg_type == "SYS_STATUS":
+                    self._handle_sys_status(msg)
+                elif msg_type == "VFR_HUD":
+                    self._handle_vfr_hud(msg)
+                elif msg_type == "ATTITUDE":
+                    self._handle_attitude(msg)
+                elif msg_type == "RC_CHANNELS":
+                    self._handle_rc_channels(msg)
+                elif msg_type == "HEARTBEAT":
+                    from pymavlink import mavutil as _mavutil
+                    if msg.type == _mavutil.mavlink.MAV_TYPE_GCS:  # Skip GCS heartbeats
+                        continue
+                    self._update_vehicle_mode(msg)
+                    self._update_armed_state(msg)
+
+                # ── Command messages ──
+                elif msg_type == "COMMAND_LONG":
+                    self._handle_command_long(msg, audit)
+                elif msg_type == "NAMED_VALUE_INT":
+                    self._handle_named_value_int(msg, audit)
+
+            except TypeError:
+                # pymavlink internal bug: messages[mtype]._instances is None
+                # for some message types during post_message bookkeeping.
+                # Safe to ignore — does not affect message delivery.
+                continue
+            except Exception as exc:
+                if self._stop_evt.is_set():
+                    break
+                logger.warning("MAVLink reader error: %s", exc)
+                time.sleep(0.5)
+
+    def _handle_sys_status(self, msg) -> None:
+        """Cache battery_v / battery_pct from SYS_STATUS and forward
+        the message to the BatteryMonitor (if attached) for
+        threshold/hysteresis evaluation.
+
+        MAVLink sentinels:
+            voltage_battery == 0xFFFF (65535) → unknown voltage
+            battery_remaining == -1          → unknown remaining %
+        """
+        now = time.monotonic()
+        with self._gps_lock:
+            if msg.voltage_battery != 0xFFFF and msg.voltage_battery >= 0:
+                self._telemetry["battery_v"] = round(
+                    msg.voltage_battery / 1000.0, 2,
+                )
+            if msg.battery_remaining != -1:
+                self._telemetry["battery_pct"] = int(msg.battery_remaining)
+            self._telemetry["battery_last_update"] = now
+
+        # Forward to BatteryMonitor outside the lock — it has its own
+        # lock, and the STATUSTEXT send must not run under _gps_lock.
+        monitor = self._battery_monitor
+        if monitor is not None:
+            try:
+                monitor.update_from_sys_status(
+                    msg.voltage_battery,
+                    msg.battery_remaining,
+                    now=now,
+                )
+            except Exception as exc:
+                logger.warning("battery monitor update failed: %s", exc)
+
+    def attach_battery_monitor(self, monitor) -> None:
+        """Wire a BatteryMonitor for SYS_STATUS-driven level alerts.
+
+        The monitor receives every SYS_STATUS message and decides
+        when to emit STATUSTEXT based on thresholds and hysteresis.
+        Pass ``None`` to detach.
+        """
+        self._battery_monitor = monitor
+
+    def get_battery_monitor(self):
+        """Return the attached BatteryMonitor, or ``None``."""
+        return self._battery_monitor
+
+    def _handle_gps_raw_int(self, msg) -> None:
+        """Cache fix type, course-over-ground, and ground speed from GPS_RAW_INT.
+
+        cog: centidegrees, 65535 = unknown. vel: cm/s, 65535 = unknown. Used
+        by the compass-health check (issue #298). ``raw_last_update`` stamps
+        the freshness of these fields specifically — deliberately a separate
+        key from ``last_update`` (GLOBAL_POSITION_INT), whose 0.0 sentinel
+        carries skip-the-check semantics in the autonomy gates.
+        """
+        with self._gps_lock:
+            self._gps["fix"] = msg.fix_type
+            cog = getattr(msg, "cog", 65535)
+            self._gps["cog"] = None if cog == 65535 else (cog / 100.0) % 360.0
+            vel = getattr(msg, "vel", 65535)
+            self._gps["ground_speed"] = None if vel == 65535 else vel / 100.0
+            self._gps["raw_last_update"] = time.monotonic()
+
+    def _handle_vfr_hud(self, msg) -> None:
+        """Cache airspeed, groundspeed, altitude, heading, climb from VFR_HUD."""
+        with self._gps_lock:
+            self._telemetry["groundspeed"] = round(msg.groundspeed, 1)
+            self._telemetry["airspeed"] = round(msg.airspeed, 1)
+            self._telemetry["altitude"] = round(msg.alt, 1)
+            self._telemetry["heading"] = round(msg.heading, 0)
+            self._telemetry["climb"] = round(msg.climb, 2)
+
+    def _handle_attitude(self, msg) -> None:
+        """Cache roll, pitch, yaw (radians) from ATTITUDE msg 30."""
+        with self._gps_lock:
+            self._attitude["roll"] = float(msg.roll)
+            self._attitude["pitch"] = float(msg.pitch)
+            self._attitude["yaw"] = float(msg.yaw)
+            self._attitude["last_update"] = time.monotonic()
+
+    def _handle_rc_channels(self, msg) -> None:
+        """Cache RC channel PWM values + freshness stamp from RC_CHANNELS.
+
+        The stamp advances on every receipt, value change or not — the
+        hardware-arm dead-man gate uses it to reject a cache frozen by
+        RC-link loss or a telemetry stall (#285).
+        """
+        with self._rc_channels_lock:
+            self._rc_channels = [
+                msg.chan1_raw, msg.chan2_raw, msg.chan3_raw,
+                msg.chan4_raw, msg.chan5_raw, msg.chan6_raw,
+                msg.chan7_raw, msg.chan8_raw, msg.chan9_raw,
+                msg.chan10_raw, msg.chan11_raw, msg.chan12_raw,
+                msg.chan13_raw, msg.chan14_raw, msg.chan15_raw,
+                msg.chan16_raw, msg.chan17_raw, msg.chan18_raw,
+            ]
+            self._rc_channels_last_update = time.monotonic()
+
+    def _update_armed_state(self, heartbeat_msg) -> None:
+        """Extract armed state from HEARTBEAT base_mode."""
+        armed = bool(heartbeat_msg.base_mode & 128)  # MAV_MODE_FLAG_SAFETY_ARMED
+        with self._gps_lock:
+            self._telemetry["armed"] = armed
+
+    def _update_vehicle_mode(self, heartbeat_msg) -> None:
+        """Extract flight mode name from a HEARTBEAT message."""
+        try:
+            # Cache the reverse mode map — it doesn't change after connection
+            if self._reverse_mode_map is None:
+                mode_map = self._mav.mode_mapping()
+                if mode_map:
+                    self._reverse_mode_map = {v: k for k, v in mode_map.items()}
+                else:
+                    return
+            mode_name = self._reverse_mode_map.get(heartbeat_msg.custom_mode)
+            changed = False
+            with self._vehicle_mode_lock:
+                if self._vehicle_mode != mode_name:
+                    self._vehicle_mode = mode_name
+                    changed = True
+            if changed:
+                # Wake any set_mode(wait_for_ack=True) caller blocked on
+                # HEARTBEAT-mode-change ground truth (issue #241).
+                self._mode_change_event.set()
+        except Exception as exc:
+            logger.warning("Failed to parse vehicle mode from heartbeat: %s", exc)
+
+    def _get_mode_map(self) -> dict:
+        """Return cached mode mapping (fetched once after connection)."""
+        if self._mode_map is None:
+            self._mode_map = self._mav.mode_mapping()
+        return self._mode_map
+
+    def get_vehicle_mode(self) -> Optional[str]:
+        """Return current vehicle flight mode name, or None if unknown."""
+        with self._vehicle_mode_lock:
+            return self._vehicle_mode
+
+    # ------------------------------------------------------------------
+    # MAVLink command listener (lock, strike, unlock over telemetry radio)
+    # ------------------------------------------------------------------
+    def set_command_callbacks(
+        self,
+        on_lock: Callable[[int], bool] | None = None,
+        on_strike: Callable[[int], bool] | None = None,
+        on_unlock: Callable[[], None] | None = None,
+    ) -> None:
+        """Register callbacks for MAVLink commands received from GCS."""
+        with self._cmd_callbacks_lock:
+            if on_lock is not None:
+                self._cmd_callbacks["lock"] = on_lock
+            if on_strike is not None:
+                self._cmd_callbacks["strike"] = on_strike
+            if on_unlock is not None:
+                self._cmd_callbacks["unlock"] = on_unlock
+
+    def _handle_command_long(self, msg, audit) -> None:
+        """Process a COMMAND_LONG message for Hydra commands."""
+        cmd_id = msg.command
+        result = 0  # MAV_RESULT_ACCEPTED
+        with self._cmd_callbacks_lock:
+            callbacks = dict(self._cmd_callbacks)
+
+        if cmd_id == self.CMD_LOCK:
+            track_id = int(msg.param1)
+            cb = callbacks.get("lock")
+            if cb:
+                ok = cb(track_id)
+                result = 0 if ok else 4  # MAV_RESULT_FAILED
+                audit.info(
+                    "MAVLINK_CMD lock track_id=%d result=%s",
+                    track_id, "ok" if ok else "failed",
+                )
+            else:
+                result = 3  # MAV_RESULT_UNSUPPORTED
+        elif cmd_id == self.CMD_STRIKE:
+            track_id = int(msg.param1)
+            cb = callbacks.get("strike")
+            if cb:
+                ok = cb(track_id)
+                result = 0 if ok else 4
+                audit.info(
+                    "MAVLINK_CMD strike track_id=%d result=%s",
+                    track_id, "ok" if ok else "failed",
+                )
+            else:
+                result = 3
+        elif cmd_id == self.CMD_UNLOCK:
+            cb = callbacks.get("unlock")
+            if cb:
+                cb()
+                result = 0
+                audit.info("MAVLINK_CMD unlock result=ok")
+            else:
+                result = 3
+        else:
+            return  # Not our command, ignore
+
+        # Send COMMAND_ACK
+        self._send_command_ack(cmd_id, result)
+
+    def _handle_named_value_int(self, msg, audit) -> None:
+        """Process a NAMED_VALUE_INT message for Hydra commands."""
+        name = msg.name.rstrip("\x00").strip()
+        value = msg.value
+        with self._cmd_callbacks_lock:
+            callbacks = dict(self._cmd_callbacks)
+
+        if name == self.NV_LOCK:
+            cb = callbacks.get("lock")
+            if cb:
+                ok = cb(value)
+                audit.info("MAVLINK_NV lock track_id=%d result=%s", value, "ok" if ok else "failed")
+        elif name == self.NV_STRIKE:
+            cb = callbacks.get("strike")
+            if cb:
+                ok = cb(value)
+                audit.info(
+                    "MAVLINK_NV strike track_id=%d result=%s",
+                    value, "ok" if ok else "failed",
+                )
+        elif name == self.NV_UNLOCK:
+            cb = callbacks.get("unlock")
+            if cb:
+                cb()
+                audit.info("MAVLINK_NV unlock result=ok")
+
+    def _send_command_ack(self, command: int, result: int) -> None:
+        """Send COMMAND_ACK back to the GCS."""
+        if self._mav is None:
+            return
+        try:
+            with self._send_lock:
+                self._mav.mav.command_ack_send(command, result)
+        except Exception as exc:
+            logger.warning("Failed to send COMMAND_ACK: %s", exc)
+
+    def get_gps(self) -> Dict[str, Any]:
+        """Return current GPS state (thread-safe copy)."""
+        with self._gps_lock:
+            return dict(self._gps)
+
+    def get_telemetry(self) -> Dict[str, Any]:
+        """Return merged GPS + telemetry + vehicle mode (thread-safe)."""
+        with self._gps_lock:
+            result = dict(self._gps)
+            result.update(self._telemetry)
+        with self._vehicle_mode_lock:
+            result["vehicle_mode"] = self._vehicle_mode
+        return result
+
+    def get_attitude(self) -> Dict[str, Any]:
+        """Return current vehicle attitude in radians, or all-None if no
+        ATTITUDE message has been received yet.
+
+        Keys:
+          - ``roll``  - radians, positive = right wing down
+          - ``pitch`` - radians, positive = nose up
+          - ``yaw``   - radians, body heading
+          - ``last_update`` - monotonic timestamp of the most recent message
+            (0.0 if never received)
+        """
+        with self._gps_lock:
+            return dict(self._attitude)
+
+    def get_flight_data(self) -> Dict[str, Any]:
+        """Return flight-instrument values as a dict.
+
+        Keys:
+          - ``heading`` — degrees 0-360, from VFR_HUD.heading if available,
+            else GLOBAL_POSITION_INT.hdg (centidegrees / 100).
+          - ``airspeed`` — m/s from VFR_HUD.airspeed.
+          - ``altitude`` — metres, from VFR_HUD.alt if available, else
+            GLOBAL_POSITION_INT.alt (mm / 1000, relative to home).
+          - ``vertical_speed`` — m/s, from VFR_HUD.climb.
+
+        Any value that has not been populated by a MAVLink message yet
+        is returned as ``None``.
+        """
+        with self._gps_lock:
+            heading = self._telemetry.get("heading")
+            if heading is not None:
+                heading = round(float(heading) % 360.0, 1)
+            elif self._gps.get("hdg") is not None:
+                heading = round((self._gps["hdg"] / 100.0) % 360.0, 1)
+            altitude = self._telemetry.get("altitude")
+            if altitude is None and self._gps.get("alt") is not None:
+                altitude = round(self._gps["alt"] / 1000.0, 1)
+            return {
+                "heading": heading,
+                "airspeed": self._telemetry.get("airspeed"),
+                "altitude": altitude,
+                "vertical_speed": self._telemetry.get("climb"),
+                # Course over ground + ground speed for the compass-health
+                # check (issue #298). None when GPS hasn't reported them.
+                "cog": self._gps.get("cog"),
+                "ground_speed": self._gps.get("ground_speed"),
+            }
+
+    @property
+    def gps_fix_ok(self) -> bool:
+        with self._gps_lock:
+            if self._gps["fix"] >= self._min_gps_fix:
+                return True
+        if self._sim_gps_lat is not None and self._sim_gps_lon is not None:
+            return True
+        return False
+
+    @property
+    def is_sim_gps(self) -> bool:
+        """True if currently using simulated GPS coordinates."""
+        return self._is_sim_gps
+
+    def get_position_string(self) -> Optional[str]:
+        """Return MGRS or lat/lon string if GPS fix is good, else None."""
+        with self._gps_lock:
+            if self._gps["fix"] < self._min_gps_fix or self._gps["lat"] is None:
+                return None
+            lat = self._gps["lat"] / 1e7
+            lon = self._gps["lon"] / 1e7
+
+        if self._mgrs is not None:
+            try:
+                return self._mgrs.toMGRS(lat, lon)
+            except Exception as exc:
+                logger.debug("MGRS conversion failed, using lat/lon: %s", exc)
+        return f"{lat:.5f},{lon:.5f}"
+
+    def get_lat_lon(self) -> tuple[Optional[float], Optional[float], Optional[float]]:
+        """Return (lat, lon, alt) in decimal degrees / metres, or Nones."""
+        with self._gps_lock:
+            if self._gps["fix"] >= self._min_gps_fix and self._gps["lat"] is not None:
+                self._is_sim_gps = False
+                return (
+                    self._gps["lat"] / 1e7,
+                    self._gps["lon"] / 1e7,
+                    self._gps["alt"] / 1000,
+                )
+        # Fallback to simulated GPS if configured
+        if self._sim_gps_lat is not None and self._sim_gps_lon is not None:
+            self._is_sim_gps = True
+            return (self._sim_gps_lat, self._sim_gps_lon, self._sim_gps_alt)
+        self._is_sim_gps = False
+        return None, None, None
+
+    # ------------------------------------------------------------------
+    # STATUSTEXT alerts
+    # ------------------------------------------------------------------
+    def send_statustext(self, text: str, severity: Optional[int] = None) -> None:
+        """Send a STATUSTEXT message to the GCS."""
+        if self._mav is None:
+            return
+        # Diagnostic: log send rate every 30s
+        self._st_send_count += 1
+        now = time.monotonic()
+        elapsed = now - self._st_count_start
+        if elapsed >= 30.0:
+            logger.info("STATUSTEXT rate: %.1f msg/sec (last %.0fs)",
+                        self._st_send_count / elapsed, elapsed)
+            self._st_send_count = 0
+            self._st_count_start = now
+        sev = severity if severity is not None else self._severity
+        try:
+            from pymavlink.dialects.v20 import common as mavlink2
+            payload = text[:50].ljust(50, '\0').encode('utf-8')
+            msg = mavlink2.MAVLink_statustext_message(severity=sev, text=payload)
+            with self._send_lock:
+                self._mav.mav.send(msg, force_mavlink1=False)
+        except Exception as exc:
+            logger.warning("Failed to send STATUSTEXT: %s", exc)
+
+    def alert_detection(self, label: str, confidence: float = 0.0) -> None:
+        """Rate-limited per-label detection alert with geo-coordinates.
+
+        Applies two layers of throttling:
+        1. Per-label: one alert per label per ``_alert_interval`` seconds.
+        2. Global: max ``_global_max_per_sec`` alerts/sec across all labels.
+           Priority labels get precedence when the global cap is hit.
+        """
+        # Alert class filter — skip labels not in the allowlist
+        if self._alert_classes is not None and label not in self._alert_classes:
+            return
+
+        now = time.time()
+
+        with self._lock:
+            # Per-label throttling
+            last = self._last_alert_times.get(label, 0.0)
+            if (now - last) < self._alert_interval:
+                logger.debug(
+                    "Skipping duplicate alert for %s (last %.1fs ago)", label, now - last
+                )
+                return
+
+            # Global rate cap
+            # Purge timestamps older than 1 second
+            while self._global_alert_times and (now - self._global_alert_times[0]) > 1.0:
+                self._global_alert_times.popleft()
+
+            if len(self._global_alert_times) >= self._global_max_per_sec:
+                # At the global cap — only priority labels can proceed
+                if label.lower().strip() not in self._priority_labels:
+                    logger.debug("Global rate cap hit, skipping non-priority: %s", label)
+                    return
+
+            self._last_alert_times[label] = now
+            self._global_alert_times.append(now)
+
+        # Build alert message with DTG and coordinates
+        dtg = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d %H%MZ")
+        coord = self.get_position_string()
+
+        if coord is not None:
+            msg = f"Detection: {label} {dtg} @ {coord}"
+        else:
+            msg = f"Detection: {label} {dtg}"
+
+        if self._alert_statustext:
+            self.send_statustext(msg, severity=6)  # INFO — green in Mission Planner
+        logger.info("Alert sent: %s", msg)
+
+    # ------------------------------------------------------------------
+    # Vehicle commands
+    # ------------------------------------------------------------------
+    def command_loiter(self) -> None:
+        """Switch vehicle to LOITER mode (HOLD for Rover)."""
+        if self._mav is None or not self._auto_loiter:
+            return
+        try:
+            mode_map = self._get_mode_map()
+            # Try LOITER first (Copter), then HOLD (Rover)
+            for mode_name in ("LOITER", "HOLD"):
+                if mode_name in mode_map:
+                    with self._send_lock:
+                        self._mav.set_mode_apm(mode_map[mode_name])
+                    logger.info("Vehicle set to %s mode.", mode_name)
+                    return
+            logger.warning("No LOITER/HOLD mode found in mode mapping.")
+        except Exception as exc:
+            logger.warning("Failed to set LOITER: %s", exc)
+
+    def set_roi(self, lat: float, lon: float, alt: float = 0.0) -> None:
+        """Point camera gimbal at a GPS coordinate via MAV_CMD_DO_SET_ROI."""
+        if self._mav is None:
+            return
+        try:
+            from pymavlink import mavutil
+
+            with self._send_lock:
+                self._mav.mav.command_long_send(
+                    self._mav.target_system,
+                    self._mav.target_component,
+                    mavutil.mavlink.MAV_CMD_DO_SET_ROI_LOCATION,
+                    0,  # confirmation
+                    0, 0, 0, 0,  # params 1-4 unused
+                    lat, lon, alt,
+                )
+            logger.info("ROI set to %.6f, %.6f", lat, lon)
+        except Exception as exc:
+            logger.warning("Failed to set ROI: %s", exc)
+
+    def clear_roi(self) -> None:
+        """Clear any active ROI / gimbal lock."""
+        if self._mav is None:
+            return
+        try:
+            from pymavlink import mavutil
+
+            with self._send_lock:
+                self._mav.mav.command_long_send(
+                    self._mav.target_system,
+                    self._mav.target_component,
+                    mavutil.mavlink.MAV_CMD_DO_SET_ROI_NONE,
+                    0, 0, 0, 0, 0, 0, 0, 0,
+                )
+            logger.info("ROI cleared.")
+        except Exception as exc:
+            logger.warning("Failed to clear ROI: %s", exc)
+
+    # ------------------------------------------------------------------
+    # Keep-in-frame: yaw the vehicle to center the target in camera
+    # ------------------------------------------------------------------
+    def adjust_yaw(self, error_x: float, yaw_rate_max: float = 30.0) -> None:
+        """Adjust vehicle yaw to center a target in the camera frame.
+
+        Args:
+            error_x: Normalised horizontal error from frame center.
+                     -1.0 = target is at left edge, +1.0 = right edge, 0 = centered.
+            yaw_rate_max: Maximum yaw rate in degrees/second.
+        """
+        if self._mav is None:
+            return
+
+        # Clamp inputs to valid ranges
+        error_x = max(-1.0, min(1.0, error_x))
+        yaw_rate_max = max(1.0, min(180.0, yaw_rate_max))
+
+        # Proportional yaw correction: positive error = target is right = yaw right
+        yaw_rate = error_x * yaw_rate_max
+
+        # Clamp
+        yaw_rate = max(-yaw_rate_max, min(yaw_rate_max, yaw_rate))
+
+        # Dead zone: don't send tiny corrections
+        if abs(error_x) < 0.05:
+            return
+
+        try:
+            from pymavlink import mavutil
+
+            # CONDITION_YAW: param1=target_angle, param2=yaw_speed,
+            # param3=direction, param4=relative
+            # We use relative yaw: small incremental adjustments each frame
+            direction = 1 if yaw_rate >= 0 else -1  # 1=CW, -1=CCW
+            angle = abs(yaw_rate) * 0.1  # Small step per call (~100ms frame interval)
+            with self._send_lock:
+                self._mav.mav.command_long_send(
+                    self._mav.target_system,
+                    self._mav.target_component,
+                    mavutil.mavlink.MAV_CMD_CONDITION_YAW,
+                    0,  # confirmation
+                    angle,            # param1: target angle (degrees)
+                    abs(yaw_rate),    # param2: yaw speed (deg/s)
+                    direction,        # param3: direction (1=CW, -1=CCW)
+                    1,                # param4: 1=relative, 0=absolute
+                    0, 0, 0,
+                )
+        except Exception as exc:
+            logger.warning("Yaw adjust failed: %s", exc)
+
+    # ------------------------------------------------------------------
+    # Strike: navigate to estimated target position
+    # ------------------------------------------------------------------
+    def get_heading_deg(self) -> Optional[float]:
+        """Return vehicle heading in degrees (0-360), or None."""
+        with self._gps_lock:
+            if self._gps["hdg"] is not None:
+                return self._gps["hdg"] / 100.0
+        return None
+
+    def command_guided_to(self, lat: float, lon: float, alt: Optional[float] = None) -> bool:
+        """Switch to GUIDED mode and navigate to a GPS coordinate.
+
+        Args:
+            lat: Target latitude (decimal degrees).
+            lon: Target longitude (decimal degrees).
+            alt: Target altitude in metres. None = maintain current altitude.
+
+        Returns:
+            True if command was sent successfully.
+        """
+        if self._mav is None:
+            return False
+        try:
+            from pymavlink import mavutil
+
+            # Switch to GUIDED mode
+            mode_map = self._get_mode_map()
+            if "GUIDED" in mode_map:
+                with self._send_lock:
+                    self._mav.set_mode_apm(mode_map["GUIDED"])
+            else:
+                logger.warning("GUIDED mode not available in mode mapping.")
+                return False
+
+            # Use current altitude if not specified — abort if unknown
+            if alt is None:
+                _, _, cur_alt = self.get_lat_lon()
+                if cur_alt is None:
+                    logger.error("GUIDED aborted: current altitude unknown (no GPS fix).")
+                    return False
+                alt = cur_alt
+
+            # Send position target
+            with self._send_lock:
+                self._mav.mav.set_position_target_global_int_send(
+                    0,  # time_boot_ms (not used)
+                    self._mav.target_system,
+                    self._mav.target_component,
+                    mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT_INT,
+                    0b0000111111111000,  # type_mask: use only lat/lon/alt
+                    int(lat * 1e7),     # lat_int
+                    int(lon * 1e7),     # lon_int
+                    alt,                # alt (metres)
+                    0, 0, 0,            # vx, vy, vz (ignored)
+                    0, 0, 0,            # afx, afy, afz (ignored)
+                    0, 0,               # yaw, yaw_rate (ignored)
+                )
+            logger.info("GUIDED to %.6f, %.6f alt=%.1fm", lat, lon, alt)
+            return True
+
+        except Exception as exc:
+            logger.error("GUIDED command failed: %s", exc)
+            return False
+
+    def estimate_target_position(
+        self,
+        error_x: float,
+        approach_distance_m: float = 20.0,
+        camera_hfov_deg: float = 60.0,
+    ) -> Optional[tuple[float, float]]:
+        """Estimate a target's GPS position from its camera frame offset.
+
+        Uses vehicle GPS + heading + target's horizontal offset to compute
+        a bearing, then projects a waypoint at the given approach distance.
+
+        Args:
+            error_x: Normalised horizontal offset (-1.0 to +1.0).
+            approach_distance_m: Distance in metres to project the waypoint.
+            camera_hfov_deg: Camera horizontal field of view in degrees.
+
+        Returns:
+            (lat, lon) tuple or None if GPS/heading unavailable.
+        """
+        lat, lon, _ = self.get_lat_lon()
+        heading = self.get_heading_deg()
+        if lat is None or lon is None or heading is None:
+            return None
+
+        # Compute target bearing: vehicle heading + camera offset
+        angle_offset = error_x * (camera_hfov_deg / 2.0)
+        bearing_deg = (heading + angle_offset) % 360.0
+        bearing_rad = math.radians(bearing_deg)
+
+        # Project point at approach_distance along bearing (flat earth approx, good for <1km)
+        d = approach_distance_m
+        R = 6371000.0  # Earth radius in metres
+        lat_rad = math.radians(lat)
+
+        dlat = (d * math.cos(bearing_rad)) / R
+        dlon = (d * math.sin(bearing_rad)) / (R * math.cos(lat_rad))
+
+        target_lat = lat + math.degrees(dlat)
+        target_lon = lon + math.degrees(dlon)
+
+        return (target_lat, target_lon)
+
+    def send_velocity_ned(
+        self,
+        vx: float,
+        vy: float,
+        vz: float,
+        yaw_rate: float = 0.0,
+    ) -> bool:
+        """Send body-frame velocity command via SET_POSITION_TARGET_LOCAL_NED.
+
+        Must be called at >=4 Hz — ArduPilot times out GUIDED velocity
+        commands after 3 seconds of silence.
+
+        Args:
+            vx: Forward velocity in m/s (body-frame X, positive forward).
+            vy: Lateral velocity in m/s (body-frame Y, positive right).
+            vz: Vertical velocity in m/s (NED Z, positive down).
+            yaw_rate: Yaw rate in deg/s.
+
+        Returns:
+            True if the command was sent successfully.
+        """
+        if self._mav is None:
+            return False
+        try:
+            from pymavlink import mavutil
+
+            # type_mask bits: 0-2=pos, 3-5=vel, 6-8=accel, 9=force, 10=yaw, 11=yaw_rate
+            # Set bit = IGNORE that field.  Clear bit = USE that field.
+            # We use: velocity (3-5) + yaw_rate (11)
+            # We ignore: position (0-2) + acceleration (6-8) + yaw (10)
+            type_mask = 0x05C7  # 0b0101_1100_0111
+
+            yaw_rate_rad = math.radians(yaw_rate)
+
+            with self._send_lock:
+                self._mav.mav.set_position_target_local_ned_send(
+                    0,  # time_boot_ms
+                    self._mav.target_system,
+                    self._mav.target_component,
+                    mavutil.mavlink.MAV_FRAME_BODY_NED,
+                    type_mask,
+                    0, 0, 0,              # x, y, z (ignored)
+                    vx, vy, vz,           # vx, vy, vz
+                    0, 0, 0,              # afx, afy, afz (ignored)
+                    0,                    # yaw (ignored)
+                    yaw_rate_rad,         # yaw_rate (rad/s)
+                )
+            return True
+
+        except Exception as exc:
+            logger.error("Velocity NED command failed: %s", exc)
+            return False
+
+    # ------------------------------------------------------------------
+    # Servo control (light bar, gimbal, payloads)
+    # ------------------------------------------------------------------
+    def set_servo(self, channel: int, pwm: int) -> None:
+        """Set a servo output to a specific PWM value via MAV_CMD_DO_SET_SERVO.
+
+        Args:
+            channel: Servo output channel (1-16). E.g. 4 for PWM port 4.
+            pwm: PWM value in microseconds (typically 1000-2000).
+        """
+        if self._mav is None:
+            return
+        pwm = max(500, min(2500, pwm))
+        try:
+            from pymavlink import mavutil
+
+            with self._send_lock:
+                self._mav.mav.command_long_send(
+                    self._mav.target_system,
+                    self._mav.target_component,
+                    mavutil.mavlink.MAV_CMD_DO_SET_SERVO,
+                    0,          # confirmation
+                    channel,    # param1: servo channel
+                    pwm,        # param2: PWM microseconds
+                    0, 0, 0, 0, 0,
+                )
+        except Exception as exc:
+            logger.warning("set_servo ch=%d pwm=%d failed: %s", channel, pwm, exc)
+
+    def flash_servo(
+        self, channel: int, pwm_on: int = 1900, pwm_off: int = 1100,
+        duration: float = 0.5,
+    ) -> None:
+        """Flash a servo output (e.g. light bar) on then off after a delay.
+
+        Sends pwm_on immediately, then schedules pwm_off after *duration* seconds
+        in a daemon thread to avoid blocking the detection loop.
+
+        Args:
+            channel: Servo output channel.
+            pwm_on: PWM value for "on" state.
+            pwm_off: PWM value for "off" state.
+            duration: Seconds to hold the on state before reverting.
+        """
+        self.set_servo(channel, pwm_on)
+
+        def _off():
+            time.sleep(duration)
+            self.set_servo(channel, pwm_off)
+
+        threading.Thread(target=_off, daemon=True, name="servo-flash").start()
+
+    # ------------------------------------------------------------------
+    # Pixhawk buzzer — PLAY_TUNE
+    # ------------------------------------------------------------------
+    # ArduPilot QBASIC-style tune strings. See:
+    # https://ardupilot.org/dev/docs/mavlink-play-tune.html
+    TUNES = {
+        "alert": "MFT200L8CDEC",           # Quick alert beep
+        "success": "MFT240L4CEG>C",         # Happy ascending
+        "warning": "MFT180L4GFED",          # Descending warning
+        "error": "MFT200L2C<C",             # Two low beeps
+        "charles": "MFT255L8CDEFEDCL4C",    # Special tune for Charles
+        "startup": "MFT200L4CL8EGL4>C",     # Boot jingle
+    }
+
+    def play_tune(self, tune: str = "alert") -> bool:
+        """Play a tune on the Pixhawk buzzer via PLAY_TUNE MAVLink message.
+
+        Args:
+            tune: Either a tune name from TUNES dict, or a raw QBASIC
+                  tune string (e.g. "MFT200L8CDEC").
+
+        Returns:
+            True if the message was sent, False otherwise.
+        """
+        if self._mav is None:
+            return False
+        tune_str = self.TUNES.get(tune, tune)
+        try:
+            with self._send_lock:
+                self._mav.mav.play_tune_send(
+                    self._mav.target_system,
+                    self._mav.target_component,
+                    tune_str.encode("ascii")[:30],  # Max 30 chars
+                    b"",  # tune2 (extended, unused)
+                )
+            logger.info("Buzzer: playing tune '%s'", tune)
+            return True
+        except Exception as exc:
+            logger.warning("Failed to play tune: %s", exc)
+            return False
+
+    # ------------------------------------------------------------------
+    # VIDEO_STREAM_INFORMATION — advertise RTSP stream to GCS
+    # ------------------------------------------------------------------
+    def send_video_stream_info(
+        self,
+        uri: str,
+        width: int = 640,
+        height: int = 480,
+        framerate: float = 15.0,
+        bitrate: int = 2_000_000,
+        name: str = "Hydra Detect",
+    ) -> None:
+        """Send VIDEO_STREAM_INFORMATION so Mission Planner auto-discovers the RTSP stream.
+
+        MP populates its 'Detected Streams' dropdown from this message.
+        Should be called periodically (e.g., every 5s) so MP picks it up.
+        """
+        if self._mav is None:
+            return
+        try:
+            from pymavlink.dialects.v20 import common as mavlink2
+
+            msg = mavlink2.MAVLink_video_stream_information_message(
+                stream_id=1,
+                count=1,
+                type=0,         # VIDEO_STREAM_TYPE_RTSP
+                flags=1,        # VIDEO_STREAM_STATUS_FLAGS_RUNNING
+                framerate=framerate,
+                resolution_h=width,
+                resolution_v=height,
+                bitrate=bitrate,
+                rotation=0,
+                hfov=0,
+                name=name.encode('utf-8')[:32].ljust(32, b'\0'),
+                uri=uri.encode('utf-8')[:160].ljust(160, b'\0'),
+                encoding=1,    # VIDEO_STREAM_ENCODING_H264
+            )
+            msg._header.srcSystem = self._source_system
+            msg._header.srcComponent = 100  # MAV_COMP_ID_CAMERA
+            with self._send_lock:
+                self._mav.mav.send(msg, force_mavlink1=False)
+        except Exception as exc:
+            logger.warning("Failed to send VIDEO_STREAM_INFORMATION: %s", exc)
+
+    # -- Public send helpers -------------------------------------------
+    def send_raw_message(self, msg) -> bool:
+        """Send a pre-built MAVLink message via the send lock."""
+        if self._mav is None:
+            return False
+        try:
+            with self._send_lock:
+                self._mav.mav.send(msg, force_mavlink1=False)
+            return True
+        except Exception as exc:
+            logger.warning("Failed to send raw message: %s", exc)
+            return False
+
+    def send_param_set(self, param_id: str, value: float, param_type: int = 9) -> bool:
+        """Send PARAM_SET message."""
+        if self._mav is None:
+            return False
+        try:
+            with self._send_lock:
+                self._mav.mav.param_set_send(
+                    self._mav.target_system,
+                    self._mav.target_component,
+                    param_id.encode("utf-8"),
+                    value,
+                    param_type,
+                )
+            return True
+        except Exception as exc:
+            logger.warning("Failed to send PARAM_SET %s: %s", param_id, exc)
+            return False
+
+    @property
+    def connected(self) -> bool:
+        """Whether the MAVLink connection is active."""
+        return self._mav is not None
+
+    # -- Public accessors / mutators ------------------------------------
+    @property
+    def auto_loiter(self) -> bool:
+        return self._auto_loiter
+
+    @auto_loiter.setter
+    def auto_loiter(self, value: bool) -> None:
+        self._auto_loiter = value
+
+    @property
+    def alert_classes(self) -> set[str] | None:
+        return self._alert_classes
+
+    @alert_classes.setter
+    def alert_classes(self, value: set[str] | None) -> None:
+        self._alert_classes = value
+        if value is not None:
+            logger.info("Alert class filter updated: %s", ", ".join(sorted(value)))
+        else:
+            logger.info("Alert class filter cleared — alerting on all classes.")
+
+    def set_mode(
+        self,
+        mode_name: str,
+        wait_for_ack: bool = False,
+        ack_timeout_sec: float = 2.0,
+    ):
+        """Set the vehicle flight mode by name.
+
+        Args:
+            mode_name: ArduPilot mode name (e.g. ``"HOLD"``, ``"LOITER"``).
+            wait_for_ack: When False (default), behaves exactly like the
+                legacy fire-and-forget surface — sends SET_MODE, returns
+                ``True`` if the send went out cleanly. When True, blocks
+                up to ``ack_timeout_sec`` for HEARTBEAT-mode-change ground
+                truth and returns a :class:`SetModeResult`.
+            ack_timeout_sec: Wall-clock seconds to wait for the next
+                HEARTBEAT carrying the new mode (or any mode change, in
+                case the FC went to a different mode like an in-flight
+                failsafe). Ignored when ``wait_for_ack`` is False.
+
+        Returns:
+            ``bool`` when ``wait_for_ack`` is False (back-compat), or
+            :class:`SetModeResult` when ``wait_for_ack`` is True.
+
+        Safety note: callers that need the legacy fire-and-forget contract
+        (approach.py, dogleg_rtl.py, web mode_api) keep their current
+        behaviour. New safety-critical paths (graceful-stop) should pass
+        ``wait_for_ack=True`` and inspect the result.
+        """
+        if self._mav is None:
+            if wait_for_ack:
+                return SetModeResult(
+                    accepted=False,
+                    realized_mode=None,
+                    ack_received=False,
+                    timeout=False,
+                )
+            return False
+        try:
+            mode_map = self._mav.mode_mapping()
+            if mode_name not in mode_map:
+                logger.warning("Mode %s not found in mode mapping.", mode_name)
+                if wait_for_ack:
+                    return SetModeResult(
+                        accepted=False,
+                        realized_mode=self.get_vehicle_mode(),
+                        ack_received=False,
+                        timeout=False,
+                    )
+                return False
+
+            # Clear the mode-change event BEFORE sending so we don't
+            # mis-attribute a prior HEARTBEAT to this set_mode call.
+            if wait_for_ack:
+                self._mode_change_event.clear()
+
+            with self._send_lock:
+                self._mav.set_mode_apm(mode_map[mode_name])
+            logger.info("Vehicle set to %s mode.", mode_name)
+
+            if not wait_for_ack:
+                return True
+
+            # Wait for HEARTBEAT-mode-change ground truth. ArduPilot does
+            # not reliably emit COMMAND_ACK for SET_MODE — the next
+            # HEARTBEAT carrying the new custom_mode is the source of
+            # truth. Cap the wait so the caller never blocks forever.
+            timeout = max(0.1, min(10.0, float(ack_timeout_sec)))
+            signalled = self._mode_change_event.wait(timeout=timeout)
+            realized = self.get_vehicle_mode()
+            accepted = signalled and realized == mode_name
+            return SetModeResult(
+                accepted=accepted,
+                realized_mode=realized,
+                ack_received=signalled,
+                timeout=not signalled,
+            )
+        except Exception as exc:
+            logger.warning("Failed to set mode %s: %s", mode_name, exc)
+            if wait_for_ack:
+                return SetModeResult(
+                    accepted=False,
+                    realized_mode=self.get_vehicle_mode(),
+                    ack_received=False,
+                    timeout=False,
+                )
+            return False
+
+    def get_rc_channels(self) -> list[int]:
+        """Return last received RC channel values (1-indexed in the list).
+
+        Returns a list of up to 18 PWM values, or an empty list if no
+        RC_CHANNELS message has been received yet.
+
+        These are cached values: check ``get_rc_channels_last_update()``
+        before trusting them for any safety decision — after RC-link loss
+        the list stays latched at the last received frame (#285).
+        """
+        with self._rc_channels_lock:
+            return list(self._rc_channels)
+
+    def get_rc_channels_last_update(self) -> float:
+        """Return the monotonic timestamp of the last RC_CHANNELS receipt.
+
+        0.0 if never received — same convention as the GPS and attitude
+        ``last_update`` fields. Consumers compare against
+        ``time.monotonic()`` to reject stale RC data (#285).
+        """
+        with self._rc_channels_lock:
+            return self._rc_channels_last_update
+
+    def command_do_change_speed(self, speed_m_s: float) -> bool:
+        """Set vehicle ground speed via MAV_CMD_DO_CHANGE_SPEED.
+
+        Args:
+            speed_m_s: Desired ground speed in metres per second.
+
+        Returns:
+            True if the command was sent successfully.
+        """
+        if self._mav is None:
+            return False
+        speed_m_s = max(0.0, min(100.0, speed_m_s))  # Sane bounds
+        try:
+            from pymavlink import mavutil
+
+            with self._send_lock:
+                self._mav.mav.command_long_send(
+                    self._mav.target_system,
+                    self._mav.target_component,
+                    mavutil.mavlink.MAV_CMD_DO_CHANGE_SPEED,
+                    0,          # confirmation
+                    1,          # param1: speed type (1 = ground speed)
+                    speed_m_s,  # param2: speed in m/s
+                    -1,         # param3: throttle (-1 = no change)
+                    0, 0, 0, 0,
+                )
+            return True
+        except Exception as exc:
+            logger.warning("DO_CHANGE_SPEED failed: %s", exc)
+            return False
+
+    @property
+    def send_lock(self) -> threading.Lock:
+        """Lock for serializing MAVLink send operations."""
+        return self._send_lock
+
+    @property
+    def mav(self):
+        """Raw pymavlink connection (for MAVLink video sender)."""
+        return self._mav

@@ -1,0 +1,611 @@
+//! Daemon lifecycle coordination.
+//!
+//! Brings up the store, the dedicated writer thread, and the async ingest accept
+//! loop, then waits for a stop signal and shuts down cleanly. The split is
+//! deliberate: the writer is a blocking `std::thread` holding the only
+//! read-write `rusqlite` connection, and the accept loop is async on the tokio
+//! runtime. A bounded channel is the only bridge between the two worlds, so the
+//! synchronous SQLite work never runs inside an async task.
+//!
+//! Startup order: open + verify the store (a fast `quick_check`, quarantining
+//! and recreating on failure, since the store is a cache of history not flight
+//! state — the boot path must not run the size-scaling full integrity check),
+//! spawn the writer thread, bind the ingest socket, spawn the accept loop, then
+//! notify systemd `READY`. Shutdown order on `SIGTERM`/`SIGINT`: notify
+//! `STOPPING`, stop accepting, drop the ingest sender so the writer drains and
+//! commits its final batch and closes the session, join the writer (bounded),
+//! and unlink the sockets.
+
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use std::time::Duration;
+
+use anyhow::{Context, Result};
+use tokio::sync::{broadcast, mpsc, oneshot};
+
+use crate::db;
+use crate::ingest::{run_accept_loop, IngestSocket, IngestStats};
+use crate::taps::{spawn_all_taps, TapPaths};
+use crate::writer::{now_us, Writer, WriterConfig};
+
+/// Capacity of the bounded channel from the async accept loop to the blocking
+/// writer thread. Bounds memory so a producer flood cannot grow the queue
+/// without limit; the per-class drop policy sheds the overflow visibly.
+pub const INGEST_QUEUE_CAPACITY: usize = 4096;
+
+/// How long the writer thread is given to drain and commit its final batch on
+/// shutdown before the daemon stops waiting and exits anyway.
+pub const WRITER_JOIN_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// How long the orderly stop of the async components (read surface, accept loop,
+/// hardware collector, seam taps) is given before they are abandoned and shutdown
+/// presses on to close the ingest channel. Bounds a tap that blocks on a seam
+/// whose provider is dying in the same control-group SIGTERM, so a `systemctl
+/// stop` can never sit in `deactivating` until the unit's stop timeout.
+pub const TEARDOWN_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// How often the daemon pings the systemd watchdog while running. Comfortably
+/// under the unit's `WatchdogSec` (a ~3x margin) so a single missed tick from a
+/// brief scheduler stall does not trip a restart, but a genuinely wedged async
+/// runtime does.
+pub const WATCHDOG_PING_INTERVAL: Duration = Duration::from_secs(10);
+
+/// Default raw-frame sampling rate for the frame tap, in frames per second. The
+/// frame trail is a low-rate diagnostic record, not the full firehose; the
+/// config surface overrides this.
+pub const DEFAULT_MAVLINK_SAMPLE_HZ: f64 = 1.0;
+
+/// Resolved paths a daemon run needs: the store and the two sockets it owns,
+/// plus the filesystem root the hardware collector samples under.
+#[derive(Debug, Clone)]
+pub struct DaemonPaths {
+    /// The read-write store.
+    pub db: PathBuf,
+    /// The ingest socket producers write framed msgpack to.
+    pub ingest_socket: PathBuf,
+    /// The query socket the read API binds (the trusted local read plane).
+    pub query_socket: PathBuf,
+    /// The TCP port the read API binds (the LAN read plane).
+    pub query_tcp_port: u16,
+    /// The agent pairing-state file the LAN-edge auth reads. Injectable so a
+    /// test points it at a tempdir.
+    pub pairing_path: PathBuf,
+    /// The filesystem root the hardware collector reads sysfs/proc under. `/` in
+    /// production; a fixture tree in a test so the collector never touches the
+    /// host's real `/sys` or `/proc`.
+    pub hw_root: PathBuf,
+    /// The seams the taps read: the state and frame sockets and the sidecar
+    /// directory. Injectable so a test points them at a tempdir.
+    pub taps: TapPaths,
+}
+
+impl Default for DaemonPaths {
+    fn default() -> Self {
+        Self {
+            db: PathBuf::from(crate::paths::db_path()),
+            ingest_socket: PathBuf::from(crate::paths::ingest_socket()),
+            query_socket: PathBuf::from(crate::paths::query_socket()),
+            query_tcp_port: crate::paths::QUERY_TCP_PORT,
+            pairing_path: PathBuf::from(crate::query::auth::DEFAULT_PAIRING_PATH),
+            hw_root: PathBuf::from(crate::hw::DEFAULT_ROOT),
+            taps: TapPaths::default(),
+        }
+    }
+}
+
+/// systemd readiness ping. No-op off Linux and when not run under a
+/// `Type=notify` unit (`NOTIFY_SOCKET` unset).
+#[cfg(target_os = "linux")]
+fn sd_ready() {
+    if let Err(e) = sd_notify::notify(false, &[sd_notify::NotifyState::Ready]) {
+        tracing::debug!(error = %e, "sd_notify READY failed");
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+fn sd_ready() {}
+
+/// systemd stopping ping. No-op off Linux / outside a notify unit.
+#[cfg(target_os = "linux")]
+fn sd_stopping() {
+    if let Err(e) = sd_notify::notify(false, &[sd_notify::NotifyState::Stopping]) {
+        tracing::debug!(error = %e, "sd_notify STOPPING failed");
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+fn sd_stopping() {}
+
+/// systemd watchdog keep-alive ping. No-op off Linux and when not run under a
+/// `WatchdogSec`-armed `Type=notify` unit (`WATCHDOG_USEC` unset).
+#[cfg(target_os = "linux")]
+fn sd_watchdog() {
+    let _ = sd_notify::notify(false, &[sd_notify::NotifyState::Watchdog]);
+}
+
+#[cfg(not(target_os = "linux"))]
+fn sd_watchdog() {}
+
+/// Open the store and verify it. On a failed check the file is quarantined
+/// (renamed with a timestamp suffix) and a fresh store is created from the
+/// embedded schema, so a corrupt history cache never wedges the daemon. Returns
+/// once a healthy store exists at `path`.
+///
+/// The boot-path guard is `quick_check`, NOT the full `integrity_check`: the
+/// full check's per-index cross-validation scales with the store size, so on a
+/// multi-hundred-MB store (the retention cap is gigabytes) it can run past the
+/// unit's start timeout and wedge the daemon in a restart loop before it ever
+/// signals readiness. `quick_check` still catches the gross structural
+/// corruption that warrants a recreate, fast enough to keep startup bounded.
+fn open_and_verify(path: &Path) -> Result<()> {
+    // A first open also runs migrations and creates the file + parent dir. A
+    // structurally broken file (truncated or a non-SQLite header) fails here,
+    // before any query runs: the connection opens but the first PRAGMA against a
+    // bad header errors. Treat that the same as a failed structure check below —
+    // quarantine the file and recreate — so a broken store self-heals in-process
+    // instead of crash-looping the daemon onto the same bad file every restart.
+    let conn = match db::open(path) {
+        Ok(conn) => conn,
+        Err(e) => {
+            // Nothing to quarantine if the file does not exist: the open error
+            // is then a real environmental fault (a bad parent dir, no space, a
+            // permission problem) that a recreate would only hit again. Surface
+            // it so the operator sees the true cause.
+            if !path.exists() {
+                return Err(anyhow::Error::new(e))
+                    .with_context(|| format!("open store at {}", path.display()));
+            }
+            tracing::error!(
+                error = %e,
+                path = %path.display(),
+                "store failed to open; quarantining and recreating"
+            );
+            quarantine_and_recreate(path)?;
+            return Ok(());
+        }
+    };
+    match db::quick_check(&conn) {
+        Ok(()) => {
+            tracing::info!(path = %path.display(), "store integrity check passed");
+            Ok(())
+        }
+        Err(e) => {
+            drop(conn);
+            tracing::error!(
+                error = %e,
+                path = %path.display(),
+                "store failed structure check; quarantining and recreating"
+            );
+            quarantine_and_recreate(path)?;
+            Ok(())
+        }
+    }
+}
+
+/// Rename a broken store aside with a timestamped suffix and create a fresh one
+/// from the embedded schema. The caller has already established the file at
+/// `path` exists and is unusable.
+fn quarantine_and_recreate(path: &Path) -> Result<()> {
+    let quarantine = path.with_extension(format!("db.corrupt-{}", now_us()));
+    std::fs::rename(path, &quarantine).with_context(|| format!("quarantine {}", path.display()))?;
+    tracing::warn!(
+        quarantine = %quarantine.display(),
+        path = %path.display(),
+        "quarantined broken store; recreating from the embedded schema"
+    );
+    // Recreate from the embedded schema. Drop the fresh connection: the writer
+    // reopens its own read-write handle, and the verify path only needs the
+    // store to exist and be healthy.
+    let _ = db::open(path).with_context(|| "recreate store after quarantine")?;
+    Ok(())
+}
+
+/// Run the daemon to completion: bring everything up, wait for a stop signal,
+/// shut down cleanly. Returns `Ok(())` after a graceful stop.
+pub async fn run_daemon() -> Result<()> {
+    run_with_paths(DaemonPaths::default(), shutdown_signal()).await
+}
+
+/// The lifecycle, parameterized over the paths and the stop trigger so tests can
+/// drive a real bring-up + shutdown against a temp store without sending a
+/// process signal.
+pub async fn run_with_paths<F>(paths: DaemonPaths, shutdown: F) -> Result<()>
+where
+    F: std::future::Future<Output = ()> + Send + 'static,
+{
+    open_and_verify(&paths.db)?;
+
+    // The bridge from the async accept loop to the blocking writer thread.
+    let (ingest_tx, ingest_rx) = mpsc::channel(INGEST_QUEUE_CAPACITY);
+
+    // The shutdown-pending flag, shared with the writer thread. Set the instant a
+    // stop begins so the writer never starts a maintenance pass (and its `VACUUM`)
+    // during the drain window, which could overrun the bounded writer join.
+    let stop = Arc::new(AtomicBool::new(false));
+
+    // Build the writer on the daemon thread (so an open error surfaces here),
+    // then move it onto its own dedicated OS thread to run the blocking loop.
+    let writer = Writer::new(
+        &paths.db,
+        ingest_rx,
+        WriterConfig::default(),
+        Arc::clone(&stop),
+    )
+    .context("open writer connection")?;
+    let boot_session = writer.boot_session();
+    // The broadcast handle is the seam the live tail subscribes to; held so the
+    // channel stays open for the daemon's lifetime, and cloned into the query
+    // server so `/v1/tail` is fed by the writer fan-out rather than a DB poll.
+    let broadcast = writer.broadcast_handle();
+    // The control handle is the seam the read surface enqueues mark-synced
+    // requests on. Cloned into the query server so the on-socket mark path can
+    // reach the single writer; held open for the daemon's lifetime so the
+    // writer's control channel never sees a closed sender while serving.
+    let mark_synced = writer.control_handle();
+    let (writer_result_tx, writer_result_rx) = oneshot::channel();
+    let writer_thread = std::thread::Builder::new()
+        .name("ados-logd-writer".to_string())
+        .spawn(move || {
+            let result = writer.run();
+            let _ = writer_result_tx.send(result);
+        })
+        .context("spawn writer thread")?;
+
+    // Bind the ingest socket and spawn the accept loop. A dedicated shutdown
+    // channel lets the daemon stop the loop before tearing down the writer.
+    let socket = IngestSocket::bind(&paths.ingest_socket)
+        .with_context(|| format!("bind ingest socket {}", paths.ingest_socket.display()))?;
+    let stats = Arc::new(IngestStats::default());
+    let (accept_stop_tx, accept_stop_rx) = oneshot::channel::<()>();
+    let accept_task = tokio::spawn(run_accept_loop(
+        socket,
+        ingest_tx.clone(),
+        Arc::clone(&stats),
+        async move {
+            let _ = accept_stop_rx.await;
+        },
+    ));
+
+    // Spawn the in-process hardware collector. It owns a clone of the ingest
+    // sender and samples sysfs/proc at per-class cadences, pushing one snapshot
+    // plus the key metrics per tick onto the same channel the socket producers
+    // feed. It stops when its own shutdown signal fires (before the sender is
+    // dropped) so it never sends into a closing channel.
+    let (collector_stop_tx, collector_stop_rx) = oneshot::channel::<()>();
+    let collector_task = tokio::spawn(crate::hw::run_collector(
+        paths.hw_root.clone(),
+        ingest_tx.clone(),
+        collector_stop_rx,
+    ));
+
+    // Spawn the three seam taps, each with a clone of the ingest sender and a
+    // subscription to one broadcast shutdown so a single fire stops them all,
+    // symmetric with the collector and the accept loop. The taps read the frozen
+    // state/frame sockets and the runtime sidecars; an absent seam is normal and
+    // each tap retries on a backoff rather than failing.
+    let (taps_stop_tx, _taps_keep) = broadcast::channel::<()>(1);
+    let tap_tasks = spawn_all_taps(
+        &paths.taps,
+        ingest_tx.clone(),
+        &taps_stop_tx,
+        DEFAULT_MAVLINK_SAMPLE_HZ,
+    );
+
+    // Spawn the read surface: the same axum `/v1` Router on the trusted Unix
+    // query socket and the LAN TCP port. It opens the store read-only per
+    // request (never the writer's connection) and is fed live by the writer's
+    // broadcast clone. Its own shutdown signal stops both listeners before the
+    // writer is torn down.
+    let (query_stop_tx, query_stop_rx) = oneshot::channel::<()>();
+    let query_task = tokio::spawn(crate::query::spawn_query_server(
+        paths.db.clone(),
+        paths.query_socket.clone(),
+        paths.query_tcp_port,
+        broadcast,
+        Arc::clone(&stats),
+        paths.pairing_path.clone(),
+        mark_synced,
+        async move {
+            let _ = query_stop_rx.await;
+        },
+    ));
+
+    sd_ready();
+    tracing::info!(
+        boot_session,
+        db = %paths.db.display(),
+        ingest = %paths.ingest_socket.display(),
+        "logging store ready"
+    );
+
+    // Run until the stop trigger fires, pinging the systemd watchdog on a fixed
+    // cadence in between. A wedged async runtime stops pinging and systemd
+    // restarts the unit; a healthy daemon keeps the timer fed. Both arms are
+    // cheap, so the select never blocks shutdown.
+    let mut watchdog = tokio::time::interval(WATCHDOG_PING_INTERVAL);
+    watchdog.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+    // The first immediate tick fires right after READY; skip pinging on it so
+    // the cadence stays a steady WATCHDOG_PING_INTERVAL.
+    watchdog.tick().await;
+    tokio::pin!(shutdown);
+    loop {
+        tokio::select! {
+            _ = &mut shutdown => break,
+            _ = watchdog.tick() => sd_watchdog(),
+        }
+    }
+    tracing::info!("logging store stopping");
+    // Signal the writer before any teardown await so it cannot start a new
+    // maintenance pass while the channel is draining toward the bounded join.
+    stop.store(true, Ordering::SeqCst);
+    sd_stopping();
+
+    // Signal every async component to stop up front (the sends are non-blocking),
+    // then await their exit under one bound. The read surface holds no ingest
+    // sender; the collector and taps must stop before the channel closes so they
+    // never send into it. The bound matters because `systemd stop` kills the whole
+    // control group at once: a seam tap reading a socket whose provider is dying
+    // in the same SIGTERM can block its `await`, and an unbounded wait here would
+    // hold shutdown open until the unit's stop timeout fires a SIGKILL (which also
+    // tears the writer mid-write). If the orderly join overruns, abandon the
+    // remaining tasks and press on — dropping the ingest sender next closes the
+    // channel so the writer drains and exits cleanly regardless.
+    let _ = query_stop_tx.send(());
+    let _ = accept_stop_tx.send(());
+    let _ = collector_stop_tx.send(());
+    let _ = taps_stop_tx.send(());
+    let orderly = async {
+        let _ = query_task.await;
+        let _ = accept_task.await;
+        let _ = collector_task.await;
+        for task in tap_tasks {
+            let _ = task.await;
+        }
+    };
+    if tokio::time::timeout(TEARDOWN_TIMEOUT, orderly)
+        .await
+        .is_err()
+    {
+        tracing::warn!(
+            timeout_s = TEARDOWN_TIMEOUT.as_secs(),
+            "async teardown overran its bound; abandoning the remaining tasks"
+        );
+    }
+
+    // Drop every sender so the writer sees the channel close, drains the queue,
+    // commits the final batch, closes the session, and truncates the WAL.
+    drop(ingest_tx);
+
+    // Join the writer thread off the async runtime, bounded so a stuck writer
+    // cannot hang shutdown past the unit's stop timeout.
+    join_writer(writer_thread, writer_result_rx).await;
+
+    // tmpfs cleanup: a stale socket path confuses a producer probing for the
+    // socket on the next start. The query server unlinks its own socket on the
+    // way out; unlink it here too as a belt-and-suspenders guard.
+    let _ = std::fs::remove_file(&paths.ingest_socket);
+    let _ = std::fs::remove_file(&paths.query_socket);
+
+    tracing::info!("logging store stopped");
+    Ok(())
+}
+
+/// Wait for the writer thread to finish, bounded by [`WRITER_JOIN_TIMEOUT`]. The
+/// writer signals its result over a oneshot the moment `run` returns; the join
+/// of the OS thread itself is then immediate. If the writer overruns the bound
+/// (a wedged commit), the daemon logs and exits rather than hang.
+async fn join_writer(
+    handle: std::thread::JoinHandle<()>,
+    result_rx: oneshot::Receiver<Result<(), crate::writer::WriterError>>,
+) {
+    match tokio::time::timeout(WRITER_JOIN_TIMEOUT, result_rx).await {
+        Ok(Ok(Ok(()))) => {
+            let _ = handle.join();
+            tracing::info!("writer drained and committed the final batch");
+        }
+        Ok(Ok(Err(e))) => {
+            let _ = handle.join();
+            tracing::error!(error = %e, "writer ended with an error");
+        }
+        Ok(Err(_)) => {
+            // The writer dropped its result sender without sending (it panicked).
+            let _ = handle.join();
+            tracing::error!("writer thread ended without a result");
+        }
+        Err(_) => {
+            tracing::error!(
+                timeout_s = WRITER_JOIN_TIMEOUT.as_secs(),
+                "writer did not finish within the shutdown bound; exiting"
+            );
+        }
+    }
+}
+
+/// Resolve when the process receives `SIGTERM` or `SIGINT`. The production stop
+/// trigger.
+async fn shutdown_signal() {
+    #[cfg(unix)]
+    {
+        use tokio::signal::unix::{signal, SignalKind};
+        let mut sigterm = match signal(SignalKind::terminate()) {
+            Ok(s) => s,
+            Err(e) => {
+                tracing::error!(error = %e, "failed to install SIGTERM handler");
+                return;
+            }
+        };
+        let mut sigint = match signal(SignalKind::interrupt()) {
+            Ok(s) => s,
+            Err(e) => {
+                tracing::error!(error = %e, "failed to install SIGINT handler");
+                return;
+            }
+        };
+        tokio::select! {
+            _ = sigterm.recv() => tracing::info!("received SIGTERM"),
+            _ = sigint.recv() => tracing::info!("received SIGINT"),
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = tokio::signal::ctrl_c().await;
+        tracing::info!("received interrupt");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ados_protocol::logd::{IngestFrame, Level, LogFrame};
+    use tokio::io::AsyncWriteExt;
+    use tokio::net::UnixStream;
+
+    fn temp_paths(dir: &Path) -> DaemonPaths {
+        // Point the hardware collector at an empty subtree so the daemon test
+        // exercises its lifecycle wiring without reading the host's `/sys`.
+        let hw_root = dir.join("hwroot");
+        std::fs::create_dir_all(&hw_root).unwrap();
+        // Point the taps at the tempdir with no sockets or sidecars present, so
+        // the daemon test exercises their spawn + absent-seam backoff + shutdown
+        // wiring without touching the host's runtime directory.
+        DaemonPaths {
+            db: dir.join("logs.db"),
+            ingest_socket: dir.join("logd.sock"),
+            query_socket: dir.join("logd-query.sock"),
+            // Port 0 asks the OS for an ephemeral free port so the daemon test
+            // never collides with a real listener on the bench TCP port.
+            query_tcp_port: 0,
+            pairing_path: dir.join("pairing.json"),
+            hw_root,
+            taps: TapPaths {
+                state_socket: dir.join("state.sock"),
+                mavlink_socket: dir.join("mavlink.sock"),
+                sidecar_root: dir.to_path_buf(),
+            },
+        }
+    }
+
+    #[tokio::test]
+    async fn end_to_end_bring_up_ingest_and_clean_shutdown() {
+        let dir = tempfile::tempdir().unwrap();
+        let paths = temp_paths(dir.path());
+        let socket_path = paths.ingest_socket.clone();
+        let db_path = paths.db.clone();
+
+        // The stop trigger the daemon awaits; the test fires it after sending.
+        let (stop_tx, stop_rx) = oneshot::channel::<()>();
+        let daemon = tokio::spawn(run_with_paths(paths, async move {
+            let _ = stop_rx.await;
+        }));
+
+        // Wait for the ingest socket to appear, then connect and send a frame
+        // carrying a secret field.
+        for _ in 0..200 {
+            if socket_path.exists() {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        let mut client = UnixStream::connect(&socket_path).await.unwrap();
+        let mut log = LogFrame::new(now_us(), "test-producer", Level::Warn, "hello");
+        log.fields.insert(
+            "api_key".to_string(),
+            rmpv::Value::from("secret_value_12345"),
+        );
+        let wire = IngestFrame::Log(log).encode().unwrap();
+        client.write_all(&wire).await.unwrap();
+        client.flush().await.unwrap();
+        drop(client);
+
+        // Give the writer a moment to drain and commit the batch, then stop.
+        tokio::time::sleep(Duration::from_millis(250)).await;
+        let _ = stop_tx.send(());
+        daemon.await.unwrap().unwrap();
+
+        // The row landed, redacted, and the boot session closed on shutdown.
+        let ro = db::open_readonly(&db_path).unwrap();
+        let (count, redacted): (i64, i64) = ro
+            .query_row(
+                "SELECT count(*), coalesce(sum(redacted),0) FROM logs WHERE source='test-producer'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(count, 1);
+        assert_eq!(redacted, 1);
+
+        let fields_blob: Vec<u8> = ro
+            .query_row(
+                "SELECT fields FROM logs WHERE source='test-producer'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        let fields: ados_protocol::logd::Fields = rmp_serde::from_slice(&fields_blob).unwrap();
+        let api_key = fields.get("api_key").and_then(|v| v.as_str()).unwrap();
+        assert!(
+            api_key.starts_with("redacted:"),
+            "secret must never reach disk in the clear: {api_key}"
+        );
+
+        let (ended, reason): (Option<i64>, Option<String>) = ro
+            .query_row(
+                "SELECT ended_us, reason FROM sessions WHERE kind='boot'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert!(ended.is_some());
+        assert_eq!(reason.as_deref(), Some("shutdown"));
+        db::integrity_check(&ro).unwrap();
+
+        // The sockets were unlinked on shutdown.
+        assert!(!socket_path.exists(), "ingest socket should be unlinked");
+    }
+
+    #[test]
+    fn open_and_verify_quarantines_a_non_sqlite_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("logs.db");
+        // Write a file that is not a valid SQLite database. This is the
+        // realistic failure: a truncated or garbage header makes db::open()
+        // error on its first PRAGMA, before any query runs.
+        std::fs::write(&path, b"this is not a sqlite database, it is garbage bytes").unwrap();
+        // The broken store must self-heal in-process: no error bubbles up, the
+        // file is quarantined, and a fresh healthy store is recreated in place.
+        open_and_verify(&path).expect("a broken store must be recreated, not propagated as fatal");
+
+        let conn = db::open(&path).unwrap();
+        db::integrity_check(&conn).unwrap();
+
+        // A quarantine copy was left behind, and it still holds the garbage.
+        let quarantined: Vec<_> = std::fs::read_dir(dir.path())
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_name().to_string_lossy().contains("db.corrupt-"))
+            .collect();
+        assert_eq!(quarantined.len(), 1, "exactly one quarantine copy expected");
+        let saved = std::fs::read(quarantined[0].path()).unwrap();
+        assert_eq!(saved, b"this is not a sqlite database, it is garbage bytes");
+    }
+
+    #[test]
+    fn open_and_verify_creates_a_fresh_store_when_absent() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("logs.db");
+        // No file present: open_and_verify creates a healthy store and leaves no
+        // quarantine copy (there was nothing to move aside).
+        open_and_verify(&path).expect("an absent store should be created cleanly");
+        let conn = db::open(&path).unwrap();
+        db::integrity_check(&conn).unwrap();
+        let quarantined = std::fs::read_dir(dir.path())
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .any(|e| e.file_name().to_string_lossy().contains("db.corrupt-"));
+        assert!(
+            !quarantined,
+            "no quarantine copy when there was no prior file"
+        );
+    }
+}

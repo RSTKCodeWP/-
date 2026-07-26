@@ -1,0 +1,20 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-07-09/server.schema.json",
+  "name": "io.github.rmeadomavic/ardupilot-mavlink-mcp",
+  "description": "Live ArduPilot control over MAVLink: state, params, modes, prearm diagnosis, gated arm. SITL-first.",
+  "repository": {
+    "url": "https://github.com/rmeadomavic/ardupilot-mcp",
+    "source": "github"
+  },
+  "version": "0.1.1",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "ardupilot-mavlink-mcp",
+      "version": "0.1.1",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}

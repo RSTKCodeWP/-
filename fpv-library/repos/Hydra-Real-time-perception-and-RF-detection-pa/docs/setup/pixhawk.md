@@ -1,0 +1,202 @@
+---
+title: "Pixhawk 6C setup"
+description: "Configure a Holybro Pixhawk 6C flight controller for use with Hydra Detect, including ArduRover firmware, serial ports, and companion computer connection."
+sidebarTitle: "Pixhawk"
+icon: "satellite-dish"
+---
+
+## Overview
+
+This documents the Pixhawk 6C configuration for use as the flight controller in the Hydra detection system. The Pixhawk runs ArduRover (Boat frame) and communicates with the Jetson Orin Nano companion computer via MAVLink.
+
+## Hardware
+
+- **Flight Controller:** Holybro Pixhawk 6C
+- **GPS:** Holybro M9N on GPS1 port
+- **Telemetry:** RFD 900x radio pair on TELEM1
+- **Companion Computer:** NVIDIA Jetson Orin Nano (connected via USB-C or TELEM2 UART)
+
+## Firmware
+
+- **Firmware:** ArduRover (latest stable), flashed via Mission Planner
+- **Version at time of writing:** V4.6.3
+
+<Steps>
+
+<Step title="Flash firmware">
+
+1. Connect Pixhawk to PC via USB
+2. Open Mission Planner > Setup > Install Firmware > Rover
+3. Wait for flash and reboot to complete
+4. Connect at 115200 baud
+5. Config > Full Parameter List > Reset to Default > Reboot
+
+</Step>
+
+<Step title="Set frame configuration">
+
+Boat mode is not available through the Frame Type GUI page. Set directly in parameters:
+
+```
+FRAME_CLASS = 2    (Boat)
+```
+
+</Step>
+
+<Step title="Calibrate sensors">
+
+### Accelerometer
+
+- Setup > Mandatory Hardware > Accel Calibration
+- 6-position hold calibration (level, nose up, nose down, left, right, upside down)
+
+### Compass
+
+- Setup > Mandatory Hardware > Compass
+- M9N external compass (IST8310, Bus 1) set as Compass 1 / Primary
+- Internal compass (IST8310, Bus 0) disabled (noisy)
+- Perform onboard mag calibration. Rotate through all orientations.
+
+<Warning>
+Indoor calibration will produce poor offsets. Recalibrate outdoors before water testing.
+</Warning>
+
+</Step>
+
+<Step title="Configure serial ports">
+
+| Port   | Param Prefix | Use              | Protocol       | Baud          |
+|--------|-------------|------------------|----------------|---------------|
+| USB    | SERIAL0     | GCS (MP) or Jetson | 2 (MAVLink2) | 115 (115200)  |
+| TELEM1 | SERIAL1     | RFD 900x radio     | 2 (MAVLink2) | 57 (57600)    |
+| TELEM2 | SERIAL2     | Jetson (UART)    | 2 (MAVLink2)   | 921 (921600)  |
+| GPS1   | SERIAL3     | M9N GPS          | 5 (GPS)        | 38 (38400)    |
+
+**Parameters:**
+
+```
+SERIAL0_PROTOCOL = 2
+SERIAL0_BAUD = 115
+SERIAL1_PROTOCOL = 2
+SERIAL1_BAUD = 57
+SERIAL2_PROTOCOL = 2
+SERIAL2_BAUD = 921
+SERIAL3_PROTOCOL = 5
+SERIAL3_BAUD = 38
+GPS1_TYPE = 1    (Auto)
+```
+
+</Step>
+
+<Step title="Configure RFD 900x radios">
+
+Both radios must be configured identically. Use **Mission Planner** (Setup > Optional Hardware > SiK Radio — works for RFD 900x too) or **RFD Tools**. Configure one at a time over USB. MP cannot enter AT command mode while actively connected via MAVLink on the same port.
+
+| Setting          | Value   | Notes                                      |
+|------------------|---------|--------------------------------------------|
+| Baud             | 57600   | Serial baud between radio and Pixhawk/GCS  |
+| Air Speed        | 64      | Over-the-air data rate (kbps)              |
+| Net ID           | 8       | Must match on both radios                  |
+| ECC              | On      | Error correction                           |
+| Mavlink          | Mavlink | MAVLink framing                            |
+| Min Freq         | 915000  | US 900 MHz ISM band lower bound (kHz)      |
+| Max Freq         | 928000  | US 900 MHz ISM band upper bound (kHz)      |
+| Num Channels     | 20      | FHSS hopping channels                      |
+| Tx Power         | 30      | 30 dBm = 1W (RFD max)                     |
+| Encryption Level | 0       | Off for now (set to 1 for AES 128-bit)     |
+| Encryption Key   | sorcc   | Only used when Encryption Level = 1        |
+| LBT RSSI         | 0       | Listen Before Talk disabled (US)           |
+| Duty Cycle       | 100     | No duty cycle limit (US)                   |
+
+**Procedure (USB, one radio at a time):**
+
+1. Plug radio into USB (use the included FTDI cable or USB adapter)
+2. In MP: select COM port, set baud to 57600, do **NOT** click Connect
+3. Go to Setup > Optional Hardware > SiK Radio > Load Settings
+4. Set Net ID = 8, Tx Power = 30 (Encryption Level = 0 for now; set to 1 + key = sorcc later)
+5. Verify all other settings match the table above
+6. Save Settings
+7. Unplug, repeat for second radio
+
+<Warning>
+Both radios MUST have identical Net ID, Encryption Level, and Encryption Key or they will not link. If you change any of these on one radio, you must change it on the other before they can communicate again.
+</Warning>
+
+</Step>
+
+<Step title="Set flight modes">
+
+```
+MODE1 = 0     (Manual)
+MODE2 = 4     (Hold)
+MODE3 = 15    (Guided)
+MODE4 = 10    (Auto)
+MODE5 = 11    (Loiter)
+MODE6 = 0     (Manual)
+```
+
+Hydra uses **Guided** mode for Strike/navigation commands and **Hold** for the LOITER/HOLD function.
+
+</Step>
+
+<Step title="Configure arming checks">
+
+<Warning>
+The following disables all arming checks. Use this for **bench testing ONLY**. Re-enable arming checks (`ARMING_CHECK = 1`) before any water testing.
+</Warning>
+
+```
+ARMING_CHECK = 0    (disabled, bench testing ONLY)
+```
+
+</Step>
+
+<Step title="Connect companion computer">
+
+<Tabs>
+
+<Tab title="USB-C (bench testing)">
+
+Connect Pixhawk to Jetson via USB-C cable. Device appears as `/dev/ttyACM0`.
+
+```ini
+# config.ini
+[mavlink]
+connection_string = /dev/ttyACM0
+baud = 115200
+```
+
+Baud is ignored on USB virtual serial but pymavlink requires a value.
+
+<Warning>
+Do **NOT** power the Pixhawk from both USB and battery simultaneously to avoid backfeed. For bench testing: power Pixhawk solely through the Jetson USB-C connection (no battery). Servo/motor outputs will not function on USB power alone.
+</Warning>
+
+</Tab>
+
+<Tab title="TELEM2 UART (field deployment)">
+
+Wire Jetson UART TX/RX to Pixhawk TELEM2 port (TX to RX, RX to TX, common GND).
+
+```ini
+# config.ini
+[mavlink]
+connection_string = /dev/ttyTHS1
+baud = 921600
+```
+
+<Note>
+If USB and battery must be used simultaneously (e.g., during hull integration), use a USB isolator dongle to block VBUS while passing data.
+</Note>
+
+</Tab>
+
+</Tabs>
+
+</Step>
+
+</Steps>
+
+## Mission Planner (GCS)
+
+With the RFD 900x radios configured, Mission Planner connects wirelessly via the ground-side RFD module at 57600 baud. The RFD 900x provides significantly better range and AES encryption compared to SiK radios, while remaining protocol-compatible. This allows simultaneous GCS monitoring while the Jetson communicates over USB or TELEM2.

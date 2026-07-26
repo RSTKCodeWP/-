@@ -1,0 +1,6 @@
+{
+  "running": "läuft (PID: {{pid}})",
+  "started": "gestartet",
+  "stopped": "gestoppt",
+  "hint": "Aktivierte Dienste werden während des Bootvorgangs des Geräts gestartet."
+}

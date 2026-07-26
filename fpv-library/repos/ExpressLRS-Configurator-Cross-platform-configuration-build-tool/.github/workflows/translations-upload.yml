@@ -1,0 +1,33 @@
+name: Upload translation keys
+
+concurrency: upload-crowdin
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+    paths:
+      - 'src/i18n/locales/en/**'
+
+jobs:
+  upload-message-keys-to-crowdin:
+    name: Messages file to Crowdin
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Upload messages file
+        uses: crowdin/github-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CROWDIN_PROJECT_ID: ${{ secrets.CROWDIN_PROJECT_ID }}
+          CROWDIN_PERSONAL_TOKEN: ${{ secrets.CROWDIN_PERSONAL_TOKEN }}
+        with:
+          crowdin_branch_name: ${{ github.ref_name }}
+
+          upload_sources: true
+          upload_translations: false
+
+          download_translations: false
