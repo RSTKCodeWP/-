@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FPV Rate Profile Comparison Tool</title>
+    <link rel="stylesheet" href="../assets/site-header.css">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <fpv-header root="../" icon="📈" heading="FPV Rate Profile Comparison Tool" subtitle="Compare and analyze Betaflight rate profiles side-by-side"></fpv-header>
+    <script type="module" src="../assets/site-header.js"></script>
+
+    <div class="container">
+        <!-- Main Comparison Area -->
+        <div class="comparison-section">
+            <!-- Graph Controls -->
+            <div class="graph-controls">
+                <div class="control-group">
+                    <h3>Visibility Controls</h3>
+                    <div class="toggle-group">
+                        <label>
+                            <input type="checkbox" id="toggle-profile-a" checked>
+                            Profile A (Solid)
+                        </label>
+                        <label>
+                            <input type="checkbox" id="toggle-profile-b" checked>
+                            Profile B (Dashed)
+                        </label>
+                    </div>
+                    <div class="toggle-group">
+                        <label>
+                            <input type="checkbox" id="toggle-roll" checked>
+                            <span class="color-indicator roll"></span> Roll
+                        </label>
+                        <label>
+                            <input type="checkbox" id="toggle-pitch" checked>
+                            <span class="color-indicator pitch"></span> Pitch
+                        </label>
+                        <label>
+                            <input type="checkbox" id="toggle-yaw" checked>
+                            <span class="color-indicator yaw"></span> Yaw
+                        </label>
+                    </div>
+                </div>
+                <div class="control-group view-mode-control" id="view-mode-control" style="display: none;">
+                    <h3>Display Mode</h3>
+                    <div class="toggle-group">
+                        <label>
+                            <input type="radio" name="view-mode" id="view-mode-overlay" value="overlay" checked>
+                            Overlay (Combined)
+                        </label>
+                        <label>
+                            <input type="radio" name="view-mode" id="view-mode-sidebyside" value="sidebyside">
+                            Side-by-Side
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Graphs - Overlay Mode -->
+            <div class="graphs-container" id="graphs-overlay">
+                <div class="graph-panel" data-collapse-key="overlay-rate">
+                    <h2 class="graph-panel-heading">
+                        <button type="button" class="graph-panel-header" aria-expanded="true">
+                            <span>Rate Curves</span>
+                            <span class="graph-panel-chevron" aria-hidden="true">▾</span>
+                        </button>
+                    </h2>
+                    <div class="graph-panel-body">
+                        <canvas id="rate-canvas" width="900" height="500"></canvas>
+                        <div class="graph-legend">
+                            <span class="legend-item"><span class="line-solid roll"></span> Roll</span>
+                            <span class="legend-item"><span class="line-solid pitch"></span> Pitch</span>
+                            <span class="legend-item"><span class="line-solid yaw"></span> Yaw</span>
+                            <span class="separator">|</span>
+                            <span class="legend-item"><span class="line-solid"></span> Profile A</span>
+                            <span class="legend-item"><span class="line-dashed"></span> Profile B</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="graph-panel" data-collapse-key="overlay-throttle">
+                    <h2 class="graph-panel-heading">
+                        <button type="button" class="graph-panel-header" aria-expanded="true">
+                            <span>Throttle Curves</span>
+                            <span class="graph-panel-chevron" aria-hidden="true">▾</span>
+                        </button>
+                    </h2>
+                    <div class="graph-panel-body">
+                        <canvas id="throttle-canvas" width="900" height="500"></canvas>
+                        <div class="graph-legend">
+                            <span class="legend-item"><span class="line-solid throttle"></span> Profile A</span>
+                            <span class="legend-item"><span class="line-dashed throttle"></span> Profile B</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Graphs - Side-by-Side Mode -->
+            <div class="graphs-container-sidebyside" id="graphs-sidebyside" style="display: none;">
+                <div class="profile-graphs">
+                    <h2>Profile A</h2>
+                    <div class="graph-panel" data-collapse-key="sbs-rate-a">
+                        <h3 class="graph-panel-heading">
+                            <button type="button" class="graph-panel-header" aria-expanded="true">
+                                <span>Rate Curves</span>
+                                <span class="graph-panel-chevron" aria-hidden="true">▾</span>
+                            </button>
+                        </h3>
+                        <div class="graph-panel-body">
+                            <canvas id="rate-canvas-a" width="700" height="400"></canvas>
+                            <div class="graph-legend">
+                                <span class="legend-item"><span class="line-solid roll"></span> Roll</span>
+                                <span class="legend-item"><span class="line-solid pitch"></span> Pitch</span>
+                                <span class="legend-item"><span class="line-solid yaw"></span> Yaw</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="graph-panel" data-collapse-key="sbs-throttle-a">
+                        <h3 class="graph-panel-heading">
+                            <button type="button" class="graph-panel-header" aria-expanded="true">
+                                <span>Throttle Curve</span>
+                                <span class="graph-panel-chevron" aria-hidden="true">▾</span>
+                            </button>
+                        </h3>
+                        <div class="graph-panel-body">
+                            <canvas id="throttle-canvas-a" width="700" height="400"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="profile-graphs">
+                    <h2>Profile B</h2>
+                    <div class="graph-panel" data-collapse-key="sbs-rate-b">
+                        <h3 class="graph-panel-heading">
+                            <button type="button" class="graph-panel-header" aria-expanded="true">
+                                <span>Rate Curves</span>
+                                <span class="graph-panel-chevron" aria-hidden="true">▾</span>
+                            </button>
+                        </h3>
+                        <div class="graph-panel-body">
+                            <canvas id="rate-canvas-b" width="700" height="400"></canvas>
+                            <div class="graph-legend">
+                                <span class="legend-item"><span class="line-solid roll"></span> Roll</span>
+                                <span class="legend-item"><span class="line-solid pitch"></span> Pitch</span>
+                                <span class="legend-item"><span class="line-solid yaw"></span> Yaw</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="graph-panel" data-collapse-key="sbs-throttle-b">
+                        <h3 class="graph-panel-heading">
+                            <button type="button" class="graph-panel-header" aria-expanded="true">
+                                <span>Throttle Curve</span>
+                                <span class="graph-panel-chevron" aria-hidden="true">▾</span>
+                            </button>
+                        </h3>
+                        <div class="graph-panel-body">
+                            <canvas id="throttle-canvas-b" width="700" height="400"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Profile Editors -->
+        <div class="editors-section">
+            <!-- Profile A Editor -->
+            <div class="profile-editor" data-profile="a">
+                <div class="editor-header">
+                    <h2>Profile A</h2>
+                    <div class="profile-actions">
+                        <input type="text" id="profile-a-name" placeholder="Profile Name" class="profile-name-input">
+                        <button id="save-profile-a" class="btn btn-primary">Save Profile</button>
+                    </div>
+                </div>
+
+                <div class="controls-grid">
+                    <!-- Roll -->
+                    <div class="control-section">
+                        <h3 class="roll-heading">Roll</h3>
+                        <div class="control-item">
+                            <label for="a-roll-center">Center Sensitivity (0-255):</label>
+                            <input type="range" id="a-roll-center" min="0" max="255" value="70" step="1">
+                            <span id="a-roll-center-value" class="value-display">70</span>
+                        </div>
+                        <div class="control-item">
+                            <label for="a-roll-max">Max Rate (deg/s):</label>
+                            <input type="range" id="a-roll-max" min="200" max="2000" value="670" step="10">
+                            <span id="a-roll-max-value" class="value-display">670</span>
+                        </div>
+                        <div class="control-item">
+                            <label for="a-roll-expo">Expo (0-100):</label>
+                            <input type="range" id="a-roll-expo" min="0" max="100" value="0" step="1">
+                            <span id="a-roll-expo-value" class="value-display">0</span>
+                        </div>
+                    </div>
+
+                    <!-- Pitch -->
+                    <div class="control-section">
+                        <h3 class="pitch-heading">Pitch</h3>
+                        <div class="control-item">
+                            <label for="a-pitch-center">Center Sensitivity (0-255):</label>
+                            <input type="range" id="a-pitch-center" min="0" max="255" value="70" step="1">
+                            <span id="a-pitch-center-value" class="value-display">70</span>
+                        </div>
+                        <div class="control-item">
+                            <label for="a-pitch-max">Max Rate (deg/s):</label>
+                            <input type="range" id="a-pitch-max" min="200" max="2000" value="670" step="10">
+                            <span id="a-pitch-max-value" class="value-display">670</span>
+                        </div>
+                        <div class="control-item">
+                            <label for="a-pitch-expo">Expo (0-100):</label>
+                            <input type="range" id="a-pitch-expo" min="0" max="100" value="0" step="1">
+                            <span id="a-pitch-expo-value" class="value-display">0</span>
+                        </div>
+                    </div>
+
+                    <!-- Yaw -->
+                    <div class="control-section">
+                        <h3 class="yaw-heading">Yaw</h3>
+                        <div class="control-item">
+                            <label for="a-yaw-center">Center Sensitivity (0-255):</label>
+                            <input type="range" id="a-yaw-center" min="0" max="255" value="70" step="1">
+                            <span id="a-yaw-center-value" class="value-display">70</span>
+                        </div>
+                        <div class="control-item">
+                            <label for="a-yaw-max">Max Rate (deg/s):</label>
+                            <input type="range" id="a-yaw-max" min="200" max="2000" value="670" step="10">
+                            <span id="a-yaw-max-value" class="value-display">670</span>
+                        </div>
+                        <div class="control-item">
+                            <label for="a-yaw-expo">Expo (0-100):</label>
+                            <input type="range" id="a-yaw-expo" min="0" max="100" value="0" step="1">
+                            <span id="a-yaw-expo-value" class="value-display">0</span>
+                        </div>
+                    </div>
+
+                    <!-- Throttle -->
+                    <div class="control-section">
+                        <h3>Throttle</h3>
+                        <div class="control-item">
+                            <label for="a-throttle-mid">Mid Point (0-100):</label>
+                            <input type="range" id="a-throttle-mid" min="0" max="100" value="50" step="1">
+                            <span id="a-throttle-mid-value" class="value-display">50</span>
+                        </div>
+                        <div class="control-item">
+                            <label for="a-throttle-expo">Expo (0-100):</label>
+                            <input type="range" id="a-throttle-expo" min="0" max="100" value="0" step="1">
+                            <span id="a-throttle-expo-value" class="value-display">0</span>
+                        </div>
+                        <div class="control-item">
+                            <label for="a-throttle-limit-type">Limit Type:</label>
+                            <select id="a-throttle-limit-type" class="select-input">
+                                <option value="OFF">Off</option>
+                                <option value="SCALE">Scale</option>
+                                <option value="CLIP">Clip</option>
+                            </select>
+                        </div>
+                        <div class="control-item">
+                            <label for="a-throttle-limit-percent">Limit Percent (25-100):</label>
+                            <input type="range" id="a-throttle-limit-percent" min="25" max="100" value="100" step="1">
+                            <span id="a-throttle-limit-percent-value" class="value-display">100</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CLI Import/Export -->
+                <div class="cli-section">
+                    <div class="cli-import">
+                        <h3>Import from CLI</h3>
+                        <textarea id="import-a" placeholder="Paste Betaflight CLI dump here..." rows="4"></textarea>
+                        <button id="import-btn-a" class="btn btn-secondary">Import</button>
+                        <span id="import-status-a" class="status-message"></span>
+                    </div>
+                    <div class="cli-export">
+                        <h3>Export to CLI</h3>
+                        <textarea id="export-a" readonly rows="4"></textarea>
+                        <button id="copy-btn-a" class="btn btn-secondary">Copy</button>
+                        <span id="export-status-a" class="status-message"></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Profile B Editor -->
+            <div class="profile-editor" data-profile="b">
+                <div class="editor-header">
+                    <h2>Profile B</h2>
+                    <div class="profile-actions">
+                        <input type="text" id="profile-b-name" placeholder="Profile Name" class="profile-name-input">
+                        <button id="save-profile-b" class="btn btn-primary">Save Profile</button>
+                    </div>
+                </div>
+
+                <div class="controls-grid">
+                    <!-- Roll -->
+                    <div class="control-section">
+                        <h3 class="roll-heading">Roll</h3>
+                        <div class="control-item">
+                            <label for="b-roll-center">Center Sensitivity (0-255):</label>
+                            <input type="range" id="b-roll-center" min="0" max="255" value="70" step="1">
+                            <span id="b-roll-center-value" class="value-display">70</span>
+                        </div>
+                        <div class="control-item">
+                            <label for="b-roll-max">Max Rate (deg/s):</label>
+                            <input type="range" id="b-roll-max" min="200" max="2000" value="670" step="10">
+                            <span id="b-roll-max-value" class="value-display">670</span>
+                        </div>
+                        <div class="control-item">
+                            <label for="b-roll-expo">Expo (0-100):</label>
+                            <input type="range" id="b-roll-expo" min="0" max="100" value="0" step="1">
+                            <span id="b-roll-expo-value" class="value-display">0</span>
+                        </div>
+                    </div>
+
+                    <!-- Pitch -->
+                    <div class="control-section">
+                        <h3 class="pitch-heading">Pitch</h3>
+                        <div class="control-item">
+                            <label for="b-pitch-center">Center Sensitivity (0-255):</label>
+                            <input type="range" id="b-pitch-center" min="0" max="255" value="70" step="1">
+                            <span id="b-pitch-center-value" class="value-display">70</span>
+                        </div>
+                        <div class="control-item">
+                            <label for="b-pitch-max">Max Rate (deg/s):</label>
+                            <input type="range" id="b-pitch-max" min="200" max="2000" value="670" step="10">
+                            <span id="b-pitch-max-value" class="value-display">670</span>
+                        </div>
+                        <div class="control-item">
+                            <label for="b-pitch-expo">Expo (0-100):</label>
+                            <input type="range" id="b-pitch-expo" min="0" max="100" value="0" step="1">
+                            <span id="b-pitch-expo-value" class="value-display">0</span>
+                        </div>
+                    </div>
+
+                    <!-- Yaw -->
+                    <div class="control-section">
+                        <h3 class="yaw-heading">Yaw</h3>
+                        <div class="control-item">
+                            <label for="b-yaw-center">Center Sensitivity (0-255):</label>
+                            <input type="range" id="b-yaw-center" min="0" max="255" value="70" step="1">
+                            <span id="b-yaw-center-value" class="value-display">70</span>
+                        </div>
+                        <div class="control-item">
+                            <label for="b-yaw-max">Max Rate (deg/s):</label>
+                            <input type="range" id="b-yaw-max" min="200" max="2000" value="670" step="10">
+                            <span id="b-yaw-max-value" class="value-display">670</span>
+                        </div>
+                        <div class="control-item">
+                            <label for="b-yaw-expo">Expo (0-100):</label>
+                            <input type="range" id="b-yaw-expo" min="0" max="100" value="0" step="1">
+                            <span id="b-yaw-expo-value" class="value-display">0</span>
+                        </div>
+                    </div>
+
+                    <!-- Throttle -->
+                    <div class="control-section">
+                        <h3>Throttle</h3>
+                        <div class="control-item">
+                            <label for="b-throttle-mid">Mid Point (0-100):</label>
+                            <input type="range" id="b-throttle-mid" min="0" max="100" value="50" step="1">
+                            <span id="b-throttle-mid-value" class="value-display">50</span>
+                        </div>
+                        <div class="control-item">
+                            <label for="b-throttle-expo">Expo (0-100):</label>
+                            <input type="range" id="b-throttle-expo" min="0" max="100" value="0" step="1">
+                            <span id="b-throttle-expo-value" class="value-display">0</span>
+                        </div>
+                        <div class="control-item">
+                            <label for="b-throttle-limit-type">Limit Type:</label>
+                            <select id="b-throttle-limit-type" class="select-input">
+                                <option value="OFF">Off</option>
+                                <option value="SCALE">Scale</option>
+                                <option value="CLIP">Clip</option>
+                            </select>
+                        </div>
+                        <div class="control-item">
+                            <label for="b-throttle-limit-percent">Limit Percent (25-100):</label>
+                            <input type="range" id="b-throttle-limit-percent" min="25" max="100" value="100" step="1">
+                            <span id="b-throttle-limit-percent-value" class="value-display">100</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CLI Import/Export -->
+                <div class="cli-section">
+                    <div class="cli-import">
+                        <h3>Import from CLI</h3>
+                        <textarea id="import-b" placeholder="Paste Betaflight CLI dump here..." rows="4"></textarea>
+                        <button id="import-btn-b" class="btn btn-secondary">Import</button>
+                        <span id="import-status-b" class="status-message"></span>
+                    </div>
+                    <div class="cli-export">
+                        <h3>Export to CLI</h3>
+                        <textarea id="export-b" readonly rows="4"></textarea>
+                        <button id="copy-btn-b" class="btn btn-secondary">Copy</button>
+                        <span id="export-status-b" class="status-message"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- History Section -->
+        <div class="history-section">
+            <div class="history-header">
+                <h2>Profile History</h2>
+                <div class="history-actions">
+                    <button id="export-history-btn" class="btn btn-secondary">Export History</button>
+                    <button id="import-history-btn" class="btn btn-secondary">Import History</button>
+                    <button id="clear-history-btn" class="btn btn-danger">Clear All</button>
+                </div>
+            </div>
+            <div class="history-timeline">
+                <div id="history-list" class="history-list">
+                    <!-- History items will be dynamically added here -->
+                </div>
+            </div>
+            <input type="file" id="history-file-input" accept=".json" style="display: none;">
+        </div>
+    </div>
+
+    <script type="module" src="src/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <!-- Background -->
+  <rect width="512" height="512" rx="64" fill="#1a1a2e"/>
+
+  <!-- Drone arms (X shape) -->
+  <line x1="148" y1="148" x2="364" y2="364" stroke="#e94560" stroke-width="14" stroke-linecap="round"/>
+  <line x1="364" y1="148" x2="148" y2="364" stroke="#e94560" stroke-width="14" stroke-linecap="round"/>
+
+  <!-- Center body -->
+  <circle cx="256" cy="256" r="36" fill="#e94560"/>
+  <circle cx="256" cy="256" r="20" fill="#1a1a2e"/>
+
+  <!-- Propeller circles (top-left) -->
+  <circle cx="148" cy="148" r="58" fill="none" stroke="#e94560" stroke-width="7" opacity="0.9"/>
+  <circle cx="148" cy="148" r="12" fill="#e94560"/>
+
+  <!-- Propeller circles (top-right) -->
+  <circle cx="364" cy="148" r="58" fill="none" stroke="#e94560" stroke-width="7" opacity="0.9"/>
+  <circle cx="364" cy="148" r="12" fill="#e94560"/>
+
+  <!-- Propeller circles (bottom-left) -->
+  <circle cx="148" cy="364" r="58" fill="none" stroke="#e94560" stroke-width="7" opacity="0.9"/>
+  <circle cx="148" cy="364" r="12" fill="#e94560"/>
+
+  <!-- Propeller circles (bottom-right) -->
+  <circle cx="364" cy="364" r="58" fill="none" stroke="#e94560" stroke-width="7" opacity="0.9"/>
+  <circle cx="364" cy="364" r="12" fill="#e94560"/>
+
+  <!-- Propeller blade arcs (stylized spin indicators) -->
+  <path d="M 110 116 A 58 58 0 0 1 180 116" fill="#e94560" opacity="0.4"/>
+  <path d="M 116 186 A 58 58 0 0 1 116 116" fill="#e94560" opacity="0.4"/>
+
+  <path d="M 326 116 A 58 58 0 0 1 396 116" fill="#e94560" opacity="0.4"/>
+  <path d="M 396 186 A 58 58 0 0 1 396 116" fill="#e94560" opacity="0.4"/>
+
+  <path d="M 110 332 A 58 58 0 0 1 180 332" fill="#e94560" opacity="0.4"/>
+  <path d="M 116 402 A 58 58 0 0 1 116 332" fill="#e94560" opacity="0.4"/>
+
+  <path d="M 326 332 A 58 58 0 0 1 396 332" fill="#e94560" opacity="0.4"/>
+  <path d="M 396 402 A 58 58 0 0 1 396 332" fill="#e94560" opacity="0.4"/>
+</svg>

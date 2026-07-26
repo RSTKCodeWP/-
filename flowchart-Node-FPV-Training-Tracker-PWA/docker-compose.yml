@@ -1,0 +1,13 @@
+version: "3.7"
+services:
+  flowchart:
+    build: .
+    container_name: flowchart
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    volumes:
+      - ${APP_DATA_DIR:-./data}:/app/data
+    environment:
+      - NODE_ENV=production
+      - DB_PATH=/app/data/flowchart.db

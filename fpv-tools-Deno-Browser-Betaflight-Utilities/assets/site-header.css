@@ -1,0 +1,41 @@
+/* Shared header used by <fpv-header> across the hub and every tool page.
+   Falls back to the site's standard dark palette when a page doesn't
+   define its own --surface/--border/--orange/--muted variables. */
+fpv-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: var(--surface, #161b22);
+  border-bottom: 1px solid var(--border, #30363d);
+  padding: .75rem 1.5rem;
+}
+
+fpv-header h1 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--orange, #e07b39);
+  letter-spacing: .02em;
+}
+
+fpv-header p {
+  font-size: .8rem;
+  color: var(--muted, #6e7681);
+  margin-top: .15rem;
+}
+
+fpv-header .back-link {
+  font-size: .8rem;
+  color: var(--muted, #6e7681);
+  text-decoration: none;
+  border: 1px solid var(--border, #30363d);
+  border-radius: 6px;
+  padding: .3rem .6rem;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: border-color .15s, color .15s;
+}
+
+fpv-header .back-link:hover {
+  border-color: var(--orange, #e07b39);
+  color: var(--orange, #e07b39);
+}

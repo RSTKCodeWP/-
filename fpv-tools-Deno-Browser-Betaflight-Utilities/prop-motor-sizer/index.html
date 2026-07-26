@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FPV Prop / Motor Sizer</title>
+    <link rel="stylesheet" href="../assets/site-header.css">
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <fpv-header root="../" icon="🔩" heading="Prop / Motor Sizer"
+      subtitle="Characterize a powertrain, or find the right ranges for the parts you haven't picked"></fpv-header>
+    <script type="module" src="../assets/site-header.js"></script>
+
+    <div class="container">
+      <div class="sizer-layout">
+        <!-- Inputs -->
+        <section class="panel inputs-panel">
+          <h2>Build</h2>
+          <p
+            class="hint">Fill in what you know. Anything left blank gets a suggested range based on the rest.</p>
+
+          <div class="field-row">
+            <label class="field">
+              <span>Preset</span>
+              <select id="preset">
+                <option value="">— custom —</option>
+                <option value="whoop">Tiny Whoop (1S)</option>
+                <option value="3in4s">3″ 4S Freestyle</option>
+                <option value="5in6s">5″ 6S Freestyle</option>
+                <option value="5in4s-race">5″ 4S Race</option>
+                <option value="7in6s-lr">7″ 6S Long Range</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Flying style</span>
+              <select id="style">
+                <option value="cinematic">Cinematic</option>
+                <option value="longrange">Long range</option>
+                <option value="freestyle" selected>Freestyle</option>
+                <option value="racing">Racing</option>
+              </select>
+            </label>
+          </div>
+
+          <h3>Prop</h3>
+          <div class="field-row">
+            <label class="field">
+              <span>Diameter <em>in</em></span>
+              <input type="number" id="diameter" min="0.5" max="15" step="0.1" placeholder="auto">
+            </label>
+            <label class="field">
+              <span>Pitch <em>in</em></span>
+              <input type="number" id="pitch" min="0.5" max="12" step="0.1" placeholder="auto">
+            </label>
+            <label class="field">
+              <span>Blades</span>
+              <select id="blades">
+                <option value="2">2</option>
+                <option value="3" selected>3</option>
+                <option value="4">4</option>
+                <option value="5">5</option>
+                <option value="6">6</option>
+              </select>
+            </label>
+          </div>
+
+          <h3>Motor</h3>
+          <div class="field-row">
+            <label class="field">
+              <span>Stator size</span>
+              <input type="text" id="motor-size" inputmode="numeric" placeholder="auto (e.g. 2207)">
+            </label>
+            <label class="field">
+              <span>KV</span>
+              <input type="number" id="kv" min="100" max="40000" step="50" placeholder="auto">
+            </label>
+          </div>
+
+          <h3>Power &amp; weight</h3>
+          <div class="field-row">
+            <label class="field">
+              <span>Battery</span>
+              <select id="cells">
+                <option value="">auto</option>
+                <option value="1">1S</option>
+                <option value="2">2S</option>
+                <option value="3">3S</option>
+                <option value="4">4S</option>
+                <option value="5">5S</option>
+                <option value="6">6S</option>
+                <option value="7">7S</option>
+                <option value="8">8S</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>AUW <em>g</em></span>
+              <input type="number" id="auw" min="10" max="10000" step="5" placeholder="auto">
+            </label>
+            <label class="field">
+              <span>Motors</span>
+              <select id="motor-count">
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="3">3</option>
+                <option value="4" selected>4</option>
+                <option value="6">6</option>
+                <option value="8">8</option>
+              </select>
+            </label>
+          </div>
+
+          <details class="advanced">
+            <summary>Advanced</summary>
+            <div class="field-row">
+              <label class="field">
+                <span>Chemistry</span>
+                <select id="chemistry">
+                  <option value="lipo" selected>LiPo</option>
+                  <option value="lihv">LiHV</option>
+                  <option value="liion">Li-Ion</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>Voltage basis</span>
+                <select id="volt-basis">
+                  <option value="full" selected>Full charge</option>
+                  <option value="nominal">Nominal</option>
+                  <option value="load">Under load</option>
+                </select>
+              </label>
+            </div>
+            <div class="field-row">
+              <label class="field">
+                <span>Motor load factor <em><output id="load-factor-out">75%</output> of KV×V</em></span>
+                <input type="range" id="load-factor" min="60" max="90" step="1" value="75">
+              </label>
+            </div>
+            <div class="field-row">
+              <label class="field">
+                <span>Altitude <em>m</em></span>
+                <input type="number" id="altitude" min="0" max="5000" step="50"
+                  placeholder="sea level">
+              </label>
+              <label class="field">
+                <span>Capacity <em>mAh</em></span>
+                <input type="number" id="capacity" min="50" max="30000" step="50" placeholder="—">
+              </label>
+            </div>
+            <div class="field-row">
+              <label class="field">
+                <span>Measured max thrust <em>g/motor</em></span>
+                <input type="number" id="measured-thrust" min="1" max="20000" step="10"
+                  placeholder="calibrate from a thrust stand">
+              </label>
+            </div>
+          </details>
+
+          <div class="actions">
+            <button type="button" id="reset" class="btn-secondary">Clear all</button>
+          </div>
+        </section>
+
+        <!-- Results -->
+        <section class="panel results-panel">
+          <div id="empty-state" class="empty-state">
+                    Enter a prop size, motor, battery, or weight to get started — or pick a preset.
+                </div>
+
+          <div id="verdicts-section" hidden>
+            <h2>Flight character</h2>
+            <ul id="verdicts" class="verdicts"></ul>
+          </div>
+
+          <div id="metrics-section" hidden>
+            <h2>Estimated numbers</h2>
+            <div id="metrics" class="metrics-grid"></div>
+          </div>
+
+          <div id="recs-section" hidden>
+            <h2>Suggested ranges for what's unset</h2>
+            <ul id="recommendations" class="recs"></ul>
+          </div>
+
+          <p class="disclaimer">
+            Estimates use simplified physics (static-thrust and momentum-theory models). By
+            default they're computed at full-charge voltage assuming props load motors to
+            ~75% of their unloaded RPM ceiling — both adjustable under Advanced, along with
+            altitude, battery chemistry, and a thrust-stand calibration point. Expect ±20–30%
+            versus a bench unless calibrated — use these numbers to compare options and catch
+            mismatches, not to size fuses.
+          </p>
+        </section>
+      </div>
+    </div>
+
+    <script type="module" src="src/app.js"></script>
+  </body>
+</html>

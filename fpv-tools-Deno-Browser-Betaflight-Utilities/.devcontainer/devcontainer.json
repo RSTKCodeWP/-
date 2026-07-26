@@ -1,0 +1,45 @@
+{
+  "name": "Val.town Development with Claude Code",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:1-20-bullseye",
+
+  "features": {
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "20"
+    }
+  },
+
+  "postCreateCommand": "bash .devcontainer/setup.sh",
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "denoland.vscode-deno",
+        "dbaeumer.vscode-eslint"
+      ],
+      "settings": {
+        "deno.enable": true,
+        "deno.lint": true,
+        "deno.unstable": false,
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "denoland.vscode-deno",
+        "[typescript]": {
+          "editor.defaultFormatter": "denoland.vscode-deno"
+        },
+        "[javascript]": {
+          "editor.defaultFormatter": "denoland.vscode-deno"
+        }
+      }
+    }
+  },
+
+  "mounts": [
+    "source=${localEnv:HOME}/.val,target=/home/node/.val,type=bind,consistency=cached"
+  ],
+
+  "remoteUser": "node",
+
+  "forwardPorts": [8000, 8080, 3000],
+
+  "postAttachCommand": "deno --version && val --version && gh --version"
+}

@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#1a1a2e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>flowchart</title>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" href="/icons/icon-192.svg">
+  <link rel="apple-touch-icon" href="/icons/icon-192.svg">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <main id="app">
+    <!-- TODAY TAB -->
+    <section id="page-today" class="page active">
+      <header class="page-header">
+        <h1>flowchart</h1>
+        <div style="display:flex;align-items:center;gap:6px">
+          <span id="today-week" class="badge">Week 1</span>
+          <span id="app-version" style="font-size:0.7rem;color:var(--fg2)"></span>
+        </div>
+      </header>
+      <div id="today-phase" class="phase-banner">Phase 1: Indoor Acro</div>
+      <div id="today-countdown" class="countdown"></div>
+      <div id="today-streak" class="stat-card"></div>
+      <div id="today-schedule" class="card"></div>
+      <button id="btn-new-session" class="btn-primary btn-large">+ Log Session</button>
+      <h3>Next Gates to Clear</h3>
+      <div id="today-gates"></div>
+    </section>
+
+    <!-- SESSIONS TAB -->
+    <section id="page-sessions" class="page">
+      <header class="page-header">
+        <h1>Sessions</h1>
+        <button id="btn-new-session-2" class="btn-small">+ New</button>
+      </header>
+      <div id="session-list"></div>
+    </section>
+
+    <!-- PROGRESS TAB -->
+    <section id="page-progress" class="page">
+      <header class="page-header"><h1>Progress</h1></header>
+      <div id="stats-cards" class="stat-grid"></div>
+      <h3>Trick Mastery</h3>
+      <div id="mastery-table"></div>
+      <h3>Crash Patterns</h3>
+      <div id="crash-patterns"></div>
+    </section>
+
+    <!-- TRICKS TAB -->
+    <section id="page-tricks" class="page">
+      <header class="page-header">
+        <h1>Tricks</h1>
+        <div class="tab-switch">
+          <button class="sub-tab active" data-subtab="tricks-list">Tricks</button>
+          <button class="sub-tab" data-subtab="drills-list">Drills</button>
+          <button class="sub-tab" data-subtab="resources-list">Links</button>
+        </div>
+      </header>
+      <div id="tricks-list" class="subtab-content active"></div>
+      <div id="drills-list" class="subtab-content"></div>
+      <div id="resources-list" class="subtab-content"></div>
+    </section>
+
+    <!-- GOALS TAB -->
+    <section id="page-denver" class="page">
+      <header class="page-header"><h1 id="goals-page-title">Goals</h1></header>
+      <div id="denver-countdown" class="countdown"></div>
+      <div id="week-timeline"></div>
+      <h3>Phase Gates</h3>
+      <div id="phase-gates"></div>
+      <h3>Denver Prep</h3>
+      <div id="denver-checklist"></div>
+      <h3>Data</h3>
+      <div class="card" style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn-secondary" onclick="exportData()">Export JSON</button>
+        <label class="btn-secondary" style="cursor:pointer">Import JSON
+          <input type="file" accept=".json" hidden onchange="importData(event)">
+        </label>
+      </div>
+    </section>
+  </main>
+
+  <!-- Session Form Modal (outside pages so it works from any tab) -->
+  <div id="session-form" class="modal" hidden>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="session-form-title">New Session</h2>
+        <div style="display:flex;align-items:center;gap:8px">
+          <button id="btn-delete-session" class="btn-danger btn-small" onclick="deleteSession()" hidden>Delete</button>
+          <button class="btn-close" onclick="closeSessionForm()">&times;</button>
+        </div>
+      </div>
+      <div class="form-tabs">
+        <button class="form-tab active" data-tab="tab-header">Info</button>
+        <button class="form-tab" data-tab="tab-packs">Packs</button>
+        <button class="form-tab" data-tab="tab-tricks">Tricks</button>
+        <button class="form-tab" data-tab="tab-crashes">Crashes</button>
+        <button class="form-tab" data-tab="tab-review">Review</button>
+      </div>
+
+      <!-- Header tab -->
+      <div id="tab-header" class="form-tab-content active">
+        <label>Date <input type="date" id="sf-date"></label>
+        <div class="row">
+          <label>Start <input type="time" id="sf-time-start"></label>
+          <label>End <input type="time" id="sf-time-end"></label>
+        </div>
+        <label>Location
+          <select id="sf-location">
+            <option value="home-room-A">Home Room A</option>
+            <option value="home-room-B">Home Room B</option>
+            <option value="library">Library</option>
+            <option value="outdoor-field">Outdoor Field</option>
+            <option value="outdoor-park">Outdoor Park</option>
+            <option value="sim">Simulator</option>
+          </select>
+        </label>
+        <label>Platform
+          <select id="sf-platform">
+            <option value="Air65">Air65</option>
+            <option value="Mobula6">Mobula6</option>
+            <option value="Meteor75">Meteor75 Pro</option>
+            <option value="Rekon3">Rekon3 Nano</option>
+            <option value="5-inch">5-inch Build</option>
+            <option value="sim-whoop">Sim (Whoop)</option>
+            <option value="sim-5inch">Sim (5-inch)</option>
+          </select>
+        </label>
+        <label>Weather
+          <select id="sf-weather">
+            <option value="indoor">Indoor</option>
+            <option value="calm">Calm</option>
+            <option value="5-8mph">5-8 mph</option>
+            <option value="8-12mph">8-12 mph</option>
+            <option value="12-15mph">12-15 mph</option>
+            <option value="15+mph">15+ mph</option>
+          </select>
+        </label>
+        <label>Session Type
+          <select id="sf-type">
+            <option value="blocked-drill">Blocked Drill</option>
+            <option value="interleaved">Interleaved</option>
+            <option value="free-flow">Free Flow</option>
+            <option value="DVR-review">DVR Review</option>
+            <option value="sim">Simulator</option>
+          </select>
+        </label>
+        <label>Plan <select id="sf-plan"></select></label>
+        <label>Notes <textarea id="sf-notes" rows="2"></textarea></label>
+      </div>
+
+      <!-- Packs tab -->
+      <div id="tab-packs" class="form-tab-content">
+        <div id="pack-list"></div>
+        <button id="btn-add-pack" class="btn-secondary">+ Add Pack</button>
+      </div>
+
+      <!-- Tricks tab -->
+      <div id="tab-tricks" class="form-tab-content">
+        <div id="trick-attempt-list"></div>
+        <button id="btn-add-trick-attempt" class="btn-secondary">+ Add Trick</button>
+      </div>
+
+      <!-- Crashes tab -->
+      <div id="tab-crashes" class="form-tab-content">
+        <div id="crash-list-form"></div>
+        <button id="btn-add-crash" class="btn-secondary">+ Add Crash</button>
+      </div>
+
+      <!-- Review tab -->
+      <div id="tab-review" class="form-tab-content">
+        <h3>3 Things Done Well</h3>
+        <input type="text" id="sf-good1" placeholder="1...">
+        <input type="text" id="sf-good2" placeholder="2...">
+        <input type="text" id="sf-good3" placeholder="3...">
+        <h3>3 Things to Improve</h3>
+        <input type="text" id="sf-improve1" placeholder="1...">
+        <input type="text" id="sf-improve2" placeholder="2...">
+        <input type="text" id="sf-improve3" placeholder="3...">
+        <div class="row">
+          <label>Fatigue
+            <select id="sf-fatigue">
+              <option value="fresh">Fresh</option>
+              <option value="good" selected>Good</option>
+              <option value="tired">Tired</option>
+              <option value="sloppy">Sloppy</option>
+            </select>
+          </label>
+          <label>Frustration
+            <select id="sf-frustration">
+              <option value="none" selected>None</option>
+              <option value="mild">Mild</option>
+              <option value="moderate">Moderate</option>
+              <option value="high">High</option>
+            </select>
+          </label>
+        </div>
+        <label class="checkbox-label">
+          <input type="checkbox" id="sf-stopped" checked> Stopped before encoding bad habits?
+        </label>
+        <label>Tomorrow's Focus <input type="text" id="sf-tomorrow"></label>
+        <label>Sim Drill Tonight <input type="text" id="sf-sim-drill"></label>
+        <label>DVR Timestamps <input type="text" id="sf-dvr"></label>
+        <label class="checkbox-label">
+          <input type="checkbox" id="sf-blackbox"> Blackbox recorded?
+        </label>
+        <button class="btn-primary" onclick="saveReview()">Save Review</button>
+      </div>
+    </div>
+  </div>
+
+  <nav id="bottom-nav">
+    <button class="nav-btn active" data-page="page-today">
+      <span class="nav-icon">&#9737;</span><span>Today</span>
+    </button>
+    <button class="nav-btn" data-page="page-sessions">
+      <span class="nav-icon">&#9998;</span><span>Sessions</span>
+    </button>
+    <button class="nav-btn" data-page="page-progress">
+      <span class="nav-icon">&#9650;</span><span>Progress</span>
+    </button>
+    <button class="nav-btn" data-page="page-tricks">
+      <span class="nav-icon">&#9733;</span><span>Tricks</span>
+    </button>
+    <button class="nav-btn" data-page="page-denver">
+      <span class="nav-icon">&#9992;</span><span>Goals</span>
+    </button>
+  </nav>
+
+  <script src="/app.js"></script>
+</body>
+</html>

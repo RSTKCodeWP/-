@@ -1,0 +1,27 @@
+# Deno
+.deno/
+deno.lock
+
+# Environment variables
+.env
+.env.local
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Dependencies (if using npm/node modules for any reason)
+node_modules/
+
+# Val.town local config
+.val/

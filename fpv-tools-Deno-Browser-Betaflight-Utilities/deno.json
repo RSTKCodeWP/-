@@ -1,0 +1,25 @@
+{
+  "tasks": {
+    "test": "deno test --allow-all --no-check tests/",
+    "test:watch": "deno test --allow-all --no-check --watch tests/",
+    "dev": "deno run --allow-all --watch main.ts",
+    "check": "deno check **/*.ts"
+  },
+  "fmt": {
+    "useTabs": false,
+    "lineWidth": 100,
+    "indentWidth": 2,
+    "semiColons": true,
+    "singleQuote": false,
+    "proseWrap": "preserve"
+  },
+  "lint": {
+    "rules": {
+      "tags": ["recommended"]
+    }
+  },
+  "compilerOptions": {
+    "lib": ["deno.window", "deno.unstable"],
+    "strict": true
+  }
+}

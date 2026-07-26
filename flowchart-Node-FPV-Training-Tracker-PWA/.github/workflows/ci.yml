@@ -1,0 +1,117 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Start server and run smoke tests
+        run: |
+          # Start server in background
+          node --import tsx src/server.ts &
+          SERVER_PID=$!
+
+          # Wait for server to be ready
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:3000/api/health > /dev/null 2>&1; then
+              echo "Server ready"
+              break
+            fi
+            sleep 1
+          done
+
+          # Smoke tests against API
+          echo "=== Health check ==="
+          curl -sf http://localhost:3000/api/health | jq .
+
+          echo "=== Tricks list ==="
+          TRICKS=$(curl -sf http://localhost:3000/api/tricks)
+          COUNT=$(echo "$TRICKS" | jq length)
+          echo "Found $COUNT tricks"
+          [ "$COUNT" -gt 0 ] || { echo "FAIL: no tricks seeded"; exit 1; }
+
+          echo "=== Drills list ==="
+          DRILLS=$(curl -sf http://localhost:3000/api/tricks/drills/all)
+          echo "Found $(echo "$DRILLS" | jq length) drills"
+
+          echo "=== Resources list ==="
+          RESOURCES=$(curl -sf http://localhost:3000/api/tricks/resources/all)
+          echo "Found $(echo "$RESOURCES" | jq length) resources"
+
+          echo "=== Schedule list ==="
+          SCHEDULE=$(curl -sf http://localhost:3000/api/tricks/schedule/all)
+          echo "Found $(echo "$SCHEDULE" | jq length) week schedule entries"
+
+          echo "=== Create session ==="
+          SESSION=$(curl -sf -X POST http://localhost:3000/api/sessions \
+            -H 'Content-Type: application/json' \
+            -d '{"date":"2026-02-08","location":"backyard","platform":"5-inch"}')
+          SID=$(echo "$SESSION" | jq .id)
+          echo "Created session $SID"
+          [ "$SID" != "null" ] || { echo "FAIL: session not created"; exit 1; }
+
+          echo "=== Add trick attempt ==="
+          curl -sf -X POST "http://localhost:3000/api/sessions/$SID/tricks" \
+            -H 'Content-Type: application/json' \
+            -d '{"trick_id":1,"attempts":10,"landed":7,"notes":"CI test"}' | jq .
+
+          echo "=== Add pack ==="
+          PACK=$(curl -sf -X POST "http://localhost:3000/api/sessions/$SID/packs" \
+            -H 'Content-Type: application/json' \
+            -d '{"voltage_start":4.2,"voltage_end":3.5,"focus":"power loops","crashes":2}')
+          PACK_ID=$(echo "$PACK" | jq .id)
+          echo "Created pack $PACK_ID"
+
+          echo "=== Add crash ==="
+          curl -sf -X POST "http://localhost:3000/api/sessions/$SID/crashes" \
+            -H 'Content-Type: application/json' \
+            -d '{"pack_number":1,"trick_id":1,"failure_type":"throttle","root_cause":"pilot"}' | jq .
+
+          echo "=== Add session review ==="
+          curl -sf -X POST "http://localhost:3000/api/sessions/$SID/review" \
+            -H 'Content-Type: application/json' \
+            -d '{"good_1":"timing improved","improve_1":"exit consistency","fatigue":"good"}' | jq .
+
+          echo "=== Gate checks ==="
+          GATES=$(curl -sf http://localhost:3000/api/progress/gates)
+          echo "Found $(echo "$GATES" | jq length) gate checks"
+
+          echo "=== Equipment ==="
+          EQUIP=$(curl -sf http://localhost:3000/api/equipment)
+          echo "Found $(echo "$EQUIP" | jq length) equipment items"
+
+          echo "=== Stats ==="
+          curl -sf http://localhost:3000/api/progress/stats | jq .
+
+          echo "=== Mastery ==="
+          MASTERY=$(curl -sf http://localhost:3000/api/progress/mastery)
+          echo "Found $(echo "$MASTERY" | jq length) mastery entries"
+
+          echo "=== Export ==="
+          EXPORT=$(curl -sf http://localhost:3000/api/data/export)
+          KEYS=$(echo "$EXPORT" | jq 'keys | length')
+          echo "Export has $KEYS top-level keys"
+          [ "$KEYS" -gt 10 ] || { echo "FAIL: export incomplete"; exit 1; }
+
+          echo "=== Denver items ==="
+          curl -sf http://localhost:3000/api/denver | jq length
+
+          echo ""
+          echo "All smoke tests passed!"
+
+          kill $SERVER_PID

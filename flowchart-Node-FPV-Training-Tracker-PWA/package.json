@@ -1,0 +1,19 @@
+{
+  "name": "flowchart",
+  "version": "1.0.0",
+  "description": "FPV freestyle training tracker - session logs, trick mastery, phase progression",
+  "type": "module",
+  "scripts": {
+    "start": "node --import tsx src/server.ts",
+    "dev": "node --import tsx --watch src/server.ts"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.19.9",
+    "better-sqlite3": "^11.7.0",
+    "hono": "^4.6.0",
+    "tsx": "^4.19.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12"
+  }
+}

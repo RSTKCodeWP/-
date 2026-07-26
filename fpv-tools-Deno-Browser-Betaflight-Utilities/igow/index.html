@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IGOW Challenge Reference</title>
+<link rel="stylesheet" href="../assets/site-header.css">
+<style>
+:root {
+  --bg:      #0d1117;
+  --surface: #161b22;
+  --card:    #21262d;
+  --border:  #30363d;
+  --orange:  #e07b39;
+  --text:    #c9d1d9;
+  --muted:   #6e7681;
+  --accent:  #58a6ff;
+  --green:   #3fb950;
+  --red:     #f85149;
+  --yellow:  #d29922;
+  --purple:  #bc8cff;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+main {
+  max-width: 1100px;
+  margin: 1.5rem auto;
+  padding: 0 1.5rem;
+  flex: 1;
+  width: 100%;
+}
+
+/* Tabs */
+.tabs {
+  display: flex;
+  gap: .5rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+.tab-btn {
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  padding: .5rem 1rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: .85rem;
+  font-weight: 600;
+  transition: all .15s;
+}
+.tab-btn:hover { border-color: var(--orange); color: var(--text); }
+.tab-btn.active { background: var(--orange); color: var(--bg); border-color: var(--orange); }
+
+/* Filters */
+.filters {
+  display: flex;
+  gap: .75rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.filters label { font-size: .8rem; color: var(--muted); }
+.filters select, .filters input {
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: .4rem .6rem;
+  border-radius: 6px;
+  font-size: .85rem;
+  font-family: inherit;
+}
+.filters select:focus, .filters input:focus { border-color: var(--orange); outline: none; }
+
+/* Table */
+.table-wrap { overflow-x: auto; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .85rem;
+}
+th, td {
+  text-align: left;
+  padding: .5rem .7rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+th {
+  color: var(--muted);
+  font-weight: 600;
+  font-size: .75rem;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+}
+th:hover { color: var(--orange); }
+th.sorted-asc::after { content: " ↑"; color: var(--orange); }
+th.sorted-desc::after { content: " ↓"; color: var(--orange); }
+tbody tr { transition: background .1s; }
+tbody tr:hover { background: var(--surface); }
+
+/* Badges */
+.badge {
+  display: inline-block;
+  font-size: .7rem;
+  font-weight: 600;
+  padding: .15rem .4rem;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.badge-pre { background: rgba(188,140,255,.15); color: var(--purple); }
+.badge-reg { background: rgba(88,166,255,.15); color: var(--accent); }
+.badge-final { background: rgba(248,81,73,.15); color: var(--red); }
+.badge-season { background: rgba(46,160,67,.15); color: var(--green); }
+
+/* Trick tags */
+.trick-tags { display: flex; flex-wrap: wrap; gap: .25rem; }
+.trick-tag {
+  font-size: .72rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: .15rem .4rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all .15s;
+}
+.trick-tag:hover { border-color: var(--orange); color: var(--orange); }
+
+/* Detail modal */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.6);
+  z-index: 100;
+  padding: 2rem 1rem;
+  overflow-y: auto;
+}
+.modal-overlay.active { display: flex; justify-content: center; align-items: flex-start; }
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  max-width: 700px;
+  width: 100%;
+  padding: 1.5rem;
+}
+.modal h2 { color: var(--orange); font-size: 1.1rem; margin-bottom: .5rem; }
+.modal .modal-meta { display: flex; gap: .5rem; flex-wrap: wrap; margin-bottom: 1rem; }
+.modal .modal-desc {
+  color: var(--text);
+  font-size: .85rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  max-height: 400px;
+  overflow-y: auto;
+  padding: .75rem;
+  background: var(--bg);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+.modal .modal-tricks { margin-top: 1rem; }
+.modal .modal-tricks h3 { font-size: .75rem; text-transform: uppercase; color: var(--muted); margin-bottom: .5rem; }
+.modal-close {
+  float: right;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 1.2rem;
+  cursor: pointer;
+}
+.modal-close:hover { color: var(--red); }
+
+/* Loading */
+.loading { text-align: center; padding: 3rem; color: var(--muted); }
+.loading .spinner {
+  display: inline-block;
+  width: 2rem; height: 2rem;
+  border: 3px solid var(--border);
+  border-top-color: var(--orange);
+  border-radius: 50%;
+  animation: spin .8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Stats bar */
+.stats {
+  display: flex;
+  gap: 1.5rem;
+  margin-bottom: 1rem;
+  font-size: .8rem;
+  color: var(--muted);
+}
+.stats span strong { color: var(--text); }
+
+footer {
+  text-align: center;
+  padding: 1.5rem;
+  font-size: .75rem;
+  color: var(--muted);
+  border-top: 1px solid var(--border);
+}
+
+@media (max-width: 640px) {
+  main { padding: 0 .75rem; }
+  .filters { flex-direction: column; align-items: stretch; }
+  .filters select, .filters input { width: 100%; }
+  th, td { font-size: .8rem; padding: .4rem .5rem; }
+}
+</style>
+</head>
+<body>
+
+<fpv-header root="../" icon="🏆" heading="IGOW Challenge Reference" subtitle="International Game of WHOOP — all challenges IGOW1–6 with trick components"></fpv-header>
+<script type="module" src="../assets/site-header.js"></script>
+
+<main>
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="challenges">Challenges</button>
+    <button class="tab-btn" data-tab="tricks">Tricks</button>
+    <button class="tab-btn" data-tab="sponsors">Sponsors</button>
+    <button class="tab-btn" data-tab="matrix">Matrix</button>
+  </div>
+
+  <div id="tab-challenges">
+    <div class="filters">
+      <label>Season
+        <select id="filter-season">
+          <option value="">All</option>
+        </select>
+      </label>
+      <label>Phase
+        <select id="filter-phase">
+          <option value="">All</option>
+          <option value="0">Regular</option>
+          <option value="1">Preseason</option>
+          <option value="2">Finals</option>
+        </select>
+      </label>
+      <label>Trick
+        <select id="filter-trick">
+          <option value="">All</option>
+        </select>
+      </label>
+      <label>Sponsor
+        <select id="filter-sponsor">
+          <option value="">All</option>
+        </select>
+      </label>
+      <label>Search
+        <input type="text" id="filter-search" placeholder="Title or description...">
+      </label>
+    </div>
+    <div class="stats" id="challenge-stats"></div>
+    <div class="table-wrap">
+      <table id="challenges-table">
+        <thead>
+          <tr>
+            <th data-sort="igow_season">Season</th>
+            <th data-sort="week">Week</th>
+            <th data-sort="phase">Phase</th>
+            <th data-sort="title">Title</th>
+            <th>Sponsor</th>
+            <th>Tricks</th>
+          </tr>
+        </thead>
+        <tbody id="challenges-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="tab-tricks" style="display:none">
+    <div class="filters">
+      <label>Category
+        <select id="filter-trick-category">
+          <option value="">All</option>
+        </select>
+      </label>
+      <label>Search
+        <input type="text" id="filter-trick-search" placeholder="Trick name...">
+      </label>
+    </div>
+    <div class="stats" id="trick-stats"></div>
+    <div class="table-wrap">
+      <table id="tricks-table">
+        <thead>
+          <tr>
+            <th data-sort="name">Trick</th>
+            <th data-sort="category">Category</th>
+            <th data-sort="count">Challenges</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody id="tricks-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="tab-matrix" style="display:none">
+    <div class="filters">
+      <label>Season
+        <select id="matrix-season">
+          <option value="">All</option>
+        </select>
+      </label>
+    </div>
+    <div class="stats" id="matrix-stats"></div>
+    <div class="table-wrap">
+      <table id="matrix-table">
+        <thead id="matrix-head"></thead>
+        <tbody id="matrix-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="tab-sponsors" style="display:none">
+    <div class="stats" id="sponsor-stats"></div>
+    <div class="table-wrap">
+      <table id="sponsors-table">
+        <thead>
+          <tr>
+            <th data-sort="name">Sponsor</th>
+            <th data-sort="count">Challenges</th>
+            <th data-sort="seasons">Seasons</th>
+            <th>Featured Tricks</th>
+          </tr>
+        </thead>
+        <tbody id="sponsors-body"></tbody>
+      </table>
+    </div>
+  </div>
+</main>
+
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal" id="modal-content"></div>
+</div>
+
+<footer>IGOW Challenge Reference · compiled from <a href="https://www.youtube.com/@FPVSkittles" style="color:inherit">@FPVSkittles</a> · <a href="https://github.com/cori/fpv-tools/commit/__GIT_SHA__" style="color:inherit;text-decoration:none">__GIT_SHA__</a></footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.11.0/sql-wasm.min.js"></script>
+<script>
+const DB_URL = './igow.db';
+let db = null;
+let allChallenges = [];
+let allTricks = [];
+let allLinks = [];
+let sortState = { table: null, key: null, dir: 'asc' };
+
+async function init() {
+  const SQL = await initSqlJs({ locateFile: f => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.11.0/${f}` });
+  const resp = await fetch(DB_URL);
+  const buf = await resp.arrayBuffer();
+  db = new SQL.Database(new Uint8Array(buf));
+  loadData();
+  setupUI();
+  renderChallenges();
+}
+
+function execQuery(sql, params = []) {
+  const stmt = db.prepare(sql);
+  stmt.bind(params);
+  const results = [];
+  while (stmt.step()) results.push(stmt.getAsObject());
+  stmt.free();
+  return results;
+}
+
+function loadData() {
+  allChallenges = execQuery('SELECT * FROM challenges ORDER BY igow_season, week');
+  allTricks = execQuery('SELECT * FROM tricks ORDER BY category, name');
+  allLinks = execQuery('SELECT * FROM challenge_tricks');
+
+  // Build lookup maps
+  window.trickMap = {};
+  allTricks.forEach(t => { window.trickMap[t.id] = t; });
+  window.challengeMap = {};
+  allChallenges.forEach(c => { window.challengeMap[c.id] = c; });
+
+  // Build challenge→tricks and trick→challenges maps
+  window.challengeTricks = {};
+  window.trickChallenges = {};
+  allLinks.forEach(l => {
+    if (!window.challengeTricks[l.challenge_id]) window.challengeTricks[l.challenge_id] = [];
+    if (!window.trickChallenges[l.trick_id]) window.trickChallenges[l.trick_id] = [];
+    window.challengeTricks[l.challenge_id].push(window.trickMap[l.trick_id]);
+    window.trickChallenges[l.trick_id].push(window.challengeMap[l.challenge_id]);
+  });
+
+  // Count tricks per challenge for sorting
+  window.trickCountByChallenge = {};
+  allLinks.forEach(l => {
+    window.trickCountByChallenge[l.challenge_id] = (window.trickCountByChallenge[l.challenge_id] || 0) + 1;
+  });
+}
+
+function setupUI() {
+  // Populate season filter
+  const seasons = [...new Set(allChallenges.map(c => c.igow_season))].sort();
+  const seasonSel = document.getElementById('filter-season');
+  const matrixSel = document.getElementById('matrix-season');
+  seasons.forEach(s => {
+    seasonSel.add(new Option(`IGOW ${s}`, s));
+    matrixSel.add(new Option(`IGOW ${s}`, s));
+  });
+
+  // Populate trick filter
+  const trickSel = document.getElementById('filter-trick');
+  allTricks.forEach(t => trickSel.add(new Option(t.name, t.name)));
+
+  // Populate trick category filter
+  const catSel = document.getElementById('filter-trick-category');
+  const cats = [...new Set(allTricks.map(t => t.category))].sort();
+  cats.forEach(c => catSel.add(new Option(c, c)));
+
+  // Populate sponsor filter
+  const sponsorSel = document.getElementById('filter-sponsor');
+  const sponsors = [...new Set(allChallenges.map(c => c.sponsor).filter(Boolean))].sort(
+    (a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' })
+  );
+  sponsors.forEach(s => sponsorSel.add(new Option(s, s)));
+
+  // Tab switching
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.querySelectorAll('[id^="tab-"]').forEach(t => t.style.display = 'none');
+      document.getElementById(`tab-${btn.dataset.tab}`).style.display = 'block';
+      if (btn.dataset.tab === 'matrix') renderMatrix();
+      if (btn.dataset.tab === 'sponsors') renderSponsors();
+    });
+  });
+
+  // Filter listeners
+  document.getElementById('filter-season').addEventListener('change', renderChallenges);
+  document.getElementById('filter-phase').addEventListener('change', renderChallenges);
+  document.getElementById('filter-trick').addEventListener('change', renderChallenges);
+  document.getElementById('filter-sponsor').addEventListener('change', renderChallenges);
+  document.getElementById('filter-search').addEventListener('input', renderChallenges);
+  document.getElementById('filter-trick-category').addEventListener('change', renderTricks);
+  document.getElementById('filter-trick-search').addEventListener('input', renderTricks);
+  document.getElementById('matrix-season').addEventListener('change', renderMatrix);
+
+  // Sort listeners
+  document.querySelectorAll('#challenges-table th[data-sort]').forEach(th => {
+    th.addEventListener('click', () => sortTable('challenges', th.dataset.sort));
+  });
+  document.querySelectorAll('#tricks-table th[data-sort]').forEach(th => {
+    th.addEventListener('click', () => sortTable('tricks', th.dataset.sort));
+  });
+  document.querySelectorAll('#sponsors-table th[data-sort]').forEach(th => {
+    th.addEventListener('click', () => sortTable('sponsors', th.dataset.sort));
+  });
+
+  // Modal close
+  document.getElementById('modal-overlay').addEventListener('click', (e) => {
+    if (e.target.id === 'modal-overlay') closeModal();
+  });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
+}
+
+function getPhase(c) {
+  if (c.is_finals) return 'finals';
+  if (c.is_preseason) return 'preseason';
+  return 'regular';
+}
+
+function phaseBadge(c) {
+  const p = getPhase(c);
+  if (p === 'finals') return '<span class="badge badge-final">Finals</span>';
+  if (p === 'preseason') return '<span class="badge badge-pre">Preseason</span>';
+  return '<span class="badge badge-reg">Regular</span>';
+}
+
+function renderChallenges() {
+  const season = document.getElementById('filter-season').value;
+  const phase = document.getElementById('filter-phase').value;
+  const trick = document.getElementById('filter-trick').value;
+  const sponsor = document.getElementById('filter-sponsor').value;
+  const search = document.getElementById('filter-search').value.toLowerCase();
+
+  let filtered = allChallenges.filter(c => {
+    if (season && c.igow_season != season) return false;
+    if (phase === '0' && c.is_preseason) return false;
+    if (phase === '1' && !c.is_preseason) return false;
+    if (phase === '2' && !c.is_finals) return false;
+    if (trick) {
+      const tricks = window.challengeTricks[c.id] || [];
+      if (!tricks.some(t => t.name === trick)) return false;
+    }
+    if (sponsor && c.sponsor !== sponsor) return false;
+    if (search) {
+      const text = (c.title + ' ' + c.short_desc).toLowerCase();
+      if (!text.includes(search)) return false;
+    }
+    return true;
+  });
+
+  // Apply sort
+  if (sortState.table === 'challenges' && sortState.key) {
+    filtered.sort((a, b) => {
+      let va, vb;
+      if (sortState.key === 'phase') { va = getPhase(a); vb = getPhase(b); }
+      else { va = a[sortState.key]; vb = b[sortState.key]; }
+      if (typeof va === 'string') return sortState.dir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+      return sortState.dir === 'asc' ? va - vb : vb - va;
+    });
+  }
+
+  const tbody = document.getElementById('challenges-body');
+  tbody.innerHTML = '';
+  filtered.forEach(c => {
+    const tr = document.createElement('tr');
+    const tricks = (window.challengeTricks[c.id] || []).sort((a,b) => a.name.localeCompare(b.name));
+    const trickTags = tricks.map(t => `<span class="trick-tag" onclick="filterByTrick('${t.name.replace(/'/g,"\\'")}')">${t.name}</span>`).join('');
+    tr.innerHTML = `
+      <td><span class="badge badge-season">IGOW ${c.igow_season}</span></td>
+      <td>${c.is_preseason ? 'P' : ''}${c.week}</td>
+      <td>${phaseBadge(c)}</td>
+      <td><a href="#" onclick="showChallenge(${c.id});return false" style="color:var(--accent);text-decoration:none">${esc(c.title)}</a>${c.youtube_url ? ` <a href="${esc(c.youtube_url)}" target="_blank" rel="noopener" style="color:var(--orange);text-decoration:none" title="Watch on YouTube">▶</a>` : ''}</td>
+      <td>${c.sponsor ? `<span class="trick-tag" onclick="filterBySponsor('${c.sponsor.replace(/'/g,"\\'")}')">${esc(c.sponsor)}</span>` : '<span style="color:var(--muted)">—</span>'}</td>
+      <td><div class="trick-tags">${trickTags}</div></td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  document.getElementById('challenge-stats').innerHTML =
+    `<span><strong>${filtered.length}</strong> challenges</span>` +
+    `<span><strong>${allChallenges.length}</strong> total</span>`;
+}
+
+function renderTricks() {
+  const cat = document.getElementById('filter-trick-category').value;
+  const search = document.getElementById('filter-trick-search').value.toLowerCase();
+
+  let filtered = allTricks.filter(t => {
+    if (cat && t.category !== cat) return false;
+    if (search && !t.name.toLowerCase().includes(search) && !t.description.toLowerCase().includes(search)) return false;
+    return true;
+  });
+
+  // Add challenge count
+  filtered = filtered.map(t => ({ ...t, count: (window.trickChallenges[t.id] || []).length }));
+
+  // Apply sort
+  if (sortState.table === 'tricks' && sortState.key) {
+    filtered.sort((a, b) => {
+      let va = a[sortState.key], vb = b[sortState.key];
+      if (sortState.key === 'count') return sortState.dir === 'asc' ? va - vb : vb - va;
+      if (typeof va === 'string') return sortState.dir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+      return sortState.dir === 'asc' ? va - vb : vb - va;
+    });
+  }
+
+  const tbody = document.getElementById('tricks-body');
+  tbody.innerHTML = '';
+  filtered.forEach(t => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><a href="#" onclick="showTrick(${t.id});return false" style="color:var(--accent);text-decoration:none">${esc(t.name)}</a></td>
+      <td>${esc(t.category)}</td>
+      <td><span class="badge badge-season">${t.count}</span></td>
+      <td style="color:var(--muted);max-width:400px">${esc(t.description)}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  document.getElementById('trick-stats').innerHTML =
+    `<span><strong>${filtered.length}</strong> tricks</span>` +
+    `<span><strong>${allTricks.length}</strong> total</span>`;
+}
+
+function renderMatrix() {
+  const season = document.getElementById('matrix-season').value;
+  const challenges = allChallenges.filter(c => !season || c.igow_season == season);
+  const challengeIds = new Set(challenges.map(c => c.id));
+
+  // Get tricks that appear in at least one of these challenges
+  const trickIds = new Set();
+  allLinks.forEach(l => {
+    if (challengeIds.has(l.challenge_id)) trickIds.add(l.trick_id);
+  });
+  const tricks = allTricks.filter(t => trickIds.has(t.id));
+  tricks.sort((a, b) => a.name.localeCompare(b.name));
+
+  // Build header
+  const head = document.getElementById('matrix-head');
+  const headTr = document.createElement('tr');
+  headTr.innerHTML = '<th>Trick</th>' + challenges.map(c =>
+    `<th style="writing-mode:vertical-lr;text-align:left;font-size:.7rem" title="${esc(c.title)}">IGOW${c.igow_season} ${c.is_preseason?'P':''}${c.week}</th>`
+  ).join('');
+  head.innerHTML = '';
+  head.appendChild(headTr);
+
+  // Build body
+  const body = document.getElementById('matrix-body');
+  body.innerHTML = '';
+  tricks.forEach(t => {
+    const tr = document.createElement('tr');
+    const cells = challenges.map(c => {
+      const has = (window.challengeTricks[c.id] || []).some(ct => ct.id === t.id);
+      return `<td style="text-align:center">${has ? '✓' : '<span style="color:var(--border)">·</span>'}</td>`;
+    }).join('');
+    tr.innerHTML = `<td style="font-size:.82rem;white-space:nowrap">${esc(t.name)}</td>${cells}`;
+    body.appendChild(tr);
+  });
+
+  document.getElementById('matrix-stats').innerHTML =
+    `<span><strong>${tricks.length}</strong> tricks × <strong>${challenges.length}</strong> challenges</span>`;
+}
+
+function renderSponsors() {
+  // Group challenges by sponsor
+  const sponsorMap = {};
+  allChallenges.forEach(c => {
+    const s = c.sponsor || '(No sponsor)';
+    if (!sponsorMap[s]) sponsorMap[s] = [];
+    sponsorMap[s].push(c);
+  });
+
+  // Build sponsor list with stats
+  let sponsors = Object.entries(sponsorMap).map(([name, chals]) => ({
+    name,
+    count: chals.length,
+    seasons: [...new Set(chals.map(c => c.igow_season))].sort((a,b) => a-b),
+    challenges: chals,
+  }));
+
+  // Default sort: by count descending, unless sort state says otherwise
+  if (sortState.table === 'sponsors' && sortState.key) {
+    sponsors.sort((a, b) => {
+      let va = a[sortState.key], vb = b[sortState.key];
+      if (sortState.key === 'seasons') { va = a.seasons.join(','); vb = b.seasons.join(','); }
+      if (sortState.key === 'name') return sortState.dir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+      return sortState.dir === 'asc' ? va - vb : vb - va;
+    });
+  } else {
+    sponsors.sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+  }
+
+  const tbody = document.getElementById('sponsors-body');
+  tbody.innerHTML = '';
+  sponsors.forEach(s => {
+    const tr = document.createElement('tr');
+    const seasonStr = s.seasons.map(n => `IGOW${n}`).join(', ');
+    // Top tricks across all this sponsor's challenges
+    const trickCounter = {};
+    s.challenges.forEach(c => {
+      (window.challengeTricks[c.id] || []).forEach(t => {
+        trickCounter[t.name] = (trickCounter[t.name] || 0) + 1;
+      });
+    });
+    const topTricks = Object.entries(trickCounter)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([name, count]) => `${esc(name)} (${count})`)
+      .join(', ');
+
+    tr.innerHTML = `
+      <td><a href="#" onclick="filterBySponsor('${s.name.replace(/'/g,"\\'")}');return false" style="color:var(--accent);text-decoration:none;font-weight:600">${esc(s.name)}</a></td>
+      <td><span class="badge badge-season">${s.count}</span></td>
+      <td style="font-size:.82rem">${esc(seasonStr)}</td>
+      <td style="color:var(--muted);font-size:.82rem">${topTricks || '—'}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  document.getElementById('sponsor-stats').innerHTML =
+    `<span><strong>${sponsors.length - 1}</strong> sponsors</span>` +
+    `<span><strong>${allChallenges.length}</strong> challenges</span>` +
+    `<span><strong>${sponsorMap['(No sponsor)']?.length || 0}</strong> unsponsored</span>`;
+}
+
+function sortTable(table, key) {
+  if (sortState.table === table && sortState.key === key) {
+    sortState.dir = sortState.dir === 'asc' ? 'desc' : 'asc';
+  } else {
+    sortState.table = table;
+    sortState.key = key;
+    sortState.dir = 'asc';
+  }
+  // Update header visuals
+  document.querySelectorAll(`#${table}-table th`).forEach(th => {
+    th.classList.remove('sorted-asc', 'sorted-desc');
+  });
+  const activeTh = document.querySelector(`#${table}-table th[data-sort="${key}"]`);
+  if (activeTh) activeTh.classList.add(sortState.dir === 'asc' ? 'sorted-asc' : 'sorted-desc');
+
+  if (table === 'challenges') renderChallenges();
+  else if (table === 'tricks') renderTricks();
+  else if (table === 'sponsors') renderSponsors();
+}
+
+function showChallenge(id) {
+  const c = window.challengeMap[id];
+  const tricks = (window.challengeTricks[id] || []).sort((a,b) => a.name.localeCompare(b.name));
+  const trickTags = tricks.map(t => `<span class="trick-tag" onclick="filterByTrick('${t.name.replace(/'/g,"\\'")}');closeModal()">${t.name}</span>`).join('');
+  document.getElementById('modal-content').innerHTML = `
+    <button class="modal-close" onclick="closeModal()">✕</button>
+    <h2>${esc(c.title)}</h2>
+    <div class="modal-meta">
+      <span class="badge badge-season">IGOW ${c.igow_season}</span>
+      <span class="badge ${c.is_preseason?'badge-pre':'badge-reg'}">${c.is_preseason?'Preseason':'Regular'} Week ${c.week}</span>
+      ${c.is_finals?'<span class="badge badge-final">Finals</span>':''}
+      ${c.sponsor?`<span class="badge badge-pre">${esc(c.sponsor)}</span>`:''}
+    </div>
+    ${c.youtube_url ? `<p style="margin-bottom:.75rem"><a href="${esc(c.youtube_url)}" target="_blank" rel="noopener" style="color:var(--orange);text-decoration:none;font-size:.85rem">▶ Watch on YouTube</a></p>` : ''}
+    <div class="modal-desc">${esc(c.full_desc || c.short_desc || 'No description available.')}</div>
+    <div class="modal-tricks">
+      <h3>Trick Components (${tricks.length})</h3>
+      <div class="trick-tags">${trickTags || '<span style="color:var(--muted)">No specific tricks matched</span>'}</div>
+    </div>
+  `;
+  document.getElementById('modal-overlay').classList.add('active');
+}
+
+function showTrick(id) {
+  const t = window.trickMap[id];
+  const chals = (window.trickChallenges[id] || []).sort((a,b) => a.igow_season - b.igow_season || a.week - b.week);
+  const chalList = chals.map(c => {
+    const phase = c.is_preseason ? 'P' : (c.is_finals ? 'F' : '');
+    return `<div style="margin:.3rem 0"><span class="badge badge-season">IGOW${c.igow_season} ${phase}${c.week}</span> <a href="#" onclick="showChallenge(${c.id});return false" style="color:var(--accent)">${esc(c.title)}</a>${c.youtube_url ? ` <a href="${esc(c.youtube_url)}" target="_blank" rel="noopener" style="color:var(--orange);text-decoration:none" title="Watch on YouTube">▶</a>` : ''}</div>`;
+  }).join('');
+  document.getElementById('modal-content').innerHTML = `
+    <button class="modal-close" onclick="closeModal()">✕</button>
+    <h2>${esc(t.name)}</h2>
+    <div class="modal-meta">
+      <span class="badge badge-pre">${esc(t.category)}</span>
+      <span class="badge badge-reg">${chals.length} challenges</span>
+    </div>
+    <div class="modal-desc">${esc(t.description)}</div>
+    <div class="modal-tricks">
+      <h3>Featured in ${chals.length} challenges</h3>
+      ${chalList || '<span style="color:var(--muted)">None</span>'}
+    </div>
+  `;
+  document.getElementById('modal-overlay').classList.add('active');
+}
+
+function filterByTrick(name) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector('.tab-btn[data-tab="challenges"]').classList.add('active');
+  document.querySelectorAll('[id^="tab-"]').forEach(t => t.style.display = 'none');
+  document.getElementById('tab-challenges').style.display = 'block';
+  document.getElementById('filter-trick').value = name;
+  renderChallenges();
+}
+
+function filterBySponsor(name) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector('.tab-btn[data-tab="challenges"]').classList.add('active');
+  document.querySelectorAll('[id^="tab-"]').forEach(t => t.style.display = 'none');
+  document.getElementById('tab-challenges').style.display = 'block';
+  document.getElementById('filter-sponsor').value = name === '(No sponsor)' ? '' : name;
+  renderChallenges();
+}
+
+function closeModal() { document.getElementById('modal-overlay').classList.remove('active'); }
+
+function esc(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+init();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,983 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Betaflight CLI Merge</title>
+<link rel="stylesheet" href="../assets/site-header.css">
+<style>
+:root {
+  --bg:        #0d1117;
+  --surface:   #161b22;
+  --card:      #21262d;
+  --border:    #30363d;
+  --orange:    #e07b39;
+  --blue:      #58a6ff;
+  --green:     #3fb950;
+  --muted:     #6e7681;
+  --text:      #c9d1d9;
+  --text-dim:  #8b949e;
+  --a:         #58a6ff;
+  --b:         #3fb950;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+/* ── Layout ── */
+.container { max-width: 1400px; margin: 0 auto; padding: 1.25rem 1.5rem; }
+
+/* ── Input grid ── */
+.input-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: .75rem;
+}
+@media (max-width: 700px) { .input-grid { grid-template-columns: 1fr; } }
+
+.input-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+  margin-bottom: .35rem;
+}
+
+.input-label {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  font-size: .8rem;
+  font-weight: 600;
+}
+
+.input-actions { display: flex; align-items: center; gap: .4rem; }
+.file-input { display: none; }
+
+.input-hint {
+  font-weight: 400;
+  color: var(--muted);
+  font-size: .72rem;
+  margin-left: .25rem;
+}
+
+/* ── Detected-version pills ── */
+.version-pills {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  margin-left: auto;
+  flex-wrap: wrap;
+}
+.version-pills:empty { display: none; }
+
+.version-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+  padding: .18rem .55rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: .72rem;
+  font-family: "SF Mono", "Fira Code", monospace;
+  color: var(--text-dim);
+  background: var(--card);
+}
+.version-pill.pill-a { border-color: rgba(88,166,255,.4); color: var(--a); }
+.version-pill.pill-b { border-color: rgba(63,185,80,.4); color: var(--b); }
+.version-pill.pill-mismatch {
+  border-color: rgba(224,123,57,.6);
+  color: var(--orange);
+  background: rgba(224,123,57,.08);
+}
+
+/* ── Findings panel ── */
+.findings-panel {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-left-width: 3px;
+  border-radius: 6px;
+  padding: .55rem .85rem;
+  margin-bottom: .9rem;
+  font-size: .78rem;
+}
+.findings-panel.sev-error   { border-left-color: var(--orange); }
+.findings-panel.sev-warning { border-left-color: #d29922; }
+.findings-panel.sev-info    { border-left-color: var(--a); }
+
+.findings-summary {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  cursor: pointer;
+  user-select: none;
+  font-weight: 600;
+  color: var(--text);
+  list-style: none;
+}
+.findings-summary::-webkit-details-marker { display: none; }
+.findings-summary::before {
+  content: "▸";
+  color: var(--muted);
+  font-size: .65rem;
+  transition: transform .12s;
+  display: inline-block;
+}
+.findings-panel[open] .findings-summary::before { transform: rotate(90deg); }
+
+.findings-count {
+  font-family: "SF Mono", "Fira Code", monospace;
+  font-size: .68rem;
+  padding: .1rem .45rem;
+  border-radius: 10px;
+  background: rgba(255,255,255,.05);
+  color: var(--text-dim);
+}
+.findings-count.count-error   { background: rgba(224,123,57,.15); color: var(--orange); }
+.findings-count.count-warning { background: rgba(210,153,34,.15); color: #d29922; }
+.findings-count.count-info    { background: rgba(88,166,255,.15); color: var(--a); }
+
+.findings-list {
+  list-style: none;
+  margin-top: .5rem;
+  display: flex;
+  flex-direction: column;
+  gap: .3rem;
+}
+.finding {
+  display: flex;
+  align-items: baseline;
+  gap: .5rem;
+  padding: .3rem .1rem;
+  border-top: 1px solid rgba(48,54,61,.5);
+  line-height: 1.4;
+}
+.finding:first-child { border-top: none; }
+.finding-sev {
+  font-size: .62rem;
+  font-weight: 700;
+  padding: .08rem .4rem;
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  flex-shrink: 0;
+}
+.finding-sev.error   { background: rgba(224,123,57,.18); color: var(--orange); }
+.finding-sev.warning { background: rgba(210,153,34,.18); color: #d29922; }
+.finding-sev.info    { background: rgba(88,166,255,.18); color: var(--a); }
+.finding-line {
+  font-family: "SF Mono", "Fira Code", monospace;
+  font-size: .66rem;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+.finding-msg { color: var(--text); }
+
+.drop-zone { position: relative; }
+.drop-zone textarea { width: 100%; }
+
+.drop-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(224, 123, 57, .12);
+  border: 2px dashed var(--orange);
+  border-radius: 6px;
+  color: var(--orange);
+  font-size: .85rem;
+  font-weight: 600;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .12s;
+}
+
+.drop-zone.drag-over .drop-overlay { opacity: 1; }
+.dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.dot-a { background: var(--a); }
+.dot-b { background: var(--b); }
+
+textarea {
+  display: block;
+  width: 100%;
+  height: 180px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: "SF Mono", "Fira Code", monospace;
+  font-size: .72rem;
+  padding: .6rem .75rem;
+  resize: vertical;
+  outline: none;
+  transition: border-color .15s;
+}
+textarea:focus { border-color: var(--orange); }
+textarea.output-area { height: 280px; color: #b5cea8; background: #0d1117; cursor: default; }
+
+/* ── Buttons ── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  background: var(--orange);
+  color: #000;
+  border: none;
+  border-radius: 6px;
+  padding: .45rem 1.1rem;
+  font-size: .82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity .15s;
+  white-space: nowrap;
+}
+.btn:hover { opacity: .85; }
+.btn:active { opacity: .7; }
+.btn-ghost {
+  background: transparent;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+}
+.btn-ghost:hover { border-color: var(--text-dim); color: var(--text); opacity: 1; }
+.btn-sm { padding: .3rem .7rem; font-size: .75rem; }
+
+/* ── Row helpers ── */
+.row { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
+.row-between { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .5rem; }
+
+/* ── Divider ── */
+hr { border: none; border-top: 1px solid var(--border); margin: 1.25rem 0; }
+
+/* ── Status text ── */
+.status-text { font-size: .78rem; color: var(--muted); }
+
+/* ── Section cards ── */
+.sections-list { display: flex; flex-direction: column; gap: .35rem; }
+
+.sec-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.sec-head {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  padding: .55rem .85rem;
+  cursor: pointer;
+  user-select: none;
+}
+.sec-head:hover { background: rgba(255,255,255,.03); }
+
+.sec-name {
+  font-family: "SF Mono", "Fira Code", monospace;
+  font-size: .82rem;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+.sec-name span { color: var(--text); }
+
+.badge {
+  font-size: .66rem;
+  font-weight: 600;
+  padding: .1rem .45rem;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+.badge-same   { background: rgba(63,185,80,.15);  color: var(--green); }
+.badge-diff   { background: rgba(224,123,57,.15); color: var(--orange); }
+.badge-only-a { background: rgba(88,166,255,.15); color: var(--a); }
+.badge-only-b { background: rgba(63,185,80,.15);  color: var(--b); }
+
+/* Toggle group */
+.toggle-group { margin-left: auto; display: flex; gap: .2rem; flex-shrink: 0; }
+
+.tog {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  padding: .18rem .5rem;
+  font-size: .72rem;
+  font-weight: 600;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all .12s;
+}
+.tog:hover { border-color: var(--text-dim); color: var(--text); }
+
+.tog.sel-a    { background: rgba(88,166,255,.15);  border-color: var(--a);      color: var(--a); }
+.tog.sel-b    { background: rgba(63,185,80,.15);   border-color: var(--b);      color: var(--b); }
+.tog.sel-both { background: rgba(224,123,57,.12);  border-color: var(--orange); color: var(--orange); }
+.tog.sel-skip { background: rgba(110,118,129,.12); border-color: var(--muted);  color: var(--muted); }
+
+.chevron { color: var(--muted); font-size: .65rem; transition: transform .15s; margin-left: .15rem; flex-shrink: 0; }
+.sec-card.open .chevron { transform: rotate(180deg); }
+
+/* Section body */
+.sec-body { display: none; border-top: 1px solid var(--border); }
+.sec-card.open .sec-body { display: block; }
+
+/* Diff view (side-by-side) */
+.diff-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+@media (max-width: 700px) { .diff-grid { grid-template-columns: 1fr; } }
+
+.diff-col { padding: .6rem .75rem; overflow-x: auto; min-width: 0; }
+.diff-col + .diff-col { border-left: 1px solid var(--border); }
+
+.diff-col-head {
+  font-size: .68rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  margin-bottom: .4rem;
+}
+.col-a .diff-col-head { color: var(--a); }
+.col-b .diff-col-head { color: var(--b); }
+
+.diff-line {
+  font-family: "SF Mono", "Fira Code", monospace;
+  font-size: .7rem;
+  line-height: 1.7;
+  white-space: pre;
+  padding: 0 .2rem;
+  border-radius: 2px;
+}
+.line-common  { color: var(--muted); }
+.line-unique  { color: var(--text); background: rgba(255,255,255,.04); }
+.line-empty   { color: var(--muted); font-style: italic; }
+
+/* Set-merge table */
+.set-wrap { overflow-x: auto; }
+
+.set-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: "SF Mono", "Fira Code", monospace;
+  font-size: .7rem;
+}
+.set-table thead th {
+  padding: .35rem .6rem;
+  font-size: .65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+.th-key  { color: var(--muted); }
+.th-a    { color: var(--a); }
+.th-b    { color: var(--b); }
+
+.set-table tbody tr { border-bottom: 1px solid rgba(48,54,61,.5); }
+.set-table tbody tr:last-child { border-bottom: none; }
+.set-table tbody tr:hover { background: rgba(255,255,255,.02); }
+
+.set-table td { padding: .22rem .6rem; vertical-align: middle; }
+.td-key  { color: var(--text-dim); }
+.td-val  { color: var(--muted); }
+.td-val-a { color: var(--a); }
+.td-val-b { color: var(--b); }
+
+.set-tog-group { display: flex; gap: .15rem; }
+.set-tog {
+  font-size: .63rem;
+  font-weight: 600;
+  padding: .08rem .35rem;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all .1s;
+}
+.set-tog:hover { border-color: var(--text-dim); }
+.set-tog.sel-a { background: rgba(88,166,255,.2);  border-color: var(--a); color: var(--a); }
+.set-tog.sel-b { background: rgba(63,185,80,.2);   border-color: var(--b); color: var(--b); }
+
+/* disabled when section is not in 'both' mode */
+.set-table.mode-a .set-tog-group,
+.set-table.mode-b .set-tog-group { visibility: hidden; }
+.set-table.mode-a .td-val-b,
+.set-table.mode-b .td-val-a { opacity: .3; }
+
+/* ── Output ── */
+.out-head { margin-bottom: .6rem; }
+.out-hint { font-size: .75rem; color: var(--muted); margin-top: .3rem; }
+
+/* ── Page footer ── */
+.page-footer {
+  text-align: center;
+  padding: 1.5rem;
+  font-size: .72rem;
+  color: var(--muted);
+  border-top: 1px solid var(--border);
+  margin-top: 1rem;
+}
+.page-footer a { color: inherit; text-decoration: none; }
+.page-footer a:hover { color: var(--text); }
+
+/* ── Toast ── */
+.toast {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: .6rem 1rem;
+  border-radius: 7px;
+  font-size: .82rem;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: all .2s;
+  pointer-events: none;
+  z-index: 99;
+}
+.toast.show { opacity: 1; transform: translateY(0); }
+
+/* ── Select-all bar ── */
+.bulk-bar {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  padding: .4rem .75rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: .75rem;
+  color: var(--muted);
+}
+</style>
+</head>
+<body>
+
+<fpv-header root="../" icon="⚡" heading="BF CLI Merge" subtitle="Paste two Betaflight CLI dumps · pick sections · copy the result"></fpv-header>
+<script type="module" src="../assets/site-header.js"></script>
+
+<div class="container">
+
+  <!-- ── Step 1: Inputs ── -->
+  <div class="input-grid">
+    <div>
+      <div class="input-row">
+        <div class="input-label"><span class="dot dot-a"></span>CLI A · base <span class="input-hint">the config you'll save</span></div>
+        <div class="input-actions">
+          <button type="button" class="btn btn-ghost btn-sm" data-load-file="cli-a">📁 Load file</button>
+          <input type="file" class="file-input" data-target="cli-a" accept=".txt,.cli,.config,.log,text/plain">
+        </div>
+      </div>
+      <div class="drop-zone" data-drop-target="cli-a">
+        <textarea id="cli-a" placeholder="Paste output of  diff all  or  dump all  here — or drop a file"></textarea>
+        <div class="drop-overlay">Drop file to load</div>
+      </div>
+    </div>
+    <div>
+      <div class="input-row">
+        <div class="input-label"><span class="dot dot-b"></span>CLI B · import <span class="input-hint">settings to merge in</span></div>
+        <div class="input-actions">
+          <button type="button" class="btn btn-ghost btn-sm" data-load-file="cli-b">📁 Load file</button>
+          <input type="file" class="file-input" data-target="cli-b" accept=".txt,.cli,.config,.log,text/plain">
+        </div>
+      </div>
+      <div class="drop-zone" data-drop-target="cli-b">
+        <textarea id="cli-b" placeholder="Paste output of  diff all  or  dump all  here — or drop a file"></textarea>
+        <div class="drop-overlay">Drop file to load</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row" style="margin-bottom:1.25rem">
+    <button class="btn" id="compare-btn">Compare</button>
+    <button class="btn btn-ghost" id="clear-btn">Clear</button>
+    <span class="status-text" id="parse-status"></span>
+    <span class="version-pills" id="version-pills"></span>
+  </div>
+
+  <!-- ── Step 2: Section picker (hidden until parsed) ── -->
+  <div id="merge-area" style="display:none">
+    <hr>
+
+    <div class="row-between" style="margin-bottom:.75rem">
+      <h2 style="font-size:.9rem;color:var(--text-dim)">Sections</h2>
+      <div class="bulk-bar">
+        <span>Select all:</span>
+        <button class="tog" onclick="selectAll('a')">A</button>
+        <button class="tog" onclick="selectAll('b')">B</button>
+        <button class="tog" onclick="selectAll('both')">Both</button>
+        <button class="tog" onclick="selectAll('skip')">Skip</button>
+      </div>
+    </div>
+
+    <div class="sections-list" id="sections-list"></div>
+
+    <!-- ── Step 3: Output ── -->
+    <hr>
+    <div id="findings-panel" class="findings-panel" hidden></div>
+    <div class="out-head row-between">
+      <div>
+        <h2 style="font-size:.9rem;color:var(--text-dim)">Output</h2>
+        <p class="out-hint">Paste directly into Betaflight CLI</p>
+      </div>
+      <div class="row">
+        <button class="btn btn-ghost btn-sm" id="copy-btn">Copy</button>
+        <button class="btn btn-ghost btn-sm" id="dl-btn">Download</button>
+      </div>
+    </div>
+    <textarea id="output-area" class="output-area" readonly
+      placeholder="Output appears here as you make selections above…"></textarea>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<footer class="page-footer">
+  fpv-tools · <a href="https://github.com/cori/fpv-tools/commit/__GIT_SHA__" aria-label="View deployed commit __GIT_SHA__ on GitHub">__GIT_SHA__</a>
+</footer>
+
+<script type="module">
+import { parseCLI, compareSections } from "./src/parser.js";
+import { parseSetCommands, buildOutput } from "./src/output.js";
+import { extractVersion, validate } from "./src/validator.js";
+
+// ── State ──────────────────────────────────────────────────────────────────
+
+const state = {
+  /** @type {Array<{id,title,linesA,linesB,status}>} */
+  sections: [],
+  /** @type {Record<string,'a'|'b'|'both'|'skip'>} */
+  selections: {},
+  /** @type {Record<string,'a'|'b'>} */
+  setSelections: {},
+  /** @type {string|null} */
+  versionA: null,
+  /** @type {string|null} */
+  versionB: null,
+};
+
+// ── Defaults ───────────────────────────────────────────────────────────────
+
+function defaultSel(sec) {
+  return sec.status === "only-b" ? "b" : "a";
+}
+
+// ── Render ─────────────────────────────────────────────────────────────────
+
+function render() {
+  const list = document.getElementById("sections-list");
+  list.innerHTML = "";
+  for (const sec of state.sections) {
+    list.appendChild(buildCard(sec));
+  }
+}
+
+function buildCard(sec) {
+  const sel = state.selections[sec.id] ?? defaultSel(sec);
+
+  const card = document.createElement("div");
+  card.className = "sec-card";
+  card.dataset.id = sec.id;
+  if (sel) card.dataset.sel = sel;
+
+  const hasSet = [...sec.linesA, ...sec.linesB].some((l) => /^set\s+/.test(l.trim()));
+  const isDiff = sec.status === "diff";
+
+  // ── Head ──
+  const head = document.createElement("div");
+  head.className = "sec-head";
+
+  const badgeMap = {
+    same:    ["badge-same",   "identical"],
+    diff:    ["badge-diff",   "different"],
+    "only-a":["badge-only-a", "A only"],
+    "only-b":["badge-only-b", "B only"],
+  };
+  const [bCls, bLabel] = badgeMap[sec.status] ?? ["badge-diff", sec.status];
+
+  const canA    = sec.status !== "only-b";
+  const canB    = sec.status !== "only-a";
+  const canBoth = isDiff;
+
+  head.innerHTML = `
+    <span class="sec-name"># <span>${escHtml(sec.title)}</span></span>
+    <span class="badge ${bCls}">${bLabel}</span>
+    <div class="toggle-group">
+      ${canA    ? `<button class="tog${sel==="a"    ? " sel-a"    : ""}" data-v="a">A</button>` : ""}
+      ${canBoth ? `<button class="tog${sel==="both" ? " sel-both" : ""}" data-v="both">Both</button>` : ""}
+      ${canB    ? `<button class="tog${sel==="b"    ? " sel-b"    : ""}" data-v="b">B</button>` : ""}
+      <button class="tog${sel==="skip" ? " sel-skip" : ""}" data-v="skip">Skip</button>
+    </div>
+    <span class="chevron">▾</span>
+  `;
+
+  head.querySelectorAll("[data-v]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      setSel(sec.id, btn.dataset.v);
+    });
+  });
+
+  head.addEventListener("click", () => card.classList.toggle("open"));
+
+  // ── Body ──
+  const body = document.createElement("div");
+  body.className = "sec-body";
+  body.appendChild(hasSet ? buildSetTable(sec) : buildDiffView(sec));
+
+  card.appendChild(head);
+  card.appendChild(body);
+  return card;
+}
+
+// Side-by-side diff view for non-set sections
+function buildDiffView(sec) {
+  const setA = new Set(sec.linesA.map((l) => l.trim()).filter(Boolean));
+  const setB = new Set(sec.linesB.map((l) => l.trim()).filter(Boolean));
+
+  function col(lines, otherSet, cls, label) {
+    const d = document.createElement("div");
+    d.className = `diff-col ${cls}`;
+    d.innerHTML = `<div class="diff-col-head">${label}</div>`;
+    const nonEmpty = lines.filter((l) => l.trim());
+    if (!nonEmpty.length) {
+      d.innerHTML += `<div class="diff-line line-empty">(empty)</div>`;
+    } else {
+      for (const line of nonEmpty) {
+        const shared = otherSet.has(line.trim());
+        d.innerHTML += `<div class="diff-line ${shared ? "line-common" : "line-unique"}">${escHtml(line)}</div>`;
+      }
+    }
+    return d;
+  }
+
+  const grid = document.createElement("div");
+  grid.className = "diff-grid";
+  grid.appendChild(col(sec.linesA, setB, "col-a", "CLI A"));
+  grid.appendChild(col(sec.linesB, setA, "col-b", "CLI B"));
+  return grid;
+}
+
+// Per-key set merge table for master / profile / rateprofile sections
+function buildSetTable(sec) {
+  const { sets: setsA, other: otherA } = parseSetCommands(sec.linesA);
+  const { sets: setsB, other: otherB } = parseSetCommands(sec.linesB);
+  const allKeys = [...new Set([...setsA.keys(), ...setsB.keys()])];
+  const currentSel = state.selections[sec.id] ?? defaultSel(sec);
+
+  const wrap = document.createElement("div");
+  wrap.className = "set-wrap";
+
+  // Show non-set lines (profile header etc.) as a small diff if present
+  const otherContent = [...otherA, ...otherB].filter((l) => l.trim());
+  if (otherContent.length) {
+    wrap.appendChild(buildDiffView({ ...sec, linesA: otherA, linesB: otherB }));
+    const sep = document.createElement("div");
+    sep.style.borderTop = "1px solid var(--border)";
+    wrap.appendChild(sep);
+  }
+
+  const table = document.createElement("table");
+  table.className = `set-table mode-${currentSel === "both" ? "both" : currentSel === "b" ? "b" : "a"}`;
+  table.dataset.secId = sec.id;
+
+  table.innerHTML = `
+    <thead><tr>
+      <th class="th-key">Key</th>
+      <th class="th-a">A value</th>
+      <th class="th-b">B value</th>
+      <th></th>
+    </tr></thead>
+  `;
+
+  const tbody = document.createElement("tbody");
+  for (const key of allKeys) {
+    const va = setsA.get(key);
+    const vb = setsB.get(key);
+    const same = va === vb;
+    const sk = `${sec.id}:${key}`;
+    const ksel = state.setSelections[sk] ?? "a";
+
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td class="td-key">${escHtml(key)}</td>
+      <td class="${same ? "td-val" : "td-val-a"}">${va !== undefined ? escHtml(va) : `<span style="color:var(--muted)">—</span>`}</td>
+      <td class="${same ? "td-val" : "td-val-b"}">${vb !== undefined ? escHtml(vb) : `<span style="color:var(--muted)">—</span>`}</td>
+      <td>
+        ${same
+          ? `<span style="font-size:.63rem;color:var(--muted)">same</span>`
+          : `<div class="set-tog-group">
+               ${va !== undefined ? `<button class="set-tog${ksel==="a"?" sel-a":""}" data-sk="${sk}" data-c="a">A</button>` : ""}
+               ${vb !== undefined ? `<button class="set-tog${ksel==="b"?" sel-b":""}" data-sk="${sk}" data-c="b">B</button>` : ""}
+             </div>`
+        }
+      </td>
+    `;
+    tbody.appendChild(tr);
+  }
+
+  table.appendChild(tbody);
+
+  table.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-sk]");
+    if (!btn) return;
+    const sk = btn.dataset.sk;
+    const c  = btn.dataset.c;
+    state.setSelections[sk] = c;
+    btn.closest("tr").querySelectorAll("[data-sk]").forEach((b) => {
+      b.className = `set-tog${b.dataset.c === c ? " sel-" + c : ""}`;
+    });
+    refreshOutput();
+  });
+
+  wrap.appendChild(table);
+  return wrap;
+}
+
+// ── Selection helpers ──────────────────────────────────────────────────────
+
+function setSel(id, val) {
+  state.selections[id] = val;
+  const card = document.querySelector(`.sec-card[data-id="${id}"]`);
+  if (!card) return;
+
+  // Update toggle buttons
+  card.querySelectorAll(".toggle-group .tog").forEach((btn) => {
+    const v = btn.dataset.v;
+    btn.className = `tog${v === val ? " sel-" + val : ""}`;
+  });
+
+  // Update set-table mode class
+  const table = card.querySelector(".set-table");
+  if (table) {
+    table.className = `set-table mode-${val === "both" ? "both" : val === "b" ? "b" : "a"}`;
+  }
+
+  card.dataset.sel = val;
+  refreshOutput();
+}
+
+window.selectAll = function (val) {
+  for (const sec of state.sections) {
+    // Don't force skip on header/footer, and respect one-sided sections
+    if (val === "a" && sec.status === "only-b") continue;
+    if (val === "b" && sec.status === "only-a") continue;
+    setSel(sec.id, val);
+  }
+};
+
+// ── Output ─────────────────────────────────────────────────────────────────
+
+function refreshOutput() {
+  const out = buildOutput(state.sections, state.selections, state.setSelections);
+  document.getElementById("output-area").value = out;
+  refreshFindings(out);
+}
+
+function refreshFindings(mergedText) {
+  const panel = document.getElementById("findings-panel");
+  const findings = validate({
+    mergedText,
+    sections: state.sections,
+    versionA: state.versionA,
+    versionB: state.versionB,
+  });
+
+  if (!findings.length) {
+    panel.hidden = true;
+    panel.innerHTML = "";
+    return;
+  }
+  panel.hidden = false;
+
+  const counts = { error: 0, warning: 0, info: 0 };
+  for (const f of findings) counts[f.severity] = (counts[f.severity] ?? 0) + 1;
+  const topSev = counts.error ? "error" : counts.warning ? "warning" : "info";
+  panel.className = `findings-panel sev-${topSev}`;
+
+  const countPills = ["error", "warning", "info"]
+    .filter((s) => counts[s])
+    .map((s) => `<span class="findings-count count-${s}">${counts[s]} ${s}${counts[s] === 1 ? "" : "s"}</span>`)
+    .join("");
+
+  const items = findings.map((f) => `
+    <li class="finding">
+      <span class="finding-sev ${f.severity}">${f.severity}</span>
+      ${f.line ? `<span class="finding-line">L${f.line}</span>` : ""}
+      <span class="finding-msg">${escHtml(f.message)}</span>
+    </li>
+  `).join("");
+
+  panel.innerHTML = `
+    <details ${counts.error ? "open" : ""}>
+      <summary class="findings-summary">
+        Issues in merged output ${countPills}
+      </summary>
+      <ul class="findings-list">${items}</ul>
+    </details>
+  `;
+}
+
+function renderVersionPills() {
+  const pills = document.getElementById("version-pills");
+  const { versionA, versionB } = state;
+  const parts = [];
+  if (versionA) parts.push(`<span class="version-pill pill-a">A · ${escHtml(versionA)}</span>`);
+  if (versionB) parts.push(`<span class="version-pill pill-b">B · ${escHtml(versionB)}</span>`);
+  if (versionA && versionB && versionA !== versionB) {
+    parts.push(`<span class="version-pill pill-mismatch" title="A is the validation target">version mismatch</span>`);
+  }
+  pills.innerHTML = parts.join("");
+}
+
+// ── File loading (picker + drag-and-drop) ──────────────────────────────────
+
+async function loadFileIntoTextarea(file, targetId) {
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const ta = document.getElementById(targetId);
+    ta.value = text;
+    ta.dispatchEvent(new Event("input", { bubbles: true }));
+    toast(`Loaded ${file.name}`);
+  } catch (err) {
+    toast(`Could not read file: ${err.message ?? err}`);
+  }
+}
+
+document.querySelectorAll("[data-load-file]").forEach((btn) => {
+  const targetId = btn.dataset.loadFile;
+  const input = document.querySelector(`.file-input[data-target="${targetId}"]`);
+  if (!input) return;
+  btn.addEventListener("click", () => input.click());
+  input.addEventListener("change", () => {
+    const file = input.files?.[0];
+    loadFileIntoTextarea(file, targetId);
+    input.value = "";
+  });
+});
+
+document.querySelectorAll("[data-drop-target]").forEach((zone) => {
+  const targetId = zone.dataset.dropTarget;
+  zone.addEventListener("dragenter", (e) => {
+    if (!e.dataTransfer?.types.includes("Files")) return;
+    e.preventDefault();
+    zone.classList.add("drag-over");
+  });
+  zone.addEventListener("dragover", (e) => {
+    if (!e.dataTransfer?.types.includes("Files")) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+  });
+  zone.addEventListener("dragleave", (e) => {
+    if (e.target === zone || !zone.contains(e.relatedTarget)) {
+      zone.classList.remove("drag-over");
+    }
+  });
+  zone.addEventListener("drop", (e) => {
+    if (!e.dataTransfer?.files?.length) return;
+    e.preventDefault();
+    zone.classList.remove("drag-over");
+    loadFileIntoTextarea(e.dataTransfer.files[0], targetId);
+  });
+});
+
+// ── Events ─────────────────────────────────────────────────────────────────
+
+document.getElementById("compare-btn").addEventListener("click", () => {
+  const textA = document.getElementById("cli-a").value.trim();
+  const textB = document.getElementById("cli-b").value.trim();
+  if (!textA || !textB) { toast("Paste both CLI dumps first."); return; }
+
+  const secA = parseCLI(textA);
+  const secB = parseCLI(textB);
+  state.sections   = compareSections(secA, secB);
+  state.selections  = {};
+  state.setSelections = {};
+  state.versionA = extractVersion(textA);
+  state.versionB = extractVersion(textB);
+  renderVersionPills();
+
+  // Apply defaults
+  for (const sec of state.sections) {
+    state.selections[sec.id] = defaultSel(sec);
+  }
+
+  const diffCount = state.sections.filter((s) => s.status === "diff").length;
+  const onlyA     = state.sections.filter((s) => s.status === "only-a").length;
+  const onlyB     = state.sections.filter((s) => s.status === "only-b").length;
+  document.getElementById("parse-status").textContent =
+    `${state.sections.length} sections · ${diffCount} different · ${onlyA} A-only · ${onlyB} B-only`;
+
+  document.getElementById("merge-area").style.display = "";
+  render();
+  refreshOutput();
+  document.getElementById("merge-area").scrollIntoView({ behavior: "smooth", block: "start" });
+});
+
+document.getElementById("clear-btn").addEventListener("click", () => {
+  document.getElementById("cli-a").value = "";
+  document.getElementById("cli-b").value = "";
+  document.getElementById("merge-area").style.display = "none";
+  document.getElementById("parse-status").textContent = "";
+  state.sections = [];
+  state.selections = {};
+  state.setSelections = {};
+  state.versionA = null;
+  state.versionB = null;
+  renderVersionPills();
+});
+
+document.getElementById("copy-btn").addEventListener("click", () => {
+  const text = document.getElementById("output-area").value;
+  if (!text) { toast("Nothing to copy yet."); return; }
+  navigator.clipboard.writeText(text).then(() => toast("Copied!"));
+});
+
+document.getElementById("dl-btn").addEventListener("click", () => {
+  const text = document.getElementById("output-area").value;
+  if (!text) { toast("Nothing to download yet."); return; }
+  const a = Object.assign(document.createElement("a"), {
+    href: URL.createObjectURL(new Blob([text], { type: "text/plain" })),
+    download: "betaflight-merged.txt",
+  });
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+// ── Utilities ──────────────────────────────────────────────────────────────
+
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+let toastTimer;
+function toast(msg) {
+  const el = document.getElementById("toast");
+  el.textContent = msg;
+  el.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove("show"), 2400);
+}
+</script>
+
+</body>
+</html>

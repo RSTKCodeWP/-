@@ -1,0 +1,14 @@
+{
+  "name": "flowchart",
+  "short_name": "flowchart",
+  "description": "Track FPV freestyle training - sessions, tricks, progress to Denver",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1a1a2e",
+  "theme_color": "#1a1a2e",
+  "orientation": "portrait-primary",
+  "icons": [
+    { "src": "/icons/icon-192.svg", "sizes": "any", "type": "image/svg+xml" },
+    { "src": "/icons/icon-512.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}
