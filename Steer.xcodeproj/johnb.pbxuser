@@ -1,0 +1,585 @@
+// !$*UTF8*$!
+{
+	00FE473A1146335F00D921B0 /* FFPlayer.m */ = {
+		uiCtxt = {
+			sepNavIntBoundsRect = "{{0, 0}, {728, 3568}}";
+			sepNavSelRange = "{5633, 0}";
+			sepNavVisRange = "{5095, 938}";
+		};
+	};
+	1D3623240D0F684500981E51 /* SteerAppDelegate.h */ = {
+		uiCtxt = {
+			sepNavIntBoundsRect = "{{0, 0}, {1247, 583}}";
+			sepNavSelRange = "{0, 0}";
+			sepNavVisRange = "{0, 286}";
+		};
+	};
+	1D3623250D0F684500981E51 /* SteerAppDelegate.m */ = {
+		uiCtxt = {
+			sepNavIntBoundsRect = "{{0, 0}, {1247, 1216}}";
+			sepNavSelRange = "{1152, 0}";
+			sepNavVisRange = "{689, 1843}";
+		};
+	};
+	1D6058900D05DD3D006BFB54 /* Steer */ = {
+		activeExec = 0;
+		executables = (
+			421539451145F70C0011C7B6 /* Steer */,
+		);
+	};
+	29B97313FDCFA39411CA2CEA /* Project object */ = {
+		activeArchitecturePreference = armv7;
+		activeBuildConfigurationName = Release;
+		activeExecutable = 421539451145F70C0011C7B6 /* Steer */;
+		activeSDKPreference = iphoneos3.0;
+		activeTarget = 1D6058900D05DD3D006BFB54 /* Steer */;
+		addToTargets = (
+			1D6058900D05DD3D006BFB54 /* Steer */,
+		);
+		breakpoints = (
+			42EEBFE61147570C00DF578B /* DualJoystickViewController.m:53 */,
+			42EEBFFD114757E400DF578B /* DualJoystickViewController.m:29 */,
+		);
+		codeSenseManager = 421539551145F7110011C7B6 /* Code sense */;
+		executables = (
+			421539451145F70C0011C7B6 /* Steer */,
+		);
+		perUserDictionary = {
+			PBXConfiguration.PBXFileTableDataSource3.PBXFileTableDataSource = {
+				PBXFileTableDataSourceColumnSortingDirectionKey = "-1";
+				PBXFileTableDataSourceColumnSortingKey = PBXFileDataSource_Filename_ColumnID;
+				PBXFileTableDataSourceColumnWidthsKey = (
+					20,
+					812,
+					20,
+					48,
+					43,
+					43,
+					20,
+				);
+				PBXFileTableDataSourceColumnsKey = (
+					PBXFileDataSource_FiletypeID,
+					PBXFileDataSource_Filename_ColumnID,
+					PBXFileDataSource_Built_ColumnID,
+					PBXFileDataSource_ObjectSize_ColumnID,
+					PBXFileDataSource_Errors_ColumnID,
+					PBXFileDataSource_Warnings_ColumnID,
+					PBXFileDataSource_Target_ColumnID,
+				);
+			};
+			PBXConfiguration.PBXTargetDataSource.PBXTargetDataSource = {
+				PBXFileTableDataSourceColumnSortingDirectionKey = "-1";
+				PBXFileTableDataSourceColumnSortingKey = PBXFileDataSource_Filename_ColumnID;
+				PBXFileTableDataSourceColumnWidthsKey = (
+					20,
+					1029,
+					60,
+					20,
+					48.16259765625,
+					43,
+					43,
+				);
+				PBXFileTableDataSourceColumnsKey = (
+					PBXFileDataSource_FiletypeID,
+					PBXFileDataSource_Filename_ColumnID,
+					PBXTargetDataSource_PrimaryAttribute,
+					PBXFileDataSource_Built_ColumnID,
+					PBXFileDataSource_ObjectSize_ColumnID,
+					PBXFileDataSource_Errors_ColumnID,
+					PBXFileDataSource_Warnings_ColumnID,
+				);
+			};
+			PBXPerProjectTemplateStateSaveDate = 290099115;
+			PBXWorkspaceStateSaveDate = 290099115;
+		};
+		perUserProjectItems = {
+			4215397D1145FA9D0011C7B6 = 4215397D1145FA9D0011C7B6 /* PBXTextBookmark */;
+			42153A0E11460DA90011C7B6 = 42153A0E11460DA90011C7B6 /* PBXTextBookmark */;
+			42153A98114620660011C7B6 = 42153A98114620660011C7B6 /* PBXTextBookmark */;
+			42153AD2114627030011C7B6 = 42153AD2114627030011C7B6 /* PBXTextBookmark */;
+			42153AD3114627030011C7B6 = 42153AD3114627030011C7B6 /* PBXTextBookmark */;
+			42153B041146333E0011C7B6 = 42153B041146333E0011C7B6 /* PBXTextBookmark */;
+			4249E9E8114A90AE00398764 /* PBXTextBookmark */ = 4249E9E8114A90AE00398764 /* PBXTextBookmark */;
+			4249E9EA114A90AE00398764 /* PBXTextBookmark */ = 4249E9EA114A90AE00398764 /* PBXTextBookmark */;
+			4249E9EB114A90AE00398764 /* PBXTextBookmark */ = 4249E9EB114A90AE00398764 /* PBXTextBookmark */;
+			42EEC010114759E300DF578B = 42EEC010114759E300DF578B /* PBXTextBookmark */;
+			42EEC011114759E300DF578B = 42EEC011114759E300DF578B /* PBXTextBookmark */;
+			42EEC012114759E300DF578B = 42EEC012114759E300DF578B /* PBXTextBookmark */;
+			42EEC015114759E300DF578B = 42EEC015114759E300DF578B /* PBXTextBookmark */;
+			42EEC017114759E300DF578B = 42EEC017114759E300DF578B /* PBXTextBookmark */;
+			42EEC019114759E300DF578B = 42EEC019114759E300DF578B /* PBXTextBookmark */;
+			42EEC01B114759E300DF578B = 42EEC01B114759E300DF578B /* PBXTextBookmark */;
+			42EEC01C114759E300DF578B = 42EEC01C114759E300DF578B /* PBXTextBookmark */;
+			42EEC01D114759E300DF578B = 42EEC01D114759E300DF578B /* PBXTextBookmark */;
+			42EEC01E114759E300DF578B = 42EEC01E114759E300DF578B /* PBXTextBookmark */;
+			42EEC01F114759E300DF578B = 42EEC01F114759E300DF578B /* PBXTextBookmark */;
+			42EEC020114759E300DF578B = 42EEC020114759E300DF578B /* PBXTextBookmark */;
+			42EEC04411475E6E00DF578B = 42EEC04411475E6E00DF578B /* PBXTextBookmark */;
+		};
+		sourceControlManager = 421539541145F7110011C7B6 /* Source Control */;
+		userBuildSettings = {
+		};
+	};
+	29B97316FDCFA39411CA2CEA /* main.m */ = {
+		uiCtxt = {
+			sepNavIntBoundsRect = "{{0, 0}, {633, 256}}";
+			sepNavSelRange = "{233, 0}";
+			sepNavVisRange = "{65, 283}";
+		};
+	};
+	420C74691144B936008F46B4 /* ControlViewController.h */ = {
+		uiCtxt = {
+			sepNavIntBoundsRect = "{{0, 0}, {766, 592}}";
+			sepNavSelRange = "{199, 0}";
+			sepNavVisRange = "{0, 603}";
+		};
+	};
+	420C746A1144B936008F46B4 /* ControlViewController.m */ = {
+		uiCtxt = {
+			sepNavIntBoundsRect = "{{0, 0}, {1247, 688}}";
+			sepNavSelRange = "{930, 0}";
+			sepNavVisRange = "{82, 896}";
+		};
+	};
+	420C74AD1144DE71008F46B4 /* CarControl.h */ = {
+		uiCtxt = {
+			sepNavIntBoundsRect = "{{0, 0}, {976, 569}}";
+			sepNavSelRange = "{418, 0}";
+			sepNavVisRange = "{0, 436}";
+		};
+	};
+	420C74AE1144DE71008F46B4 /* CarControl.m */ = {
+		uiCtxt = {
+			sepNavIntBoundsRect = "{{0, 0}, {766, 1376}}";
+			sepNavSelRange = "{1174, 0}";
+			sepNavVisRange = "{1322, 784}";
+		};
+	};
+	420C75371144F065008F46B4 /* AccelerometerConfigurationViewController.h */ = {
+		uiCtxt = {
+			sepNavIntBoundsRect = "{{0, 0}, {1247, 621}}";
+			sepNavSelRange = "{309, 0}";
+			sepNavVisRange = "{0, 475}";
+		};
+	};
+	420C75381144F065008F46B4 /* AccelerometerConfigurationViewController.m */ = {
+		uiCtxt = {
+			sepNavIntBoundsRect = "{{0, 0}, {1247, 1952}}";
+			sepNavSelRange = "{3990, 0}";
+			sepNavVisRange = "{3448, 1461}";
+		};
+	};
+	421539451145F70C0011C7B6 /* Steer */ = {
+		isa = PBXExecutable;
+		activeArgIndices = (
+		);
+		argumentStrings = (
+		);
+		autoAttachOnCrash = 1;
+		breakpointsEnabled = 1;
+		configStateDict = {
+		};
+		customDataFormattersEnabled = 1;
+		dataTipCustomDataFormattersEnabled = 1;
+		dataTipShowTypeColumn = 1;
+		dataTipSortType = 0;
+		debuggerPlugin = GDBDebugging;
+		disassemblyDisplayState = 0;
+		dylibVariantSuffix = "";
+		enableDebugStr = 1;
+		environmentEntries = (
+		);
+		executableSystemSymbolLevel = 0;
+		executableUserSymbolLevel = 0;
+		libgmallocEnabled = 0;
+		name = Steer;
+		savedGlobals = {
+		};
+		showTypeColumn = 0;
+		sourceDirectories = (
+		);
+		variableFormatDictionary = {
+		};
+	};
+	421539541145F7110011C7B6 /* Source Control */ = {
+		isa = PBXSourceControlManager;
+		fallbackIsa = XCSourceControlManager;
+		isSCMEnabled = 0;
+		scmConfiguration = {
+			repositoryNamesForRoots = {
+				"" = "";
+			};
+		};
+	};
+	421539551145F7110011C7B6 /* Code sense */ = {
+		isa = PBXCodeSenseManager;
+		indexTemplatePath = "";
+	};
+	4215397D1145FA9D0011C7B6 /* PBXTextBookmark */ = {
+		isa = PBXTextBookmark;
+		fRef = 420C74AD1144DE71008F46B4 /* CarControl.h */;
+		name = "CarControl.h: 20";
+		rLen = 0;
+		rLoc = 418;
+		rType = 0;
+		vrLen = 436;
+		vrLoc = 0;
+	};
+	421539A01146029E0011C7B6 /* LookAndFeel.h */ = {
+		uiCtxt = {
+			sepNavIntBoundsRect = "{{0, 0}, {1247, 606}}";
+			sepNavSelRange = "{609, 0}";
+			sepNavVisRange = "{0, 653}";
+		};
+	};
+	421539A11146029E0011C7B6 /* LookAndFeel.m */ = {
+		uiCtxt = {
+			sepNavIntBoundsRect = "{{0, 0}, {1247, 960}}";
+			sepNavSelRange = "{1416, 0}";
+			sepNavVisRange = "{148, 1661}";
+		};
+	};
+	421539E711460AC00011C7B6 /* MainConfigurationViewController.h */ = {
+		uiCtxt = {
+			sepNavIntBoundsRect = "{{0, 0}, {1247, 606}}";
+			sepNavSelRange = "{465, 0}";
+			sepNavVisRange = "{0, 472}";
+		};
+	};
+	421539E811460AC00011C7B6 /* MainConfigurationViewController.m */ = {
+		uiCtxt = {
+			sepNavIntBoundsRect = "{{0, 0}, {1415, 2496}}";
+			sepNavSelRange = "{4545, 0}";
+			sepNavVisRange = "{3507, 1855}";
+		};
+	};
+	42153A0E11460DA90011C7B6 /* PBXTextBookmark */ = {
+		isa = PBXTextBookmark;
+		fRef = 420C74AE1144DE71008F46B4 /* CarControl.m */;
+		name = "CarControl.m: 46";
+		rLen = 0;
+		rLoc = 1174;
+		rType = 0;
+		vrLen = 784;
+		vrLoc = 1322;
+	};
+	42153A98114620660011C7B6 /* PBXTextBookmark */ = {
+		isa = PBXTextBookmark;
+		fRef = 420C74691144B936008F46B4 /* ControlViewController.h */;
+		name = "ControlViewController.h: 12";
+		rLen = 0;
+		rLoc = 199;
+		rType = 0;
+		vrLen = 603;
+		vrLoc = 0;
+	};
+	42153AD2114627030011C7B6 /* PBXTextBookmark */ = {
+		isa = PBXTextBookmark;
+		fRef = 42A21F0D11435E6D00FDE34A /* AccelerometerViewController.h */;
+		name = "AccelerometerViewController.h: 20";
+		rLen = 0;
+		rLoc = 565;
+		rType = 0;
+		vrLen = 1009;
+		vrLoc = 0;
+	};
+	42153AD3114627030011C7B6 /* PBXTextBookmark */ = {
+		isa = PBXTextBookmark;
+		fRef = 429B016F1143BBDF000D1330 /* SharedSettings.h */;
+		name = "SharedSettings.h: 31";
+		rLen = 0;
+		rLoc = 849;
+		rType = 0;
+		vrLen = 1130;
+		vrLoc = 37;
+	};
+	42153B041146333E0011C7B6 /* PBXTextBookmark */ = {
+		isa = PBXTextBookmark;
+		fRef = 420C75371144F065008F46B4 /* AccelerometerConfigurationViewController.h */;
+		name = "AccelerometerConfigurationViewController.h: 12";
+		rLen = 0;
+		rLoc = 309;
+		rType = 0;
+		vrLen = 475;
+		vrLoc = 0;
+	};
+	4249E9E8114A90AE00398764 /* PBXTextBookmark */ = {
+		isa = PBXTextBookmark;
+		fRef = 4249E9E9114A90AE00398764 /* swscale.h */;
+		name = "swscale.h: 195";
+		rLen = 8;
+		rLoc = 6657;
+		rType = 0;
+		vrLen = 1381;
+		vrLoc = 6147;
+	};
+	4249E9E9114A90AE00398764 /* swscale.h */ = {
+		isa = PBXFileReference;
+		name = swscale.h;
+		path = "/Users/johnb/Programming/er-a/Libraries/ffmpeg/libswscale/swscale.h";
+		sourceTree = "<absolute>";
+	};
+	4249E9EA114A90AE00398764 /* PBXTextBookmark */ = {
+		isa = PBXTextBookmark;
+		fRef = 00FE473A1146335F00D921B0 /* FFPlayer.m */;
+		name = "FFPlayer.m: 203";
+		rLen = 9;
+		rLoc = 5608;
+		rType = 0;
+		vrLen = 938;
+		vrLoc = 5095;
+	};
+	4249E9EB114A90AE00398764 /* PBXTextBookmark */ = {
+		isa = PBXTextBookmark;
+		fRef = 00FE473A1146335F00D921B0 /* FFPlayer.m */;
+		name = "FFPlayer.m: 203";
+		rLen = 0;
+		rLoc = 5633;
+		rType = 0;
+		vrLen = 938;
+		vrLoc = 5095;
+	};
+	429B00D01143A2F0000D1330 /* ConfigurationViewController.h */ = {
+		uiCtxt = {
+			sepNavIntBoundsRect = "{{0, 0}, {1247, 583}}";
+			sepNavSelRange = "{261, 0}";
+			sepNavVisRange = "{0, 418}";
+		};
+	};
+	429B00D11143A2F0000D1330 /* ConfigurationViewController.m */ = {
+		uiCtxt = {
+			sepNavIntBoundsRect = "{{0, 0}, {1146, 1504}}";
+			sepNavSelRange = "{959, 0}";
+			sepNavVisRange = "{37, 1100}";
+		};
+	};
+	429B01371143B561000D1330 /* AccelerometerView.h */ = {
+		uiCtxt = {
+			sepNavIntBoundsRect = "{{0, 0}, {1247, 606}}";
+			sepNavSelRange = "{0, 0}";
+			sepNavVisRange = "{0, 861}";
+		};
+	};
+	429B01381143B561000D1330 /* AccelerometerView.m */ = {
+		uiCtxt = {
+			sepNavIntBoundsRect = "{{0, 0}, {1247, 1088}}";
+			sepNavSelRange = "{937, 0}";
+			sepNavVisRange = "{0, 1015}";
+		};
+	};
+	429B016F1143BBDF000D1330 /* SharedSettings.h */ = {
+		uiCtxt = {
+			sepNavIntBoundsRect = "{{0, 0}, {990, 640}}";
+			sepNavSelRange = "{849, 0}";
+			sepNavVisRange = "{494, 726}";
+		};
+	};
+	429B01701143BBDF000D1330 /* SharedSettings.m */ = {
+		uiCtxt = {
+			sepNavIntBoundsRect = "{{0, 0}, {1006, 1952}}";
+			sepNavSelRange = "{1842, 0}";
+			sepNavVisRange = "{956, 1427}";
+		};
+	};
+	42A21E261143331C00FDE34A /* DualJoystickViewController.m */ = {
+		uiCtxt = {
+			sepNavIntBoundsRect = "{{0, 0}, {1247, 1296}}";
+			sepNavSelRange = "{626, 0}";
+			sepNavVisRange = "{513, 1242}";
+		};
+	};
+	42A21E451143396200FDE34A /* TouchJoystickView.h */ = {
+		uiCtxt = {
+			sepNavIntBoundsRect = "{{0, 0}, {1247, 606}}";
+			sepNavSelRange = "{0, 0}";
+			sepNavVisRange = "{0, 794}";
+		};
+	};
+	42A21E461143396200FDE34A /* TouchJoystickView.m */ = {
+		uiCtxt = {
+			sepNavIntBoundsRect = "{{0, 0}, {1247, 2320}}";
+			sepNavSelRange = "{260, 0}";
+			sepNavVisRange = "{171, 1100}";
+		};
+	};
+	42A21F0D11435E6D00FDE34A /* AccelerometerViewController.h */ = {
+		uiCtxt = {
+			sepNavIntBoundsRect = "{{0, 0}, {831, 571}}";
+			sepNavSelRange = "{565, 0}";
+			sepNavVisRange = "{0, 1009}";
+		};
+	};
+	42A21F0E11435E6D00FDE34A /* AccelerometerViewController.m */ = {
+		uiCtxt = {
+			sepNavIntBoundsRect = "{{0, 0}, {1247, 3152}}";
+			sepNavSelRange = "{2898, 0}";
+			sepNavVisRange = "{2607, 1199}";
+		};
+	};
+	42EEBFE61147570C00DF578B /* DualJoystickViewController.m:53 */ = {
+		isa = PBXFileBreakpoint;
+		actions = (
+		);
+		breakpointStyle = 0;
+		continueAfterActions = 0;
+		countType = 0;
+		delayBeforeContinue = 0;
+		fileReference = 42A21E261143331C00FDE34A /* DualJoystickViewController.m */;
+		functionName = "-shouldAutorotateToInterfaceOrientation:";
+		hitCount = 0;
+		ignoreCount = 0;
+		lineNumber = 53;
+		location = Steer;
+		modificationTime = 290099390.153175;
+		originalNumberOfMultipleMatches = 1;
+		state = 2;
+	};
+	42EEBFFD114757E400DF578B /* DualJoystickViewController.m:29 */ = {
+		isa = PBXFileBreakpoint;
+		actions = (
+		);
+		breakpointStyle = 0;
+		continueAfterActions = 0;
+		countType = 0;
+		delayBeforeContinue = 0;
+		fileReference = 42A21E261143331C00FDE34A /* DualJoystickViewController.m */;
+		functionName = "-loadView";
+		hitCount = 0;
+		ignoreCount = 0;
+		lineNumber = 29;
+		location = Steer;
+		modificationTime = 290099390.153238;
+		originalNumberOfMultipleMatches = 1;
+		state = 2;
+	};
+	42EEC010114759E300DF578B /* PBXTextBookmark */ = {
+		isa = PBXTextBookmark;
+		fRef = 420C746A1144B936008F46B4 /* ControlViewController.m */;
+		name = "ControlViewController.m: 37";
+		rLen = 0;
+		rLoc = 930;
+		rType = 0;
+		vrLen = 896;
+		vrLoc = 82;
+	};
+	42EEC011114759E300DF578B /* PBXTextBookmark */ = {
+		isa = PBXTextBookmark;
+		fRef = 421539E711460AC00011C7B6 /* MainConfigurationViewController.h */;
+		name = "MainConfigurationViewController.h: 17";
+		rLen = 0;
+		rLoc = 465;
+		rType = 0;
+		vrLen = 472;
+		vrLoc = 0;
+	};
+	42EEC012114759E300DF578B /* PBXTextBookmark */ = {
+		isa = PBXTextBookmark;
+		fRef = 421539A01146029E0011C7B6 /* LookAndFeel.h */;
+		name = "LookAndFeel.h: 20";
+		rLen = 0;
+		rLoc = 609;
+		rType = 0;
+		vrLen = 653;
+		vrLoc = 0;
+	};
+	42EEC015114759E300DF578B /* PBXTextBookmark */ = {
+		isa = PBXTextBookmark;
+		fRef = 429B00D01143A2F0000D1330 /* ConfigurationViewController.h */;
+		name = "ConfigurationViewController.h: 10";
+		rLen = 0;
+		rLoc = 261;
+		rType = 0;
+		vrLen = 418;
+		vrLoc = 0;
+	};
+	42EEC017114759E300DF578B /* PBXTextBookmark */ = {
+		isa = PBXTextBookmark;
+		fRef = 1D3623240D0F684500981E51 /* SteerAppDelegate.h */;
+		name = "SteerAppDelegate.h: 1";
+		rLen = 0;
+		rLoc = 0;
+		rType = 0;
+		vrLen = 286;
+		vrLoc = 0;
+	};
+	42EEC019114759E300DF578B /* PBXTextBookmark */ = {
+		isa = PBXTextBookmark;
+		fRef = 429B01371143B561000D1330 /* AccelerometerView.h */;
+		name = "AccelerometerView.h: 1";
+		rLen = 0;
+		rLoc = 0;
+		rType = 0;
+		vrLen = 861;
+		vrLoc = 0;
+	};
+	42EEC01B114759E300DF578B /* PBXTextBookmark */ = {
+		isa = PBXTextBookmark;
+		fRef = 42A21E451143396200FDE34A /* TouchJoystickView.h */;
+		name = "TouchJoystickView.h: 1";
+		rLen = 0;
+		rLoc = 0;
+		rType = 0;
+		vrLen = 794;
+		vrLoc = 0;
+	};
+	42EEC01C114759E300DF578B /* PBXTextBookmark */ = {
+		isa = PBXTextBookmark;
+		fRef = 42A21E461143396200FDE34A /* TouchJoystickView.m */;
+		name = "TouchJoystickView.m: 13";
+		rLen = 0;
+		rLoc = 260;
+		rType = 0;
+		vrLen = 1100;
+		vrLoc = 171;
+	};
+	42EEC01D114759E300DF578B /* PBXTextBookmark */ = {
+		isa = PBXTextBookmark;
+		fRef = 429B01381143B561000D1330 /* AccelerometerView.m */;
+		name = "AccelerometerView.m: 29";
+		rLen = 0;
+		rLoc = 937;
+		rType = 0;
+		vrLen = 1015;
+		vrLoc = 0;
+	};
+	42EEC01E114759E300DF578B /* PBXTextBookmark */ = {
+		isa = PBXTextBookmark;
+		fRef = 42A21E261143331C00FDE34A /* DualJoystickViewController.m */;
+		name = "DualJoystickViewController.m: 29";
+		rLen = 0;
+		rLoc = 626;
+		rType = 0;
+		vrLen = 1242;
+		vrLoc = 513;
+	};
+	42EEC01F114759E300DF578B /* PBXTextBookmark */ = {
+		isa = PBXTextBookmark;
+		fRef = 420C75381144F065008F46B4 /* AccelerometerConfigurationViewController.m */;
+		name = "AccelerometerConfigurationViewController.m: 90";
+		rLen = 0;
+		rLoc = 3990;
+		rType = 0;
+		vrLen = 1461;
+		vrLoc = 3448;
+	};
+	42EEC020114759E300DF578B /* PBXTextBookmark */ = {
+		isa = PBXTextBookmark;
+		fRef = 42A21F0E11435E6D00FDE34A /* AccelerometerViewController.m */;
+		name = "AccelerometerViewController.m: 77";
+		rLen = 0;
+		rLoc = 2898;
+		rType = 0;
+		vrLen = 1199;
+		vrLoc = 2607;
+	};
+	42EEC04411475E6E00DF578B /* PBXTextBookmark */ = {
+		isa = PBXTextBookmark;
+		fRef = 421539E811460AC00011C7B6 /* MainConfigurationViewController.m */;
+		name = "MainConfigurationViewController.m: 49";
+		rLen = 0;
+		rLoc = 1649;
+		rType = 0;
+		vrLen = 1521;
+		vrLoc = 911;
+	};
+}

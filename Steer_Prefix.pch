@@ -1,0 +1,11 @@
+//
+// Prefix header for all source files of the 'Steer' target in the 'Steer' project
+//
+
+#ifdef __OBJC__
+    #import <Foundation/Foundation.h>
+    #import <UIKit/UIKit.h>
+#endif
+
+#define Debug(...) do { } while (0)
+//#define Debug(...) NSLog(__VA_ARGS__)
