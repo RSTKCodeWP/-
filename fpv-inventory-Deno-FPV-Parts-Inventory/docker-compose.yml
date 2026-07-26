@@ -1,0 +1,15 @@
+services:
+  fpv-inventory:
+    image: ghcr.io/cori/fpv-inventory:sha-4d7cab1
+    ports:
+      - "8000:8000"
+    volumes:
+      - fpv-data:/data
+    environment:
+      DB_PATH: /data/fpv-inventory.db
+      PHOTOS_DIR: /data/photos
+      PORT: "8000"
+    restart: unless-stopped
+
+volumes:
+  fpv-data:
