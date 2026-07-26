@@ -9,7 +9,7 @@ Automated mirror and catalog of FPV / drone open-source projects from GitHub.
 | What works well | What needs care |
 |-----------------|-----------------|
 | Daily `discover` + `sync` via GitHub Actions | GitHub API rate limits (~5k req/hr authenticated) |
-| Tracking upstream commit SHA per repo | Very large repos (e.g. full flight stacks) bloat the mirror |
+| Tracking upstream commit SHA per repo | Large repos (ardupilot, betaflight, firmware) take longer to clone — still synced |
 | Owner expansion (other repos by same author) | Not every search hit is worth mirroring — scoring filters noise |
 | Auto-commit when upstream changes | Licenses must be respected (GPL, etc.) |
 
@@ -75,7 +75,7 @@ python3 fpv-library/scripts/register_legacy.py
 1. **Keyword discovery** — rotating batch from `keywords.txt` (FPV, betaflight, OpenIPC, ELRS, GCS, fiber, …)
 2. **Themed discovery** — GCS / link / fiber queries + owner ecosystems
 3. **Triage** — classify each repo: `keep` / `watch` / `skip`; write `HOOKS.md`
-4. **Sync** — pull upstream for `verdict=keep` repos (skip >150 MB)
+4. **Sync** — pull upstream for `verdict=keep` repos (no size limit)
 5. **Commit** — push catalog + mirror updates
 
 Manual run: Actions → **FPV Library Sync** → Run workflow.
@@ -114,7 +114,7 @@ cat fpv-library/HOOKS.md                                 # interesting + watch l
 ### Sync policies
 
 ```bash
-python3 fpv-library/scripts/sync.py --all --verdict keep --max-size-mb 150
+python3 fpv-library/scripts/sync.py --all --verdict keep
 ```
 
 ## Relevance scoring

@@ -61,8 +61,7 @@ jobs:
           python3 fpv-library/scripts/sync.py \
             --all \
             --verdict keep \
-            --update-only \
-            --max-size-mb 150
+            --update-only
           # Priority new mirrors (curated list)
           while read -r src; do
             [[ "$src" =~ ^#|^$ ]] && continue

@@ -173,8 +173,4 @@ def triage_entry(entry: dict[str, Any]) -> dict[str, Any]:
         "triage_reason": reason,
     }
 
-    size_kb = int(entry.get("size_kb") or 0)
-    if size_kb > 200_000 and verdict == "keep":
-        result["sync_policy"] = "catalog-only"
-
     return result

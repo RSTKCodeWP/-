@@ -107,10 +107,6 @@ def score_repo(repo: dict[str, Any]) -> float:
     if repo.get("fork"):
         total -= 0.5
 
-    size_kb = int(repo.get("size") or 0)
-    if size_kb > 500_000:  # very large mirrors
-        total -= 1.0
-
     return round(total, 2)
 
 

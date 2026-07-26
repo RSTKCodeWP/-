@@ -607,7 +607,6 @@
         "quadcopter",
         "rc"
       ],
-      "sync_policy": "catalog-only",
       "verdict": "keep",
       "categories": [
         "fc"
@@ -729,7 +728,6 @@
       "synced_at": "2026-07-26T23:21:41+00:00",
       "size_kb": 435149,
       "topics": [],
-      "sync_policy": "catalog-only",
       "verdict": "keep",
       "categories": [
         "fc"
@@ -1084,7 +1082,6 @@
         "plugin",
         "rotorhazard"
       ],
-      "sync_policy": "catalog-only",
       "verdict": "watch",
       "categories": [
         "osd"
@@ -1712,7 +1709,6 @@
       "owner": "taljmars",
       "size_kb": 2100337,
       "topics": [],
-      "sync_policy": "catalog-only",
       "verdict": "keep",
       "categories": [
         "gcs"
@@ -1812,7 +1808,6 @@
         "wifibroadcast",
         "x86"
       ],
-      "sync_policy": "catalog-only",
       "verdict": "keep",
       "categories": [
         "link"
@@ -2269,7 +2264,6 @@
         "xm",
         "zftlab"
       ],
-      "sync_policy": "catalog-only",
       "verdict": "keep",
       "categories": [
         "link",
@@ -3532,7 +3526,6 @@
         "uas",
         "uav"
       ],
-      "sync_policy": "catalog-only",
       "verdict": "keep",
       "categories": [
         "gcs",
@@ -4621,7 +4614,6 @@
         "opengl",
         "vr"
       ],
-      "sync_policy": "catalog-only",
       "verdict": "keep",
       "categories": [
         "other"
@@ -4915,7 +4907,6 @@
         "pixhawk",
         "px4"
       ],
-      "sync_policy": "catalog-only",
       "verdict": "keep",
       "categories": [
         "osd",
@@ -5104,7 +5095,6 @@
         "pixhawk",
         "px4"
       ],
-      "sync_policy": "catalog-only",
       "verdict": "keep",
       "categories": [
         "osd",
@@ -5809,7 +5799,6 @@
         "rust",
         "telegram-bot"
       ],
-      "sync_policy": "catalog-only",
       "verdict": "keep",
       "categories": [
         "fc",
@@ -6522,7 +6511,6 @@
         "flight-controller",
         "hacktoberfest"
       ],
-      "sync_policy": "catalog-only",
       "verdict": "keep",
       "categories": [
         "fc"
@@ -6775,7 +6763,6 @@
         "station",
         "uav"
       ],
-      "sync_policy": "catalog-only",
       "verdict": "keep",
       "categories": [
         "gcs",
@@ -6818,7 +6805,6 @@
         "uav",
         "ugv"
       ],
-      "sync_policy": "catalog-only",
       "verdict": "watch",
       "categories": [
         "fc"
@@ -6855,7 +6841,6 @@
         "robot-operating-system",
         "ros"
       ],
-      "sync_policy": "catalog-only",
       "verdict": "keep",
       "categories": [
         "gcs",
@@ -7018,7 +7003,6 @@
       "owner": "ArduPilot",
       "size_kb": 563897,
       "topics": [],
-      "sync_policy": "catalog-only",
       "verdict": "watch",
       "categories": [
         "fc",
@@ -7761,7 +7745,6 @@
       "owner": "ArduPilot",
       "size_kb": 231253,
       "topics": [],
-      "sync_policy": "catalog-only",
       "verdict": "watch",
       "categories": [
         "fc"
@@ -8835,7 +8818,6 @@
         "sx1276",
         "sx1280"
       ],
-      "sync_policy": "catalog-only",
       "verdict": "keep",
       "categories": [
         "elrs"
@@ -8873,7 +8855,6 @@
         "sx127x",
         "sx1280"
       ],
-      "sync_policy": "catalog-only",
       "verdict": "keep",
       "categories": [
         "elrs"
@@ -8918,7 +8899,6 @@
       "synced_at": "2026-07-26T23:37:10+00:00",
       "size_kb": 307116,
       "topics": [],
-      "sync_policy": "catalog-only",
       "verdict": "keep",
       "categories": [
         "elrs",
@@ -9082,7 +9062,6 @@
         "udp",
         "wifibroadcast"
       ],
-      "sync_policy": "catalog-only",
       "verdict": "keep",
       "categories": [
         "link"
@@ -9538,7 +9517,6 @@
         "openipc",
         "webrtc"
       ],
-      "sync_policy": "catalog-only",
       "verdict": "keep",
       "categories": [
         "openipc"
@@ -9587,7 +9565,6 @@
         "ipcam",
         "openipc"
       ],
-      "sync_policy": "catalog-only",
       "verdict": "watch",
       "categories": [
         "openipc"
@@ -10092,7 +10069,6 @@
         "uav-control",
         "uav-operations"
       ],
-      "sync_policy": "catalog-only",
       "verdict": "keep",
       "categories": [
         "gcs"
@@ -10309,7 +10285,6 @@
         "gcs",
         "ground-control-station"
       ],
-      "sync_policy": "catalog-only",
       "verdict": "keep",
       "categories": [
         "gcs"
@@ -10330,7 +10305,6 @@
       "owner": "Asemdnn",
       "size_kb": 311364,
       "topics": [],
-      "sync_policy": "catalog-only",
       "verdict": "keep",
       "categories": [
         "gcs",
@@ -10373,7 +10347,6 @@
       "owner": "Daksh7112003",
       "size_kb": 309235,
       "topics": [],
-      "sync_policy": "catalog-only",
       "verdict": "keep",
       "categories": [
         "gcs",
@@ -11158,7 +11131,6 @@
       "owner": "skybrush-io",
       "size_kb": 558168,
       "topics": [],
-      "sync_policy": "catalog-only",
       "verdict": "watch",
       "categories": [
         "fc"

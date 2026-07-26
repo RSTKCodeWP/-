@@ -1,4 +1,4 @@
-# Priority themed FPV repos — link, GCS, fiber, IP control (skip multi-GB firmware trees)
+# Priority themed FPV repos — link, GCS, fiber, IP control (incl. large firmware trees)
 DroneBridge/DroneBridge
 DroneBridge/ESP32
 DroneBridge/Desktop
@@ -90,3 +90,8 @@ OpenIPC/configurator
 OpenIPC/fpv4win
 rodizio1/EZ-WifiBroadcast
 AkitaEngineering/Meshtastic-Integration-for-DroneBridge32-Swarm
+# Large flight stacks & firmware (synced — no size cap)
+betaflight/betaflight
+ArduPilot/ardupilot
+iNavFlight/inav
+RotorHazard/RotorHazard
