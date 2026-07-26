@@ -1,0 +1,133 @@
+{
+  "_comment": "Machine-readable companion to scenarios.md, consumed by benchmarks/run_scenarios.sh. Each scenario grades two token classes separately: 'concept' (general methodology a capable model may know on its own) and 'exact' (tool-specific JasperGold command/flag that the model usually cannot derive — this is where distillation loss actually bites). type: control = knowledge file covers it; loss-probe = targets content the pipeline dropped.",
+  "scenarios": [
+    {
+      "id": "counter-abstraction-timeout",
+      "type": "control",
+      "module": "complexity-management",
+      "prompt": "My JasperGold proof is too deep because the DUT has a 32-bit timeout counter that counts to a large value before interesting behavior. How do I abstract it?",
+      "expect_concept": ["counter abstract", "milestone"],
+      "expect_exact": ["abstract -counter"]
+    },
+    {
+      "id": "proof-decomposition-ag",
+      "type": "control",
+      "module": "complexity-management",
+      "prompt": "A single assertion in JasperGold won't converge. I need to break the proof into smaller pieces and prove them separately. How does assume-guarantee work and how do I keep it sound?",
+      "expect_concept": ["assume.?guarantee", "helper", "sound"],
+      "expect_exact": []
+    },
+    {
+      "id": "compact-global-helper",
+      "type": "control",
+      "module": "complexity-management",
+      "prompt": "After a sane direct JasperGold prove, 412 generated no-duplicate assertions remain undetermined with no counterexample. I can state one global uniqueness invariant that may summarize the missing fact. How should I choose between a helper assertion and CAG, what gates make the result sound, and what are the exact key JasperGold Tcl commands for activating and using the helper?",
+      "expect_concept": ["helper", "proven", "CAG", "(same|identical) (RTL|setup)|no assumptions solely|without (new|extra) assumptions"],
+      "expect_exact": ["assert -set_helper", "with_helpers"]
+    },
+    {
+      "id": "distributed-peer-cag",
+      "type": "control",
+      "module": "complexity-management",
+      "prompt": "A JasperGold proof has hundreds of symmetric peer no-duplicate obligations. A compact helper was tried in isolation but remains undetermined and has essentially the same cone as the targets. What proof shape should I use next, which result is valid for signoff, and what is the exact key JasperGold Tcl command that creates this decomposition?",
+      "expect_concept": ["CAG|compositional assume.?guarantee", "ROOT", "propagat"],
+      "expect_exact": ["proof_structure", "compositional_assume_guarantee"]
+    },
+    {
+      "id": "config-logic-cutpoint",
+      "type": "loss-probe",
+      "module": "complexity-management",
+      "prompt": "In JasperGold my proof blows up because the design's configuration logic dominates the cone of influence. The configuration is written once at init and then held stable. How do I cut this complexity without producing false failures?",
+      "expect_concept": ["cutpoint", "legal", "assum"],
+      "expect_exact": ["setup_ndc"]
+    },
+    {
+      "id": "per-property-simplification",
+      "type": "loss-probe",
+      "module": "complexity-management",
+      "prompt": "One specific property in my JasperGold task is far harder than the rest and is dragging the whole run down. Is there a way to apply heavier simplification just to that property without changing the others?",
+      "expect_concept": ["per.?property", "simplif"],
+      "expect_exact": ["set_per_property_simplification"]
+    },
+    {
+      "id": "mem-abstraction-stall",
+      "type": "control",
+      "module": "complexity-management",
+      "prompt": "In JasperGold my prove -all proves the top controller assertion and covers every cover, but one embedded assertion is stuck: it is an arbitrary symbolic-address write-then-read property over a real 512x32 memory array, and it stays undetermined — multiple engines hit their per-property time limits with no counterexample. The RTL must stay unchanged. What should I do, and how do I report the result honestly?",
+      "expect_concept": ["memory abstract", "symbolic|single.?slot|one.?(word|slot)|slot", "disclos|trusted|contract"],
+      "expect_exact": ["bbox_i"]
+    },
+    {
+      "id": "dbh-stalled-bound",
+      "type": "control",
+      "module": "engine-tuning",
+      "prompt": "A meaningful JasperGold prove is still undetermined at a finite bound. I need to search deeper for bugs now, but I must not misreport the result as signoff. Which DBH modes should I start with, what Tcl shape configures them, and what does a no-hit run mean?",
+      "expect_concept": ["cycle[_ ]swarm", "bound[_ ]swarm", "(?:hunt[ -])?auto", "non.?exhaustive|not.*(proof|signoff)|no.?hit.*not|neither.*(proof|signoff)"],
+      "expect_exact": ["hunt -config", "hunt -run", "first_trace_attempt", "max_trace_length"]
+    },
+    {
+      "id": "dbh-activation-gate",
+      "type": "control",
+      "module": "engine-tuning",
+      "prompt": "A bounded trace-only JasperGold Engine B run stopped at its finite maximum trace length with the assertion still undetermined. In one design RTL analysis gives a credible narrow next-depth interval; in another the depth is unknown and direct deepening has already missed. When is one deeper B run appropriate, when must I activate DBH, and what artifacts prove that I actually ran DBH?",
+      "expect_concept": ["bounded trace search|trace-only", "focused.*deep|narrow", "not.*DBH|isn.t.*DBH", "unknown|broad|repeated.*miss|uneven|divers", "no.?hit.*not|not.*proof|not.*signoff"],
+      "expect_exact": ["hunt -config", "hunt -run", "IHT002", "tag", "seed"]
+    },
+    {
+      "id": "dbh-exact-cycle-stall",
+      "type": "control",
+      "module": "engine-tuning",
+      "prompt": "A capped JasperGold Engine B run starts and ends at Trace Attempt 250 even though max_trace_length is 252. RTL analysis suggests the first violation sample may be at 250, 251, or 252 because of reset/SVA timing, while input-controlled skips allow later sparse depths. I need the strongest sound conclusion within a limited investigation budget. An earlier exploratory Jasper run completed but will not appear in my final report. What should I run next, and what exact Jasper Tcl and evidence should I preserve?",
+      "expect_concept": ["exact.?cycle.*stall|Trace Attempt.*(unchanged|same)|unchanged.*Trace Attempt", "mixed", "ceiling|not.*scheduler|does not.*scan", "cycle[-_ ]swarm.*(first|before)|first.*cycle[-_ ]swarm", "bound[-_ ]swarm.*(fallback|later)|fallback.*bound[-_ ]swarm", "group.*count|count.*group|not.*cycle", "reserve.*(Hunt|budget)|budget.*reserve", "exploratory|discarded|completed.*run", "wall.?time|elapsed.*wall"],
+      "expect_exact": ["DBH_DECISION", "first_trace_attempt", "last_trace_attempt", "candidate_cycles", "fallback_depth_shape", "reserved_hunt_wall", "hunt -config", "hunt -show -strategy", "hunt -run", "max_first_trace_attempt", "max_trace_length", "trace_attempt_time_limit", "tag", "seed", "IHT002", "IPF180"]
+    },
+    {
+      "id": "dbh-known-bug-reproduction",
+      "type": "control",
+      "module": "engine-tuning",
+      "prompt": "I have an external failing trace for a JasperGold target. I want to reproduce the bug, preserve useful steering states, then challenge the RTL fix with diverse paths. What DBH flow and exact commands should I use?",
+      "expect_concept": ["qualif|confirm", "helper", "divers", "not.*proof|search confidence"],
+      "expect_exact": ["visualize -confirm", "set_store_trace unlimited", "hunt -run -auto", "auto_helper_num", "force"]
+    },
+    {
+      "id": "dbh-regression-coverage",
+      "type": "control",
+      "module": "engine-tuning",
+      "prompt": "In a JasperGold regression, previously proven properties are now slow, an old CEX has not reappeared, and several critical coverage items remain uncovered. How should I carry history into DBH and close reachable coverage without claiming unreachability? Include the exact key Tcl commands.",
+      "expect_concept": ["previous|prior|history|old", "cycle[_ ]swarm", "bound[_ ]swarm", "coverage|cover", "not.*unreachable|cannot.*unreachable|unreachable.*only.*exhaustive|only.*exhaustive.*unreachable"],
+      "expect_exact": ["report -csv", "check_cov -create_cover_item_property", "check_cov -measure"]
+    },
+    {
+      "id": "tcl-silent-command-grammar",
+      "type": "control",
+      "module": "tcl-commands",
+      "prompt": "I am scripting JasperGold and want clean Tcl return values. May I append -silent to every command, including a Hunt strategy-list command? How should I decide when the option is legal?",
+      "expect_concept": ["exact.*(grammar|template)|help|support", "not.*every|only.*support|do not.*infer"],
+      "expect_exact": ["hunt -list strategy"]
+    },
+    {
+      "id": "dbh-stored-trace-continuation",
+      "type": "control",
+      "module": "engine-tuning",
+      "prompt": "A JasperGold cover had a long legal trace in a prior run, while a target assertion remains undetermined. The trace removes most of the deterministic prefix to the suspected failure region, but a standalone replay starts a fresh analysis session. What should I do before reset-based Swarm search, which exact Tcl commands query and continue from that trace, when should the target search stop, and what does a no-hit establish?",
+      "expect_concept": ["current.*session|fresh.*session", "recreate|rebuild|re.?run", "status|until covered|covered.*then", "trace_id", "trace_length", "CEX.*(stop|terminal)|stop.*(CEX|target|search)|no follow.?up Hunt", "non.?exhaustive|no.?hit.*not|not.*(proof|unreachable)|remains.*undetermined|neither.*proven"],
+      "expect_exact": ["get_property_info", "prove -property", "-from", "-trace_id", "-cycle -1"]
+    },
+    {
+      "id": "dbh-trace-first-probe",
+      "type": "control",
+      "module": "engine-tuning",
+      "prompt": "A meaningful JasperGold prove left a target assertion undetermined, and the baseline produced several legal cover traces. One trace is long but only loosely related to the suspected failure region. A reset-based B or Swarm run could consume most of the remaining investigation budget. Give me the ordered next experiments and exact Tcl shape: how should I select and qualify a source, budget the first continuation, react when it makes no quick progress, and keep the result sound?",
+      "expect_concept": ["before.*reset|trace.*before.*reset", "relevan.*(endpoint|target)|endpoint.*relevan", "remaining suffix|suffix.*remain", "cap|probe|small.*budget|budget.*small", "progress.*(criter|justify|poor)|Trace Attempt.*advance|advance.*Trace Attempt", "target cone|source endpoint|smaller cone|small-cone", "observational.*milestone|milestone.*observational", "no assumption|without.*assumption|unchanged environment", "CEX.*stop|stop.*CEX", "undetermined|no.?hit.*not"],
+      "expect_exact": ["get_property_info", "visualize -property", "cover -name", "prove -property", "-from", "-trace_id"]
+    },
+    {
+      "id": "dbh-bound-swarm-budget",
+      "type": "control",
+      "module": "engine-tuning",
+      "prompt": "I want a JasperGold Bound Swarm over a broad depth range with several jobs and increasing per-attempt effort. Before launching it, how do I determine whether each job can reach the intended effort tier within the strategy time limit and whether the whole portfolio fits my remaining compute budget? Which evidence is available before launch, and which log records exist only after the run?",
+      "expect_concept": ["per.?job|assigned cycles", "aggregate|slot.?second", "pre.?run|before.*launch|before.*run", "post.?run|after.*run", "partial|target.*tier|time.*limit"],
+      "expect_exact": ["hunt -config", "hunt -show -strategy", "trace_attempt_time_limit", "trace_attempt_time_limit_factor", "IHT002", "IPF180"]
+    }
+  ]
+}

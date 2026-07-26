@@ -1,0 +1,43 @@
+# LOCAL ONLY.
+# Entire tree excluded (binaries AND _index.md, which name the source files).
+raw-docs/
+
+# Pipeline intermediates 
+# Build-time only; knowledge/ is fully
+# self-contained and never references these at runtime. LOCAL ONLY.
+extractions/
+
+# Internal handoff notes — retain full source provenance for our own review;
+# not for publication. LOCAL ONLY.
+HANDOFF.md
+
+# Pipeline tooling — produces the knowledge but is NOT the skill itself. LOCAL ONLY.
+# Exception: scripts/install.sh is the user-facing installer and ships with the repo.
+scripts/*
+!scripts/install.sh
+prompts/
+
+# Local agent/session state
+.claude/
+.codex-tasks/
+.codex-tmp/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Eval workspace (generated during testing)
+*-workspace/
+iteration-*/
+
+# Packaged skills (generated)
+*.skill
+test
+plan/*

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-07-26T23:25:19+00:00",
+  "updated_at": "2026-07-26T23:25:44+00:00",
   "repos": [
     {
       "source": "johnboiles/Steer",
@@ -790,6 +790,19 @@
       "owner": "ExperimentalDesignBureau-1571",
       "upstream_commit": "e5d4ffc49a2b5b47b8aab5172c9f06f5290d2069",
       "synced_at": "2026-07-26T23:25:19+00:00"
+    },
+    {
+      "source": "gokeshenzhen/awesome-formal-verification-skill",
+      "path": "fpv-library/repos/awesome-formal-verification-skill-AI-Agent-FPV-SVA-TCL-Open-source-formal",
+      "added_at": "2026-07-26T23:25:43+00:00",
+      "discovered_via": "manual:user-request",
+      "description": "面向 AI 编程 Agent 的开源形式验证技能库，聚焦 FPV、SVA、证明优化、TCL 脚本与可扩展的形式验证工作流。Open-source formal verification skills for AI coding agents, focused on FPV, SVA, proof optimization, TCL scripting, and scalable verification workflows.",
+      "stars": 21,
+      "score": 4.0,
+      "upstream_updated": "2026-07-26T09:41:40Z",
+      "owner": "gokeshenzhen",
+      "upstream_commit": "2015ed04398d64bc3aec06cf020c30a92b06dc4f",
+      "synced_at": "2026-07-26T23:25:44+00:00"
     }
   ],
   "search_queries": [
