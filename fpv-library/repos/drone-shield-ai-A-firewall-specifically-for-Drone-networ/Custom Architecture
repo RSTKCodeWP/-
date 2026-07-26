@@ -1,0 +1,15 @@
+drone-shield-ai/
+│── src/
+│   ├── firewall_core.py
+│   ├── mavlink_filter.py
+│   ├── anomaly_ai.py
+│   └── telemetry_monitor.py
+│
+│── models/
+│
+│── config/
+│   └── drone_rules.json
+│
+│── dashboard/
+│
+│── README.md

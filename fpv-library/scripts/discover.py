@@ -16,6 +16,7 @@ from fpv_lib.catalog import (
 )
 from fpv_lib.gh import GhError, list_owner_repos, search_repos
 from fpv_lib.scoring import is_candidate, score_repo
+from fpv_lib.triage import triage_entry
 
 
 def parse_pages(pages: list[int] | None, pages_range: str | None) -> list[int]:
@@ -60,7 +61,15 @@ def add_repo(
         score=score,
         upstream_updated=repo.get("pushed_at") or repo.get("updated_at"),
     )
-    return f"added {source} (score={score})"
+    entry = find_entry(catalog, source)
+    if entry:
+        entry["size_kb"] = int(repo.get("size") or 0)
+        entry["topics"] = repo.get("topics") or []
+        entry.update(triage_entry(entry))
+        from fpv_lib.catalog import now_iso
+
+        entry["triage_at"] = now_iso()
+    return f"added {source} (score={score}, {entry.get('verdict', '?') if entry else '?'})"
 
 
 def expand_owner(

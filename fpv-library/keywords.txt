@@ -1,0 +1,51 @@
+# Rotating GitHub search queries for FPV library discovery
+# One query per line; # comments and blank lines ignored
+
+Fpv
+fpv drone
+fpv ground station
+fpv osd
+fpv video link
+fpv fiber optic
+fpv repeater
+fpv telemetry
+fpv goggles
+fpv configurator
+betaflight
+betaflight osd
+inav flight controller
+inav osd
+ardupilot fpv
+expresslrs
+elrs joystick
+crsf telemetry
+openipc fpv
+wfb-ng
+wifibroadcast drone
+openhd fpv
+dronebridge
+mavlink drone gcs
+mavlink osd fpv
+msp displayport
+rotorhazard
+blackbox betaflight
+race timing fpv
+whoop betaflight
+madflight esp32
+fpv inventory tools
+fpv ai vision
+drone ground control station
+fpv steam deck
+fpv android viewer
+fpv webxr vr
+optical fiber drone
+fpv lte mavlink
+fpv anti drone
+remote id drone fpv
+walksnail avatar
+dji fpv wtfos
+fpv lap timer
+fpv parts database
+fpv long range
+fpv analog vtx
+digital fpv hd

@@ -1,0 +1,104 @@
+(footprint "SolderWirePads-1x3"
+	(version 20240108)
+	(generator "pcbnew")
+	(generator_version "8.0")
+	(layer "F.Cu")
+	(property "Reference" "REF**"
+		(at 0 -0.5 0)
+		(unlocked yes)
+		(layer "F.SilkS")
+		(hide yes)
+		(uuid "c3ff09b9-392a-4e32-8378-6eb029727ebc")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Value" "SolderWirePads-1x3"
+		(at 0 1 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(uuid "f03f22fc-0dba-4baa-b681-447655093255")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Footprint" ""
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "5cde86c5-6c13-40a9-9d81-c3d450d28488")
+		(effects
+			(font
+				(size 1.27 1.27)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Datasheet" ""
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "08246b8d-c5c8-44d1-9183-cc190347fb45")
+		(effects
+			(font
+				(size 1.27 1.27)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Description" ""
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "8e826e69-a011-44da-9f5e-fb67d22651e4")
+		(effects
+			(font
+				(size 1.27 1.27)
+				(thickness 0.15)
+			)
+		)
+	)
+	(attr smd)
+	(fp_text user "${REFERENCE}"
+		(at 0 2.5 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(uuid "4bb4b41e-1145-4f8a-8f66-84cb3af61678")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(pad "1" smd roundrect
+		(at -2.5 -1)
+		(size 1.5 2.25)
+		(layers "F.Cu" "F.Mask")
+		(roundrect_rratio 0.1333333333)
+		(thermal_bridge_angle 45)
+		(uuid "efdc1ac2-75d2-4871-b391-ea58c6e6d2c0")
+	)
+	(pad "2" smd roundrect
+		(at 0 -1)
+		(size 1.5 2.25)
+		(layers "F.Cu" "F.Mask")
+		(roundrect_rratio 0.1333333333)
+		(thermal_bridge_angle 45)
+		(uuid "c564be2e-524e-46f4-9e7b-673682c3ae42")
+	)
+	(pad "3" smd roundrect
+		(at 2.5 -1)
+		(size 1.5 2.25)
+		(layers "F.Cu" "F.Mask")
+		(roundrect_rratio 0.1333333333)
+		(thermal_bridge_angle 45)
+		(uuid "48a9f015-e263-489b-beaa-69beb03581e9")
+	)
+)

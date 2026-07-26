@@ -1,0 +1,6 @@
+CompileFlags:
+  CompilationDatabase: Build
+  Add:
+    - "-I/usr/lib/gcc/arm-none-eabi/10.3.1/include"
+    - "-I/usr/lib/gcc/arm-none-eabi/10.3.1/include-fixed"
+    - "-I/usr/lib/arm-none-eabi/include"

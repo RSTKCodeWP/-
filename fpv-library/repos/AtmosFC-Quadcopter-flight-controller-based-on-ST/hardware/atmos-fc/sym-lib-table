@@ -1,0 +1,10 @@
+(sym_lib_table
+  (version 7)
+  (lib (name "0_ic")(type "KiCad")(uri "${KIPRJMOD} /../lib/symbols/0_ic.kicad_sym")(options "")(descr ""))
+  (lib (name "0_sensor")(type "KiCad")(uri "${KIPRJMOD} /../lib/symbols/0_sensor.kicad_sym")(options "")(descr ""))
+  (lib (name "0_regulator_switching")(type "KiCad")(uri "${KIPRJMOD} /../lib/symbols/0_regulator_switching.kicad_sym")(options "")(descr ""))
+  (lib (name "0_regulator_linear")(type "KiCad")(uri "${KIPRJMOD} /../lib/symbols/0_regulator_linear.kicad_sym")(options "")(descr ""))
+  (lib (name "0_diode")(type "KiCad")(uri "${KIPRJMOD} /../lib/symbols/0_diode.kicad_sym")(options "")(descr ""))
+  (lib (name "0_power")(type "KiCad")(uri "${KIPRJMOD} /../lib/symbols/0_power.kicad_sym")(options "")(descr ""))
+  (lib (name "0_led")(type "KiCad")(uri "${KIPRJMOD} /../lib/symbols/0_led.kicad_sym")(options "")(descr ""))
+)

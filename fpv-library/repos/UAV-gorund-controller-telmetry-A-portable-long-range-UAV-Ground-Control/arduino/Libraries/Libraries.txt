@@ -1,0 +1,335 @@
+====================================================
+REQUIRED LIBRARIES FOR UAV GROUND CONTROL STATION
+====================================================
+
+----------------------------------------------------
+1. ARDUINO TRANSMITTER / RECEIVER LIBRARIES
+----------------------------------------------------
+
+Install these libraries from Arduino IDE:
+
+----------------------------------------------------
+LoRa Library
+----------------------------------------------------
+Library Name:
+LoRa by Sandeep Mistry
+
+Purpose:
+LoRa SX1278 Communication
+
+Install:
+Arduino IDE → Library Manager → Search "LoRa"
+
+----------------------------------------------------
+SPI Library
+----------------------------------------------------
+Library Name:
+SPI
+
+Purpose:
+SPI Communication for LoRa
+
+Status:
+Built into Arduino IDE
+
+----------------------------------------------------
+Servo Library
+----------------------------------------------------
+Library Name:
+Servo
+
+Purpose:
+PWM Signal Generation
+
+Status:
+Built into Arduino IDE
+
+----------------------------------------------------
+Wire Library
+----------------------------------------------------
+Library Name:
+Wire
+
+Purpose:
+I2C Communication
+
+Status:
+Built into Arduino IDE
+
+----------------------------------------------------
+RF24 Library (Optional)
+----------------------------------------------------
+Library Name:
+RF24 by TMRh20
+
+Purpose:
+NRF24L01 Communication
+
+Install:
+Arduino IDE → Library Manager → Search "RF24"
+
+----------------------------------------------------
+TinyGPSPlus Library (Optional)
+----------------------------------------------------
+Library Name:
+TinyGPSPlus
+
+Purpose:
+GPS Parsing
+
+Install:
+Arduino IDE → Library Manager
+
+----------------------------------------------------
+ArduinoJson Library (Optional)
+----------------------------------------------------
+Library Name:
+ArduinoJson
+
+Purpose:
+Telemetry JSON Handling
+
+Install:
+Arduino IDE → Library Manager
+
+====================================================
+2. RASPBERRY PI REQUIRED PACKAGES
+====================================================
+
+----------------------------------------------------
+Update Raspberry Pi
+----------------------------------------------------
+
+sudo apt update
+sudo apt upgrade
+
+----------------------------------------------------
+Install Python3
+----------------------------------------------------
+
+sudo apt install python3
+sudo apt install python3-pip
+
+----------------------------------------------------
+Install Serial Communication
+----------------------------------------------------
+
+pip3 install pyserial
+
+Purpose:
+Serial Communication with Arduino
+
+----------------------------------------------------
+Install MAVLink Support
+----------------------------------------------------
+
+pip3 install pymavlink
+
+Purpose:
+Drone Telemetry + MAVLink
+
+----------------------------------------------------
+Install OpenCV
+----------------------------------------------------
+
+pip3 install opencv-python
+
+Purpose:
+Video Processing
+
+----------------------------------------------------
+Install NumPy
+----------------------------------------------------
+
+pip3 install numpy
+
+Purpose:
+Math + Data Processing
+
+----------------------------------------------------
+Install Tkinter GUI
+----------------------------------------------------
+
+sudo apt install python3-tk
+
+Purpose:
+Ground Control GUI
+
+----------------------------------------------------
+Install Flask (Optional)
+----------------------------------------------------
+
+pip3 install flask
+
+Purpose:
+Web Dashboard
+
+----------------------------------------------------
+Install Folium Maps (Optional)
+----------------------------------------------------
+
+pip3 install folium
+
+Purpose:
+GPS Map Visualization
+
+====================================================
+3. RECOMMENDED LINUX PACKAGES
+====================================================
+
+----------------------------------------------------
+Screen Utility
+----------------------------------------------------
+
+sudo apt install screen
+
+Purpose:
+Serial Terminal Monitoring
+
+----------------------------------------------------
+Git
+----------------------------------------------------
+
+sudo apt install git
+
+Purpose:
+Version Control
+
+----------------------------------------------------
+FFmpeg
+----------------------------------------------------
+
+sudo apt install ffmpeg
+
+Purpose:
+Video Streaming
+
+====================================================
+4. OPTIONAL AI / COMPUTER VISION PACKAGES
+====================================================
+
+----------------------------------------------------
+TensorFlow Lite
+----------------------------------------------------
+
+pip3 install tflite-runtime
+
+Purpose:
+AI Object Detection
+
+----------------------------------------------------
+YOLO Support
+----------------------------------------------------
+
+pip3 install ultralytics
+
+Purpose:
+Real-time Detection
+
+====================================================
+5. FPV VIDEO SYSTEM SOFTWARE
+====================================================
+
+----------------------------------------------------
+OpenHD
+----------------------------------------------------
+
+GitHub:
+https://github.com/OpenHD/OpenHD
+
+Purpose:
+Digital FPV Streaming
+
+----------------------------------------------------
+QGroundControl
+----------------------------------------------------
+
+Website:
+https://qgroundcontrol.com/
+
+Purpose:
+Mission Planning + Telemetry
+
+====================================================
+6. RECOMMENDED HARDWARE LIBRARIES
+====================================================
+
+----------------------------------------------------
+OLED Display
+----------------------------------------------------
+Adafruit SSD1306
+Adafruit GFX
+
+----------------------------------------------------
+Touchscreen Display
+----------------------------------------------------
+XPT2046_Touchscreen
+
+----------------------------------------------------
+Battery Monitoring
+----------------------------------------------------
+INA219 Library
+
+====================================================
+7. ARDUINO BOARD SETTINGS
+====================================================
+
+Board:
+Arduino Mega 2560
+
+Processor:
+ATmega2560
+
+Upload Speed:
+115200
+
+Programmer:
+AVRISP mkII
+
+====================================================
+8. RECOMMENDED LoRa SETTINGS
+====================================================
+
+Frequency:
+433 MHz
+
+Bandwidth:
+125 KHz
+
+Spreading Factor:
+7
+
+Coding Rate:
+4/5
+
+TX Power:
+20 dBm
+
+====================================================
+9. PROJECT TESTING TOOLS
+====================================================
+
+Recommended:
+
+- Serial Monitor
+- Logic Analyzer
+- Oscilloscope
+- SDR Receiver
+- Mission Planner
+- QGroundControl
+
+====================================================
+10. FUTURE UPGRADE LIBRARIES
+====================================================
+
+- ROS2
+- MAVSDK
+- DroneKit
+- OpenCV AI
+- TensorFlow
+- MQTT
+- WebRTC
+
+====================================================
+END OF FILE
+====================================================

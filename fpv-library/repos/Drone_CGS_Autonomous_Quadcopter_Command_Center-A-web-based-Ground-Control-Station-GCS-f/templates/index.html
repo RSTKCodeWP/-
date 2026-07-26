@@ -1,0 +1,1641 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>DRONE GCS — Autonomous Quadcopter Command Center</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;700;900&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+/* ═══════════════════════════════════════════════════════════════
+   CSS VARIABLES — MILITARY TACTICAL THEME
+═══════════════════════════════════════════════════════════════ */
+:root {
+  --bg-void:      #040608;
+  --bg-deep:      #070b0f;
+  --bg-panel:     #0a0f14;
+  --bg-card:      #0d1520;
+  --bg-elevated:  #111d2a;
+  --border:       #1a2d40;
+  --border-glow:  #1e4060;
+  --accent:       #00d4ff;
+  --accent-dim:   #0099bb;
+  --green:        #00ff88;
+  --green-dim:    #00aa55;
+  --amber:        #ffaa00;
+  --red:          #ff3344;
+  --red-dim:      #cc2233;
+  --purple:       #8844ff;
+  --text-primary: #d0e8f0;
+  --text-dim:     #5a8090;
+  --text-bright:  #ffffff;
+  --grid-line:    rgba(0,212,255,0.06);
+  --scan-line:    rgba(0,212,255,0.03);
+  --hud-green:    #39ff14;
+  --hud-amber:    #ffb300;
+  --shadow-accent: 0 0 20px rgba(0,212,255,0.15);
+  --shadow-green:  0 0 20px rgba(0,255,136,0.2);
+  --shadow-red:    0 0 20px rgba(255,51,68,0.2);
+  --r: 4px;
+  --r-lg: 8px;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   RESET & BASE
+═══════════════════════════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  font-family: 'Rajdhani', sans-serif;
+  background: var(--bg-void);
+  color: var(--text-primary);
+  font-size: 13px;
+  line-height: 1.4;
+  overflow: hidden;
+  background-image:
+    linear-gradient(var(--scan-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--scan-line) 1px, transparent 1px);
+  background-size: 60px 60px;
+}
+canvas { display: block; }
+
+/* ═══════════════════════════════════════════════════════════════
+   SCROLLBARS
+═══════════════════════════════════════════════════════════════ */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: var(--bg-deep); }
+::-webkit-scrollbar-thumb { background: var(--border-glow); border-radius: 2px; }
+
+/* ═══════════════════════════════════════════════════════════════
+   TOP HEADER BAR
+═══════════════════════════════════════════════════════════════ */
+#header {
+  position: fixed; top: 0; left: 0; right: 0; height: 52px;
+  background: linear-gradient(180deg, #0a131c 0%, #060d12 100%);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 16px; z-index: 1000;
+  box-shadow: 0 2px 20px rgba(0,0,0,0.6);
+}
+.header-brand {
+  display: flex; align-items: center; gap: 12px;
+}
+.header-logo {
+  width: 36px; height: 36px;
+  background: conic-gradient(from 0deg, var(--accent), var(--green), var(--accent));
+  border-radius: 50%; animation: spin 8s linear infinite;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; position: relative;
+}
+.header-logo::after {
+  content: ''; position: absolute; inset: 3px;
+  background: var(--bg-void); border-radius: 50%;
+}
+.header-logo-icon {
+  position: absolute; inset: 0; display: flex; align-items: center;
+  justify-content: center; z-index: 1; font-size: 14px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.brand-text { font-family: 'Exo 2', sans-serif; font-weight: 900; }
+.brand-main { font-size: 17px; color: var(--text-bright); letter-spacing: 3px; }
+.brand-sub  { font-size: 9px; color: var(--accent-dim); letter-spacing: 5px; text-transform: uppercase; }
+
+.header-status { display: flex; gap: 20px; align-items: center; }
+.status-pill {
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 10px; border-radius: 20px;
+  border: 1px solid var(--border); background: var(--bg-card);
+  font-family: 'Share Tech Mono', monospace; font-size: 11px;
+}
+.status-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--green); animation: pulse-dot 1.5s ease-in-out infinite;
+}
+.status-dot.amber { background: var(--amber); }
+.status-dot.red   { background: var(--red); }
+.status-dot.off   { background: var(--text-dim); animation: none; }
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.5; transform: scale(0.7); }
+}
+
+.header-clock {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 14px; color: var(--accent);
+  text-shadow: 0 0 8px var(--accent);
+}
+.header-controls { display: flex; gap: 8px; }
+
+/* ═══════════════════════════════════════════════════════════════
+   MISSION CONTROL BAR
+═══════════════════════════════════════════════════════════════ */
+#mission-bar {
+  position: fixed; top: 52px; left: 0; right: 0; height: 46px;
+  background: var(--bg-deep);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 16px; z-index: 999;
+}
+.mc-btn {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 14px; border-radius: var(--r);
+  border: 1px solid; cursor: pointer;
+  font-family: 'Rajdhani', sans-serif; font-weight: 700;
+  font-size: 12px; letter-spacing: 1px; text-transform: uppercase;
+  transition: all 0.15s ease; user-select: none; white-space: nowrap;
+}
+.mc-btn:active { transform: scale(0.96); }
+.mc-btn.green  { border-color: var(--green);  color: var(--green);  background: rgba(0,255,136,0.05); }
+.mc-btn.green:hover  { background: rgba(0,255,136,0.15); box-shadow: var(--shadow-green); }
+.mc-btn.amber  { border-color: var(--amber);  color: var(--amber);  background: rgba(255,170,0,0.05); }
+.mc-btn.amber:hover  { background: rgba(255,170,0,0.15); }
+.mc-btn.red    { border-color: var(--red);    color: var(--red);    background: rgba(255,51,68,0.05); }
+.mc-btn.red:hover    { background: rgba(255,51,68,0.15); box-shadow: var(--shadow-red); }
+.mc-btn.blue   { border-color: var(--accent); color: var(--accent); background: rgba(0,212,255,0.05); }
+.mc-btn.blue:hover   { background: rgba(0,212,255,0.15); box-shadow: var(--shadow-accent); }
+.mc-btn.purple { border-color: var(--purple); color: var(--purple); background: rgba(136,68,255,0.05); }
+.mc-btn.gray   { border-color: var(--border-glow); color: var(--text-dim); background: transparent; }
+.mc-btn.active { background: rgba(0,255,136,0.2) !important; border-color: var(--green) !important; }
+
+.mc-sep { width: 1px; height: 24px; background: var(--border); margin: 0 4px; }
+
+.mode-selector {
+  display: flex; gap: 4px; align-items: center;
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--r); padding: 4px;
+}
+.mode-selector label {
+  font-size: 10px; color: var(--text-dim); letter-spacing: 1px; padding: 0 6px;
+}
+#mode-select {
+  background: transparent; border: none; color: var(--accent);
+  font-family: 'Share Tech Mono', monospace; font-size: 12px;
+  cursor: pointer; outline: none;
+}
+#mode-select option { background: var(--bg-card); }
+
+.mc-info {
+  margin-left: auto; display: flex; gap: 16px; align-items: center;
+}
+.mc-metric {
+  display: flex; flex-direction: column; align-items: center;
+  font-family: 'Share Tech Mono', monospace;
+}
+.mc-metric-val { font-size: 14px; color: var(--text-bright); font-weight: bold; }
+.mc-metric-lbl { font-size: 9px; color: var(--text-dim); letter-spacing: 1px; }
+
+/* ═══════════════════════════════════════════════════════════════
+   MAIN LAYOUT GRID
+═══════════════════════════════════════════════════════════════ */
+#main-layout {
+  position: fixed;
+  top: 98px; left: 0; right: 0; bottom: 0;
+  display: grid;
+  grid-template-columns: 280px 1fr 280px;
+  grid-template-rows: 1fr;
+  gap: 0;
+  overflow: hidden;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   PANELS (LEFT / RIGHT SIDEBARS)
+═══════════════════════════════════════════════════════════════ */
+.sidebar {
+  background: var(--bg-deep);
+  border-right: 1px solid var(--border);
+  overflow-y: auto; overflow-x: hidden;
+  display: flex; flex-direction: column;
+  gap: 0;
+}
+.sidebar.right { border-right: none; border-left: 1px solid var(--border); }
+
+.panel {
+  border-bottom: 1px solid var(--border);
+  padding: 10px 12px;
+}
+.panel-title {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 8px;
+}
+.panel-title h3 {
+  font-family: 'Exo 2', sans-serif; font-size: 10px; font-weight: 700;
+  letter-spacing: 3px; text-transform: uppercase; color: var(--accent-dim);
+}
+.panel-title .panel-badge {
+  font-family: 'Share Tech Mono', monospace; font-size: 10px;
+  padding: 2px 6px; border-radius: 10px;
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  color: var(--text-dim);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   DATA ROWS & METRICS
+═══════════════════════════════════════════════════════════════ */
+.data-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 3px 0; border-bottom: 1px solid rgba(26,45,64,0.4);
+}
+.data-row:last-child { border-bottom: none; }
+.data-key {
+  font-size: 11px; color: var(--text-dim); letter-spacing: 0.5px;
+  flex: 1;
+}
+.data-val {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 12px; color: var(--text-bright); text-align: right;
+}
+.data-val.green { color: var(--green); text-shadow: 0 0 6px var(--green); }
+.data-val.amber { color: var(--amber); text-shadow: 0 0 6px var(--amber); }
+.data-val.red   { color: var(--red);   text-shadow: 0 0 6px var(--red); }
+.data-val.accent{ color: var(--accent); text-shadow: 0 0 6px var(--accent); }
+.data-val.bright{ color: var(--text-bright); font-weight: bold; }
+
+/* ═══════════════════════════════════════════════════════════════
+   BIG NUMBER TILES
+═══════════════════════════════════════════════════════════════ */
+.tile-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.tile {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--r); padding: 8px;
+  text-align: center;
+}
+.tile-num {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 20px; font-weight: bold;
+  line-height: 1; color: var(--text-bright);
+}
+.tile-unit { font-size: 10px; color: var(--text-dim); }
+.tile-lbl  { font-size: 10px; color: var(--text-dim); letter-spacing: 1px; margin-top: 2px; }
+.tile.green .tile-num { color: var(--green); text-shadow: 0 0 10px rgba(0,255,136,0.5); }
+.tile.amber .tile-num { color: var(--amber); text-shadow: 0 0 10px rgba(255,170,0,0.5); }
+.tile.red   .tile-num { color: var(--red);   text-shadow: 0 0 10px rgba(255,51,68,0.5); }
+.tile.accent .tile-num { color: var(--accent); text-shadow: 0 0 10px rgba(0,212,255,0.5); }
+
+/* ═══════════════════════════════════════════════════════════════
+   BATTERY VISUAL
+═══════════════════════════════════════════════════════════════ */
+.battery-wrap {
+  display: flex; align-items: center; gap: 10px; margin: 8px 0;
+}
+.battery-body {
+  flex: 1; height: 22px;
+  background: var(--bg-card); border: 2px solid var(--border-glow);
+  border-radius: 4px; position: relative; overflow: hidden;
+}
+.battery-fill {
+  height: 100%; border-radius: 2px;
+  transition: width 0.5s ease, background 0.5s ease;
+  background: linear-gradient(90deg, var(--green), #00ff88);
+  position: relative;
+}
+.battery-fill::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent 80%, rgba(255,255,255,0.15));
+  animation: bat-shimmer 2s infinite;
+}
+@keyframes bat-shimmer {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+.battery-fill.amber { background: linear-gradient(90deg, #cc7700, var(--amber)); }
+.battery-fill.red   { background: linear-gradient(90deg, var(--red-dim), var(--red)); animation: bat-blink 0.5s infinite; }
+@keyframes bat-blink { 50% { opacity: 0.5; } }
+.battery-tip {
+  width: 5px; height: 12px; background: var(--border-glow);
+  border-radius: 0 2px 2px 0; margin-left: -1px;
+}
+.battery-pct {
+  font-family: 'Share Tech Mono', monospace; font-size: 16px; font-weight: bold;
+  min-width: 44px; text-align: right;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   CENTER MAP COLUMN
+═══════════════════════════════════════════════════════════════ */
+#center-col {
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+#map-container {
+  flex: 1; position: relative; overflow: hidden;
+}
+#map { width: 100%; height: 100%; }
+
+/* Leaflet overrides */
+.leaflet-container { background: #050a10 !important; }
+.leaflet-popup-content-wrapper {
+  background: var(--bg-elevated) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border-glow);
+  border-radius: var(--r);
+  font-family: 'Share Tech Mono', monospace; font-size: 11px;
+}
+.leaflet-popup-tip { background: var(--bg-elevated) !important; }
+.leaflet-control-attribution { background: rgba(4,6,8,0.8) !important; color: var(--text-dim) !important; }
+
+/* Map overlays */
+.map-overlay-tl, .map-overlay-tr, .map-overlay-bl, .map-overlay-br, .map-overlay-center {
+  position: absolute; z-index: 900; pointer-events: none;
+  font-family: 'Share Tech Mono', monospace;
+}
+.map-overlay-tl { top: 12px; left: 12px; }
+.map-overlay-tr { top: 12px; right: 12px; }
+.map-overlay-bl { bottom: 12px; left: 12px; }
+.map-overlay-br { bottom: 12px; right: 12px; }
+.map-overlay-center { top: 50%; left: 50%; transform: translate(-50%, -50%); }
+
+.map-click-hint {
+  background: rgba(4,6,8,0.85); border: 1px solid var(--border-glow);
+  border-radius: 8px; padding: 10px 14px; color: var(--accent);
+  font-family: 'Share Tech Mono', monospace; font-size: 12px;
+  letter-spacing: 1px; text-transform: uppercase;
+  box-shadow: 0 0 18px rgba(0,212,255,0.15);
+}
+
+.map-toast {
+  position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
+  z-index: 930; min-width: 260px; max-width: 320px;
+  padding: 10px 14px; background: rgba(2,18,32,0.95);
+  border: 1px solid var(--border-glow); border-radius: 8px;
+  color: var(--text-bright); font-family: 'Share Tech Mono', monospace;
+  font-size: 12px; box-shadow: 0 0 14px rgba(0,212,255,0.12);
+  opacity: 0; pointer-events: none; transition: opacity 0.3s ease;
+}
+.map-toast.show { opacity: 1; }
+
+.map-coords-box {
+  background: rgba(4,6,8,0.85);
+  border: 1px solid var(--border-glow);
+  border-radius: var(--r); padding: 6px 10px;
+  font-size: 11px; backdrop-filter: blur(4px);
+}
+.map-coords-box .coord-line { color: var(--accent); }
+.map-coords-box .coord-lbl  { color: var(--text-dim); font-size: 9px; }
+
+.map-mode-badge {
+  background: rgba(4,6,8,0.85);
+  border: 1px solid; border-radius: var(--r);
+  padding: 5px 12px; font-size: 12px; font-weight: bold;
+  backdrop-filter: blur(4px); letter-spacing: 2px;
+}
+
+.map-victim-count {
+  background: rgba(255,51,68,0.15);
+  border: 1px solid var(--red);
+  border-radius: var(--r); padding: 6px 10px;
+  font-size: 11px; color: var(--red);
+  backdrop-filter: blur(4px);
+}
+
+.map-layers-btn {
+  position: absolute; top: 12px; right: 12px; z-index: 900;
+  pointer-events: all; cursor: pointer;
+  background: rgba(4,6,8,0.85);
+  border: 1px solid var(--border-glow);
+  border-radius: var(--r); padding: 5px 10px;
+  font-family: 'Rajdhani', sans-serif; font-size: 12px; font-weight: 600;
+  color: var(--accent); letter-spacing: 1px;
+  transition: all 0.15s; backdrop-filter: blur(4px);
+}
+.map-layers-btn:hover { background: rgba(0,212,255,0.1); }
+
+/* ═══════════════════════════════════════════════════════════════
+   BOTTOM CHARTS STRIP (inside center col)
+═══════════════════════════════════════════════════════════════ */
+#charts-strip {
+  height: 160px; background: var(--bg-deep);
+  border-top: 1px solid var(--border);
+  display: grid; grid-template-columns: 1fr 1fr 1fr;
+  gap: 0; overflow: hidden;
+}
+.chart-cell {
+  border-right: 1px solid var(--border);
+  padding: 6px 10px; display: flex; flex-direction: column;
+}
+.chart-cell:last-child { border-right: none; }
+.chart-cell-title {
+  font-size: 9px; letter-spacing: 2px; color: var(--text-dim);
+  text-transform: uppercase; margin-bottom: 4px;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.chart-cell-val {
+  font-family: 'Share Tech Mono', monospace; font-size: 18px;
+  color: var(--text-bright); line-height: 1;
+}
+.chart-cell-unit { font-size: 10px; color: var(--text-dim); }
+.chart-canvas-wrap { flex: 1; position: relative; min-height: 0; }
+
+/* ═══════════════════════════════════════════════════════════════
+   ADI (ARTIFICIAL HORIZON) & COMPASS
+═══════════════════════════════════════════════════════════════ */
+.instruments-row {
+  display: flex; gap: 8px; justify-content: space-between;
+  padding: 2px 0;
+}
+#adi-canvas {
+  border-radius: 50%; border: 2px solid var(--border-glow);
+  box-shadow: 0 0 15px rgba(0,212,255,0.1);
+}
+#compass-canvas {
+  border-radius: 50%; border: 2px solid var(--border-glow);
+  box-shadow: 0 0 15px rgba(0,212,255,0.1);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   COMPONENT HEALTH GRID
+═══════════════════════════════════════════════════════════════ */
+.health-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.health-item {
+  display: flex; align-items: center; gap: 5px;
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--r); padding: 5px 7px;
+}
+.health-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.health-dot.NOMINAL  { background: var(--green); box-shadow: 0 0 5px var(--green); }
+.health-dot.WARNING  { background: var(--amber); box-shadow: 0 0 5px var(--amber); }
+.health-dot.CRITICAL { background: var(--red); box-shadow: 0 0 5px var(--red); animation: pulse-dot 0.5s infinite; }
+.health-dot.OFFLINE  { background: var(--text-dim); }
+.health-name  { font-size: 10px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; flex: 1; }
+.health-status { font-size: 9px; font-family: 'Share Tech Mono', monospace; }
+.health-status.NOMINAL  { color: var(--green); }
+.health-status.WARNING  { color: var(--amber); }
+.health-status.CRITICAL { color: var(--red); }
+
+/* ═══════════════════════════════════════════════════════════════
+   MISSION PROGRESS
+═══════════════════════════════════════════════════════════════ */
+.mission-bar-wrap { margin: 6px 0; }
+.mission-bar-bg {
+  height: 8px; background: var(--bg-card);
+  border: 1px solid var(--border); border-radius: 4px;
+  overflow: hidden; margin-bottom: 4px;
+}
+.mission-bar-fill {
+  height: 100%; background: linear-gradient(90deg, var(--accent-dim), var(--accent));
+  border-radius: 4px; transition: width 0.5s ease;
+  box-shadow: 0 0 8px rgba(0,212,255,0.4);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   SYSTEM EVENT LOG
+═══════════════════════════════════════════════════════════════ */
+#event-log {
+  flex: 1; overflow-y: auto; min-height: 0;
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 2px 0;
+}
+.log-entry {
+  display: flex; gap: 6px; align-items: flex-start;
+  padding: 3px 6px; border-radius: var(--r);
+  background: var(--bg-card); border: 1px solid var(--border);
+  animation: log-in 0.3s ease;
+}
+@keyframes log-in {
+  from { opacity: 0; transform: translateX(-8px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.log-time { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--text-dim); white-space: nowrap; }
+.log-msg  { font-size: 11px; flex: 1; word-break: break-word; }
+.log-entry.INFO     { border-color: rgba(26,45,64,0.6); }
+.log-entry.INFO .log-msg { color: var(--text-primary); }
+.log-entry.SUCCESS  { border-color: rgba(0,255,136,0.2); background: rgba(0,255,136,0.03); }
+.log-entry.SUCCESS .log-msg { color: var(--green); }
+.log-entry.WARNING  { border-color: rgba(255,170,0,0.2); background: rgba(255,170,0,0.03); }
+.log-entry.WARNING .log-msg { color: var(--amber); }
+.log-entry.CRITICAL { border-color: rgba(255,51,68,0.3); background: rgba(255,51,68,0.05); }
+.log-entry.CRITICAL .log-msg { color: var(--red); font-weight: bold; }
+.log-entry.VICTIM   { border-color: rgba(136,68,255,0.3); background: rgba(136,68,255,0.05); }
+.log-entry.VICTIM .log-msg { color: var(--purple); font-weight: bold; }
+.log-entry.MAVLINK  { border-color: rgba(0,212,255,0.15); }
+.log-entry.MAVLINK .log-msg { color: var(--accent-dim); }
+
+/* ═══════════════════════════════════════════════════════════════
+   VICTIM ALERT PANEL
+═══════════════════════════════════════════════════════════════ */
+#victim-list { display: flex; flex-direction: column; gap: 4px; max-height: 140px; overflow-y: auto; }
+.victim-card {
+  background: rgba(136,68,255,0.05);
+  border: 1px solid rgba(136,68,255,0.3);
+  border-radius: var(--r); padding: 6px 8px;
+  animation: log-in 0.3s ease;
+}
+.victim-card-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 3px;
+}
+.victim-id { color: var(--purple); font-weight: bold; font-size: 12px; }
+.victim-conf { font-family: 'Share Tech Mono', monospace; font-size: 11px; }
+.victim-coords { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--text-dim); }
+.victim-bars { display: flex; gap: 6px; margin-top: 4px; }
+.vbar-wrap { flex: 1; }
+.vbar-label { font-size: 9px; color: var(--text-dim); letter-spacing: 1px; }
+.vbar-bg { height: 4px; background: var(--bg-card); border-radius: 2px; margin-top: 2px; overflow: hidden; }
+.vbar-fill { height: 100%; border-radius: 2px; }
+.vbar-fill.thermal { background: var(--amber); }
+.vbar-fill.ai      { background: var(--purple); }
+
+/* ═══════════════════════════════════════════════════════════════
+   VICTIM DETECTION MODAL
+═══════════════════════════════════════════════════════════════ */
+#victim-modal {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  z-index: 2000; display: none; align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.7); backdrop-filter: blur(4px);
+}
+#victim-modal.show { display: flex; }
+.victim-modal-box {
+  background: var(--bg-elevated);
+  border: 2px solid var(--purple);
+  border-radius: var(--r-lg); padding: 24px;
+  max-width: 380px; width: 90%;
+  box-shadow: 0 0 40px rgba(136,68,255,0.3);
+  animation: modal-in 0.3s ease;
+}
+@keyframes modal-in {
+  from { opacity: 0; transform: scale(0.9) translateY(-20px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+.victim-modal-title {
+  font-family: 'Exo 2', sans-serif; font-size: 18px; font-weight: 900;
+  color: var(--red); text-align: center; letter-spacing: 3px;
+  text-shadow: 0 0 20px var(--red); margin-bottom: 16px;
+  animation: title-flash 0.5s infinite;
+}
+@keyframes title-flash { 50% { opacity: 0.7; } }
+.victim-modal-close {
+  display: block; margin: 12px auto 0;
+  padding: 8px 24px; border-radius: var(--r);
+  border: 1px solid var(--purple); background: rgba(136,68,255,0.1);
+  color: var(--purple); cursor: pointer; font-family: 'Rajdhani', sans-serif;
+  font-size: 13px; font-weight: 700; letter-spacing: 2px;
+  transition: all 0.15s;
+}
+.victim-modal-close:hover { background: rgba(136,68,255,0.2); }
+
+/* ═══════════════════════════════════════════════════════════════
+   CONNECT PANEL
+═══════════════════════════════════════════════════════════════ */
+.connect-form { display: flex; flex-direction: column; gap: 6px; }
+.connect-input {
+  background: var(--bg-card); border: 1px solid var(--border);
+  color: var(--text-primary); padding: 6px 8px;
+  border-radius: var(--r); font-family: 'Share Tech Mono', monospace;
+  font-size: 12px; outline: none; transition: border 0.15s;
+}
+.connect-input:focus { border-color: var(--accent); }
+.connect-input::placeholder { color: var(--text-dim); }
+
+/* ═══════════════════════════════════════════════════════════════
+   MOTOR STATUS
+═══════════════════════════════════════════════════════════════ */
+.motor-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 6px; margin-top: 4px;
+}
+.motor-item {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--r); padding: 6px; text-align: center;
+}
+.motor-label { font-size: 9px; color: var(--text-dim); letter-spacing: 1px; }
+.motor-rpm {
+  font-family: 'Share Tech Mono', monospace; font-size: 16px;
+  color: var(--green); line-height: 1.2;
+}
+.motor-bar { height: 3px; background: var(--bg-deep); border-radius: 2px; margin-top: 4px; overflow: hidden; }
+.motor-bar-fill { height: 100%; border-radius: 2px; background: linear-gradient(90deg, var(--green-dim), var(--green)); transition: width 0.3s; }
+
+/* ═══════════════════════════════════════════════════════════════
+   STATUS TEXT BAR
+═══════════════════════════════════════════════════════════════ */
+#status-bar {
+  position: fixed; bottom: 0; left: 0; right: 0; height: 26px;
+  background: var(--bg-deep); border-top: 1px solid var(--border);
+  display: flex; align-items: center; gap: 16px; padding: 0 16px;
+  z-index: 1000;
+  font-family: 'Share Tech Mono', monospace; font-size: 11px;
+}
+.sb-item { display: flex; gap: 6px; align-items: center; }
+.sb-key { color: var(--text-dim); }
+.sb-val { color: var(--accent); }
+#sb-status-text { flex: 1; color: var(--amber); text-align: center; }
+
+/* ═══════════════════════════════════════════════════════════════
+   ARMED / DISARMED BIG BADGE
+═══════════════════════════════════════════════════════════════ */
+.arm-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 4px 12px; border-radius: var(--r);
+  font-family: 'Exo 2', sans-serif; font-weight: 900;
+  font-size: 13px; letter-spacing: 3px;
+  border: 2px solid;
+}
+.arm-badge.armed   { border-color: var(--green); color: var(--green); background: rgba(0,255,136,0.08); box-shadow: 0 0 10px rgba(0,255,136,0.2); }
+.arm-badge.disarmed{ border-color: var(--red);   color: var(--red);   background: rgba(255,51,68,0.05); }
+
+/* ═══════════════════════════════════════════════════════════════
+   VIBRATION BARS
+═══════════════════════════════════════════════════════════════ */
+.vib-row { display: flex; align-items: center; gap: 6px; margin: 2px 0; }
+.vib-lbl { font-size: 11px; color: var(--text-dim); width: 14px; }
+.vib-bar-bg { flex: 1; height: 5px; background: var(--bg-card); border-radius: 3px; overflow: hidden; }
+.vib-bar-fill { height: 100%; border-radius: 3px; background: var(--green); transition: width 0.3s, background 0.3s; }
+.vib-num { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--text-dim); width: 30px; text-align: right; }
+
+/* ═══════════════════════════════════════════════════════════════
+   TOOLTIP
+═══════════════════════════════════════════════════════════════ */
+[data-tip] { position: relative; cursor: help; }
+[data-tip]:hover::after {
+  content: attr(data-tip);
+  position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%);
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  color: var(--text-primary); font-size: 11px; padding: 4px 8px;
+  border-radius: var(--r); white-space: nowrap; z-index: 2000;
+  pointer-events: none;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   RESPONSIVE ADJUSTMENTS
+═══════════════════════════════════════════════════════════════ */
+@media (max-width: 1280px) {
+  #main-layout { grid-template-columns: 240px 1fr 240px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════ TOP HEADER ════════════════════════════ -->
+<div id="header">
+  <div class="header-brand">
+    <div class="header-logo">
+      <div class="header-logo-icon">✦</div>
+    </div>
+    <div class="brand-text">
+      <div class="brand-main">DRONE GCS</div>
+      <div class="brand-sub">Autonomous Quadcopter Command Center</div>
+    </div>
+  </div>
+  <div class="header-status">
+    <div class="status-pill">
+      <div class="status-dot" id="conn-dot"></div>
+      <span id="conn-label">SIMULATION</span>
+    </div>
+    <div class="status-pill">
+      <div class="status-dot" id="gps-dot"></div>
+      <span id="gps-label">GPS 3D FIX</span>
+    </div>
+    <div class="status-pill">
+      <div class="status-dot off" id="ekf-dot"></div>
+      <span id="ekf-label">EKF OK</span>
+    </div>
+    <div class="header-clock" id="hdr-clock">00:00:00</div>
+  </div>
+</div>
+
+<!-- ═══════════════════════ MISSION CONTROL BAR ══════════════════════ -->
+<div id="mission-bar">
+  <button class="mc-btn green" id="btn-arm" onclick="toggleArm()">▶ ARM</button>
+  <button class="mc-btn blue"  id="btn-mission" onclick="startMission()">◈ START MISSION</button>
+  <button class="mc-btn amber" id="btn-rtl" onclick="doRTL()">⤴ RTL</button>
+  <button class="mc-btn red"   id="btn-abort" onclick="doAbort()">⊗ ABORT</button>
+  <div class="mc-sep"></div>
+  <div class="mode-selector">
+    <label>MODE</label>
+    <select id="mode-select" onchange="setMode(this.value)">
+      <option>STABILIZE</option><option>LOITER</option>
+      <option>AUTO</option><option>RTL</option>
+      <option>GUIDED</option><option>LAND</option>
+      <option>ALT_HOLD</option><option>POSHOLD</option><option>ACRO</option>
+    </select>
+  </div>
+  <div class="mc-sep"></div>
+  <button class="mc-btn purple" onclick="exportExcel()">📊 EXPORT EXCEL</button>
+  <button class="mc-btn amber" onclick="calibratePixhawk()">⚙ CALIBRATE</button>
+  <button class="mc-btn amber" onclick="applyTestProfile()">🛠 TEST PROFILE</button>
+  <button class="mc-btn gray"   onclick="clearMission()">⊠ CLEAR</button>
+  <div class="mc-sep"></div>
+  <!-- Connect form inline -->
+  <input class="connect-input" id="port-input" placeholder="COM3 / /dev/ttyUSB0" style="width:160px"/>
+  <button class="mc-btn blue" onclick="connectMAVLink()">⊕ CONNECT HW</button>
+  <button class="mc-btn gray" onclick="disconnectMAVLink()">⊘ DISCONNECT</button>
+
+  <div class="mc-info">
+    <div class="mc-metric"><span class="mc-metric-val accent" id="mc-alt">0.0</span><span class="mc-metric-lbl">ALT m</span></div>
+    <div class="mc-metric"><span class="mc-metric-val" id="mc-spd">0.0</span><span class="mc-metric-lbl">SPD m/s</span></div>
+    <div class="mc-metric"><span class="mc-metric-val green" id="mc-bat">100%</span><span class="mc-metric-lbl">BATT</span></div>
+    <div class="mc-metric"><span class="mc-metric-val" id="mc-ftime">0:00</span><span class="mc-metric-lbl">FLIGHT</span></div>
+    <div class="mc-metric"><span class="mc-metric-val red" id="mc-victims">0</span><span class="mc-metric-lbl">VICTIMS</span></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════ MAIN 3-COLUMN LAYOUT ═══════════════════════ -->
+<div id="main-layout">
+
+  <!-- ══════════════ LEFT SIDEBAR ══════════════ -->
+  <div class="sidebar">
+
+    <!-- ARM STATUS + MODE -->
+    <div class="panel">
+      <div class="panel-title"><h3>✦ Drone Status</h3></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <div class="arm-badge disarmed" id="arm-badge">DISARMED</div>
+        <div style="font-family:'Share Tech Mono',monospace;font-size:13px;color:var(--accent);letter-spacing:2px;" id="mode-badge">STABILIZE</div>
+      </div>
+      <div class="tile-grid">
+        <div class="tile accent"><div class="tile-num" id="t-alt">0.0</div><div class="tile-unit">m</div><div class="tile-lbl">ALTITUDE</div></div>
+        <div class="tile"><div class="tile-num" id="t-spd">0.0</div><div class="tile-unit">m/s</div><div class="tile-lbl">SPEED</div></div>
+        <div class="tile"><div class="tile-num" id="t-hdg">0</div><div class="tile-unit">°</div><div class="tile-lbl">HEADING</div></div>
+        <div class="tile"><div class="tile-num" id="t-climb">0.0</div><div class="tile-unit">m/s</div><div class="tile-lbl">CLIMB</div></div>
+      </div>
+    </div>
+
+    <!-- GPS -->
+    <div class="panel">
+      <div class="panel-title"><h3>⊕ GPS & Navigation</h3><span class="panel-badge" id="gps-fix-badge">3D FIX</span></div>
+      <div class="data-row"><span class="data-key">Latitude</span><span class="data-val accent" id="d-lat">18.520400</span></div>
+      <div class="data-row"><span class="data-key">Longitude</span><span class="data-val accent" id="d-lon">73.856700</span></div>
+      <div class="data-row"><span class="data-key">Altitude (MSL)</span><span class="data-val" id="d-alt-abs">0.0 m</span></div>
+      <div class="data-row"><span class="data-key">Satellites</span><span class="data-val green" id="d-sats">14</span></div>
+      <div class="data-row"><span class="data-key">HDOP</span><span class="data-val" id="d-hdop">0.90</span></div>
+      <div class="data-row"><span class="data-key">Dist. to Home</span><span class="data-val" id="d-home-dist">0 m</span></div>
+      <div class="data-row"><span class="data-key">Ground Speed</span><span class="data-val" id="d-gspd">0.0 m/s</span></div>
+      <div class="data-row"><span class="data-key">Air Speed</span><span class="data-val" id="d-aspd">0.0 m/s</span></div>
+    </div>
+
+    <!-- ATTITUDE -->
+    <div class="panel">
+      <div class="panel-title"><h3>⊛ Attitude & IMU</h3></div>
+      <div class="instruments-row">
+        <div>
+          <canvas id="adi-canvas" width="108" height="108"></canvas>
+          <div style="text-align:center;font-size:9px;color:var(--text-dim);letter-spacing:1px;margin-top:2px;">ARTIFICIAL HORIZON</div>
+        </div>
+        <div>
+          <canvas id="compass-canvas" width="108" height="108"></canvas>
+          <div style="text-align:center;font-size:9px;color:var(--text-dim);letter-spacing:1px;margin-top:2px;">COMPASS</div>
+        </div>
+      </div>
+      <div class="data-row"><span class="data-key">Roll</span><span class="data-val" id="d-roll">0.0°</span></div>
+      <div class="data-row"><span class="data-key">Pitch</span><span class="data-val" id="d-pitch">0.0°</span></div>
+      <div class="data-row"><span class="data-key">Yaw</span><span class="data-val" id="d-yaw">0.0°</span></div>
+      <div class="data-row"><span class="data-key">Throttle</span><span class="data-val" id="d-throttle">0%</span></div>
+      <div class="data-row"><span class="data-key">IMU Temp</span><span class="data-val" id="d-imu-temp">42.5°C</span></div>
+      <div class="data-row"><span class="data-key">Mag Field</span><span class="data-val" id="d-mag">520 mGauss</span></div>
+    </div>
+
+    <!-- VIBRATION -->
+    <div class="panel">
+      <div class="panel-title"><h3>〜 Vibration Analysis</h3></div>
+      <div class="vib-row"><div class="vib-lbl">X</div><div class="vib-bar-bg"><div class="vib-bar-fill" id="vib-x" style="width:20%"></div></div><div class="vib-num" id="vib-x-n">0.20</div></div>
+      <div class="vib-row"><div class="vib-lbl">Y</div><div class="vib-bar-bg"><div class="vib-bar-fill" id="vib-y" style="width:20%"></div></div><div class="vib-num" id="vib-y-n">0.20</div></div>
+      <div class="vib-row"><div class="vib-lbl">Z</div><div class="vib-bar-bg"><div class="vib-bar-fill" id="vib-z" style="width:30%"></div></div><div class="vib-num" id="vib-z-n">0.30</div></div>
+      <div style="margin-top:6px;" class="data-row"><span class="data-key">Wind Speed</span><span class="data-val" id="d-wind-spd">2.1 m/s</span></div>
+      <div class="data-row"><span class="data-key">Wind Direction</span><span class="data-val" id="d-wind-dir">225°</span></div>
+    </div>
+
+  </div><!-- /left sidebar -->
+
+  <!-- ══════════════ CENTER: MAP + CHARTS ══════════════ -->
+  <div id="center-col">
+    <div id="map-container">
+      <div id="map"></div>
+      <!-- Map Overlays -->
+      <div class="map-overlay-tl">
+        <div class="map-coords-box">
+          <div class="coord-lbl">POSITION</div>
+          <div class="coord-line" id="map-lat">LAT: 18.520400</div>
+          <div class="coord-line" id="map-lon">LON: 73.856700</div>
+          <div class="coord-line" id="map-alt-ov">ALT: 0.0 m</div>
+        </div>
+      </div>
+      <div class="map-overlay-bl">
+        <div class="map-victim-count" id="map-victim-count">⚠ 0 VICTIMS DETECTED</div>
+      </div>
+      <div class="map-overlay-br">
+        <div class="map-coords-box">
+          <div class="coord-lbl">MISSION</div>
+          <div class="coord-line" id="map-wp-prog">WP: 0 / 6</div>
+          <div class="coord-line" id="map-mission-st">STATUS: IDLE</div>
+          <div class="coord-line" id="map-flight-t">FLIGHT: 0:00</div>
+        </div>
+      </div>
+      <div class="map-overlay-center">
+        <div class="map-click-hint">Click the map to add a waypoint to the mission</div>
+      </div>
+      <div class="map-toast" id="map-toast"></div>
+      <div class="map-layers-btn" onclick="toggleMapLayer()">🗺 LAYER</div>
+    </div>
+    <div id="charts-strip">
+      <div class="chart-cell">
+        <div class="chart-cell-title">
+          <span>ALTITUDE</span>
+          <span><span class="chart-cell-val accent" id="cv-alt">0.0</span><span class="chart-cell-unit">m</span></span>
+        </div>
+        <div class="chart-canvas-wrap"><canvas id="chart-alt"></canvas></div>
+      </div>
+      <div class="chart-cell">
+        <div class="chart-cell-title">
+          <span>GROUND SPEED</span>
+          <span><span class="chart-cell-val" id="cv-spd">0.0</span><span class="chart-cell-unit">m/s</span></span>
+        </div>
+        <div class="chart-canvas-wrap"><canvas id="chart-spd"></canvas></div>
+      </div>
+      <div class="chart-cell">
+        <div class="chart-cell-title">
+          <span>BATTERY</span>
+          <span><span class="chart-cell-val green" id="cv-bat">100</span><span class="chart-cell-unit">%</span></span>
+        </div>
+        <div class="chart-canvas-wrap"><canvas id="chart-bat"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════ RIGHT SIDEBAR ══════════════ -->
+  <div class="sidebar right">
+
+    <!-- BATTERY -->
+    <div class="panel">
+      <div class="panel-title"><h3>⚡ Battery System</h3><span class="panel-badge" id="bat-status-badge">NOMINAL</span></div>
+      <div class="battery-wrap">
+        <div class="battery-body"><div class="battery-fill" id="bat-fill" style="width:100%"></div></div>
+        <div class="battery-tip"></div>
+        <div class="battery-pct green" id="bat-pct">100%</div>
+      </div>
+      <div class="tile-grid" style="margin-bottom:6px;">
+        <div class="tile"><div class="tile-num" id="t-voltage">12.0</div><div class="tile-unit">V</div><div class="tile-lbl">VOLTAGE</div></div>
+        <div class="tile"><div class="tile-num" id="t-current">0.0</div><div class="tile-unit">A</div><div class="tile-lbl">CURRENT</div></div>
+        <div class="tile amber"><div class="tile-num" id="t-mah">0</div><div class="tile-unit">mAh</div><div class="tile-lbl">CONSUMED</div></div>
+        <div class="tile"><div class="tile-num" id="t-baro-t">38.2</div><div class="tile-unit">°C</div><div class="tile-lbl">BARO TEMP</div></div>
+      </div>
+      <div class="data-row"><span class="data-key">Cell Voltage Est.</span><span class="data-val" id="d-cell-v">4.00 V</span></div>
+      <div class="data-row"><span class="data-key">Est. Flight Left</span><span class="data-val green" id="d-flight-left">~ 25:00</span></div>
+      <div class="data-row"><span class="data-key">Signal Strength</span><span class="data-val" id="d-signal">95%</span></div>
+    </div>
+
+    <!-- COMPONENT HEALTH -->
+    <div class="panel">
+      <div class="panel-title"><h3>◈ Component Health</h3></div>
+      <div class="health-grid" id="health-grid">
+        <!-- filled by JS -->
+      </div>
+    </div>
+
+    <!-- MOTOR STATUS -->
+    <div class="panel">
+      <div class="panel-title"><h3>⊙ Motor Status (PWM%)</h3></div>
+      <div class="motor-grid" id="motor-grid">
+        <div class="motor-item"><div class="motor-label">MOTOR FL</div><div class="motor-rpm" id="m0">100</div><div class="motor-bar"><div class="motor-bar-fill" id="mb0" style="width:100%"></div></div></div>
+        <div class="motor-item"><div class="motor-label">MOTOR FR</div><div class="motor-rpm" id="m1">100</div><div class="motor-bar"><div class="motor-bar-fill" id="mb1" style="width:100%"></div></div></div>
+        <div class="motor-item"><div class="motor-label">MOTOR RL</div><div class="motor-rpm" id="m2">100</div><div class="motor-bar"><div class="motor-bar-fill" id="mb2" style="width:100%"></div></div></div>
+        <div class="motor-item"><div class="motor-label">MOTOR RR</div><div class="motor-rpm" id="m3">100</div><div class="motor-bar"><div class="motor-bar-fill" id="mb3" style="width:100%"></div></div></div>
+      </div>
+    </div>
+
+    <!-- MISSION PROGRESS -->
+    <div class="panel">
+      <div class="panel-title"><h3>◉ Mission Progress</h3><span class="panel-badge" id="mission-status-badge">IDLE</span></div>
+      <div class="mission-bar-wrap">
+        <div class="mission-bar-bg"><div class="mission-bar-fill" id="mission-bar-fill" style="width:0%"></div></div>
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-dim);">
+          <span>0%</span><span id="mission-pct-label">0%</span><span>100%</span>
+        </div>
+      </div>
+      <div class="data-row"><span class="data-key">Current WP</span><span class="data-val" id="d-wp-cur">—</span></div>
+      <div class="data-row"><span class="data-key">Total WPs</span><span class="data-val" id="d-wp-tot">6</span></div>
+      <div class="data-row"><span class="data-key">Flight Time</span><span class="data-val green" id="d-flight-time">0:00</span></div>
+      <div class="data-row"><span class="data-key">Dist. to Home</span><span class="data-val" id="d-dth">0 m</span></div>
+      <div class="data-row"><span class="data-key">Victims Found</span><span class="data-val red" id="d-victims">0</span></div>
+    </div>
+
+    <!-- VICTIM DETECTIONS -->
+    <div class="panel" style="flex:1;display:flex;flex-direction:column;min-height:0;">
+      <div class="panel-title"><h3>👁 Victim Detections</h3><span class="panel-badge red" id="victim-badge">0</span></div>
+      <div id="victim-list"></div>
+    </div>
+
+    <!-- SYSTEM LOG -->
+    <div class="panel" style="flex:1.5;display:flex;flex-direction:column;min-height:120px;">
+      <div class="panel-title"><h3>◷ System Event Log</h3></div>
+      <div id="event-log"></div>
+    </div>
+
+  </div><!-- /right sidebar -->
+</div><!-- /main-layout -->
+
+<!-- ═══════════════ STATUS BAR ═══════════════ -->
+<div id="status-bar">
+  <div class="sb-item"><span class="sb-key">VER:</span><span class="sb-val" id="sb-ver">ArduCopter 4.5.2</span></div>
+  <div class="sb-item"><span class="sb-key">FRAME:</span><span class="sb-val">X-QUAD</span></div>
+  <div class="sb-item"><span class="sb-key">MODE:</span><span class="sb-val" id="sb-mode">STABILIZE</span></div>
+  <span id="sb-status-text">System Ready — Simulation Mode Active</span>
+  <div class="sb-item"><span class="sb-key">SIM:</span><span class="sb-val" id="sb-sim">YES</span></div>
+  <div class="sb-item"><span class="sb-key">LINK:</span><span class="sb-val green" id="sb-link">ACTIVE</span></div>
+</div>
+
+<!-- ═══════════════ VICTIM MODAL ═══════════════ -->
+<div id="victim-modal">
+  <div class="victim-modal-box">
+    <div class="victim-modal-title">⚠ VICTIM DETECTED ⚠</div>
+    <div id="victim-modal-content"></div>
+    <button class="victim-modal-close" onclick="closeVictimModal()">ACKNOWLEDGE</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     JAVASCRIPT
+═══════════════════════════════════════════════ -->
+<script>
+// ─────────────────── SOCKET.IO ───────────────────
+const socket = io();
+let telemetry = {};
+const BATTERY_MAX_VOLTAGE = 12.0;
+const BATTERY_MIN_VOLTAGE = 10.9;
+
+function batteryPercentFromVoltage(voltage) {
+  if (typeof voltage !== 'number' || Number.isNaN(voltage)) return 0;
+  const curve = [
+    [12.00, 100],
+    [11.95, 95],
+    [11.90, 90],
+    [11.85, 82],
+    [11.80, 74],
+    [11.75, 66],
+    [11.70, 58],
+    [11.65, 50],
+    [11.60, 42],
+    [11.55, 35],
+    [11.50, 28],
+    [11.45, 22],
+    [11.40, 16],
+    [11.35, 11],
+    [11.30, 7],
+    [11.20, 4],
+    [11.10, 2],
+    [10.90, 0],
+  ];
+  if (voltage >= curve[0][0]) return 100;
+  if (voltage <= curve[curve.length - 1][0]) return 0;
+  for (let i = 0; i < curve.length - 1; i++) {
+    const [v1, p1] = curve[i];
+    const [v2, p2] = curve[i + 1];
+    if (v1 >= voltage && voltage >= v2) {
+      const ratio = (voltage - v2) / (v1 - v2);
+      return Math.max(0, Math.min(100, Math.round(p2 + ratio * (p1 - p2))));
+    }
+  }
+  const pct = ((voltage - BATTERY_MIN_VOLTAGE) / (BATTERY_MAX_VOLTAGE - BATTERY_MIN_VOLTAGE)) * 100;
+  return Math.max(0, Math.min(100, Math.round(pct)));
+}
+let mapSatLayer = false;
+let droneMarker, pathLine, homeMarker;
+let victimMarkers = [];
+let waypointMarkers = [];
+let pathPoints = [];
+
+// ─────────────────── MAP INIT ───────────────────
+const map = L.map('map', {
+  center: [18.5204, 73.8567],
+  zoom: 16,
+  zoomControl: true,
+  attributionControl: true,
+});
+
+const streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© OpenStreetMap', maxZoom: 19,
+  className: 'map-tiles-dark'
+});
+const satLayer = L.tileLayer(
+  'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+  { attribution: '© ESRI Satellite', maxZoom: 19 }
+);
+streetLayer.addTo(map);
+
+// Custom drone icon
+const droneIcon = L.divIcon({
+  html: `<div style="
+    width:28px;height:28px;
+    background:conic-gradient(from 0deg,#00d4ff,#00ff88,#00d4ff);
+    border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    box-shadow:0 0 16px rgba(0,212,255,0.8);
+    font-size:14px;
+    animation:spin 1s linear infinite;
+  ">✦</div>`,
+  iconSize: [28, 28], iconAnchor: [14, 14], className: ''
+});
+const homeIcon = L.divIcon({
+  html: `<div style="width:20px;height:20px;background:rgba(255,170,0,0.2);border:2px solid #ffaa00;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;color:#ffaa00;">H</div>`,
+  iconSize: [20,20], iconAnchor: [10,10], className: ''
+});
+const victimIcon = L.divIcon({
+  html: `<div style="width:22px;height:22px;background:rgba(136,68,255,0.2);border:2px solid #8844ff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;color:#8844ff;animation:pulse-dot 1s infinite;">👤</div>`,
+  iconSize: [22,22], iconAnchor: [11,11], className: ''
+});
+
+// Path polyline
+pathLine = L.polyline([], {
+  color: '#00d4ff', weight: 2, opacity: 0.6,
+  dashArray: '4 4'
+}).addTo(map);
+
+// Click to add waypoint to mission
+map.on('click', async function(e) {
+  const lat = e.latlng.lat;
+  const lon = e.latlng.lng;
+  const alt = 20;
+  const resp = await fetch('/api/add_waypoint', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ lat, lon, alt })
+  });
+  const data = await resp.json();
+  if (data.success) {
+    showToast(`Waypoint added: ${lat.toFixed(6)}, ${lon.toFixed(6)}`);
+  } else {
+    showToast(`Waypoint add failed: ${data.error || 'unknown error'}`, true);
+  }
+});
+
+// Waypoints
+const wpColors = { WAYPOINT:'#00d4ff', SURVEY:'#00ff88', LAND:'#ff3344' };
+function renderWaypoints(wps) {
+  waypointMarkers.forEach(m => map.removeLayer(m));
+  waypointMarkers = [];
+  const wpLine = wps.map(w => [w.lat, w.lon]);
+  if (wpLine.length > 1) {
+    L.polyline(wpLine, { color: '#1a4060', weight: 1.5, dashArray: '6 4' }).addTo(map);
+  }
+  wps.forEach((wp, i) => {
+    const col = wpColors[wp.action] || '#00d4ff';
+    const ic = L.divIcon({
+      html: `<div style="width:18px;height:18px;background:rgba(0,0,0,0.7);border:2px solid ${col};border-radius:3px;display:flex;align-items:center;justify-content:center;font-family:'Share Tech Mono',monospace;font-size:9px;color:${col};${wp.reached?'opacity:0.4':''}">
+        ${i+1}</div>`,
+      iconSize:[18,18], iconAnchor:[9,9], className:''
+    });
+    const m = L.marker([wp.lat, wp.lon], {icon: ic})
+      .bindPopup(`<b>WP${i+1}</b><br>Action: ${wp.action}<br>Alt: ${wp.alt}m<br>Reached: ${wp.reached}`)
+      .addTo(map);
+    waypointMarkers.push(m);
+  });
+}
+
+// ─────────────────── TELEMETRY HANDLER ───────────────────
+socket.on('telemetry', (data) => {
+  telemetry = data;
+  updateUI(data);
+});
+
+socket.on('victim_detected', (v) => {
+  showVictimModal(v);
+});
+
+socket.on('system_event', (e) => {
+  addLogEntry(e);
+});
+
+function updateUI(d) {
+  // ─── Header status
+  const connDot = document.getElementById('conn-dot');
+  const connLabel = document.getElementById('conn-label');
+  if (d.simulation) {
+    connDot.className = 'status-dot amber';
+    connLabel.textContent = 'SIMULATION';
+  } else {
+    connDot.className = 'status-dot';
+    connLabel.textContent = 'MAVLINK LIVE';
+  }
+  document.getElementById('ekf-dot').className = d.ekf_ok ? 'status-dot' : 'status-dot red';
+  const gpsDot = document.getElementById('gps-dot');
+  gpsDot.className = d.gps_fix >= 3 ? 'status-dot' : (d.gps_fix >= 2 ? 'status-dot amber' : 'status-dot red');
+  document.getElementById('gps-label').textContent = d.gps_fix >= 3 ? 'GPS 3D FIX' : (d.gps_fix == 2 ? 'GPS 2D' : 'GPS NO FIX');
+
+  // ─── Mission bar quick stats
+  document.getElementById('mc-alt').textContent = d.rel_alt.toFixed(1);
+  document.getElementById('mc-spd').textContent = d.groundspeed.toFixed(1);
+  const mcBatPct = d.battery_percentage !== undefined ? d.battery_percentage : d.battery_remaining;
+  const batPctEl = document.getElementById('mc-bat');
+  batPctEl.textContent = mcBatPct + '%';
+  batPctEl.className = 'mc-metric-val ' + (mcBatPct > 50 ? 'green' : mcBatPct > 20 ? 'amber' : 'red');
+  document.getElementById('mc-ftime').textContent = formatTime(d.flight_time);
+  document.getElementById('mc-victims').textContent = d.victims_detected;
+
+  // ─── ARM badge & mode
+  const armBadge = document.getElementById('arm-badge');
+  armBadge.textContent = d.armed ? 'ARMED' : 'DISARMED';
+  armBadge.className = 'arm-badge ' + (d.armed ? 'armed' : 'disarmed');
+  document.getElementById('mode-badge').textContent = d.mode;
+  document.getElementById('mode-select').value = d.mode;
+  document.getElementById('btn-arm').textContent = d.armed ? '■ DISARM' : '▶ ARM';
+  document.getElementById('btn-arm').className = 'mc-btn ' + (d.armed ? 'red' : 'green');
+
+  // ─── Tiles
+  setTile('t-alt', d.rel_alt.toFixed(1), d.rel_alt > 5 ? 'accent' : '');
+  setTile('t-spd', d.groundspeed.toFixed(1), '');
+  setTile('t-hdg', Math.round(d.heading), '');
+  const climbColor = d.climb_rate > 0.5 ? 'green' : d.climb_rate < -0.5 ? 'red' : '';
+  setTile('t-climb', d.climb_rate.toFixed(1), climbColor);
+
+  // ─── GPS panel
+  setText('d-lat', d.lat.toFixed(7));
+  setText('d-lon', d.lon.toFixed(7));
+  setText('d-alt-abs', d.alt.toFixed(1) + ' m');
+  setText('d-sats', d.satellites, d.satellites >= 8 ? 'green' : 'amber');
+  setText('d-hdop', d.hdop.toFixed(2));
+  setText('d-home-dist', Math.round(d.distance_to_home) + ' m');
+  setText('d-gspd', d.groundspeed.toFixed(2) + ' m/s');
+  setText('d-aspd', d.airspeed.toFixed(2) + ' m/s');
+  document.getElementById('gps-fix-badge').textContent = ['NO FIX','2D FIX','3D FIX','3D DGPS','RTK FLOAT','RTK FIXED'][Math.min(d.gps_fix,5)];
+
+  // ─── Attitude
+  setText('d-roll',  d.roll.toFixed(1) + '°',  Math.abs(d.roll)>15?'amber':'');
+  setText('d-pitch', d.pitch.toFixed(1) + '°', Math.abs(d.pitch)>15?'amber':'');
+  setText('d-yaw',   d.yaw.toFixed(1) + '°',   '');
+  setText('d-throttle', d.throttle + '%');
+  setText('d-imu-temp', d.temp_imu.toFixed(1) + '°C', d.temp_imu > 60 ? 'red' : '');
+  setText('d-mag', Math.round(d.mag_field) + ' mGauss');
+
+  // ─── Draw ADI
+  drawADI(d.roll, d.pitch);
+  drawCompass(d.heading);
+
+  // ─── Vibration
+  setVib('vib-x', 'vib-x-n', d.vibration_x);
+  setVib('vib-y', 'vib-y-n', d.vibration_y);
+  setVib('vib-z', 'vib-z-n', d.vibration_z);
+  setText('d-wind-spd', d.wind_speed.toFixed(1) + ' m/s');
+  setText('d-wind-dir', Math.round(d.wind_direction) + '°');
+
+  // ─── Battery
+  const bp = batteryPercentFromVoltage(d.battery_voltage) || (d.battery_percentage !== undefined ? d.battery_percentage : d.battery_remaining);
+  const bfill = document.getElementById('bat-fill');
+  bfill.style.width = bp + '%';
+  bfill.className = 'battery-fill' + (bp > 50 ? '' : bp > 20 ? ' amber' : ' red');
+  const bpEl = document.getElementById('bat-pct');
+  bpEl.textContent = bp + '%';
+  bpEl.className = 'battery-pct ' + (bp > 50 ? 'green' : bp > 20 ? 'amber' : 'red');
+  document.getElementById('bat-status-badge').textContent = d.component_health.battery;
+  setTile('t-voltage', d.battery_voltage.toFixed(2));
+  setTile('t-current', d.battery_current.toFixed(1));
+  setTile('t-mah', Math.round(d.battery_consumed_mah));
+  setTile('t-baro-t', d.temp_baro.toFixed(1));
+  setText('d-cell-v', (d.battery_voltage / 3).toFixed(3) + ' V');
+  const minsLeft = Math.max(0, Math.round((bp / 100) * 28));
+  setText('d-flight-left', `~ ${minsLeft}:00`, minsLeft < 5 ? 'red' : minsLeft < 10 ? 'amber' : 'green');
+  setText('d-signal', d.signal_strength + '%', d.signal_strength > 70 ? 'green' : 'amber');
+
+  // ─── Motor status
+  for (let i = 0; i < 4; i++) {
+    const v = d.motor_status ? d.motor_status[i] : 100;
+    document.getElementById('m' + i).textContent = v;
+    document.getElementById('mb' + i).style.width = v + '%';
+  }
+
+  // ─── Component health
+  const hg = document.getElementById('health-grid');
+  hg.innerHTML = '';
+  for (const [comp, status] of Object.entries(d.component_health)) {
+    const color = status === 'NOMINAL' ? 'green' : status === 'WARNING' ? '#ffaa00' : '#ff3344';
+    hg.innerHTML += `<div class="health-item">
+      <div class="health-dot ${status}"></div>
+      <div class="health-name">${comp}</div>
+      <div class="health-status ${status}">${status.slice(0,3)}</div>
+    </div>`;
+  }
+
+  // ─── Mission panel
+  const msBar = document.getElementById('mission-bar-fill');
+  msBar.style.width = d.mission_progress + '%';
+  document.getElementById('mission-pct-label').textContent = d.mission_progress + '%';
+  document.getElementById('mission-status-badge').textContent = d.mission_status;
+  document.getElementById('d-wp-cur').textContent = d.mission_progress > 0 ? `${Math.ceil(d.mission_progress / (100/d.total_waypoints))} / ${d.total_waypoints}` : '—';
+  document.getElementById('d-wp-tot').textContent = d.total_waypoints || 6;
+  setText('d-flight-time', formatTime(d.flight_time), 'green');
+  setText('d-dth', Math.round(d.distance_to_home) + ' m');
+  setText('d-victims', d.victims_detected, d.victims_detected > 0 ? 'red' : '');
+
+  // ─── Map overlays
+  document.getElementById('map-lat').textContent = 'LAT: ' + d.lat.toFixed(7);
+  document.getElementById('map-lon').textContent = 'LON: ' + d.lon.toFixed(7);
+  document.getElementById('map-alt-ov').textContent = 'ALT: ' + d.rel_alt.toFixed(1) + ' m';
+  document.getElementById('map-victim-count').textContent = `⚠ ${d.victims_detected} VICTIM${d.victims_detected !== 1 ? 'S' : ''} DETECTED`;
+  document.getElementById('map-wp-prog').textContent = `WP: ${d.mission_progress > 0 ? Math.ceil(d.mission_progress / (100/Math.max(d.total_waypoints,1))) : 0} / ${d.total_waypoints || 6}`;
+  document.getElementById('map-mission-st').textContent = 'STATUS: ' + d.mission_status;
+  document.getElementById('map-flight-t').textContent = 'FLIGHT: ' + formatTime(d.flight_time);
+
+  // ─── Mode badge color on map
+  const mModeBadge = document.createElement('div');
+
+  // ─── Status bar
+  document.getElementById('sb-mode').textContent = d.mode;
+  document.getElementById('sb-status-text').textContent = d.status_text;
+  document.getElementById('sb-sim').textContent = d.simulation ? 'YES' : 'NO';
+  document.getElementById('sb-ver').textContent = d.autopilot_type + ' ' + d.firmware_version;
+
+  // ─── Drone map marker
+  const pos = [d.lat, d.lon];
+  if (!droneMarker) {
+    droneMarker = L.marker(pos, {icon: droneIcon}).addTo(map);
+    homeMarker = L.marker([d.home_lat, d.home_lon], {icon: homeIcon})
+      .bindPopup('<b>HOME</b>').addTo(map);
+  } else {
+    droneMarker.setLatLng(pos);
+  }
+
+  // Path
+  if (d.flight_path_tail && d.flight_path_tail.length > 0) {
+    const pts = d.flight_path_tail.map(p => [p.lat, p.lon]);
+    pathLine.setLatLngs(pts);
+  }
+
+  // Waypoints
+  if (d.waypoints) renderWaypoints(d.waypoints);
+
+  // Victim markers
+  if (d.victims) {
+    d.victims.forEach(v => {
+      if (!victimMarkers.find(m => m._victimId === v.id)) {
+        const m = L.marker([v.lat, v.lon], {icon: victimIcon})
+          .bindPopup(`<b>VICTIM #${v.id}</b><br>Thermal: ${(v.thermal_confidence*100).toFixed(0)}%<br>AI: ${(v.ai_confidence*100).toFixed(0)}%<br>${v.timestamp}`)
+          .addTo(map);
+        m._victimId = v.id;
+        victimMarkers.push(m);
+      }
+    });
+    updateVictimList(d.victims);
+  }
+
+  // ─── Charts
+  if (d.history) updateCharts(d.history);
+  document.getElementById('cv-alt').textContent = d.rel_alt.toFixed(1);
+  document.getElementById('cv-spd').textContent = d.groundspeed.toFixed(1);
+  document.getElementById('cv-bat').textContent = batteryPercentFromVoltage(d.battery_voltage) || (d.battery_percentage !== undefined ? d.battery_percentage : d.battery_remaining);
+}
+
+// ─────────────────── CHARTS ───────────────────
+const chartDefaults = {
+  type: 'line',
+  options: {
+    animation: false,
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { display: false },
+      y: {
+        display: true, position: 'right',
+        grid: { color: 'rgba(26,45,64,0.4)', lineWidth: 0.5 },
+        ticks: { color: '#5a8090', font: { size: 9, family: "'Share Tech Mono',monospace" }, maxTicksLimit: 4 },
+        border: { display: false }
+      }
+    },
+    elements: { point: { radius: 0 }, line: { tension: 0.3, borderWidth: 1.5 } },
+  }
+};
+
+function makeChart(canvasId, color, fillColor) {
+  const ctx = document.getElementById(canvasId).getContext('2d');
+  return new Chart(ctx, {
+    ...chartDefaults,
+    data: {
+      labels: [],
+      datasets: [{
+        data: [], borderColor: color,
+        backgroundColor: fillColor || 'rgba(0,212,255,0.05)',
+        fill: true,
+      }]
+    },
+    options: JSON.parse(JSON.stringify(chartDefaults.options))
+  });
+}
+
+const chartAlt = makeChart('chart-alt', '#00d4ff', 'rgba(0,212,255,0.06)');
+const chartSpd = makeChart('chart-spd', '#d0e8f0', 'rgba(208,232,240,0.04)');
+const chartBat = makeChart('chart-bat', '#00ff88', 'rgba(0,255,136,0.06)');
+
+function updateCharts(h) {
+  const labels = h.time || [];
+  const update = (chart, data) => {
+    chart.data.labels = labels;
+    chart.data.datasets[0].data = data;
+    chart.update('none');
+  };
+  update(chartAlt, h.altitude);
+  update(chartSpd, h.speed);
+  update(chartBat, h.battery);
+}
+
+// ─────────────────── ADI CANVAS ───────────────────
+function drawADI(roll, pitch) {
+  try {
+    const c = document.getElementById('adi-canvas');
+    if (!c) return;
+    const ctx = c.getContext('2d');
+    if (!ctx) return;
+    const cx = c.width / 2, cy = c.height / 2, r = cx - 2;
+    ctx.clearRect(0, 0, c.width, c.height);
+  ctx.save();
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.clip();
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(-roll * Math.PI / 180);
+  const pitchPx = pitch * 1.8;
+  // Sky
+  const skyGrad = ctx.createLinearGradient(0, -r, 0, 0);
+  skyGrad.addColorStop(0, '#0a2040');
+  skyGrad.addColorStop(1, '#0d3866');
+  ctx.fillStyle = skyGrad;
+  ctx.fillRect(-r, -r + pitchPx, r*2, r);
+  // Ground
+  const gndGrad = ctx.createLinearGradient(0, 0, 0, r);
+  gndGrad.addColorStop(0, '#3a2010');
+  gndGrad.addColorStop(1, '#251508');
+  ctx.fillStyle = gndGrad;
+  ctx.fillRect(-r, pitchPx, r*2, r);
+  // Horizon
+  ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(-r, pitchPx); ctx.lineTo(r, pitchPx); ctx.stroke();
+  // Pitch ladder
+  ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+  ctx.font = '7px Share Tech Mono'; ctx.textAlign = 'center'; ctx.lineWidth = 0.8;
+  for (let p = -30; p <= 30; p += 5) {
+    if (p === 0) continue;
+    const y = pitchPx - p * 1.8;
+    const w = Math.abs(p) % 10 === 0 ? 22 : 12;
+    ctx.beginPath(); ctx.moveTo(-w, y); ctx.lineTo(w, y); ctx.stroke();
+    if (Math.abs(p) % 10 === 0) ctx.fillText(Math.abs(p), w + 5, y + 3);
+  }
+  ctx.restore();
+  // Bank arc
+  ctx.save();
+  ctx.translate(cx, cy);
+  for (let b = -60; b <= 60; b += 30) {
+    const angle = (b - 90) * Math.PI / 180;
+    const len = Math.abs(b) % 60 === 0 ? 8 : 5;
+    ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(angle)*(r-len), Math.sin(angle)*(r-len));
+    ctx.lineTo(Math.cos(angle)*r, Math.sin(angle)*r);
+    ctx.stroke();
+  }
+  // Bank pointer
+  ctx.rotate(-roll * Math.PI / 180);
+  ctx.fillStyle = 'rgba(255,255,255,0.7)';
+  ctx.beginPath(); ctx.moveTo(0, -(r-10)); ctx.lineTo(-4, -(r-20)); ctx.lineTo(4, -(r-20)); ctx.closePath(); ctx.fill();
+  ctx.restore();
+  // Center crosshair
+  ctx.strokeStyle = '#ffaa00'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(cx-20, cy); ctx.lineTo(cx-6, cy); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx+6, cy); ctx.lineTo(cx+20, cy); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, 4, 0, Math.PI*2); ctx.stroke();
+  ctx.restore();
+  // Border overlay ring
+  ctx.strokeStyle = 'rgba(0,212,255,0.3)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.stroke();
+  } catch (e) {
+    console.error('ADI canvas error:', e);
+  }
+}
+
+// ─────────────────── COMPASS CANVAS ───────────────────
+function drawCompass(heading) {
+  try {
+    const c = document.getElementById('compass-canvas');
+    if (!c) return;
+    const ctx = c.getContext('2d');
+    if (!ctx) return;
+  const cx = c.width/2, cy = c.height/2, r = cx - 2;
+  ctx.clearRect(0, 0, c.width, c.height);
+  ctx.save();
+  // Background
+  const bg = ctx.createRadialGradient(cx, cy, r*0.3, cx, cy, r);
+  bg.addColorStop(0, '#0a1520'); bg.addColorStop(1, '#050a0f');
+  ctx.fillStyle = bg;
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.fill();
+  // Tick marks
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(-heading * Math.PI / 180);
+  const cardinals = ['N','NE','E','SE','S','SW','W','NW'];
+  const cardColors = { N:'#ff3344', S:'#00d4ff', E:'#d0e8f0', W:'#d0e8f0', NE:'#5a8090', SE:'#5a8090', SW:'#5a8090', NW:'#5a8090' };
+  for (let i = 0; i < 360; i += 5) {
+    const a = i * Math.PI / 180;
+    const isMaj = i % 45 === 0, isMed = i % 15 === 0;
+    const len = isMaj ? 10 : isMed ? 7 : 4;
+    ctx.strokeStyle = isMaj ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.2)';
+    ctx.lineWidth = isMaj ? 1.5 : 0.8;
+    ctx.beginPath();
+    ctx.moveTo(Math.sin(a)*(r-len), -Math.cos(a)*(r-len));
+    ctx.lineTo(Math.sin(a)*r, -Math.cos(a)*r);
+    ctx.stroke();
+    if (isMaj) {
+      const ci = i / 45;
+      ctx.fillStyle = cardColors[cardinals[ci]] || '#d0e8f0';
+      ctx.font = `bold 9px 'Share Tech Mono'`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(cardinals[ci], Math.sin(a)*(r-18), -Math.cos(a)*(r-18));
+    }
+  }
+  ctx.restore();
+  // Heading line (fixed, points up)
+  ctx.strokeStyle = '#ff3344'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(cx, cy-r*0.3); ctx.lineTo(cx, cy-r+2); ctx.stroke();
+  // Center
+  ctx.fillStyle = '#1a2d40';
+  ctx.beginPath(); ctx.arc(cx, cy, 14, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#00d4ff';
+  ctx.font = 'bold 9px Share Tech Mono'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(Math.round(heading) + '°', cx, cy);
+  ctx.restore();
+  } catch (e) {
+    console.error('Compass canvas error:', e);
+  }
+}
+function updateVictimList(victims) {
+  const el = document.getElementById('victim-list');
+  el.innerHTML = '';
+  document.getElementById('victim-badge').textContent = victims.length;
+  victims.slice().reverse().forEach(v => {
+    el.innerHTML += `
+    <div class="victim-card">
+      <div class="victim-card-header">
+        <span class="victim-id">VICTIM #${v.id}</span>
+        <span class="victim-conf" style="color:var(--amber)">⚠ ${(v.ai_confidence*100).toFixed(0)}% AI</span>
+      </div>
+      <div class="victim-coords">${v.lat.toFixed(6)}, ${v.lon.toFixed(6)}</div>
+      <div class="victim-bars">
+        <div class="vbar-wrap">
+          <div class="vbar-label">THERMAL</div>
+          <div class="vbar-bg"><div class="vbar-fill thermal" style="width:${v.thermal_confidence*100}%"></div></div>
+        </div>
+        <div class="vbar-wrap">
+          <div class="vbar-label">AI CONF</div>
+          <div class="vbar-bg"><div class="vbar-fill ai" style="width:${v.ai_confidence*100}%"></div></div>
+        </div>
+      </div>
+    </div>`;
+  });
+}
+
+// ─────────────────── VICTIM MODAL ───────────────────
+function showVictimModal(v) {
+  document.getElementById('victim-modal-content').innerHTML = `
+    <div class="data-row"><span class="data-key">Victim ID</span><span class="data-val red">#${v.id}</span></div>
+    <div class="data-row"><span class="data-key">Location</span><span class="data-val accent">${v.lat.toFixed(6)}, ${v.lon.toFixed(6)}</span></div>
+    <div class="data-row"><span class="data-key">Drone Alt</span><span class="data-val">${v.drone_alt}m</span></div>
+    <div class="data-row"><span class="data-key">Thermal Confidence</span><span class="data-val amber">${(v.thermal_confidence*100).toFixed(1)}%</span></div>
+    <div class="data-row"><span class="data-key">AI Confidence</span><span class="data-val green">${(v.ai_confidence*100).toFixed(1)}%</span></div>
+    <div class="data-row"><span class="data-key">Timestamp</span><span class="data-val">${v.timestamp}</span></div>
+  `;
+  document.getElementById('victim-modal').classList.add('show');
+  map.panTo([v.lat, v.lon]);
+}
+function closeVictimModal() {
+  document.getElementById('victim-modal').classList.remove('show');
+}
+
+// ─────────────────── EVENT LOG ───────────────────
+function addLogEntry(e) {
+  const log = document.getElementById('event-log');
+  const div = document.createElement('div');
+  div.className = 'log-entry ' + (e.level || 'INFO');
+  div.innerHTML = `<span class="log-time">${e.time}</span><span class="log-msg">${e.message}</span>`;
+  log.insertBefore(div, log.firstChild);
+  // Keep max 60 entries
+  while (log.children.length > 60) log.removeChild(log.lastChild);
+}
+
+function showToast(message, isError = false) {
+  const toast = document.getElementById('map-toast');
+  toast.textContent = message;
+  toast.style.borderColor = isError ? 'var(--red)' : 'var(--accent)';
+  toast.style.color = isError ? 'var(--red)' : 'var(--text-bright)';
+  toast.classList.add('show');
+  clearTimeout(window.__toastTimer);
+  window.__toastTimer = setTimeout(() => toast.classList.remove('show'), 2800);
+}
+
+// ─────────────────── COMMAND FUNCTIONS ───────────────────
+async function toggleArm() {
+  const armed = telemetry.armed;
+  if (!armed) {
+    if (!confirm('ARM the drone? Ensure area is clear!')) return;
+  }
+  const r = await fetch('/api/arm', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({arm:!armed}) });
+  const d = await r.json();
+  if (d.success) {
+    telemetry.armed = d.armed;
+    telemetry.status_text = d.armed ? 'ARMED' : 'DISARMED';
+    updateUI(telemetry);
+    if (d.message) showToast(d.message, 'success');
+  } else {
+    alert(d.message || 'Failed to change arm state.');
+  }
+}
+async function startMission() {
+  if (!telemetry.armed) {
+    const latest = await fetch('/api/telemetry_snapshot').then(r => r.json()).catch(() => telemetry);
+    telemetry = latest || telemetry;
+    if (!telemetry.armed) {
+      alert('ARM the drone first!');
+      return;
+    }
+  }
+  if (!confirm('Start autonomous mission?')) return;
+  await fetch('/api/start_mission', { method:'POST' });
+}
+async function doRTL() {
+  if (!confirm('Initiate Return-to-Launch?')) return;
+  await fetch('/api/rtl', { method:'POST' });
+}
+async function doAbort() {
+  if (!confirm('ABORT mission and enter LOITER?')) return;
+  await fetch('/api/abort', { method:'POST' });
+}
+async function applyTestProfile() {
+  const r = await fetch('/api/test_profile', { method:'POST' });
+  const d = await r.json();
+  alert(d.message || (d.success ? 'Test profile applied' : 'Failed to apply test profile'));
+}
+async function calibratePixhawk() {
+  const type = prompt('Calibration type: gyro, mag, baro, radio, accel, airspeed, level, all', 'all');
+  if (!type) return;
+  const r = await fetch('/api/calibrate', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({type})
+  });
+  const d = await r.json();
+  alert(d.message || (d.success ? 'Calibration command sent' : 'Calibration failed'));
+}
+async function setMode(mode) {
+  await fetch('/api/mode', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({mode}) });
+}
+async function connectMAVLink() {
+  const port = document.getElementById('port-input').value || 'COM3';
+  const r = await fetch('/api/connect', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({port}) });
+  const d = await r.json();
+  alert(d.success ? `Connected to ${port}` : `Failed: ${d.message}`);
+}
+async function disconnectMAVLink() {
+  await fetch('/api/disconnect', { method:'POST' });
+}
+async function clearMission() {
+  if (!confirm('Clear mission data and victims?')) return;
+  await fetch('/api/clear_mission', { method:'POST' });
+  victimMarkers.forEach(m => map.removeLayer(m));
+  victimMarkers = [];
+  pathLine.setLatLngs([]);
+}
+function exportExcel() {
+  window.open('/api/export_excel', '_blank');
+}
+function toggleMapLayer() {
+  if (mapSatLayer) {
+    map.removeLayer(satLayer);
+    streetLayer.addTo(map);
+  } else {
+    map.removeLayer(streetLayer);
+    satLayer.addTo(map);
+  }
+  mapSatLayer = !mapSatLayer;
+}
+
+// ─────────────────── HELPERS ───────────────────
+function setText(id, val, colorClass) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = val;
+  if (colorClass !== undefined) el.className = 'data-val ' + colorClass;
+}
+function setTile(id, val, colorClass) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = val;
+  if (colorClass) el.style.color = colorClass === 'accent' ? 'var(--accent)' : colorClass === 'green' ? 'var(--green)' : colorClass === 'red' ? 'var(--red)' : '';
+}
+function setVib(barId, numId, val) {
+  const pct = Math.min(100, val * 100);
+  const bar = document.getElementById(barId);
+  const num = document.getElementById(numId);
+  if (bar) { bar.style.width = pct + '%'; bar.style.background = val > 0.6 ? 'var(--red)' : val > 0.3 ? 'var(--amber)' : 'var(--green)'; }
+  if (num) num.textContent = val.toFixed(2);
+}
+function formatTime(secs) {
+  const m = Math.floor(secs / 60), s = secs % 60;
+  return `${m}:${String(s).padStart(2,'0')}`;
+}
+// Header clock
+setInterval(() => {
+  document.getElementById('hdr-clock').textContent = new Date().toLocaleTimeString('en-GB', {hour12:false});
+}, 1000);
+
+// ─────────────────── INIT LOG ───────────────────
+addLogEntry({time: new Date().toLocaleTimeString(), message: 'GCS Dashboard loaded — Ready.', level: 'SUCCESS'});
+</script>
+</body>
+</html>

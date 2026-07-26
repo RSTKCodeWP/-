@@ -1,0 +1,48 @@
+# Ignored project folders
+armSwitch/
+armThrottle/
+forwardChannelsToFC/
+KeyPointsModelYOLO/
+SeeedStudio-XIAO-ESP32S3-Sense-camera-main/
+YTPRwithCRSF/
+INAV-Configurator_Win64_8.0.1(1)/
+
+# Ignored scripts (older iterations / experiments)
+controller.py
+DamnController.py
+exp.py
+no.py
+stable18July.txt
+
+# Archives
+*.zip
+
+# Executables
+*.exe
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+venv/
+.venv/
+
+# Arduino build artifacts
+build/
+*.elf
+*.bin
+*.hex
+*.map
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo

@@ -1,0 +1,19 @@
+[package]
+name = "argus-gcs"
+version = "3.6.0"
+description = "Argus 地面控制站"
+authors = ["L-X-Yao"]
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-shell = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]

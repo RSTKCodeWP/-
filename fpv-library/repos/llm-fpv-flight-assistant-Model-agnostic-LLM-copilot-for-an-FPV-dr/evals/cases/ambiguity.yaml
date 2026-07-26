@@ -1,0 +1,30 @@
+- id: amb_fly_up
+  category: ambiguity
+  prompt: fly up
+  expect: {action: ask}
+
+- id: amb_orbit_no_params
+  category: ambiguity
+  prompt: orbit it
+  expect: {action: ask}
+
+- id: amb_go_higher
+  category: ambiguity
+  prompt: go higher
+  expect: {action: ask}
+
+- id: amb_takeoff_no_alt
+  category: ambiguity
+  prompt: take off
+  telemetry: {armed: false, alt_m: 0.0}
+  expect: {action: ask}
+
+- id: amb_move
+  category: ambiguity
+  prompt: move over there a bit
+  expect: {action: ask}
+
+- id: amb_faster
+  category: ambiguity
+  prompt: speed up
+  expect: {action: ask}

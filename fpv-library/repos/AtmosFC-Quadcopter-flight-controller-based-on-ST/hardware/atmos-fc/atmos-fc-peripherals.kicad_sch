@@ -1,0 +1,33 @@
+(kicad_sch
+	(version 20231120)
+	(generator "eeschema")
+	(generator_version "8.0")
+	(uuid "5dbd4b93-1264-4087-b8db-cd0b1b724c2c")
+	(paper "A4")
+	(title_block
+		(title "Peripherals")
+		(date "2025-09-01")
+		(rev "0.1")
+	)
+	(lib_symbols)
+	(text_box "[${#}] ${TITLE}"
+		(exclude_from_sim no)
+		(at 11.43 11.43 0)
+		(size 274.32 22.86)
+		(stroke
+			(width -0.0001)
+			(type default)
+		)
+		(fill
+			(type none)
+		)
+		(effects
+			(font
+				(face "Arial")
+				(size 7.62 7.62)
+			)
+			(justify top)
+		)
+		(uuid "277d2da8-42ee-4570-b7ee-201cafb09138")
+	)
+)

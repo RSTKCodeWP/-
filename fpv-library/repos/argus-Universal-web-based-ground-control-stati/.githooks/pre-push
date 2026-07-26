@@ -1,0 +1,12 @@
+#!/bin/bash
+# Pre-push gate: full test suite.
+# Runs before pushing to remote — catches anything pre-commit skipped.
+set -eo pipefail
+
+echo "[pre-push] vitest..."
+npx vitest run --bail 1 --reporter=dot
+
+echo "[pre-push] pytest..."
+python -m pytest tests/test_unit_*.py tests/test_contract_*.py -q --tb=line -x
+
+echo "[pre-push] OK"

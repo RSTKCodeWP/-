@@ -1,0 +1,15 @@
+
+# Serial Configuration 
+SERIAL_PORT = "/dev/ttyUSB0"
+BAUD_RATE = 115200 
+# MAVLink
+MAVLINK_PORT = "/dev/ttyUSB1"
+MAVLINK_BAUD = 57600
+# Video
+VIDEO_SOURCE = 0
+# Network
+UDP_IP = "0.0.0.0"
+UDP_PORT = 5600
+# UAV Settings
+MAX_ALTITUDE = 120
+HOME_LOCATION = (28.6139, 77.2090)

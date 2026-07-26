@@ -1,0 +1,8 @@
+{
+  "source": "alikendir0/llm-fpv-flight-assistant",
+  "upstream_commit": "db7d472bd087420703fdd7aa181ff60bdd9d2f8e",
+  "upstream_updated": "2026-06-09T16:26:03Z",
+  "synced_at": "2026-07-26T23:48:49+00:00",
+  "discovered_via": "search:mavlink fpv:p1",
+  "score": 9.3
+}

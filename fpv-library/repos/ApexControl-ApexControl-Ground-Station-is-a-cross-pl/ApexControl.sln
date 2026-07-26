@@ -1,0 +1,33 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.36804.6
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ApexControl.Core", "ApexControl.Core\ApexControl.Core.csproj", "{71C539E6-AE02-4DAC-BFBE-7173D3584653}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ApexControl.App", "ApexControl.App\ApexControl.App.csproj", "{6B58FC4D-008B-4B40-8C67-B0ED5D7BA699}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{71C539E6-AE02-4DAC-BFBE-7173D3584653}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{71C539E6-AE02-4DAC-BFBE-7173D3584653}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{71C539E6-AE02-4DAC-BFBE-7173D3584653}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{71C539E6-AE02-4DAC-BFBE-7173D3584653}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6B58FC4D-008B-4B40-8C67-B0ED5D7BA699}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6B58FC4D-008B-4B40-8C67-B0ED5D7BA699}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6B58FC4D-008B-4B40-8C67-B0ED5D7BA699}.Debug|Any CPU.Deploy.0 = Debug|Any CPU
+		{6B58FC4D-008B-4B40-8C67-B0ED5D7BA699}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6B58FC4D-008B-4B40-8C67-B0ED5D7BA699}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6B58FC4D-008B-4B40-8C67-B0ED5D7BA699}.Release|Any CPU.Deploy.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {19744C20-97EF-48BD-BF1B-279A3BA0FFEC}
+	EndGlobalSection
+EndGlobal

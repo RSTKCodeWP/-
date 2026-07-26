@@ -1,0 +1,33 @@
+#!/bin/bash
+# Pre-commit gate: lint + type-check (fast, <5s).
+# Full test suite runs on push — see .githooks/pre-push.
+# Install: git config core.hooksPath .githooks
+set -e
+
+echo "[pre-commit] sensitive-word check..."
+_W1="pl""kj"; _W2="peng""likeji"
+if git diff --cached --name-only | xargs grep -qri "$_W1\|$_W2" -- 2>/dev/null; then
+  echo "ERROR: proprietary reference found in staged files"
+  git diff --cached --name-only | xargs grep -rni "$_W1\|$_W2" -- 2>/dev/null
+  exit 1
+fi
+
+echo "[pre-commit] i18n error-string check..."
+# WS command handlers must use lt() for error messages, not hardcoded English.
+# Security-boundary errors in firmware.py/video.py are exempt (HTTP API, no locale).
+_BAD=$(git diff --cached --name-only -- 'backend/commands/*.py' | xargs grep -n '"error":\s*"[A-Z]' 2>/dev/null | grep -v 'lt(' | grep -v '# i18n-exempt' || true)
+if [ -n "$_BAD" ]; then
+  echo "ERROR: hardcoded English error strings in command handlers (use lt()):"
+  echo "$_BAD"
+  exit 1
+fi
+
+echo "[pre-commit] ruff..."
+ruff check backend/ scripts/ tests/ --quiet
+
+echo "[pre-commit] svelte-check..."
+npx svelte-check --tsconfig ./tsconfig.json 2>&1 | tail -1 | grep -q '0 ERRORS' || {
+  echo "svelte-check failed"; exit 1;
+}
+
+echo "[pre-commit] OK"

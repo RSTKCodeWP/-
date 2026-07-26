@@ -2,14 +2,18 @@ name: FPV Library Sync
 
 on:
   schedule:
-    # Daily at 06:00 UTC — discover new repos and pull upstream updates
+    # Daily at 06:00 UTC — discover, triage hooks, sync upstream
     - cron: "0 6 * * *"
   workflow_dispatch:
     inputs:
-      discover_pages:
-        description: "Search page range (e.g. 1-3 or 4)"
+      keyword_batch:
+        description: "Keywords per run (rotating from keywords.txt)"
         required: false
-        default: "1-3"
+        default: "12"
+      discover_pages:
+        description: "Search pages per keyword (e.g. 1 or 1-2)"
+        required: false
+        default: "1"
       min_score:
         description: "Minimum relevance score"
         required: false
@@ -24,21 +28,46 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Discover FPV repositories
+      - name: Keyword discovery (rotating batch)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          python3 fpv-library/scripts/discover.py \
-            --search Fpv \
-            --pages "${{ github.event.inputs.discover_pages || '1-3' }}" \
+          python3 fpv-library/scripts/discover_keywords.py \
+            --pages "${{ github.event.inputs.discover_pages || '1' }}" \
             --min-score "${{ github.event.inputs.min_score || '2.0' }}" \
+            --batch-size "${{ github.event.inputs.keyword_batch || '12' }}" \
             --expand-owners \
-            --owner-limit 5
+            --owner-limit 3
 
-      - name: Sync tracked repositories
+      - name: Themed discovery (weekly slice — pages 1 only)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python3 fpv-library/scripts/sync.py --all
+        run: |
+          python3 fpv-library/scripts/discover_themes.py \
+            --pages 1 \
+            --min-score 2.5 \
+            --owner-limit 5
+
+      - name: Triage catalog and write HOOKS.md
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 fpv-library/scripts/triage_catalog.py --force
+
+      - name: Sync keep-worthy repositories
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Refresh existing mirrors; skip cloning hundreds of new repos per day
+          python3 fpv-library/scripts/sync.py \
+            --all \
+            --verdict keep \
+            --update-only \
+            --max-size-mb 150
+          # Priority new mirrors (curated list)
+          while read -r src; do
+            [[ "$src" =~ ^#|^$ ]] && continue
+            python3 fpv-library/scripts/sync.py --source "$src" || true
+          done < fpv-library/priority-sync.txt
 
       - name: Commit updates
         run: |
@@ -48,6 +77,6 @@ jobs:
           if git diff --staged --quiet; then
             echo "No changes to commit"
           else
-            git commit -m "fpv-library: automated discover + sync"
+            git commit -m "fpv-library: automated discover, triage, sync"
             git push
           fi

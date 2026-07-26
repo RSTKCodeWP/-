@@ -1,0 +1,62 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="ApexControl.MainWindow"
+             BackgroundColor="#121212">
+
+    <Grid RowDefinitions="Auto, *, Auto" Padding="20">
+
+        <!-- Header: وضعیت اتصال -->
+        <HorizontalStackLayout Grid.Row = "0" Spacing="15" VerticalOptions="Center">
+            <BoxView WidthRequest="15" HeightRequest="15" CornerRadius="7" 
+                     Color="{Binding Drone.IsArmed, Converter={StaticResource ArmColorConverter}}"/>
+            <Label Text="APEX CONTROL GCS" FontSize="20" FontAttributes="Bold" TextColor="White"/>
+            <Label Text="{Binding ConnectionStatus}" TextColor="Gray" VerticalOptions="Center"/>
+        </HorizontalStackLayout>
+
+        <!-- Main Dashboard: نمایش اطلاعات حیاتی -->
+        <VerticalStackLayout Grid.Row="1" Spacing="20" VerticalOptions="Center">
+
+            <Grid ColumnDefinitions="*, *, *" HorizontalOptions="Fill">
+                <!-- نمایشگر ارتفاع -->
+                <VerticalStackLayout Grid.Column="0" HorizontalOptions="Center">
+                    <Label Text="ALTITUDE" TextColor="Gray" HorizontalOptions="Center"/>
+                    <Label Text="{Binding Drone.RelativeAltitude, StringFormat='{0:F1} m'}" 
+                           FontSize="35" TextColor="Cyan" FontAttributes="Bold"/>
+                </VerticalStackLayout>
+
+                <!-- نمایشگر باتری -->
+                <VerticalStackLayout Grid.Column="1" HorizontalOptions="Center">
+                    <Label Text="BATTERY" TextColor="Gray" HorizontalOptions="Center"/>
+                    <Label Text="{Binding Drone.BatteryVoltage, StringFormat='{0:F2} V'}" 
+                           FontSize="35" TextColor="LimeGreen" FontAttributes="Bold"/>
+                </VerticalStackLayout>
+
+                <!-- نمایشگر مود پروازی -->
+                <VerticalStackLayout Grid.Column="2" HorizontalOptions="Center">
+                    <Label Text="MODE" TextColor="Gray" HorizontalOptions="Center"/>
+                    <Label Text="{Binding Drone.FlightMode}" 
+                           FontSize="25" TextColor="Orange" FontAttributes="Bold"/>
+                </VerticalStackLayout>
+            </Grid>
+
+            <!-- مختصات GPS -->
+            <Frame BackgroundColor="#1E1E1E" BorderColor="#333" Padding="15">
+                <HorizontalStackLayout Spacing="20" HorizontalOptions="Center">
+                    <Label Text="LAT:" TextColor="Gray"/>
+                    <Label Text="{Binding Drone.Latitude}" TextColor="White"/>
+                    <Label Text="LON:" TextColor="Gray" Margin="10,0,0,0"/>
+                    <Label Text="{Binding Drone.Longitude}" TextColor="White"/>
+                </HorizontalStackLayout>
+            </Frame>
+
+        </VerticalStackLayout>
+
+        <!-- Footer: دکمه‌های کنترلی -->
+        <Button Grid.Row="2" Text="CONNECT TO DRONE" 
+                Clicked="OnConnectClicked"
+                BackgroundColor="#2196F3" TextColor="White" 
+                HeightRequest="50" CornerRadius="10"/>
+
+    </Grid>
+</ContentPage>

@@ -1,0 +1,71 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+        <AvaloniaUseCompilation>true</AvaloniaUseCompilation>
+        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <AvaloniaResource Include="Assets\**"/>
+    </ItemGroup>
+    
+    <ItemGroup>
+        <PackageReference Include="Asv.Mavlink" Version="$(AsvMavlinkVersion)" />
+        <PackageReference Include="Asv.Gnss" Version="$(AsvGnssVersion)" />
+        
+        <PackageReference Include="Avalonia" Version="$(AvaloniaVersion)"/>
+        <PackageReference Include="Avalonia.Themes.Fluent" Version="$(AvaloniaVersion)"/>
+        <PackageReference Include="Avalonia.Fonts.Inter" Version="$(AvaloniaVersion)"/>
+        <!--Condition below is needed to remove AvaloniaUI.DiagnosticsSupport package from build output in Release configuration.-->
+        <PackageReference Condition="'$(Configuration)' == 'Debug'" Include="AvaloniaUI.DiagnosticsSupport" Version="2.2.1"/>
+        <PackageReference Include="Roslynator.Analyzers" Version="4.15.0">
+          <PrivateAssets>all</PrivateAssets>
+          <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+        <PackageReference Include="StyleCop.Analyzers" Version="1.2.0-beta.556">
+          <PrivateAssets>all</PrivateAssets>
+          <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\Asv.Drones.Api\Asv.Drones.Api.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <EmbeddedResource Update="RS.resx">
+        <Generator>PublicResXFileCodeGenerator</Generator>
+        <LastGenOutput>RS.Designer.cs</LastGenOutput>
+      </EmbeddedResource>
+    </ItemGroup>
+
+    <ItemGroup>
+      <Compile Update="RS.Designer.cs">
+        <DesignTime>True</DesignTime>
+        <AutoGen>True</AutoGen>
+        <DependentUpon>RS.resx</DependentUpon>
+      </Compile>
+      <Compile Update="Pages\FileBrowser\Dialogs\BurstDownloadDialogView.axaml.cs">
+        <DependentUpon>BurstDownloadDialogView.axaml</DependentUpon>
+        <SubType>Code</SubType>
+      </Compile>
+      <Compile Update="Shell\Pages\Device\FileBrowser\Dialogs\Burst\BurstDownloadDialogView.axaml.cs">
+        <DependentUpon>BurstDownloadDialogView.axaml</DependentUpon>
+        <SubType>Code</SubType>
+      </Compile>
+      <Compile Update="Shell\Pages\FlightMode\Actions\Diaogs\SetAltitudeDialogView.axaml.cs">
+        <DependentUpon>SetAltitudeDialogView.axaml</DependentUpon>
+        <SubType>Code</SubType>
+      </Compile>
+    </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="Core\Controls\Telemetry\AngleUavIndicator\Items\" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <AdditionalFiles Include="Core\Controls\Telemetry\AngleUavIndicator\UavAngleIndicatorStyles.axaml" />
+      <AdditionalFiles Include="Shell\Pages\FlightMode\Widgets\Sections\Telemetry\DisplayItem\Add\AddTelemetryDisplayItemView.axaml" />
+      <AdditionalFiles Include="Shell\Pages\FlightMode\Widgets\Sections\Telemetry\DisplayItem\Default\TelemetryDisplayItemView.axaml" />
+    </ItemGroup>
+</Project>

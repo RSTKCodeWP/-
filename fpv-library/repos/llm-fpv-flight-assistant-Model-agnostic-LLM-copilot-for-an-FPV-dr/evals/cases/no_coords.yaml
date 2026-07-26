@@ -1,0 +1,19 @@
+- id: nc_stadium
+  category: no_coords
+  prompt: fly to the stadium
+  expect: {action: ask}
+
+- id: nc_parking_lot
+  category: no_coords
+  prompt: go land in the parking lot
+  expect: {action: ask}
+
+- id: nc_my_house
+  category: no_coords
+  prompt: head over to my house
+  expect: {action: ask}
+
+- id: nc_river
+  category: no_coords
+  prompt: follow the river north
+  expect: {action: ask}

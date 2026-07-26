@@ -1,0 +1,57 @@
+{
+  "name": "argus-gcs",
+  "private": true,
+  "version": "3.6.0",
+  "description": "Universal web-based ground control station for MAVLink drones",
+  "author": "L-X-Yao",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/L-X-Yao/argus.git"
+  },
+  "homepage": "https://github.com/L-X-Yao/argus",
+  "bugs": {
+    "url": "https://github.com/L-X-Yao/argus/issues"
+  },
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "check": "svelte-check --tsconfig ./tsconfig.json",
+    "test": "vitest run",
+    "test:e2e": "playwright test --config=tests/playwright.config.ts",
+    "lint:py": "ruff check backend/ scripts/ tests/",
+    "lint:ts": "svelte-check --tsconfig ./tsconfig.json",
+    "format": "prettier --write 'src/**/*.{ts,svelte}' && ruff format backend/ scripts/ tests/",
+    "format:check": "prettier --check 'src/**/*.{ts,svelte}' && ruff format --check backend/ scripts/ tests/"
+  },
+  "devDependencies": {
+    "@internationalized/date": "^3.12.1",
+    "@lucide/svelte": "^1.16.0",
+    "@playwright/test": "^1.49.0",
+    "@sveltejs/vite-plugin-svelte": "^7.1.2",
+    "@tsconfig/svelte": "^5.0.0",
+    "@types/leaflet": "^1.9.21",
+    "@types/node": "^25.9.1",
+    "@vitest/coverage-v8": "^4.1.7",
+    "fake-indexeddb": "^6.2.5",
+    "prettier": "^3.8.3",
+    "prettier-plugin-svelte": "^4.0.1",
+    "svelte": "^5.0.0",
+    "svelte-check": "^4.0.0",
+    "tailwind-variants": "^3.2.2",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.14",
+    "vitest": "^4.1.7"
+  },
+  "dependencies": {
+    "@tailwindcss/vite": "^4.3.0",
+    "bits-ui": "^2.18.1",
+    "clsx": "^2.1.1",
+    "leaflet": "^1.9.4",
+    "maplibre-gl": "^5.24.0",
+    "tailwind-merge": "^3.6.0",
+    "tailwindcss": "^4.3.0"
+  }
+}

@@ -1,0 +1,137 @@
+LoRa UAV Ground Control Station
+
+Copyright (c) 2026 Shivam Singh
+Founder, MathTech
+
+MIT License
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software, firmware, hardware designs, documentation files, and
+associated materials (the "Project"), to deal in the Project without
+restriction, including without limitation the rights to use, copy, modify,
+merge, publish, distribute, sublicense, and/or sell copies of the Project,
+and to permit persons to whom the Project is furnished to do so, subject
+to the following conditions:
+
+1. The above copyright notice and this permission notice shall be included
+   in all copies or substantial portions of the Project.
+
+2. Any modifications made to the Project should be clearly documented.
+
+3. The names "MathTech" and "Shivam Singh" may not be used to endorse or
+   promote products derived from this Project without prior written permission.
+
+THE PROJECT IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE, NON-INFRINGEMENT, SAFETY, RELIABILITY,
+OR REGULATORY COMPLIANCE.
+
+IN NO EVENT SHALL THE AUTHORS, COPYRIGHT HOLDERS, CONTRIBUTORS, OR AFFILIATED
+ORGANIZATIONS BE LIABLE FOR ANY CLAIM, DAMAGES, LOSSES, OR OTHER LIABILITY,
+WHETHER IN AN ACTION OF CONTRACT, TORT, NEGLIGENCE, STRICT LIABILITY, OR
+OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION WITH THE PROJECT OR THE
+USE OR OTHER DEALINGS IN THE PROJECT.
+
+---
+
+## UAV SAFETY DISCLAIMER
+
+This Project involves unmanned aerial vehicle (UAV) systems, radio-frequency
+communications, telemetry systems, autonomous control software, embedded
+electronics, and flight-related technologies.
+
+Operation of UAVs involves inherent risks, including but not limited to:
+
+• Personal injury
+• Property damage
+• Aircraft damage
+• Communication failures
+• GPS failures
+• Software defects
+• Hardware malfunctions
+• Environmental hazards
+• Regulatory violations
+
+Users assume full responsibility for:
+
+• Safe operation of any UAV utilizing this Project
+• Compliance with local aviation laws
+• Compliance with RF communication regulations
+• Flight testing procedures
+• Hardware validation
+• Risk assessment and mitigation
+
+The author does not certify the airworthiness, reliability, or safety of any
+aircraft utilizing this Project.
+
+---
+
+## RESEARCH AND EDUCATIONAL USE NOTICE
+
+This Project is primarily intended for:
+
+• Academic research
+• Engineering education
+• Embedded systems learning
+• Telemetry experimentation
+• Robotics development
+• UAV prototyping
+
+Users are solely responsible for validating the suitability of the Project
+for operational use.
+
+---
+
+## RADIO FREQUENCY COMPLIANCE NOTICE
+
+Users must ensure that all radio-frequency equipment used with this Project
+complies with the regulations applicable within their jurisdiction.
+
+This includes:
+
+• LoRa modules
+• Telemetry radios
+• Video transmitters
+• Control links
+• Antenna systems
+
+Operation outside permitted frequency bands, power levels, or licensing
+requirements may be unlawful.
+
+---
+
+## EXPORT CONTROL NOTICE
+
+Users are responsible for complying with all applicable export control,
+technology transfer, and defense-related regulations that may apply to UAV,
+robotics, navigation, telemetry, communications, and autonomous systems.
+
+---
+
+## LIMITATION OF LIABILITY
+
+Under no circumstances shall the author, contributors, maintainers, MathTech,
+or affiliated organizations be liable for:
+
+• Direct damages
+• Indirect damages
+• Special damages
+• Consequential damages
+• Incidental damages
+• Loss of data
+• Loss of aircraft
+• Loss of business
+• Regulatory penalties
+• Personal injury
+• Property damage
+
+resulting from the use, modification, distribution, deployment, or operation
+of this Project.
+
+---
+
+## ACCEPTANCE OF TERMS
+
+By using, copying, modifying, distributing, compiling, deploying, or operating
+this Project, the user acknowledges and agrees to all terms and conditions
+described in this License and Disclaimer.

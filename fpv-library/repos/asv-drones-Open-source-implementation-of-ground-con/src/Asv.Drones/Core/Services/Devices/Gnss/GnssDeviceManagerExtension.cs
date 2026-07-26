@@ -1,0 +1,45 @@
+﻿using Asv.Avalonia;
+using Asv.Avalonia.IO;
+using Asv.Gnss;
+using Asv.IO;
+using Material.Icons;
+
+namespace Asv.Drones;
+
+public class GnssDeviceManagerExtension : IDeviceManagerExtension
+{
+    public void Configure(IProtocolBuilder builder)
+    {
+        builder.Features.RegisterEndpointIdTagFeature();
+
+        builder.Protocols.RegisterNmeaProtocol();
+    }
+
+    public void Configure(IDeviceExplorerBuilder builder)
+    {
+        builder.Factories.RegisterGnssDevice();
+    }
+
+    public bool TryGetIcon(DeviceId id, out MaterialIconKind? icon)
+    {
+        if (id is GnssDeviceId)
+        {
+            icon = MaterialIconKind.Satellite;
+            return true;
+        }
+
+        icon = null;
+        return false;
+    }
+
+    public bool TryGetDeviceBrush(DeviceId id, out AsvColorKind brush)
+    {
+        brush = AsvColorKind.None;
+        return false;
+    }
+
+    public void Run(IDeviceManager deviceManager)
+    {
+        // do nothing
+    }
+}

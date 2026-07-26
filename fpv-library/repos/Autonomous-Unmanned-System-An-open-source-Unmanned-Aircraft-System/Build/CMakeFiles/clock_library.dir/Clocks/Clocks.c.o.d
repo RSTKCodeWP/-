@@ -1,0 +1,26 @@
+CMakeFiles/clock_library.dir/Clocks/Clocks.c.o: \
+ /home/rscott/Desktop/Flight_Controller/Clocks/Clocks.c \
+ /home/rscott/Desktop/Flight_Controller/headers/stm32h723xx.h \
+ /home/rscott/Desktop/Flight_Controller/STM32H7/CMSIS/Include/core_cm7.h \
+ /usr/lib/gcc/arm-none-eabi/10.3.1/include/stdint.h \
+ /home/rscott/Desktop/Flight_Controller/STM32H7/CMSIS/Include/cmsis_version.h \
+ /home/rscott/Desktop/Flight_Controller/STM32H7/CMSIS/Include/cmsis_compiler.h \
+ /home/rscott/Desktop/Flight_Controller/STM32H7/CMSIS/Include/cmsis_gcc.h \
+ /home/rscott/Desktop/Flight_Controller/STM32H7/CMSIS/Include/mpu_armv7.h \
+ /home/rscott/Desktop/Flight_Controller/STM32H7/CMSIS/Include/cachel1_armv7.h \
+ /home/rscott/Desktop/Flight_Controller/headers/system_stm32h7xx.h \
+ /home/rscott/Desktop/Flight_Controller/headers/Clocks.h \
+ /usr/include/newlib/stdio.h /usr/include/newlib/_ansi.h \
+ /usr/include/newlib/newlib.h /usr/include/newlib/_newlib_version.h \
+ /usr/include/newlib/sys/config.h /usr/include/newlib/machine/ieeefp.h \
+ /usr/include/newlib/sys/features.h /usr/include/newlib/sys/cdefs.h \
+ /usr/include/newlib/machine/_default_types.h \
+ /usr/lib/gcc/arm-none-eabi/10.3.1/include/stddef.h \
+ /usr/lib/gcc/arm-none-eabi/10.3.1/include/stdarg.h \
+ /usr/include/newlib/sys/reent.h /usr/include/newlib/_ansi.h \
+ /usr/include/newlib/sys/_types.h /usr/include/newlib/machine/_types.h \
+ /usr/include/newlib/sys/lock.h /usr/include/newlib/sys/types.h \
+ /usr/include/newlib/sys/_stdint.h \
+ /usr/include/newlib/sys/_pthreadtypes.h \
+ /usr/include/newlib/machine/types.h /usr/include/newlib/sys/stdio.h \
+ /usr/lib/gcc/arm-none-eabi/10.3.1/include/stdbool.h

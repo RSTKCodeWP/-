@@ -1,0 +1,1827 @@
+<!doctype html>
+<html lang="en">
+<!--
+OSD Subtitles (2023-03-09)
+
+https://github.com/kristjanbjarni/osd-subtitles/
+-->
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="title" content="OSD Subtitles">
+	<meta name="description"
+		content="Utility to combine OpenTX/Blackbox log files with Betaflight OSD to produce subtitle files">
+	<meta property="og:image" content="https://kristjanbjarni.github.io/osd-subtitles/docs/osd-subtitles.jpg">
+	<link rel="icon" href="favicon.png">
+	<title>OSD Subtitles</title>
+	<style>
+		#osd_container {
+			width: 640px;
+			height: 480px;
+			border: 1px solid #aaaaaa;
+			position: relative;
+		}
+
+		.osd_drag {
+			text-shadow: 2px 2px 0px black;
+			color: white;
+			cursor: grab;
+			position: absolute;
+		}
+
+		#subtitles_text {
+			width: 100%;
+		}
+
+		#subtitle_header {
+			margin-bottom: 0px;
+		}
+
+		#fontsize {
+			width: 3em;
+		}
+
+		.small {
+			font-size: small;
+		}
+
+		.osd_name {
+			width: 10em;
+		}
+
+		.file {
+			display: none;
+		}
+
+		#elements_table1 {
+			float: left;
+			margin-right: 10px;
+		}
+
+		table.cnf {
+			border-collapse: collapse;
+			margin: 10px 0;
+		}
+
+		thead.cnf tr {
+			background-color: #009879;
+			color: #ffffff;
+			text-align: left;
+		}
+
+		tbody.cnf tr {
+			border-bottom: 1px solid #dddddd;
+		}
+
+		tbody.cnf tr:nth-of-type(even) {
+			background-color: #f3f3f3;
+		}
+
+		tbody.cnf tr:last-of-type {
+			border-bottom: 2px solid #009879;
+		}
+
+		h1 {
+			font-size: 20px;
+			margin-top: 0px;
+			margin-bottom: 0px;
+		}
+
+		h2 {
+			font-size: 16px;
+			font-weight: bold;
+			margin-top: 0px;
+			margin-bottom: 0px;
+		}
+
+		th {
+			text-align: center;
+		}
+
+		.column {
+			margin-right: 20px;
+		}
+
+		#subtitle_output {
+			flex: 1;
+		}
+
+		.row {
+			display: flex;
+			width: 100%;
+		}
+
+		body {
+			margin-left: 15px;
+			font-family: Segoe UI;
+		}
+	</style>
+	<script>
+		const NEWLINE = "\r\n";
+		const MAX_INTERVAL = 10000; //At least 10 seconds between flights
+		const EARTH_RADIUS = 6371000; //Radius of earth (m)
+		const FEET_IN_METERS = 3.2808399;
+		const MILES_IN_KM = 0.621371192;
+		const MILE_IN_FEETS = 5280;
+		const ABSOLUTE_MAX_VOLTAGE = 4.4;
+		const METRIC = "METRIC";
+		const IMPERIAL = "IMPERIAL";
+		const UK = "UK";
+		const DEFAULT_FONT = "Arial";
+		const DEFAULT_FONTSIZE = 46;
+		const OSD_IMAGE_WIDTH = 640;
+		const OSD_IMAGE_HEIGHT = 480;
+		const STATS_TIMEOUT_MS = 60000;
+		const STATS_X = 35;
+		const STATS_Y_START = 10;
+		const STATS_Y = 6;
+		const BLACKBOX_FIELDS = ["dateTime", "time (us)", "time", "BaroAlt", "BaroAlt (cm)", "rssi", "vbat", "vbat (V)", "GPS_numSat", "GPS_coord[0]", "GPS_coord[1]", "GPS_altitude", "GPS_speed (m/s)", "motor[0]"];
+		const MAX_BLACKBOX_INTERVAL = 200; //Only use Blackbox log every 200ms
+
+		function allowDrop(ev) {
+			ev.preventDefault();
+		}
+
+		function drag(ev) {
+			let data = { id: ev.target.id, x: ev.offsetX, y: ev.offsetY };
+			ev.dataTransfer.setData("application/json", JSON.stringify(data));
+		}
+
+		function drop(ev) {
+			ev.preventDefault();
+			let data = JSON.parse(ev.dataTransfer.getData("application/json"));
+			let e = document.getElementById(data.id);
+			let x = Math.max(ev.offsetX - data.x, 0);
+			let y = Math.max(ev.offsetY - data.y, 0);
+			let p = getPercentPosition(x, y);
+			let ip = getImagePosition(p.x, p.y);
+			e.style.left = ip.x + 'px'
+			e.style.top = ip.y + 'px'
+			let key = right(e.id, "_");
+			let ix = document.getElementById(key + '_x');
+			let iy = document.getElementById(key + '_y');
+			ix.value = p.x;
+			iy.value = p.y;
+		}
+
+		function exportFile(data, mime_type, filename) {
+			let link = document.createElement("a");
+			link.href = "data:" + mime_type + "," + encodeURIComponent(data);
+			link.style = "visibility:hidden";
+			link.download = filename;
+			document.body.appendChild(link);
+			link.click();
+			document.body.removeChild(link);
+		}
+
+		function padLeft(str, ch, size) {
+			str = str.toString();
+			while (str.length < size) {
+				str = ch + str;
+			}
+			return str;
+		}
+
+		function padRight(str, ch, size) {
+			str = str.toString();
+			while (str.length < size) {
+				str = str + ch;
+			}
+			return str;
+		}
+
+		function left(str, sep) {
+			let p = str.indexOf(sep);
+			if (p > -1) {
+				str = str.substring(0, p);
+			}
+			return str;
+		}
+
+		function leftBack(str, sep) {
+			let p = str.lastIndexOf(sep);
+			if (p > -1) {
+				str = str.substring(0, p);
+			}
+			return str;
+		}
+
+		function splitCSV(s) {
+			var matches = s.match(/(\s*"[^"]+"\s*|\s*[^,]+|,)(?=,|$)/g);
+			for (var n = 0; n < matches.length; ++n) {
+				m = matches[n].trim();
+				if (m == ',') m = '';
+				if (m.startsWith('"')) m = m.substring(1);
+				if (m.endsWith('"')) m = m.substring(0, m.length - 1);
+				matches[n] = m;
+			}
+			if (s[0] == ',') matches.unshift("");
+			return matches;
+		}
+
+		function splitLines(text) {
+			return text.split(/(?:\r\n|\n)+/).filter(function (el) { return el.length != 0 });
+		}
+
+		function toNumber(n, def) {
+			let r = parseInt(n);
+			if (isNaN(r)) {
+				r = def;
+			}
+			return r;
+		}
+
+		function right(str, sep) {
+			let p = str.indexOf(sep);
+			if (p > -1) {
+				str = str.substring(p + sep.length);
+			}
+			return str;
+		}
+
+		function trimRight(str, ch) {
+			let p = str.length;
+			while (p > 0 && str[p - 1] == ch) {
+				p--;
+			}
+			return str.substring(0, p);
+		}
+
+		function msToTime(ms, ms_delim, ms_digits, hour_digits) {
+			let h = Math.trunc(ms / 3600000);
+			let m = Math.trunc(ms / 60000) % 60;
+			let s = Math.trunc(ms / 1000) % 60;
+			ms = ms % 1000;
+			let result = padLeft(m, '0', 2) + ':' + padLeft(s, '0', 2);
+			if (hour_digits) {
+				result = padLeft(h, '0', hour_digits) + ':' + result;
+			}
+			if (ms_delim) {
+				let t = padLeft(ms, '0', 3);
+				result += ms_delim + t.substring(0, ms_digits);
+			}
+			return result;
+		}
+
+		function degToRad(deg) {
+			return deg * (Math.PI / 180)
+		}
+
+		function radToDeg(rad) {
+			return rad * 180 / Math.PI;
+		}
+
+		function GPS_Distance(lat1, lon1, lat2, lon2, alt1, alt2) {
+			lat1 = degToRad(lat1);
+			lat2 = degToRad(lat2);
+			let lat_dif = lat2 - lat1;
+			let lon_dif = degToRad(lon2 - lon1);
+			let c = Math.pow((Math.sin(lon_dif / 2)), 2);
+			let b = Math.pow((Math.sin(lat_dif / 2)), 2);
+			let a = b + Math.cos(lat1) * Math.cos(lat2) * c;
+			let d = 2 * EARTH_RADIUS * Math.asin(Math.sqrt(a));
+			if (alt1 && alt2) {
+				let h = Math.abs(alt2 - alt1);
+				if (h > 0) {
+					d = Math.sqrt(d * d + h * h);
+				}
+			}
+			return d;
+		}
+
+		function GPS_Bearing(lat1, lon1, lat2, lon2) {
+			lat1 = degToRad(lat1);
+			lon1 = degToRad(lon1);
+			lat2 = degToRad(lat2);
+			lon2 = degToRad(lon2);
+			let y = Math.sin(lon2 - lon1) * Math.cos(lat2);
+			let x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(lon2 - lon1);
+			let b = Math.atan2(y, x);
+			b = radToDeg(b);
+			return (b + 360) % 360;
+		}
+
+		function countOccurences(str, value) {
+			let count = 0;
+			let p = str.indexOf(value);
+			while (p > -1) {
+				count++;
+				p = str.indexOf(value, p + value.length)
+			}
+			return count;
+		}
+
+		function ISODate(date, time) {
+			if (date.includes("/")) {
+				let [day, month, year] = date.split("/");
+				date = year + "-" + padLeft(month, '0', 2) + "-" + padLeft(day, '0', 2);
+			}
+			if (countOccurences(time, ":") < 2) {
+				time = padRight("00:" + time, '0', 12);
+			}
+			return date + 'T' + time + 'Z';
+		}
+
+		function findLogEntry(e, log) {
+			if (e.log_names != null) {
+				for (let i = 0; i < e.log_names.length; i++) {
+					let logname = e.log_names[i];
+					let v = log[logname];
+					if (v != null) {
+						return { name: logname, value: v };
+					}
+				}
+			}
+			return { name: '', value: null };
+		}
+
+		function getLogValue(key, log) {
+			if (key != null) {
+				return findLogEntry(OSD_Elements[key], log).value;
+			}
+			return null;
+		}
+
+		function isNumber(val) {
+			return typeof val === 'number';
+		}
+
+		function setOSDValue(value, e) {
+			/*
+			  OSD is 30x16 characters
+			  Bits:
+				 13: Profile 3
+				 12: Profile 2
+				 11: Profile 1
+			   6-10: y value
+				1-5: x value
+			*/
+			let n = parseInt(value);
+			let pos = n & 0x3FF;
+			let x = (pos & 0x1F) / 0.30;
+			let y = (pos >> 5) / 0.16;
+			e.x = Math.round(x);
+			e.y = Math.round(y);
+			e.profile[0] = (n & 0x0800) > 0;
+			e.profile[1] = (n & 0x1000) > 0;
+			e.profile[2] = (n & 0x2000) > 0;
+		}
+
+		function initStats(stats) {
+			for (let [key, value] of Object.entries(OSD_Stat_Elements)) {
+				stats[key] = value.init;
+			}
+		}
+
+		function DefFormat(v, ctx) {
+			if (v == null) {
+				return null;
+			}
+			let prefix = "";
+			let postfix = "";
+			if (ctx.element.unit) {
+				postfix = ctx.element.unit[0];
+				if (ctx.element.unit.length > 1) {
+					if (ctx.osd.units == IMPERIAL) {
+						postfix = ctx.element.unit[1];
+					}
+					else if (ctx.osd.units == UK && ctx.element.unit.length > 2) {
+						postfix = ctx.element.unit[2];
+					}
+				}
+			}
+			//Stat display
+			if (ctx.stat != null) {
+				if (ctx.stat.dsp_name != null) {
+					if (ctx.format == "srt") {
+						prefix = ctx.stat.dsp_name + ':';
+					}
+					else {
+						prefix = ctx.stat.dsp_name + ": ";
+					}
+				}
+			}
+			else {
+				if (ctx.format == "srt") {
+					if (ctx.element.short) {
+						prefix = ctx.element.short + ':';
+					}
+				}
+				else {
+					if (ctx.element.symbol != null) {
+						prefix = ctx.element.symbol;
+					}
+					else {
+						prefix = ctx.element.short + ": ";
+					}
+				}
+			}
+			return prefix + v + postfix;
+		}
+
+		function RSSIFormat(v, ctx) {
+			if (ctx.logname == "rssi") {
+				v = Math.trunc(v / 10)
+			}
+			if (v > 99) {
+				v = 99;
+			}
+			return DefFormat(v, ctx);
+		}
+
+		function AvgCellFormat(v, ctx) {
+			let scale = ctx.logname == "vbat" ? 100 : 1;
+			v = Number(v) / scale;
+			if (ctx.logname !== "batt(v)") {
+				let cells = ctx.osd.cells;
+				if (cells == 0) {
+					let start_vbat = Number(ctx.flight.logs[0][ctx.logname]) / scale;
+					cells = Math.round((start_vbat * 100) / ctx.osd.vbat_max_cell_voltage);
+					let check_voltage = start_vbat / cells;
+					if (check_voltage > ABSOLUTE_MAX_VOLTAGE) {
+						cells++;
+					}
+				}
+				if (cells > 0) {
+					v = v / cells;
+				}
+			}
+			v = v.toFixed(2);
+			return DefFormat(v, ctx);
+		}
+
+		function VBatFormat(v, ctx) {
+			let scale = ctx.logname == "vbat" ? 100 : 1;
+			v = Number(v) / scale;
+			v = v.toFixed(2);
+			return DefFormat(v, ctx);
+		}
+
+		function GPSLat(v, ctx) {
+			if (ctx.format == "srt") {
+				return "GPS:" + v;
+			}
+			else {
+				return "Lat: " + left(v, ' ');
+			}
+		}
+
+		function GPSLon(v, ctx) {
+			if (ctx.format == "srt") {
+				return null;
+			}
+			return "Lon: " + right(v, ' ')
+		}
+
+		function TimerFormat(v, ctx) {
+			return DefFormat(msToTime(v), ctx);
+		}
+
+		function DistFormat(v, ctx) {
+			if (ctx.osd.units == IMPERIAL) {
+				v = v * FEET_IN_METERS;
+				if (v > MILE_IN_FEETS) {
+					v = v / MILE_IN_FEETS;
+					v = v.toFixed(2) + "mi"
+				}
+				else {
+					v = Math.trunc(v) + "ft"
+				}
+			}
+			else {
+				if (v >= 1000) {
+					v = v / 1000;
+					v = v.toFixed(2) + "km"
+				}
+				else {
+					v = Math.trunc(v) + "m";
+				}
+			}
+			return DefFormat(v, ctx);
+		}
+
+		function GPSSpeedFormat(v, ctx) {
+			if (ctx.logname == "gps_speed (m/s)") {
+				v = v * 3.6;
+			}
+			if (ctx.osd.units != METRIC) {
+				v = v * MILES_IN_KM;
+			}
+			return DefFormat(Math.round(v), ctx);
+		}
+
+		function AltFormat(v, ctx) {
+			let scale = ctx.logname.startsWith("baroalt") ? 100 : 1;
+			v = Number(v) / scale;
+			let result = DistFormat(v, ctx)
+			return result;
+		}
+
+		function ThrottleFormat(v, ctx) {
+			v = parseInt(v);
+			if (ctx.logname == "motor[0]") {
+				v -= 1000;
+				v = Math.round(v / 10);
+			}
+			else {
+				v += 1000;
+				v = Math.max(v, 0);
+				v = Math.min(v, 2000);
+				v = Math.trunc(v / 20);
+			}
+			return DefFormat(v, ctx)
+		}
+
+		function DirectionFormat(v, ctx) {
+			if (ctx.format != "srt") {
+				let arrow_count = ctx.element.symbols.length;
+				let i = Math.round(v * arrow_count / 360) % arrow_count;
+				return ctx.element.symbols[i];
+			}
+			return DefFormat(v, ctx)
+		}
+
+		function BattCurrFormat(v, ctx) {
+			v = parseFloat(v).toFixed(1);
+			return DefFormat(v, ctx)
+		}
+
+		function LQFormat(v, ctx) {
+			let rfmd = ctx.log["rfmd"];
+			if (rfmd) {
+				v = rfmd + ":" + v;
+			}
+			return DefFormat(v, ctx)
+		}
+
+		OSD_Elements = { //ctx = {logname:string, format:string, log:{}, flight, osd:OSD, element:OSD_Elements, stat:OSD_Stat_Elements}
+			"altitude": { item: 15, name: "Altitude", short: "Alt", log_names: ["galt(m)", "alt(m)", "baroalt (cm)", "baroalt", "gps_altitude"], format: AltFormat },
+			"avg_cell_voltage": { item: 32, name: "Battery average cell voltage", short: "BattAvg", unit: ["V"], symbol: "\u{1F50B}", log_names: ["batt(v)", "rxbt(v)", "vbat (v)", "vbat"], format: AvgCellFormat },
+			"battery_usage": { item: 38, name: "Battery usage", short: "Batt(%)", unit: ["%"], symbol: "\u{1F50B}", log_names: ["bat_(%)"], format: DefFormat },
+			"current": { item: 11, name: "Battery current draw", short: "Curr", symbol: "", unit: ["A"], log_names: ["curr(a)"], format: BattCurrFormat },
+			"mah_drawn": { item: 12, name: "Battery current mAh drawn", short: "CurrDrawn", symbol: "", unit: [" mA/h"], log_names: ["capa(mah)"], format: DefFormat },
+			"osd_vbat": { item: 1, name: "Battery voltage", short: "Batt", unit: ["V"], symbol: "\u{1F50B}", log_names: ["vfas(v)", "rxbt(v)", "vbat (v)", "vbat"], format: VBatFormat },
+			"craft_name": { item: 8, name: "Craft name", short: "Craft", symbol: "", format: function (v, ctx) { return DefFormat(ctx.osd.craft_name, ctx) } },
+			"crosshair": { item: 2, name: "Crosshairs", symbol: "\u{271B}", format: function (v, ctx) { return DefFormat("", ctx) } },
+			"flight_dist": { item: 40, name: "Flight distance", short: "FltDist", symbol: "\u{21BB}", log_names: ["$TRAVEL"], format: DistFormat },
+			"flymode": { item: 7, name: "Fly mode", short: "FM", symbol: "", log_names: ["fm"], format: DefFormat },
+			"gps_lat": { item: 21, name: "Gps Latitude", short: "Lat", log_names: ["gps"], format: GPSLat },
+			"gps_lon": { item: 20, name: "Gps Longitute", short: "Lon", log_names: ["gps"], format: GPSLon },
+			"gps_sats": { item: 14, name: "Gps Sats", short: "Sats", symbol: "\u{1F6F0}", log_names: ["sats", "gps_numsat"], format: DefFormat },
+			"gps_speed": { item: 13, name: "Gps speed", short: "Speed", unit: [" km/h", " mph", " mph"], symbol: "\u{238B}", log_names: ["gspd(kmh)", "gps_speed (m/s)"], format: GPSSpeedFormat },
+			"home_dir": { item: 22, name: "Home direction", short: "HomeDir", log_names: ["$DIRECTION"], symbols: ["\u{2B61}", "\u{2B67}", "\u{2B62}", "\u{2B68}", "\u{2B63}", "\u{2B69}", "\u{2B60}", "\u{2B66}"], format: DirectionFormat },
+			"home_dist": { item: 23, name: "Home distance", short: "HomeDist", symbol: "\u{1F3E0}", log_names: ["$DISTANCE"], format: DistFormat },
+		    "link_quality": { item: 110, name: "Link quality", short: "LQ", log_names: ["rqly(%)"], format: LQFormat },
+			"pilot_name": { name: "Pilot name", short: "Name", symbol: "", format: function (v, ctx) { return DefFormat(ctx.osd.pilot_name, ctx) } },
+			"rssi": { item: 0, name: "Rssi Value", short: "RSSI", unit: ["%"], symbol: "\u{1F4F6}", log_names: ["rssi(%)", "tqly(%)", "rssi"], format: RSSIFormat },
+			"throttle": { item: 9, name: "Throttle position", short: "Thr", symbol: "\u{23E6}", log_names: ["thr", "motor[0]"], format: ThrottleFormat },
+			"link_tx_power": { item: 112, name: "Tx uplink power", short: "TPWR", unit: ["mW"], symbol: "\u{1F4F6}", log_names: ["tpwr(mw)"], format: DefFormat },
+			"rtc_date_time": { item: 29, name: "RTC date and time", short: "Time", symbol: "", log_names: ["$DSPDATE"], format: DefFormat },
+			"tim_1": { item: 28, name: "Timer 1", short: "Fly/mn", symbol: "\u{23F1}", log_names: ["$TIME_MS"], format: TimerFormat },
+			"tim_2": { name: "Timer 2", short: "Fly/mn", symbol: "\u{23F1}", log_names: ["$TIME_MS"], format: TimerFormat }
+		}
+
+		function statMaxValue(stats, key, element, value) {
+			stats[key] = Math.max(stats[key], value);
+		}
+
+		function statMinValue(stats, key, element, value) {
+			stats[key] = Math.min(stats[key], value);
+		}
+
+		function statLastValue(stats, key, element, value) {
+			if (value != null) {
+				stats[key] = value;
+			}
+		}
+
+		function statNone(stats, key, element, value) {
+		}
+
+		OSD_Stat_Elements = {
+			"stat_title": { name: "Title", dsp_name: "--- STATS ---", init: "", calc: statNone },
+			"stat_rtc_date_time": { name: "RTC date and time", key: "rtc_date_time", init: "", calc: statLastValue },
+			"stat_max_alt": { name: "Altitude maximum", dsp_name: "MAX ALTITUDE", key: "altitude", init: 0, calc: statMaxValue },
+			"stat_max_curr": { name: "Battery current draw maximum", dsp_name: "MAX CURRENT", key: "current", init: 0, calc: statMaxValue },
+			"stat_used_mah": { name: "Battery mAh used", dsp_name: "USED MAH", key: "mah_drawn", init: 0, calc: statLastValue },
+			"stat_endbatt": { name: "Battery voltage end", dsp_name: "END BATTERY", key: "osd_vbat", init: 0, calc: statLastValue },
+			"stat_min_batt": { name: "Battery voltage minimum", dsp_name: "MIN BATTERY", key: "osd_vbat", init: Number.MAX_VALUE, calc: statMinValue },
+			"stat_flight_dist": { name: "Flight distance", dsp_name: "TOTAL DISTANCE", key: "flight_dist", init: 0, calc: statLastValue },
+			"stat_total_time": { name: "Fly time total", dsp_name: "TOTAL FLIGHT TIME", key: "tim_1", init: 0, calc: statLastValue },
+			"stat_max_dist": { name: "Home distance maximum", dsp_name: "MAX DISTANCE", key: "home_dist", init: 0, calc: statMaxValue },
+			"stat_min_rssi": { name: "RSSI minimum", dsp_name: "MIN RSSI", key: "rssi", init: Number.MAX_VALUE, calc: statMinValue },
+			"stat_max_spd": { name: "Speed maximum", dsp_name: "MAX SPEED", key: "gps_speed", init: 0, calc: statMaxValue }
+		}
+
+		function getOSDElementKeyByiNavItem(item) {
+			for (let [key, e] of Object.entries(OSD_Elements)) {
+				if (e.item == item) {
+					return key;
+				}
+			}
+			return null;
+		}
+
+		class Queue {
+			size;
+			queue;
+
+			constructor(size) {
+				this.size = size;
+				this.queue = new Array();
+			}
+
+			push(item) {
+				if (this.queue.length >= this.size) {
+					this.queue.shift();
+				}
+				this.queue.push(item);
+			}
+
+			first() {
+				if (this.size > 0) {
+					return this.queue[0];
+				}
+				return null;
+			}
+
+			last() {
+				if (this.size > 0) {
+					return this.queue[this.queue.length - 1];
+				}
+				return null;
+			}
+		}
+
+		class OSD_Element {
+			x = 50;
+			y = 50;
+			profile = [false, false, false];
+
+			constructor() {
+			}
+		}
+
+		class OSD {
+			elements = {};
+			stat_elements = {};
+			craft_name = "";
+			pilot_name = "";
+			vbat_max_cell_voltage = 430;
+			cells = 0;
+			units = METRIC;
+
+			constructor() {
+				for (const [key, value] of Object.entries(OSD_Elements)) {
+					let e = new OSD_Element();
+					this.elements[key] = e;
+				}
+				for (let key of Object.keys(OSD_Stat_Elements)) {
+					this.stat_elements[key] = (key == "stat_title");
+				}
+			}
+
+			load(text) {
+				let lines = text.split(/(?:\r\n|\n)+/).filter(function (el) { return !el.startsWith('#') });
+				let line_count = lines.length;
+				for (let i = 0; i < lines.length; i++) {
+					if (lines[i].startsWith("set ")) {
+						let s = right(lines[i], ' ');
+						let t = s.split("=");
+						let name = t[0].trim();
+						let value = t[1].trim();
+						if (name.startsWith("osd_") && name.endsWith("_pos")) {
+							name = name.substring(4, name.length - 4);
+							let e = this.elements[name];
+							if (e) {
+								setOSDValue(value, e);
+							}
+						}
+						else if (name.startsWith("osd_stat")) {
+							name = name.substring(4);
+							let e = this.stat_elements[name];
+							if (e != null) {
+								this.stat_elements[name] = (value == "ON");
+							}
+						}
+						else if (name == "vbat_max_cell_voltage") {
+							this.vbat_max_cell_voltage = value;
+						}
+						else if (name == "craft_name") {
+							this.craft_name = value;
+						}
+						else if (name == "name") {
+							this.craft_name = value;
+						}
+						else if (name == "pilot_name") {
+							this.pilot_name = value;
+						}
+						else if (name == "display_name") {
+							this.pilot_name = value;
+						}						
+						else if (name == "osd_units") {
+							this.units = value;
+						}
+					}
+					//iNav support
+					else if (lines[i].startsWith("osd_layout ")) {
+						let s = lines[i].substring(11);
+						let t = s.split(" ");
+						//Format: layout item col row visible
+						//Ex: osd_layout 0 38 1 13 V
+						let profile = parseInt(t[0]);
+						let item = parseInt(t[1]);
+						let x = parseInt(t[2]);
+						let y = parseInt(t[3]);
+						let visible = (t[4] == "V");
+						let key = getOSDElementKeyByiNavItem(item);
+						if (key && profile < 3) {
+							let e = this.elements[key];
+							if (profile == 0) {
+								e.x = Math.round(x / 0.30);
+								e.y = Math.round(y / 0.16);
+							}
+							e.profile[profile] = visible;
+							if (key == "crosshair") {
+								e.x = 50;
+								e.y = 50;
+							}
+						}
+					}
+				}
+				return line_count;
+			}
+		}
+
+
+		class OpenTXLog {
+			flights;  // { name: "", logs: [] , stats:{} };
+			line_count;
+
+			constructor() { }
+
+			isLoaded() {
+				return this.flights != null;
+			}
+
+			calculate() {
+				let tmp_flights = this.flights;
+
+				//Calc dates
+				for (let i = 0; i < tmp_flights.length; i++) {
+					let f = tmp_flights[i];
+					for (let j = 0; j < f.logs.length; j++) {
+						let l = f.logs[j];
+						let date = ISODate(l["date"], l["time"]);
+						let dsp_date = left(date.replace("T", " "), '.');
+						l["$DATE"] = date;
+						l["$DSPDATE"] = dsp_date;
+					}
+				}
+
+				//Assign names to flights and calculate GPS stuff
+				for (let i = 0; i < tmp_flights.length; i++) {
+					let f = tmp_flights[i];
+					let dsp_date = f.logs[0]["$DSPDATE"];
+					let start_ms = f.logs[0]["$MS"];
+					let end_ms = f.logs[f.logs.length - 1]["$MS"];
+					let flight_time = msToTime(end_ms - start_ms);
+					f.name = dsp_date + " (" + flight_time + ")";
+					let home_lat = null;
+					let home_lon = null;
+					let last_lat = null;
+					let last_lon = null;
+					let total_travel = 0;
+					let last_altitude = null;
+					let queue_size = Math.round((1500 / f.logs[0]["$INTERVAL"])); // 1.5 second GPS queue for bearing
+					if (queue_size < 1) {
+						queue_size = 1;
+					}
+					let gps_queue = new Queue(queue_size)
+					for (let j = 0; j < f.logs.length; j++) {
+						//Generic stuff
+						f.logs[j]["$TIME_MS"] = f.logs[j]["$MS"] - start_ms;
+						let altitude = null;
+						if (j > 0) { //Skip first altitude value, it's usually wrong							
+							let logentry = findLogEntry(OSD_Elements["altitude"], f.logs[j]);
+							altitude = logentry.name.startsWith("baroalt") ? logentry.value / 100 : logentry.value;
+						}
+						if (last_altitude == null) {
+							last_altitude = altitude;
+						}
+
+						//Calculate GPS stuff
+						let gps = f.logs[j]["gps"];
+						if (gps) {
+							let lat = left(gps, " ");
+							let lon = right(gps, " ");
+							if (home_lat == null) {
+								home_lat = lat;
+								home_lon = lon;
+								last_lat = lat;
+								last_lon = lon;
+							}
+							let gps_item = { lat: lat, lon: lon };
+							total_travel += GPS_Distance(last_lat, last_lon, lat, lon, last_altitude, altitude);
+							f.logs[j]["$TRAVEL"] = total_travel;
+							f.logs[j]["$DISTANCE"] = GPS_Distance(home_lat, home_lon, lat, lon);
+							let gps_first = gps_queue.first();
+							if (gps_first == null) {
+								gps_first = gps_item;
+							}
+							let craft_direction = GPS_Bearing(gps_first.lat, gps_first.lon, lat, lon);
+							let home_direction = GPS_Bearing(lat, lon, home_lat, home_lon);
+							let osd_direction = (Math.round(home_direction - craft_direction) + 360) % 360;
+							f.logs[j]["$DIRECTION"] = osd_direction;
+							last_lat = lat;
+							last_lon = lon;
+							last_altitude = altitude;
+							gps_queue.push(gps_item);
+						}
+
+						//Calculate stats
+						for (let [key, e] of Object.entries(OSD_Stat_Elements)) {
+							if (j > 0 || e.key !== "altitude") { //Skip first altitude value, it's usually wrong
+								e.calc(f.stats, key, e, getLogValue(e.key, f.logs[j]));
+							}
+						}
+					}
+				}
+			}
+
+			loadOpenTX(text) {
+				let tmp_flights = [];
+
+				//Parse and load log lines
+				let lines = splitLines(text);
+				this.line_count = lines.length;
+				let headers = lines.splice(0, 1)[0].split(",");
+				let tmp_logs = [];
+				for (let i = 0; i < lines.length; i++) {
+					let element = {};
+					let values = lines[i].split(",");
+					for (let j = 0; j < headers.length; j++) {
+						let value = values[j];
+						if (value.startsWith('"') && value.endsWith('"')) {
+							value = value.substring(1,value.length-1);
+						}
+						element[headers[j].toLowerCase()] = value;
+					}
+					let date = ISODate(element["date"], element["time"]);
+					let ms = Date.parse(date);
+					element["$MS"] = ms;
+					tmp_logs.push(element);
+				}
+
+				//Split into flights
+				let current_flight = { name: "", logs: [], stats: {} };
+				initStats(current_flight.stats);
+				let last_interval = 0;
+				let current_interval = 0;
+				for (let i = 0; i < tmp_logs.length; i++) {
+					let e = tmp_logs[i];
+					let start_ms = e["$MS"];
+					if (i < tmp_logs.length - 1) {
+						let end_ms = tmp_logs[i + 1]["$MS"];
+						current_interval = (end_ms - start_ms);
+					}
+					if (current_interval < 0 || current_interval > MAX_INTERVAL) {
+						e["$INTERVAL"] = last_interval;
+						current_flight.logs.push(e);
+						tmp_flights.push(current_flight);
+						current_flight = { name: "", logs: [], stats: {} };
+						initStats(current_flight.stats);
+						current_interval = 0;
+						last_interval = 0;
+					}
+					else {
+						e["$INTERVAL"] = current_interval;
+						current_flight.logs.push(e);
+						last_interval = current_interval;
+					}
+				}
+				tmp_flights.push(current_flight);
+				this.flights = tmp_flights;
+			}
+
+			loadBlackbox(text) {
+				let tmp_flights = [];
+				let log_start_datetime = null;
+				let headers = [];
+
+				//Parse and load log lines
+				let lines = splitLines(text);
+				text = null;
+				this.line_count = lines.length;
+				let i = 0;
+				for (; i < lines.length; i++) {
+					let values = splitCSV(lines[i]);
+					if (values.length > 2) {
+						headers = values;
+						i += 2; //Skip header and first data line
+						break;
+					}
+					if (values[0] == "Log start datetime") { //Date time for Betaflight logs
+						log_start_datetime = values[1];
+					}
+				}
+
+				let start_ms = -1;
+				if (log_start_datetime) {
+					start_ms = Date.parse(log_start_datetime);
+				}
+				let start_time = -1;
+				let last_time = -1;
+				let total_interval = MAX_BLACKBOX_INTERVAL;
+
+				let tmp_logs = [];
+				let count = 0;
+				for (; i < lines.length; i++) {
+					let values = splitCSV(lines[i]);
+					let time = values[1];
+					if (start_time < 0) {
+						start_time = time;
+						last_time = time;
+					}
+					let interval = (time - last_time) / 1000;
+					last_time = time;
+					total_interval += interval;
+					if (total_interval < MAX_BLACKBOX_INTERVAL) {
+						continue; //Skip logs except every 200ms
+					}
+					let element = {};
+					for (let j = 0; j < headers.length; j++) {
+						if (BLACKBOX_FIELDS.includes(headers[j])) {
+							element[headers[j].toLowerCase()] = values[j];
+						}
+					}
+					total_interval = total_interval - MAX_BLACKBOX_INTERVAL;
+					if (start_ms < 0) {
+						start_ms = 0;
+						if (element["datetime"]) {
+							start_ms = Date.parse(element["datetime"]); //Date time for iNav logs
+						}
+					}
+					let ms = Math.trunc(start_ms + (time - start_time) / 1000);
+					let date = new Date();
+					date.setTime(ms);
+					let isodate = date.toISOString();
+					element["date"] = left(isodate, 'T');
+					element["time"] = trimRight(right(isodate, 'T'), 'Z');
+					element["$MS"] = ms;
+					let lat = element["gps_coord[0]"];
+					if (lat) {
+						element["gps"] = lat + " " + element["gps_coord[1]"];
+					}
+					tmp_logs.push(element);
+					count++;
+				}
+
+				let current_interval = 0;
+				for (let i = 0; i < tmp_logs.length; i++) {
+					let e = tmp_logs[i];
+					let start_ms = e["$MS"];
+					if (i < tmp_logs.length - 1) {
+						let end_ms = tmp_logs[i + 1]["$MS"];
+						current_interval = (end_ms - start_ms);
+					}
+					e["$INTERVAL"] = current_interval;
+				}
+
+				let current_flight = { name: "", logs: tmp_logs, stats: {} };
+				initStats(current_flight.stats);
+				tmp_flights.push(current_flight);
+				this.flights = tmp_flights;
+			}
+
+		}
+
+		class SubtitlesSRT {
+			profile = 0;
+			delay = 0;
+			trim_start = 0;
+			trim_end = 0;
+			osd;
+			flight;
+			format;
+
+			constructor(profile, delay, trim_start, trim_end, osd, flight) {
+				this.profile = profile;
+				this.delay = delay;
+				this.trim_start = trim_start;
+				this.trim_end = trim_end;
+				this.osd = osd;
+				this.flight = flight;
+				this.format = "srt";
+			}
+
+			addFileHeader(result) { }
+
+			addElements(start_time, end_time, elements, index, result) {
+				result.push((index + 1) + "");
+				start_time = start_time > 0 ? start_time : 1;
+				end_time = end_time > 0 ? end_time : 1;
+				let t1 = msToTime(start_time, ',', 3, 2);
+				let t2 = msToTime(end_time, ',', 3, 2);
+				result.push(t1 + " --> " + t2);
+				if (elements.length > 0) {
+					let l = [];
+					for (let i = 0; i < elements.length; i++) {
+						l.push(elements[i].value);
+					}
+					result.push(l.join(" "));
+				}
+				else {
+					result.push("");
+				}
+				result.push("");
+			}
+
+			generate() {
+				let result = [];
+				let first_ms = this.flight.logs[0]["$MS"];
+				let last_log = this.flight.logs[this.flight.logs.length - 1];
+				let last_ms = last_log["$MS"] + last_log["$INTERVAL"];
+				this.addFileHeader(result);
+				let context = { logname: "", format: this.format, log: null, flight: this.flight, osd: this.osd, element: null };
+				let index = 0;
+				let adj_start_time = 0;
+				let adj_end_time = 0;
+				for (let i = 0; i < this.flight.logs.length; i++) {
+					let l = this.flight.logs[i];
+					let start_ms = l["$MS"];
+					let interval = l["$INTERVAL"];
+					let end_ms = (start_ms + interval);
+					let start_time = start_ms - first_ms;
+					let end_time = end_ms - first_ms;
+					let ev = [];
+					context.log = l;
+					//Run through all logs
+					for (let [key, e] of Object.entries(OSD_Elements)) {
+						let value = osd.elements[key];
+						if (value.profile[this.profile]) {
+							context.element = e;
+							let log_entry = { name: null, value: null };
+							let valid = true;
+							if (e.log_names != null) {
+								log_entry = findLogEntry(e, l);
+								valid = (log_entry.value != null);
+							}
+							if (valid) {
+								context.logname = log_entry.name;
+								let osd_value = e.format(log_entry.value, context);
+								let element = { key: key, value: osd_value, x: value.x, y: value.y }
+								ev.push(element);
+							}
+						}
+					}
+
+					//Calculate trims and delay
+					adj_start_time = start_time - this.trim_start;
+					adj_end_time = end_time - this.trim_start;
+					let include = (adj_start_time >= 0);
+					if (!include && adj_end_time > 0) {
+						adj_start_time = 0;
+						include = true;
+					}
+					if (include) {
+						let last = last_ms - this.trim_end;
+						include = (end_ms <= last);
+						if (!include && start_ms < last) {
+							adj_end_time = (last - first_ms);
+							include = true;
+						}
+					}
+					if (include) {
+						this.addElements(adj_start_time + this.delay, adj_end_time + this.delay, ev, index++, result);
+					}
+				}
+
+				//Stats
+				let stat_start_time = adj_end_time + this.delay;
+				let stat_end_time = stat_start_time + STATS_TIMEOUT_MS;
+				let ev = [];
+				let i = 0;
+				let first_log = this.flight.logs[0];
+				for (let [key, e] of Object.entries(OSD_Stat_Elements)) {
+					if (osd.stat_elements[key]) {
+						context.stat = e;
+						let osd_value = e.dsp_name;
+						if (e.key != null) {
+							context.element = OSD_Elements[e.key];
+							context.logname = findLogEntry(context.element, first_log).name;
+							osd_value = context.element.format(this.flight.stats[key], context);
+						}
+						let element = { key: key, value: osd_value, x: STATS_X, y: (STATS_Y_START + i * STATS_Y) }
+						ev.push(element);
+						i++;
+					}
+				}
+				if (ev.length > 1) {
+					this.addElements(stat_start_time, stat_end_time, ev, index++, result);
+				}
+				return result.join(NEWLINE);
+			}
+		}
+
+		class SubtitlesVTT extends SubtitlesSRT {
+			youtube = false;
+
+			constructor(profile, delay, trim_start, trim_end, osd, flight, youtube) {
+				super(profile, delay, trim_start, trim_end, osd, flight);
+				this.format = "vtt";
+				this.youtube = youtube;
+			}
+
+			addFileHeader(result) {
+				result.push("WEBVTT");
+				result.push("");
+				result.push("");
+			}
+
+			addElements(start_time, end_time, elements, index, result) {
+				for (let i = 0; i < elements.length; i++) {
+					let e = elements[i];
+					start_time = start_time > 0 ? start_time : 1;
+					let t1 = msToTime(start_time, '.', 3, 2);
+					let t2 = msToTime(end_time, '.', 3, 2);
+					let x = (e.x) > 0 ? e.x : 1;
+					let y = (e.y) > 0 ? e.y : 1;
+					let size = "100";
+					if (this.youtube) {
+						size = "10";
+					}
+					let s = t1 + " --> " + t2 + " position:" + x + "% line:" + y + "% align:left size:" + size + "%";
+					result.push(s);
+					result.push(e.value);
+					result.push("");
+				}
+			}
+
+		}
+
+		class SubtitlesSSA extends SubtitlesSRT {
+			font = DEFAULT_FONT;
+			fontsize = DEFAULT_FONTSIZE;
+
+			constructor(profile, delay, trim_start, trim_end, osd, flight, font, fontsize) {
+				super(profile, delay, trim_start, trim_end, osd, flight);
+				this.format = "ssa";
+				this.font = font;
+				this.fontsize = fontsize;
+			}
+
+			addFileHeader(result) {
+				result.push("[Script Info]");
+				result.push("Title: " + this.flight.name);
+				result.push("Collisions: Normal");
+				result.push("PlayResX: 1000");
+				result.push("PlayResY: 1000");
+				result.push("Timer: 100.0000");
+				result.push("");
+				result.push("[V4 Styles]");
+				result.push("Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, TertiaryColour, BackColour, Bold, Italic, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, AlphaLevel, Encoding");
+				for (let [key, element] of Object.entries(osd.elements)) {
+					if (element.profile[this.profile]) {
+						result.push("Style: " + key + "," + this.font + "," + this.fontsize + ",16777215,16777215,255,0,0,0,1,2,2,5," + (element.x * 10) + ",0," + (element.y * 10) + ",0,0");
+					}
+				}
+				//Count stats used
+				let stat_count = 0;
+				for (let key of Object.keys(osd.stat_elements)) {
+					if (osd.stat_elements[key]) {
+						stat_count++;
+					}
+				}
+				//Generate stats styles
+				if (stat_count > 1) {
+					let i = 0;
+					for (let key of Object.keys(osd.stat_elements)) {
+						if (osd.stat_elements[key]) {
+							result.push("Style: " + key + "," + this.font + "," + this.fontsize + ",16777215,16777215,255,0,0,0,1,2,2,5," + (STATS_X * 10) + ",0," + ((STATS_Y_START + STATS_Y * i) * 10) + ",0,0");
+							i++;
+						}
+					}
+				}
+				result.push("");
+				result.push("[Events]");
+				result.push("Format: Marked, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text");
+			}
+
+			addElements(start_time, end_time, elements, index, result) {
+				for (let i = 0; i < elements.length; i++) {
+					let e = elements[i];
+					let t1 = msToTime(start_time, '.', 2, 1);
+					let t2 = msToTime(end_time, '.', 2, 1);
+					let s = "Dialogue: Marked=0," + t1 + "," + t2 + "," + e.key + ",,0000,0000,0000,," + e.value;
+					result.push(s);
+				}
+			}
+
+		}
+
+		const osd = new OSD();
+		const log = new OpenTXLog();
+
+		function readTextFileAsync(file) {
+			return new Promise((resolve, reject) => {
+				let reader = new FileReader();
+				reader.onload = () => {
+					resolve(reader.result);
+				};
+				reader.onerror = reject;
+				reader.readAsText(file);
+			})
+		}
+
+		async function loadCLI(file) {
+			if (file) {
+				try {
+
+					let cli_filename = document.getElementById('cli_filename');
+					let content = await readTextFileAsync(file);
+					osd.load(content);
+					cli_filename.innerText = file.name;
+					updateUIFromOSD(osd);
+				}
+				catch (err) {
+					alert(err.message);
+					throw err;
+				}
+			}
+		}
+
+		async function loadLog(file) {
+			if (file) {
+				try {
+					let btn1 = document.getElementById('btnGenerate');
+					let btn2 = document.getElementById('btnGenerateSave');
+					let efilename = document.getElementById('log_filename');
+					let content = await readTextFileAsync(file);
+					let flight_options = document.getElementById('flight');
+					for (let i = flight_options.options.length - 1; i >= 0; i--) {
+						flight_options.remove(i);
+					}
+					if (content.startsWith('Date,Time,')) {
+						log.loadOpenTX(content);
+					}
+					else {
+						log.loadBlackbox(content);
+					}
+					log.calculate();
+					for (let i = 0; i < log.flights.length; i++) {
+						let name = log.flights[i].name;
+						let option = document.createElement("option");
+						option.text = name;
+						option.value = name;
+						flight_options.add(option);
+					}
+					efilename.innerText = file.name;
+					btn1.disabled = !log.isLoaded();
+					btn2.disabled = !log.isLoaded();
+				}
+				catch (err) {
+					alert(err.message);
+					throw err;
+				}
+			}
+		}
+
+		function updateOSDFromUI(osd) {
+			for (let [key, value] of Object.entries(osd.elements)) {
+				let e = document.getElementById("osd_" + key);
+				let x = parseInt(e.style.left);
+				let y = parseInt(e.style.top);
+				let pos = getPercentPosition(x, y);
+				value.x = pos.x;
+				value.y = pos.y;
+				for (let i = 0; i < 3; i++) {
+					let p = document.getElementById(key + '_' + i);
+					value.profile[i] = p.checked;
+				}
+			}
+			for (let key of Object.keys(osd.stat_elements)) {
+				let e = document.getElementById(key);
+				osd.stat_elements[key] = e.checked;
+			}
+			let e = document.getElementById("craft_name");
+			osd.craft_name = e.value;
+			e = document.getElementById("pilot_name");
+			osd.pilot_name = e.value;
+			let cells = document.getElementById('cells');
+			osd.cells = cells.value;
+			let u = document.getElementById('units');
+			osd.units = u.value;
+		}
+
+		function updateUIFromOSD(osd, update_cells) {
+			let eprofile = document.getElementById('osd_profile');
+			let curr_profile = eprofile.options[eprofile.selectedIndex].value;
+			let c = document.getElementById('craft_name');
+			c.value = osd.craft_name;
+			c = document.getElementById('pilot_name');
+			c.value = osd.pilot_name;
+			if (update_cells) {
+				let cells = document.getElementById('cells');
+				cells.value = osd.cells;
+			}
+			let u = document.getElementById('units');
+			u.value = osd.units;
+			for (let [key, value] of Object.entries(osd.elements)) {
+				for (let i = 0; i < 3; i++) {
+					let p = document.getElementById(key + '_' + i);
+					p.checked = value.profile[i];
+				}
+				let e = document.getElementById("osd_" + key);
+				let pos = getImagePosition(value.x, value.y);
+				e.style.left = pos.x + "px";
+				e.style.top = pos.y + "px";
+				setDisplay(e, value.profile[curr_profile]);
+				let ix = document.getElementById(key + '_x');
+				let iy = document.getElementById(key + '_y');
+				ix.value = value.x;
+				iy.value = value.y;
+				e.innerText = getDisplayValue(key);
+			}
+			for (let key of Object.keys(osd.stat_elements)) {
+				let e = document.getElementById(key);
+				e.checked = osd.stat_elements[key];
+			}
+		}
+
+		function updateUIElements() {
+			for (let key of Object.keys(osd.elements)) {
+				let e = document.getElementById("osd_" + key);
+				e.innerText = getDisplayValue(key);
+			}
+		}
+
+		function generateSubtitles(save) {
+			try {
+				updateOSDFromUI(osd);
+				let cli_text = document.getElementById('cli_text');
+				let subtitle_text = document.getElementById('subtitles_text');
+				let flight_options = document.getElementById('flight');
+				let eformat = document.getElementById('subtitle_format');
+				let edelay = document.getElementById('delay');
+				let etrimstart = document.getElementById('trim_start');
+				let etrimend = document.getElementById('trim_end');
+				let efont = document.getElementById('font');
+				let efontsize = document.getElementById('fontsize');
+				let delay = (edelay.value == "") ? 0 : parseInt(edelay.value);
+				let trim_start = (etrimstart.value == "") ? 0 : parseInt(etrimstart.value);
+				let trim_end = (etrimend.value == "") ? 0 : parseInt(etrimend.value);
+				let format = eformat.options[eformat.selectedIndex].value;
+				let flight_index = flight_options.selectedIndex;
+				let font = (efont.value == "" ? DEFAULT_FONT : efont.value);
+				let fontsize = (efontsize.value == "" ? DEFAULT_FONTSIZE : parseInt(efontsize.value));
+				let eosd = document.getElementById('osd_profile');
+				let osd_profile = eosd.options[eosd.selectedIndex].value;
+				let subitles;
+				let flight_name = log.flights[flight_index].name;
+				let flight_name_safe = flight_name.replaceAll(" ", "_").replaceAll(":", "-");
+				if (format == "srt") {
+					subtitles = new SubtitlesSRT(osd_profile, delay, trim_start, trim_end, osd, log.flights[flight_index]);
+				}
+				else if (format == "ssa") {
+					subtitles = new SubtitlesSSA(osd_profile, delay, trim_start, trim_end, osd, log.flights[flight_index], font, fontsize);
+				}
+				else {
+					let youtube = (format == "vtt_youtube");
+					subtitles = new SubtitlesVTT(osd_profile, delay, trim_start, trim_end, osd, log.flights[flight_index], youtube);
+				}
+				format = left(format, "_");
+				let s = subtitles.generate();
+				subtitle_text.value = s;
+				if (save == true) {
+					let mime = "text/" + format;
+					let filename = "osd_subtitles_" + flight_name_safe + "." + format;
+					exportFile(s, mime, filename);
+				}
+			}
+			catch (err) {
+				alert(err.message);
+				throw err;
+			}
+		}
+
+		function saveConfig() {
+			try {
+				updateOSDFromUI(osd);
+				let data = JSON.stringify(osd);
+				exportFile(data, "application/json", "OSD_Elements_Config.json");
+			}
+			catch (err) {
+				alert(err.message);
+				throw err;
+			}
+		}
+
+		async function loadConfig(file) {
+			if (file) {
+				try {
+					let content = await readTextFileAsync(file);
+					let data = JSON.parse(content);
+					Object.assign(osd, data);
+					updateUIFromOSD(osd, true);
+				}
+				catch (err) {
+					alert(err.message);
+					throw err;
+				}
+			}
+		}
+
+		function setDisplay(e, show) {
+			let block = (e.tagName == "TR" ? "table-row" : "block");
+			e.style.display = (show ? block : "none");
+		}
+
+		function formatChanged() {
+			let eformat = document.getElementById("subtitle_format");
+			let font_row = document.getElementById("font_row");
+			let fontsize_row = document.getElementById("fontsize_row");
+			let f = eformat.options[eformat.selectedIndex].value;
+			let show = (f == "ssa");
+			setDisplay(font_row, show);
+			setDisplay(fontsize_row, show);
+		}
+
+		function updateOSDImage() {
+			let eprofile = document.getElementById('osd_profile');
+			let curr_profile = eprofile.options[eprofile.selectedIndex].value;
+			for (let key of Object.keys(osd.elements)) {
+				let e = document.getElementById("osd_" + key);
+				let p = document.getElementById(key + '_' + curr_profile);
+				setDisplay(e, p.checked);
+			}
+		}
+
+		function getImagePosition(xp, yp) {
+			let x = Math.trunc(OSD_IMAGE_WIDTH * xp / 100);
+			let y = Math.trunc(OSD_IMAGE_HEIGHT * yp / 100);
+			return { x: x, y: y };
+		}
+
+		function getPercentPosition(x, y) {
+			let xp = Math.trunc(x * 100 / OSD_IMAGE_WIDTH);
+			let yp = Math.trunc(y * 100 / OSD_IMAGE_HEIGHT);
+			return { x: xp, y: yp };
+		}
+
+		LOG_DISPLAY_EXAMPLE = {
+			"$MS": 0,
+			"$DISTANCE": 432,
+			"$DIRECTION": 135,
+			"$TRAVEL": 653,
+			"$DSPDATE": "2017-11-11 16:20:00",
+			"alt(m)": 399,
+			"batt(v)": 3.98,
+			"bat_(%)": 95,
+			"curr(a)": 42,
+			"capa(mah)": 690,
+			"vfas(v)": 16.8,
+			"gps": "00.000000 -00.000000",
+			"gspd(kmh)": 40,
+			"sats": 14,
+			"rssi(%)": 99,
+			"thr": 380,
+			"rfmd": 2,
+			"rqly(%)": "100",
+			"fm": "STAB",
+			"tpwr(mw)": "250"
+		}
+
+		function getDisplayValue(key) {
+			let units = document.getElementById("units");
+			let osd = new OSD();
+			osd.craft_name = "CRAFT_NAME";
+			osd.pilot_name = "JOE PILOT";
+			osd.units = units.options[units.selectedIndex].value;
+			let flight = { logs: [LOG_DISPLAY_EXAMPLE] };
+			let element = OSD_Elements[key];
+			let ctx = { logname: "", format: "ssa", log: LOG_DISPLAY_EXAMPLE, flight: flight, osd: osd, element: element };
+			let value = getLogValue(key, ctx.log);
+			let text = element.format(value, ctx);
+			if (!text) {
+				text = key;
+			}
+			return text;
+		}
+
+		function posChange(input) {
+			let key = leftBack(input.id, "_");
+			let value = toNumber(input.value, 0);
+			let e = document.getElementById("osd_" + key);
+			let p = getImagePosition(value, value);
+			if (input.id.endsWith("x")) {
+				e.style.left = p.x + 'px'
+			}
+			else {
+				e.style.top = p.y + 'px'
+			}
+		}
+
+		function isNumberKey(evt) {
+			let charCode = (evt.which) ? evt.which : evt.keyCode;
+			return (charCode >= 48 && charCode <= 57);
+		}
+
+		function init() {
+			let f = document.getElementById("form");
+			let e = document.getElementById("osd_elements");
+			let e2 = document.getElementById("osd_elements2");
+			let b1 = document.getElementById("btnGenerate");
+			let b2 = document.getElementById("btnGenerateSave");
+			let osd_container = document.getElementById("osd_container");
+			f.reset();
+			b1.disabled = true;
+			b2.disabled = true;
+			//Init context
+			let count = 0;
+			for (let [key, ovalue] of Object.entries(OSD_Elements)) {
+				if (count == (Object.entries(OSD_Elements).length / 2)) {
+					e = e2;
+				}
+				let value = osd.elements[key];
+				let osd_name_id = "osd_name_" + key;
+				let r = "<tr id='" + osd_name_id + "'>" +
+					"<td class='osd_name'><label for='" + key + "_0'>" + ovalue.name + "</label></td>" +
+					"<td><input type='checkbox' id='" + key + "_0' onchange='updateOSDImage()' value='true'></input></td>" +
+					"<td><input type='checkbox' id='" + key + "_1' onchange='updateOSDImage()' value='true'></input></td>" +
+					"<td><input type='checkbox' id='" + key + "_2' onchange='updateOSDImage()' value='true'></input></td>" +
+					"<td><input type='text' oninput='posChange(this)' maxlength='2' onkeypress='return isNumberKey(event)' size='2' id='" + key + "_x' value='" + value.x + "'></input></td>" +
+					"<td><input type='text' oninput='posChange(this)' maxlength='2' onkeypress='return isNumberKey(event)' size='2' id='" + key + "_y' value='" + value.y + "'></input></td>" +
+					"</tr>";
+				if (document.getElementById(osd_name_id) == null) {
+					e.innerHTML += r;
+				}
+				//OSD image elements
+				let osd_id = "osd_" + key;
+				let s = document.getElementById(osd_id);
+				if (s == null) {
+					let pos = getImagePosition(value.x, value.y);
+					s = document.createElement("span");
+					s.id = osd_id;
+					s.className = "osd_drag";
+					s.draggable = true;
+					s.style.left = pos.x + "px";
+					s.style.top = pos.y + "px";
+					s.style.display = "none";
+					s.innerText = getDisplayValue(key);
+					osd_container.appendChild(s);
+				}
+				s.ondragstart = drag;
+				count++;
+			}
+			//OSD Stats
+			let stat_elements = document.getElementById("stat_elements");
+			for (let [key, value] of Object.entries(OSD_Stat_Elements)) {
+				let stat_id = key;
+				let checked = (stat_id == "stat_title");
+				let hide = (stat_id == "stat_title");
+				let r = "<tr" + (hide ? " style='display:none'" : "") + ">" +
+					"<td><input type='checkbox' id='" + stat_id + "'" + (checked ? " checked" : "") + "></input></td>" +
+					"<td><label for='" + stat_id + "'>" + value.name + "</label></td>" +
+					"</tr>";
+				if (document.getElementById(stat_id) == null) {
+					stat_elements.innerHTML += r;
+				}
+			}
+		}
+	</script>
+</head>
+
+<body onload="init()">
+	<form id="form">
+		<input id="log_file" class="file" type="file" accept=".csv" onchange="loadLog(this.files[0])">
+		<input id="cli_file" class="file" type="file" accept=".txt,.cli,.dump" onchange="loadCLI(this.files[0])">
+		<input id="load_config" class="file" type="file" accept=".json" onchange="loadConfig(this.files[0])">
+		<div class="row">
+			<div id="log_settings" class="column">
+				<h1>OSD Subtitles</h1>
+				<p class="small" style="width:300px;">
+					OSD subtitles combines OpenTX/Blackbox logs with Betaflight OSD elements and produces a subtitle
+					file with OSD overlay. Read the <a target="_blank" href="docs/howto.html">How to</a> and check out
+					the <a target="_blank" href="https://github.com/kristjanbjarni/osd-subtitles/"> GitHub project</a>.
+				</p>
+				<h2>Log file and settings:</h2>
+				<table class="cnf">
+					<tbody class="cnf">
+						<tr>
+							<td>
+								<label for="log_button">Log file:</label>
+							</td>
+							<td>
+								<span id="log_filename">(No log loaded)</span> <input id="log_button" type="button"
+									onclick="document.getElementById('log_file').click()" value="Open...">
+
+							</td>
+						</tr>
+						<tr>
+							<td>
+								<label for="flight">Flight:</label>
+							</td>
+							<td>
+								<select id="flight">
+									<option value="">(No log loaded)</option>
+								</select>
+							</td>
+						</tr>
+						<tr>
+							<td>
+								<label for="cli_button">CLI file:</label>
+							</td>
+							<td>
+								<span id="cli_filename">(No CLI loaded)</span> <input id="cli_button" type="button"
+									onclick="document.getElementById('cli_file').click()" value="Open...">
+							</td>
+						</tr>
+						<tr>
+							<td>
+								<label for="osd_profile">OSD profile:</label>
+							</td>
+							<td>
+								<select id="osd_profile" onchange="updateOSDImage()">
+									<option value="0">1</option>
+									<option value="1">2</option>
+									<option value="2">3</option>
+								</select>
+							</td>
+						</tr>
+						<tr>
+							<td>
+								<label for="units">Units:</label>
+							</td>
+							<td>
+								<select id="units" onchange="updateUIElements()">
+									<option value="METRIC">Metric</option>
+									<option value="IMPERIAL">Imperial</option>
+									<option value="UK">UK</option>
+								</select>
+							</td>
+						</tr>
+						<tr>
+							<td>
+								<label for="cells">Battery cells:</label>
+							</td>
+							<td>
+								<select id="cells">
+									<option value="0">(Auto)</option>
+									<option value="1">1</option>
+									<option value="2">2</option>
+									<option value="3">3</option>
+									<option value="4">4</option>
+									<option value="5">5</option>
+									<option value="6">6</option>
+									<option value="7">7</option>
+									<option value="8">8</option>
+								</select>
+							</td>
+						</tr>
+						<tr>
+							<td>
+								<label for="craft_name">Craft name:</label>
+							</td>
+							<td>
+								<input type="text" id="craft_name" size="20" value="">
+							</td>
+						</tr>
+						<tr>
+							<td>
+								<label for="pilot_name">Pilot name:</label>
+							</td>
+							<td>
+								<input type="text" id="pilot_name" size="20" value="">
+							</td>
+						</tr>
+						<tr>
+							<td>
+								<label for="trim_start">Trim start (ms):</label>
+							</td>
+							<td>
+								<input type="text" id="trim_start" size="8" value="0"
+									onkeypress="return isNumberKey(event)" maxlength="8">
+							</td>
+						</tr>
+						<tr>
+							<td>
+								<label for="trim_end">Trim end (ms):</label>
+							</td>
+							<td>
+								<input type="text" id="trim_end" size="8" value="0"
+									onkeypress="return isNumberKey(event)" maxlength="8">
+							</td>
+						</tr>
+						<tr>
+							<td>
+								<label for="delay">Delay (ms):</label>
+							</td>
+							<td>
+								<input type="text" id="delay" size="8" value="0" maxlength="8"
+									onkeypress="return isNumberKey(event)">
+							</td>
+						</tr>
+						<tr>
+							<td>
+								<label for="subtitle_format">Subtitle format:</label>
+							</td>
+							<td>
+								<select id="subtitle_format" onchange="formatChanged()">
+									<option value="ssa">SubStation Alpha (SSA)</option>
+									<option value="srt">SubRip Text (SRT)</option>
+									<option value="vtt">WebVTT</option>
+									<option value="vtt_youtube">WebVTT (YouTube)</option>
+								</select>
+							</td>
+						</tr>
+						<tr id="font_row">
+							<td>
+								<label for="font">Font:</label>
+							</td>
+							<td>
+								<input type="text" id="font" list="fonts" size="20" value="Arial" autocomplete="off">
+								<datalist id="fonts">
+									<option>Arial</option>
+									<option>Arial Black</option>
+									<option>Tahoma</option>
+									<option>Times New Roman</option>
+									<option>Verdana</option>
+								</datalist>
+							</td>
+						</tr>
+						<tr id="fontsize_row">
+							<td>
+								<label for="fontsize">Font size:</label>
+							</td>
+							<td>
+								<input type="number" min="1" id="fontsize" value="46"
+									onkeypress="return isNumberKey(event)"> (px)
+							</td>
+						</tr>
+					</tbody>
+				</table>
+				<input type="button" id="btnGenerate" value="Generate" disabled="disabled"
+					onclick="generateSubtitles(false)">
+				<input type="button" id="btnGenerateSave" value="Generate and save..." disabled="disabled"
+					onclick="generateSubtitles(true)">
+				<br />
+				<br />
+				<h2>Post Flight Statistics:</h2>
+				<div id="stat_settings">
+					<table class="cnf" id="stat_table">
+						<tbody class="cnf" id="stat_elements">
+						</tbody>
+					</table>
+				</div>
+
+			</div>
+			<div class="column">
+				<h2>OSD Elements:</h2>
+				<div id="osd_container" ondrop="drop(event)" ondragover="allowDrop(event)">
+					<img draggable="false" src="docs/osd.jpg" alt="osd" />
+				</div>
+				<div id="osd_settings">
+					<div>
+						<input type="button" id="btnSave" value="Save..." onclick="saveConfig()">
+						<input type="button" onclick="document.getElementById('load_config').click()" value="Load...">
+					</div>
+					<table class="cnf" id="elements_table1">
+						<thead class="cnf">
+							<tr>
+								<th>Name</th>
+								<th>1</th>
+								<th>2</th>
+								<th>3</th>
+								<th>X%</th>
+								<th>Y%</th>
+							</tr>
+						</thead>
+						<tbody class="cnf" id="osd_elements">
+						</tbody>
+					</table>
+					<table class="cnf" id="elements_table2">
+						<thead class="cnf">
+							<tr>
+								<th>Name</th>
+								<th>1</th>
+								<th>2</th>
+								<th>3</th>
+								<th>X%</th>
+								<th>Y%</th>
+							</tr>
+						</thead>
+						<tbody class="cnf" id="osd_elements2">
+						</tbody>
+					</table>
+				</div>
+			</div>
+			<div id="subtitle_output" class="column">
+				<h2 id="subtitle_header">Subtitles:</h2>
+				<textarea id="subtitles_text" rows="50" readonly="readonly"></textarea>
+			</div>
+		</div>
+	</form>
+</body>
+
+</html>

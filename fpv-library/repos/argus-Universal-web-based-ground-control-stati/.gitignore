@@ -1,0 +1,38 @@
+node_modules/
+dist/
+docs/promo/
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+test-results/
+playwright-report/
+.svelte-kit/
+src-tauri/target/
+src-tauri/binaries/
+src-tauri/gen/
+build/
+param_cache/
+# Anchor to repo root only — without the leading slash this matched
+# src/components/params/ too, silently making major Svelte components
+# (PidPanel, FlightModePanel, AutoTunePanel, PowerCalPanel) untracked.
+/params/
+firmware/
+logs/
+mbtiles/
+tile_cache/
+srtm_cache/
+.gcs_token
+.pytest_cache/
+.coverage
+coverage/
+.ruff_cache/
+.env
+.env.*
+!.env.example
+release/
+RELEASE_NOTES.md
+.DS_Store
+Thumbs.db
+*.swp
+*~

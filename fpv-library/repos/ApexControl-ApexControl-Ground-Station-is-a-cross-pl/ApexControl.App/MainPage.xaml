@@ -1,0 +1,657 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="ApexControl.App.MainPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:viewmodels="clr-namespace:ApexControl.App.ViewModels"
+    x:DataType="viewmodels:MainViewModel"
+    Title="ApexControl Ground Station">
+
+    <Grid BackgroundColor="#101010">
+
+        <!-- Mobile Layout -->
+        <ScrollView IsVisible="{Binding IsMobile}">
+            <VerticalStackLayout Padding="12" Spacing="12">
+
+                <Border Stroke="#303030" StrokeThickness="1" Padding="12" BackgroundColor="#181818">
+                    <VerticalStackLayout Spacing="6">
+                        <Label Text="ApexControl"
+                               FontSize="22"
+                               FontAttributes="Bold"
+                               TextColor="White" />
+                        <Label Text="Ground Station - Mobile"
+                               FontSize="13"
+                               TextColor="#A0A0A0" />
+                        <Label Text="{Binding ConnectionStatus}"
+                               FontSize="13"
+                               TextColor="DodgerBlue"
+                               LineBreakMode="WordWrap" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border Stroke="#404040" StrokeThickness="1" Padding="12" BackgroundColor="#181818">
+                    <VerticalStackLayout Spacing="10">
+                        <Label Text="Controls"
+                               FontSize="18"
+                               FontAttributes="Bold"
+                               TextColor="White" />
+
+                        <Grid ColumnDefinitions="*,*"
+                              RowDefinitions="Auto,Auto,Auto,Auto"
+                              ColumnSpacing="8"
+                              RowSpacing="8">
+
+                            <Button Grid.Row="0" Grid.Column="0"
+                                    Text="Connect"
+                                    Command="{Binding ConnectCommand}"
+                                    IsEnabled="{Binding CanConnect}" />
+
+                            <Button Grid.Row="0" Grid.Column="1"
+                                    Text="Disconnect"
+                                    Command="{Binding DisconnectCommand}"
+                                    IsEnabled="{Binding CanDisconnect}" />
+
+                            <Button Grid.Row="1" Grid.Column="0"
+                                    Text="Arm"
+                                    Command="{Binding ArmCommand}"
+                                    IsEnabled="{Binding CanSendCommands}" />
+
+                            <Button Grid.Row="1" Grid.Column="1"
+                                    Text="Disarm"
+                                    Command="{Binding DisarmCommand}"
+                                    IsEnabled="{Binding CanSendCommands}" />
+
+                            <Button Grid.Row="2" Grid.Column="0"
+                                    Text="Guided"
+                                    Command="{Binding SetGuidedModeCommand}"
+                                    IsEnabled="{Binding CanSendCommands}" />
+
+                            <Button Grid.Row="2" Grid.Column="1"
+                                    Text="Loiter"
+                                    Command="{Binding SetLoiterModeCommand}"
+                                    IsEnabled="{Binding CanSendCommands}" />
+
+                            <Button Grid.Row="3" Grid.Column="0"
+                                    Text="Stabilize"
+                                    Command="{Binding SetStabilizeModeCommand}"
+                                    IsEnabled="{Binding CanSendCommands}" />
+
+                            <Grid Grid.Row="3" Grid.Column="1"
+                                  ColumnDefinitions="70,*"
+                                  ColumnSpacing="6">
+                                <Entry Grid.Column="0"
+                                       Text="{Binding TakeoffAltitude}"
+                                       Keyboard="Numeric"
+                                       Placeholder="m"
+                                       IsEnabled="{Binding CanSendCommands}"
+                                       TextColor="White"
+                                       PlaceholderColor="#777777" />
+
+                                <Button Grid.Column="1"
+                                        Text="Takeoff"
+                                        Command="{Binding TakeoffCommand}"
+                                        IsEnabled="{Binding CanSendCommands}" />
+                            </Grid>
+                        </Grid>
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border Stroke="#404040" StrokeThickness="1" Padding="12" BackgroundColor="#181818">
+                    <VerticalStackLayout Spacing="8">
+                        <Label Text="Link Status" FontSize="18" FontAttributes="Bold" TextColor="White" />
+
+                        <Grid ColumnDefinitions="130,*"
+                              RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto"
+                              ColumnSpacing="8"
+                              RowSpacing="7">
+
+                            <Label Grid.Row="0" Grid.Column="0" Text="Connected:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                            <Label Grid.Row="0" Grid.Column="1" Text="{Binding Drone.IsConnected}" TextColor="White" />
+
+                            <Label Grid.Row="1" Grid.Column="0" Text="Healthy:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                            <Label Grid.Row="1" Grid.Column="1" Text="{Binding Drone.IsLinkHealthy}" TextColor="White" />
+
+                            <Label Grid.Row="2" Grid.Column="0" Text="State:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                            <Label Grid.Row="2" Grid.Column="1" Text="{Binding Drone.ConnectionStateText}" TextColor="White" LineBreakMode="WordWrap" MaxLines="2" />
+
+                            <Label Grid.Row="3" Grid.Column="0" Text="Can Command:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                            <Label Grid.Row="3" Grid.Column="1" Text="{Binding CanSendCommands}" TextColor="White" />
+
+                            <Label Grid.Row="4" Grid.Column="0" Text="Heartbeat:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                            <Label Grid.Row="4" Grid.Column="1" Text="{Binding Drone.IsHeartbeatFresh}" TextColor="White" />
+
+                            <Label Grid.Row="5" Grid.Column="0" Text="Position:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                            <Label Grid.Row="5" Grid.Column="1" Text="{Binding Drone.IsPositionFresh}" TextColor="White" />
+
+                            <Label Grid.Row="6" Grid.Column="0" Text="GPS:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                            <Label Grid.Row="6" Grid.Column="1" Text="{Binding Drone.IsGpsFresh}" TextColor="White" />
+
+                            <Label Grid.Row="7" Grid.Column="0" Text="HUD:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                            <Label Grid.Row="7" Grid.Column="1" Text="{Binding Drone.IsHudFresh}" TextColor="White" />
+                        </Grid>
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border Stroke="#404040" StrokeThickness="1" Padding="12" BackgroundColor="#181818">
+                    <VerticalStackLayout Spacing="8">
+                        <Label Text="Vehicle" FontSize="18" FontAttributes="Bold" TextColor="White" />
+
+                        <Grid ColumnDefinitions="130,*"
+                              RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto"
+                              ColumnSpacing="8"
+                              RowSpacing="7">
+
+                            <Label Grid.Row="0" Grid.Column="0" Text="Armed:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                            <Label Grid.Row="0" Grid.Column="1" Text="{Binding Drone.IsArmed}" TextColor="White" />
+
+                            <Label Grid.Row="1" Grid.Column="0" Text="Mode:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                            <Label Grid.Row="1" Grid.Column="1" Text="{Binding Drone.FlightMode}" TextColor="White" LineBreakMode="TailTruncation" />
+
+                            <Label Grid.Row="2" Grid.Column="0" Text="Heading:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                            <Label Grid.Row="2" Grid.Column="1" Text="{Binding Drone.Heading}" TextColor="White" />
+
+                            <Label Grid.Row="3" Grid.Column="0" Text="Throttle:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                            <Label Grid.Row="3" Grid.Column="1" Text="{Binding Drone.ThrottlePercent, StringFormat='{}{0}%'}" TextColor="White" />
+
+                            <Label Grid.Row="4" Grid.Column="0" Text="Ground Speed:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                            <Label Grid.Row="4" Grid.Column="1" Text="{Binding Drone.GroundSpeed, StringFormat='{}{0:F2} m/s'}" TextColor="White" />
+
+                            <Label Grid.Row="5" Grid.Column="0" Text="Air Speed:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                            <Label Grid.Row="5" Grid.Column="1" Text="{Binding Drone.AirSpeed, StringFormat='{}{0:F2} m/s'}" TextColor="White" />
+
+                            <Label Grid.Row="6" Grid.Column="0" Text="Climb:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                            <Label Grid.Row="6" Grid.Column="1" Text="{Binding Drone.ClimbRate, StringFormat='{}{0:F2} m/s'}" TextColor="White" />
+                        </Grid>
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border Stroke="#404040" StrokeThickness="1" Padding="12" BackgroundColor="#181818">
+                    <VerticalStackLayout Spacing="8">
+                        <Label Text="Position" FontSize="18" FontAttributes="Bold" TextColor="White" />
+
+                        <Grid ColumnDefinitions="130,*"
+                              RowDefinitions="Auto,Auto,Auto,Auto,Auto"
+                              ColumnSpacing="8"
+                              RowSpacing="7">
+
+                            <Label Grid.Row="0" Grid.Column="0" Text="Latitude:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                            <Label Grid.Row="0" Grid.Column="1" Text="{Binding Drone.Latitude, StringFormat='{}{0:F7}'}" TextColor="White" />
+
+                            <Label Grid.Row="1" Grid.Column="0" Text="Longitude:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                            <Label Grid.Row="1" Grid.Column="1" Text="{Binding Drone.Longitude, StringFormat='{}{0:F7}'}" TextColor="White" />
+
+                            <Label Grid.Row="2" Grid.Column="0" Text="Rel Alt:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                            <Label Grid.Row="2" Grid.Column="1" Text="{Binding Drone.RelativeAltitude, StringFormat='{}{0:F2} m'}" TextColor="White" />
+
+                            <Label Grid.Row="3" Grid.Column="0" Text="Abs Alt:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                            <Label Grid.Row="3" Grid.Column="1" Text="{Binding Drone.AbsoluteAltitude, StringFormat='{}{0:F2} m'}" TextColor="White" />
+
+                            <Label Grid.Row="4" Grid.Column="0" Text="Last:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                            <Label Grid.Row="4" Grid.Column="1" Text="{Binding Drone.LastPositionText}" TextColor="White" />
+                        </Grid>
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border Stroke="#404040" StrokeThickness="1" Padding="12" BackgroundColor="#181818">
+                    <VerticalStackLayout Spacing="8">
+                        <Label Text="GPS" FontSize="18" FontAttributes="Bold" TextColor="White" />
+
+                        <Grid ColumnDefinitions="130,*"
+                              RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto"
+                              ColumnSpacing="8"
+                              RowSpacing="7">
+
+                            <Label Grid.Row="0" Grid.Column="0" Text="Fix:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                            <Label Grid.Row="0" Grid.Column="1" Text="{Binding Drone.GpsFixText}" TextColor="White" />
+
+                            <Label Grid.Row="1" Grid.Column="0" Text="Fix Code:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                            <Label Grid.Row="1" Grid.Column="1" Text="{Binding Drone.GpsFixType}" TextColor="White" />
+
+                            <Label Grid.Row="2" Grid.Column="0" Text="Has Fix:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                            <Label Grid.Row="2" Grid.Column="1" Text="{Binding Drone.HasGpsFix}" TextColor="White" />
+
+                            <Label Grid.Row="3" Grid.Column="0" Text="Healthy:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                            <Label Grid.Row="3" Grid.Column="1" Text="{Binding Drone.IsGpsHealthy}" TextColor="White" />
+
+                            <Label Grid.Row="4" Grid.Column="0" Text="Health:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                            <Label Grid.Row="4" Grid.Column="1" Text="{Binding Drone.GpsHealthText}" TextColor="White" LineBreakMode="WordWrap" MaxLines="3" />
+
+                            <Label Grid.Row="5" Grid.Column="0" Text="Satellites:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                            <Label Grid.Row="5" Grid.Column="1" Text="{Binding Drone.SatellitesVisible}" TextColor="White" />
+
+                            <Label Grid.Row="6" Grid.Column="0" Text="HDOP:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                            <Label Grid.Row="6" Grid.Column="1" Text="{Binding Drone.Hdop, StringFormat='{}{0:F2}'}" TextColor="White" />
+
+                            <Label Grid.Row="7" Grid.Column="0" Text="VDOP:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                            <Label Grid.Row="7" Grid.Column="1" Text="{Binding Drone.Vdop, StringFormat='{}{0:F2}'}" TextColor="White" />
+
+                            <Label Grid.Row="8" Grid.Column="0" Text="Last GPS:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                            <Label Grid.Row="8" Grid.Column="1" Text="{Binding Drone.LastGpsText}" TextColor="White" />
+                        </Grid>
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border Stroke="#404040" StrokeThickness="1" Padding="12" BackgroundColor="#181818">
+                    <VerticalStackLayout Spacing="8">
+                        <Label Text="Battery / Commands" FontSize="18" FontAttributes="Bold" TextColor="White" />
+
+                        <Grid ColumnDefinitions="130,*"
+                              RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto"
+                              ColumnSpacing="8"
+                              RowSpacing="7">
+
+                            <Label Grid.Row="0" Grid.Column="0" Text="Voltage:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                            <Label Grid.Row="0" Grid.Column="1" Text="{Binding Drone.BatteryVoltage, StringFormat='{}{0:F2} V'}" TextColor="White" />
+
+                            <Label Grid.Row="1" Grid.Column="0" Text="Remaining:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                            <Label Grid.Row="1" Grid.Column="1" Text="{Binding Drone.BatteryRemaining, StringFormat='{}{0}%'}" TextColor="White" />
+
+                            <Label Grid.Row="2" Grid.Column="0" Text="Command:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                            <Label Grid.Row="2" Grid.Column="1" Text="{Binding Drone.LastCommandName}" TextColor="White" LineBreakMode="WordWrap" MaxLines="2" />
+
+                            <Label Grid.Row="3" Grid.Column="0" Text="Command Id:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                            <Label Grid.Row="3" Grid.Column="1" Text="{Binding Drone.LastCommandId}" TextColor="White" />
+
+                            <Label Grid.Row="4" Grid.Column="0" Text="Status:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                            <Label Grid.Row="4" Grid.Column="1" Text="{Binding Drone.LastCommandStatus}" TextColor="White" />
+
+                            <Label Grid.Row="5" Grid.Column="0" Text="Result:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                            <Label Grid.Row="5" Grid.Column="1" Text="{Binding Drone.LastCommandResultText}" TextColor="White" LineBreakMode="WordWrap" MaxLines="2" />
+
+                            <Label Grid.Row="6" Grid.Column="0" Text="Sent:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                            <Label Grid.Row="6" Grid.Column="1" Text="{Binding Drone.LastCommandSentText}" TextColor="White" />
+
+                            <Label Grid.Row="7" Grid.Column="0" Text="Ack:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                            <Label Grid.Row="7" Grid.Column="1" Text="{Binding Drone.LastCommandAckText}" TextColor="White" />
+
+                            <Label Grid.Row="8" Grid.Column="0" Text="Status Text:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                            <Label Grid.Row="8" Grid.Column="1" Text="{Binding Drone.LastStatusText}" TextColor="White" LineBreakMode="WordWrap" MaxLines="3" />
+
+                            <Label Grid.Row="9" Grid.Column="0" Text="PreArm:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                            <Label Grid.Row="9" Grid.Column="1" Text="{Binding Drone.LastPreArmMessage}" TextColor="White" LineBreakMode="WordWrap" MaxLines="3" />
+                        </Grid>
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border Stroke="#404040" StrokeThickness="1" Padding="12" BackgroundColor="#181818">
+                    <VerticalStackLayout Spacing="8">
+                        <Label Text="Telemetry Counters" FontSize="18" FontAttributes="Bold" TextColor="White" />
+
+                        <Grid ColumnDefinitions="130,*"
+                              RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto"
+                              ColumnSpacing="8"
+                              RowSpacing="7">
+
+                            <Label Grid.Row="0" Grid.Column="0" Text="Bytes:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                            <Label Grid.Row="0" Grid.Column="1" Text="{Binding Drone.TotalBytesReceived}" TextColor="White" />
+
+                            <Label Grid.Row="1" Grid.Column="0" Text="Datagrams:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                            <Label Grid.Row="1" Grid.Column="1" Text="{Binding Drone.TotalDatagramsReceived}" TextColor="White" />
+
+                            <Label Grid.Row="2" Grid.Column="0" Text="Heartbeat:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                            <Label Grid.Row="2" Grid.Column="1" Text="{Binding Drone.HeartbeatCount}" TextColor="White" />
+
+                            <Label Grid.Row="3" Grid.Column="0" Text="Position:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                            <Label Grid.Row="3" Grid.Column="1" Text="{Binding Drone.PositionCount}" TextColor="White" />
+
+                            <Label Grid.Row="4" Grid.Column="0" Text="System:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                            <Label Grid.Row="4" Grid.Column="1" Text="{Binding Drone.SystemStatusCount}" TextColor="White" />
+
+                            <Label Grid.Row="5" Grid.Column="0" Text="GPS Raw:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                            <Label Grid.Row="5" Grid.Column="1" Text="{Binding Drone.GpsRawCount}" TextColor="White" />
+
+                            <Label Grid.Row="6" Grid.Column="0" Text="VFR HUD:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                            <Label Grid.Row="6" Grid.Column="1" Text="{Binding Drone.VfrHudCount}" TextColor="White" />
+
+                            <Label Grid.Row="7" Grid.Column="0" Text="Status Text:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                            <Label Grid.Row="7" Grid.Column="1" Text="{Binding Drone.StatusTextCount}" TextColor="White" />
+
+                            <Label Grid.Row="8" Grid.Column="0" Text="ACK:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                            <Label Grid.Row="8" Grid.Column="1" Text="{Binding Drone.CommandAckCount}" TextColor="White" />
+
+                            <Label Grid.Row="9" Grid.Column="0" Text="Last Telemetry:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                            <Label Grid.Row="9" Grid.Column="1" Text="{Binding Drone.LastTelemetryText}" TextColor="White" />
+                        </Grid>
+                    </VerticalStackLayout>
+                </Border>
+
+            </VerticalStackLayout>
+        </ScrollView>
+
+        <!-- Desktop / Windows Layout -->
+        <ScrollView IsVisible="{Binding IsDesktop}">
+            <VerticalStackLayout Padding="24" Spacing="16">
+
+                <Border Stroke="#303030" StrokeThickness="1" Padding="16" BackgroundColor="#181818">
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                        <VerticalStackLayout Grid.Column="0" Spacing="6">
+                            <Label Text="ApexControl Ground Station"
+                                   FontSize="26"
+                                   FontAttributes="Bold"
+                                   TextColor="White" />
+                            <Label Text="{Binding ConnectionStatus}"
+                                   FontSize="14"
+                                   TextColor="DodgerBlue"
+                                   LineBreakMode="WordWrap" />
+                        </VerticalStackLayout>
+
+                        <HorizontalStackLayout Grid.Column="1" Spacing="10" VerticalOptions="Center">
+                            <Button Text="Connect"
+                                    WidthRequest="120"
+                                    Command="{Binding ConnectCommand}"
+                                    IsEnabled="{Binding CanConnect}" />
+
+                            <Button Text="Disconnect"
+                                    WidthRequest="120"
+                                    Command="{Binding DisconnectCommand}"
+                                    IsEnabled="{Binding CanDisconnect}" />
+                        </HorizontalStackLayout>
+                    </Grid>
+                </Border>
+
+                <Border Stroke="#404040" StrokeThickness="1" Padding="14" BackgroundColor="#181818">
+                    <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto"
+                          ColumnSpacing="10"
+                          RowSpacing="8">
+
+                        <Button Grid.Column="0"
+                                Text="Arm"
+                                WidthRequest="110"
+                                Command="{Binding ArmCommand}"
+                                IsEnabled="{Binding CanSendCommands}" />
+
+                        <Button Grid.Column="1"
+                                Text="Disarm"
+                                WidthRequest="110"
+                                Command="{Binding DisarmCommand}"
+                                IsEnabled="{Binding CanSendCommands}" />
+
+                        <Button Grid.Column="2"
+                                Text="Guided"
+                                WidthRequest="110"
+                                Command="{Binding SetGuidedModeCommand}"
+                                IsEnabled="{Binding CanSendCommands}" />
+
+                        <Button Grid.Column="3"
+                                Text="Loiter"
+                                WidthRequest="110"
+                                Command="{Binding SetLoiterModeCommand}"
+                                IsEnabled="{Binding CanSendCommands}" />
+
+                        <Button Grid.Column="4"
+                                Text="Stabilize"
+                                WidthRequest="110"
+                                Command="{Binding SetStabilizeModeCommand}"
+                                IsEnabled="{Binding CanSendCommands}" />
+
+                        <Entry Grid.Column="5"
+                               WidthRequest="90"
+                               Text="{Binding TakeoffAltitude}"
+                               Keyboard="Numeric"
+                               Placeholder="Alt m"
+                               IsEnabled="{Binding CanSendCommands}"
+                               TextColor="White"
+                               PlaceholderColor="#777777" />
+
+                        <Button Grid.Column="6"
+                                Text="Takeoff"
+                                WidthRequest="120"
+                                Command="{Binding TakeoffCommand}"
+                                IsEnabled="{Binding CanSendCommands}" />
+                    </Grid>
+                </Border>
+
+                <Grid ColumnDefinitions="*,*,*"
+                      RowDefinitions="Auto,Auto,Auto"
+                      ColumnSpacing="16"
+                      RowSpacing="16">
+
+                    <Border Grid.Row="0" Grid.Column="0" Stroke="#404040" StrokeThickness="1" Padding="14" BackgroundColor="#181818">
+                        <VerticalStackLayout Spacing="8">
+                            <Label Text="Link Status" FontSize="18" FontAttributes="Bold" TextColor="White" />
+
+                            <Grid ColumnDefinitions="150,*"
+                                  RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto"
+                                  ColumnSpacing="10"
+                                  RowSpacing="7">
+
+                                <Label Grid.Row="0" Grid.Column="0" Text="Connected:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                                <Label Grid.Row="0" Grid.Column="1" Text="{Binding Drone.IsConnected}" TextColor="White" />
+
+                                <Label Grid.Row="1" Grid.Column="0" Text="Link Healthy:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                                <Label Grid.Row="1" Grid.Column="1" Text="{Binding Drone.IsLinkHealthy}" TextColor="White" />
+
+                                <Label Grid.Row="2" Grid.Column="0" Text="State:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                                <Label Grid.Row="2" Grid.Column="1" Text="{Binding Drone.ConnectionStateText}" TextColor="White" LineBreakMode="WordWrap" MaxLines="2" />
+
+                                <Label Grid.Row="3" Grid.Column="0" Text="Can Commands:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                                <Label Grid.Row="3" Grid.Column="1" Text="{Binding CanSendCommands}" TextColor="White" />
+
+                                <Label Grid.Row="4" Grid.Column="0" Text="Heartbeat Fresh:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                                <Label Grid.Row="4" Grid.Column="1" Text="{Binding Drone.IsHeartbeatFresh}" TextColor="White" />
+
+                                <Label Grid.Row="5" Grid.Column="0" Text="Position Fresh:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                                <Label Grid.Row="5" Grid.Column="1" Text="{Binding Drone.IsPositionFresh}" TextColor="White" />
+
+                                <Label Grid.Row="6" Grid.Column="0" Text="GPS Fresh:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                                <Label Grid.Row="6" Grid.Column="1" Text="{Binding Drone.IsGpsFresh}" TextColor="White" />
+
+                                <Label Grid.Row="7" Grid.Column="0" Text="HUD Fresh:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                                <Label Grid.Row="7" Grid.Column="1" Text="{Binding Drone.IsHudFresh}" TextColor="White" />
+                            </Grid>
+                        </VerticalStackLayout>
+                    </Border>
+
+                    <Border Grid.Row="0" Grid.Column="1" Stroke="#404040" StrokeThickness="1" Padding="14" BackgroundColor="#181818">
+                        <VerticalStackLayout Spacing="8">
+                            <Label Text="Vehicle State" FontSize="18" FontAttributes="Bold" TextColor="White" />
+
+                            <Grid ColumnDefinitions="150,*"
+                                  RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto"
+                                  ColumnSpacing="10"
+                                  RowSpacing="7">
+
+                                <Label Grid.Row="0" Grid.Column="0" Text="Armed:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                                <Label Grid.Row="0" Grid.Column="1" Text="{Binding Drone.IsArmed}" TextColor="White" />
+
+                                <Label Grid.Row="1" Grid.Column="0" Text="Flight Mode:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                                <Label Grid.Row="1" Grid.Column="1" Text="{Binding Drone.FlightMode}" TextColor="White" />
+
+                                <Label Grid.Row="2" Grid.Column="0" Text="Heading:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                                <Label Grid.Row="2" Grid.Column="1" Text="{Binding Drone.Heading}" TextColor="White" />
+
+                                <Label Grid.Row="3" Grid.Column="0" Text="Throttle:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                                <Label Grid.Row="3" Grid.Column="1" Text="{Binding Drone.ThrottlePercent, StringFormat='{}{0}%'}" TextColor="White" />
+
+                                <Label Grid.Row="4" Grid.Column="0" Text="Ground Speed:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                                <Label Grid.Row="4" Grid.Column="1" Text="{Binding Drone.GroundSpeed, StringFormat='{}{0:F2} m/s'}" TextColor="White" />
+
+                                <Label Grid.Row="5" Grid.Column="0" Text="Air Speed:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                                <Label Grid.Row="5" Grid.Column="1" Text="{Binding Drone.AirSpeed, StringFormat='{}{0:F2} m/s'}" TextColor="White" />
+
+                                <Label Grid.Row="6" Grid.Column="0" Text="Climb Rate:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                                <Label Grid.Row="6" Grid.Column="1" Text="{Binding Drone.ClimbRate, StringFormat='{}{0:F2} m/s'}" TextColor="White" />
+                            </Grid>
+                        </VerticalStackLayout>
+                    </Border>
+
+                    <Border Grid.Row="0" Grid.Column="2" Stroke="#404040" StrokeThickness="1" Padding="14" BackgroundColor="#181818">
+                        <VerticalStackLayout Spacing="8">
+                            <Label Text="GPS" FontSize="18" FontAttributes="Bold" TextColor="White" />
+
+                            <Grid ColumnDefinitions="150,*"
+                                  RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto"
+                                  ColumnSpacing="10"
+                                  RowSpacing="7">
+
+                                <Label Grid.Row="0" Grid.Column="0" Text="Fix Type:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                                <Label Grid.Row="0" Grid.Column="1" Text="{Binding Drone.GpsFixText}" TextColor="White" />
+
+                                <Label Grid.Row="1" Grid.Column="0" Text="Fix Code:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                                <Label Grid.Row="1" Grid.Column="1" Text="{Binding Drone.GpsFixType}" TextColor="White" />
+
+                                <Label Grid.Row="2" Grid.Column="0" Text="Has Fix:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                                <Label Grid.Row="2" Grid.Column="1" Text="{Binding Drone.HasGpsFix}" TextColor="White" />
+
+                                <Label Grid.Row="3" Grid.Column="0" Text="Healthy:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                                <Label Grid.Row="3" Grid.Column="1" Text="{Binding Drone.IsGpsHealthy}" TextColor="White" />
+
+                                <Label Grid.Row="4" Grid.Column="0" Text="Health Text:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                                <Label Grid.Row="4" Grid.Column="1" Text="{Binding Drone.GpsHealthText}" TextColor="White" LineBreakMode="WordWrap" MaxLines="3" />
+
+                                <Label Grid.Row="5" Grid.Column="0" Text="Satellites:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                                <Label Grid.Row="5" Grid.Column="1" Text="{Binding Drone.SatellitesVisible}" TextColor="White" />
+
+                                <Label Grid.Row="6" Grid.Column="0" Text="HDOP:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                                <Label Grid.Row="6" Grid.Column="1" Text="{Binding Drone.Hdop, StringFormat='{}{0:F2}'}" TextColor="White" />
+
+                                <Label Grid.Row="7" Grid.Column="0" Text="VDOP:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                                <Label Grid.Row="7" Grid.Column="1" Text="{Binding Drone.Vdop, StringFormat='{}{0:F2}'}" TextColor="White" />
+
+                                <Label Grid.Row="8" Grid.Column="0" Text="Last GPS:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                                <Label Grid.Row="8" Grid.Column="1" Text="{Binding Drone.LastGpsText}" TextColor="White" />
+                            </Grid>
+                        </VerticalStackLayout>
+                    </Border>
+
+                    <Border Grid.Row="1" Grid.Column="0" Stroke="#404040" StrokeThickness="1" Padding="14" BackgroundColor="#181818">
+                        <VerticalStackLayout Spacing="8">
+                            <Label Text="Position" FontSize="18" FontAttributes="Bold" TextColor="White" />
+
+                            <Grid ColumnDefinitions="150,*"
+                                  RowDefinitions="Auto,Auto,Auto,Auto,Auto"
+                                  ColumnSpacing="10"
+                                  RowSpacing="7">
+
+                                <Label Grid.Row="0" Grid.Column="0" Text="Latitude:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                                <Label Grid.Row="0" Grid.Column="1" Text="{Binding Drone.Latitude, StringFormat='{}{0:F7}'}" TextColor="White" />
+
+                                <Label Grid.Row="1" Grid.Column="0" Text="Longitude:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                                <Label Grid.Row="1" Grid.Column="1" Text="{Binding Drone.Longitude, StringFormat='{}{0:F7}'}" TextColor="White" />
+
+                                <Label Grid.Row="2" Grid.Column="0" Text="Relative Alt:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                                <Label Grid.Row="2" Grid.Column="1" Text="{Binding Drone.RelativeAltitude, StringFormat='{}{0:F2} m'}" TextColor="White" />
+
+                                <Label Grid.Row="3" Grid.Column="0" Text="Absolute Alt:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                                <Label Grid.Row="3" Grid.Column="1" Text="{Binding Drone.AbsoluteAltitude, StringFormat='{}{0:F2} m'}" TextColor="White" />
+
+                                <Label Grid.Row="4" Grid.Column="0" Text="Last Position:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                                <Label Grid.Row="4" Grid.Column="1" Text="{Binding Drone.LastPositionText}" TextColor="White" />
+                            </Grid>
+                        </VerticalStackLayout>
+                    </Border>
+
+                    <Border Grid.Row="1" Grid.Column="1" Stroke="#404040" StrokeThickness="1" Padding="14" BackgroundColor="#181818">
+                        <VerticalStackLayout Spacing="8">
+                            <Label Text="Battery / Command" FontSize="18" FontAttributes="Bold" TextColor="White" />
+
+                            <Grid ColumnDefinitions="150,*"
+                                  RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto"
+                                  ColumnSpacing="10"
+                                  RowSpacing="7">
+
+                                <Label Grid.Row="0" Grid.Column="0" Text="Voltage:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                                <Label Grid.Row="0" Grid.Column="1" Text="{Binding Drone.BatteryVoltage, StringFormat='{}{0:F2} V'}" TextColor="White" />
+
+                                <Label Grid.Row="1" Grid.Column="0" Text="Remaining:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                                <Label Grid.Row="1" Grid.Column="1" Text="{Binding Drone.BatteryRemaining, StringFormat='{}{0}%'}" TextColor="White" />
+
+                                <Label Grid.Row="2" Grid.Column="0" Text="Last Command:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                                <Label Grid.Row="2" Grid.Column="1" Text="{Binding Drone.LastCommandName}" TextColor="White" LineBreakMode="WordWrap" MaxLines="2" />
+
+                                <Label Grid.Row="3" Grid.Column="0" Text="Command Id:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                                <Label Grid.Row="3" Grid.Column="1" Text="{Binding Drone.LastCommandId}" TextColor="White" />
+
+                                <Label Grid.Row="4" Grid.Column="0" Text="Status:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                                <Label Grid.Row="4" Grid.Column="1" Text="{Binding Drone.LastCommandStatus}" TextColor="White" />
+
+                                <Label Grid.Row="5" Grid.Column="0" Text="Result:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                                <Label Grid.Row="5" Grid.Column="1" Text="{Binding Drone.LastCommandResultText}" TextColor="White" LineBreakMode="WordWrap" MaxLines="2" />
+
+                                <Label Grid.Row="6" Grid.Column="0" Text="Sent At:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                                <Label Grid.Row="6" Grid.Column="1" Text="{Binding Drone.LastCommandSentText}" TextColor="White" />
+
+                                <Label Grid.Row="7" Grid.Column="0" Text="Ack At:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                                <Label Grid.Row="7" Grid.Column="1" Text="{Binding Drone.LastCommandAckText}" TextColor="White" />
+                            </Grid>
+                        </VerticalStackLayout>
+                    </Border>
+
+                    <Border Grid.Row="1" Grid.Column="2" Stroke="#404040" StrokeThickness="1" Padding="14" BackgroundColor="#181818">
+                        <VerticalStackLayout Spacing="8">
+                            <Label Text="Status Text" FontSize="18" FontAttributes="Bold" TextColor="White" />
+
+                            <Grid ColumnDefinitions="150,*"
+                                  RowDefinitions="Auto,Auto,Auto,Auto"
+                                  ColumnSpacing="10"
+                                  RowSpacing="7">
+
+                                <Label Grid.Row="0" Grid.Column="0" Text="Last Status:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                                <Label Grid.Row="0" Grid.Column="1" Text="{Binding Drone.LastStatusText}" TextColor="White" LineBreakMode="WordWrap" MaxLines="4" />
+
+                                <Label Grid.Row="1" Grid.Column="0" Text="Severity:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                                <Label Grid.Row="1" Grid.Column="1" Text="{Binding Drone.LastStatusSeverity}" TextColor="White" />
+
+                                <Label Grid.Row="2" Grid.Column="0" Text="PreArm:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                                <Label Grid.Row="2" Grid.Column="1" Text="{Binding Drone.LastPreArmMessage}" TextColor="White" LineBreakMode="WordWrap" MaxLines="4" />
+
+                                <Label Grid.Row="3" Grid.Column="0" Text="Status Count:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                                <Label Grid.Row="3" Grid.Column="1" Text="{Binding Drone.StatusTextCount}" TextColor="White" />
+                            </Grid>
+                        </VerticalStackLayout>
+                    </Border>
+
+                    <Border Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="3" Stroke="#404040" StrokeThickness="1" Padding="14" BackgroundColor="#181818">
+                        <VerticalStackLayout Spacing="8">
+                            <Label Text="Telemetry Counters" FontSize="18" FontAttributes="Bold" TextColor="White" />
+
+                            <Grid ColumnDefinitions="140,*,140,*,140,*"
+                                  RowDefinitions="Auto,Auto,Auto,Auto"
+                                  ColumnSpacing="10"
+                                  RowSpacing="8">
+
+                                <Label Grid.Row="0" Grid.Column="0" Text="Total Bytes:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                                <Label Grid.Row="0" Grid.Column="1" Text="{Binding Drone.TotalBytesReceived}" TextColor="White" />
+
+                                <Label Grid.Row="0" Grid.Column="2" Text="Datagrams:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                                <Label Grid.Row="0" Grid.Column="3" Text="{Binding Drone.TotalDatagramsReceived}" TextColor="White" />
+
+                                <Label Grid.Row="0" Grid.Column="4" Text="Heartbeat:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                                <Label Grid.Row="0" Grid.Column="5" Text="{Binding Drone.HeartbeatCount}" TextColor="White" />
+
+                                <Label Grid.Row="1" Grid.Column="0" Text="Position:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                                <Label Grid.Row="1" Grid.Column="1" Text="{Binding Drone.PositionCount}" TextColor="White" />
+
+                                <Label Grid.Row="1" Grid.Column="2" Text="System:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                                <Label Grid.Row="1" Grid.Column="3" Text="{Binding Drone.SystemStatusCount}" TextColor="White" />
+
+                                <Label Grid.Row="1" Grid.Column="4" Text="GPS Raw:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                                <Label Grid.Row="1" Grid.Column="5" Text="{Binding Drone.GpsRawCount}" TextColor="White" />
+
+                                <Label Grid.Row="2" Grid.Column="0" Text="VFR HUD:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                                <Label Grid.Row="2" Grid.Column="1" Text="{Binding Drone.VfrHudCount}" TextColor="White" />
+
+                                <Label Grid.Row="2" Grid.Column="2" Text="Status Text:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                                <Label Grid.Row="2" Grid.Column="3" Text="{Binding Drone.StatusTextCount}" TextColor="White" />
+
+                                <Label Grid.Row="2" Grid.Column="4" Text="ACK Count:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                                <Label Grid.Row="2" Grid.Column="5" Text="{Binding Drone.CommandAckCount}" TextColor="White" />
+
+                                <Label Grid.Row="3" Grid.Column="0" Text="Last Telemetry:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                                <Label Grid.Row="3" Grid.Column="1" Text="{Binding Drone.LastTelemetryText}" TextColor="White" />
+
+                                <Label Grid.Row="3" Grid.Column="2" Text="Last Heartbeat:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                                <Label Grid.Row="3" Grid.Column="3" Text="{Binding Drone.LastHeartbeatText}" TextColor="White" />
+
+                                <Label Grid.Row="3" Grid.Column="4" Text="Last HUD:" FontAttributes="Bold" TextColor="#DDDDDD" />
+                                <Label Grid.Row="3" Grid.Column="5" Text="{Binding Drone.LastHudText}" TextColor="White" />
+                            </Grid>
+                        </VerticalStackLayout>
+                    </Border>
+
+                </Grid>
+            </VerticalStackLayout>
+        </ScrollView>
+
+    </Grid>
+</ContentPage>

@@ -1,0 +1,1745 @@
+(kicad_sch
+	(version 20231120)
+	(generator "eeschema")
+	(generator_version "8.0")
+	(uuid "bf89e20f-cdc6-4060-8fa3-3034702818c2")
+	(paper "A4")
+	(title_block
+		(title "Project Architecture")
+		(date "2025-09-01")
+		(rev "0.1")
+	)
+	(lib_symbols
+		(symbol "0_power:+BATT_P"
+			(power)
+			(exclude_from_sim no)
+			(in_bom no)
+			(on_board no)
+			(property "Reference" "#PWR"
+				(at 0 3.81 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Value" "+BATT_P"
+				(at 0 1.27 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Footprint" ""
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Datasheet" ""
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Description" "Power symbol creates a global label with name \"+BATT_P\""
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "ki_keywords" "global power"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(symbol "+BATT_P_0_1"
+				(polyline
+					(pts
+						(xy -0.762 -1.27) (xy 0 0)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy 0 -2.54) (xy 0 0)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy 0 0) (xy 0.762 -1.27)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+			)
+			(symbol "+BATT_P_1_1"
+				(pin power_in line
+					(at 0 -2.54 270)
+					(length 0) hide
+					(name "+BATT_P"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+		)
+		(symbol "power:+3V3"
+			(power)
+			(pin_numbers hide)
+			(pin_names
+				(offset 0) hide)
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(property "Reference" "#PWR"
+				(at 0 -3.81 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Value" "+3V3"
+				(at 0 3.556 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Footprint" ""
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Datasheet" ""
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Description" "Power symbol creates a global label with name \"+3V3\""
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "ki_keywords" "global power"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(symbol "+3V3_0_1"
+				(polyline
+					(pts
+						(xy -0.762 1.27) (xy 0 2.54)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy 0 0) (xy 0 2.54)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy 0 2.54) (xy 0.762 1.27)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+			)
+			(symbol "+3V3_1_1"
+				(pin power_in line
+					(at 0 0 90)
+					(length 0)
+					(name "~"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+		)
+		(symbol "power:+5V"
+			(power)
+			(pin_numbers hide)
+			(pin_names
+				(offset 0) hide)
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(property "Reference" "#PWR"
+				(at 0 -3.81 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Value" "+5V"
+				(at 0 3.556 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Footprint" ""
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Datasheet" ""
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Description" "Power symbol creates a global label with name \"+5V\""
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "ki_keywords" "global power"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(symbol "+5V_0_1"
+				(polyline
+					(pts
+						(xy -0.762 1.27) (xy 0 2.54)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy 0 0) (xy 0 2.54)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy 0 2.54) (xy 0.762 1.27)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+			)
+			(symbol "+5V_1_1"
+				(pin power_in line
+					(at 0 0 90)
+					(length 0)
+					(name "~"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 44.45 139.7) (xy 38.1 139.7)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "00abb1f8-b1aa-4c56-9360-6db648b3d099")
+	)
+	(bus
+		(pts
+			(xy 97.79 104.14) (xy 114.3 104.14)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "0a496c63-616d-46d1-9168-4ed11dd99229")
+	)
+	(wire
+		(pts
+			(xy 105.41 36.83) (xy 105.41 45.72)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "13981c33-1776-4477-8018-061217c9d45d")
+	)
+	(wire
+		(pts
+			(xy 35.56 142.24) (xy 44.45 142.24)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "1c14262d-2a25-40b4-a041-61e8d8c86ee3")
+	)
+	(wire
+		(pts
+			(xy 35.56 109.22) (xy 35.56 142.24)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "3865d448-c1ff-4cf7-9b84-8a332645d4f8")
+	)
+	(wire
+		(pts
+			(xy 97.79 96.52) (xy 114.3 96.52)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "3f49535c-02d6-41b7-9636-38a88f074298")
+	)
+	(wire
+		(pts
+			(xy 38.1 139.7) (xy 38.1 111.76)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "42a9123c-8cf6-44eb-932c-4894769f58d1")
+	)
+	(wire
+		(pts
+			(xy 97.79 93.98) (xy 114.3 93.98)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "42f3a411-8963-4c7e-b12e-e7e22ba97b98")
+	)
+	(wire
+		(pts
+			(xy 36.83 93.98) (xy 36.83 67.31)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "44a4d81b-5f62-4081-b6d7-080d71ec78a5")
+	)
+	(wire
+		(pts
+			(xy 97.79 111.76) (xy 114.3 111.76)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "46cd92fe-5ecb-498d-a8cd-1b13dc73283d")
+	)
+	(wire
+		(pts
+			(xy 100.33 40.64) (xy 100.33 43.18)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "58478b85-33a2-471e-a6d8-b51d145a4e1c")
+	)
+	(wire
+		(pts
+			(xy 97.79 45.72) (xy 105.41 45.72)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "5e3d1ee1-d48f-48ce-8ab3-82e6aebebfac")
+	)
+	(bus
+		(pts
+			(xy 97.79 101.6) (xy 114.3 101.6)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "6a65d9e9-a41b-4938-83ac-e33830bd9758")
+	)
+	(bus
+		(pts
+			(xy 97.79 140.97) (xy 114.3 140.97)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "76de96b6-b9ec-4e3b-95e2-a830f4183ee5")
+	)
+	(wire
+		(pts
+			(xy 44.45 109.22) (xy 35.56 109.22)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "81aa2871-9f9c-4079-9d14-094a3251a48e")
+	)
+	(bus
+		(pts
+			(xy 184.15 97.79) (xy 200.66 97.79)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "8c4f19fa-f943-40c2-b35c-de24ca69e963")
+	)
+	(wire
+		(pts
+			(xy 97.79 48.26) (xy 109.22 48.26)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "956178ec-330f-41d5-ae97-3d9bbd54fdc2")
+	)
+	(wire
+		(pts
+			(xy 39.37 91.44) (xy 39.37 69.85)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "9c92d8ee-f3c6-4f21-860d-d663943bebf7")
+	)
+	(bus
+		(pts
+			(xy 97.79 91.44) (xy 114.3 91.44)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "a94c8fa0-592c-4745-bc33-0bc4de4a3ab9")
+	)
+	(wire
+		(pts
+			(xy 38.1 111.76) (xy 44.45 111.76)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "abfbccf5-415f-42c9-b72a-d0638f2751bc")
+	)
+	(wire
+		(pts
+			(xy 44.45 93.98) (xy 36.83 93.98)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "b5ca08f7-1f37-421a-a2a2-5c625ef1be22")
+	)
+	(bus
+		(pts
+			(xy 184.15 55.88) (xy 200.66 55.88)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "c3ed1244-14f7-49c8-8a96-809732d5a2bc")
+	)
+	(bus
+		(pts
+			(xy 184.15 140.97) (xy 200.66 140.97)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "ce662499-db9a-4750-bdda-ff8a8e1a9a67")
+	)
+	(wire
+		(pts
+			(xy 97.79 43.18) (xy 100.33 43.18)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "de79b4aa-44ba-45fb-97e4-11ab246e76a2")
+	)
+	(wire
+		(pts
+			(xy 36.83 67.31) (xy 44.45 67.31)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "de95e0e7-4274-45ae-9658-8f9fc31258cc")
+	)
+	(wire
+		(pts
+			(xy 109.22 40.64) (xy 109.22 48.26)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "e7cfa04b-244f-4705-a64f-cbda182a9cab")
+	)
+	(wire
+		(pts
+			(xy 39.37 69.85) (xy 44.45 69.85)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "ec24fa80-746a-4ae7-9d99-0d18aca19324")
+	)
+	(bus
+		(pts
+			(xy 97.79 86.36) (xy 114.3 86.36)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "f2ef7061-8ff2-4d8e-b199-5bef1c485e8c")
+	)
+	(bus
+		(pts
+			(xy 97.79 106.68) (xy 114.3 106.68)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "f4133288-2309-4ccc-bdea-a32081313489")
+	)
+	(wire
+		(pts
+			(xy 44.45 91.44) (xy 39.37 91.44)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "fa9c8e01-3873-4bb7-aeb0-a42c63836d20")
+	)
+	(text_box "Page 3"
+		(exclude_from_sim no)
+		(at 62.23 64.77 0)
+		(size 19.05 8.89)
+		(stroke
+			(width -0.0001)
+			(type default)
+		)
+		(fill
+			(type none)
+		)
+		(effects
+			(font
+				(face "Arial")
+				(size 3.048 3.048)
+				(thickness 0.381)
+				(color 0 0 0 1)
+			)
+			(justify left top)
+			(href "#3")
+		)
+		(uuid "10d856f2-e007-4ece-86df-f525e021c644")
+	)
+	(text_box "Page 6"
+		(exclude_from_sim no)
+		(at 218.44 149.86 0)
+		(size 19.05 8.89)
+		(stroke
+			(width -0.0001)
+			(type default)
+		)
+		(fill
+			(type none)
+		)
+		(effects
+			(font
+				(face "Arial")
+				(size 3.048 3.048)
+				(thickness 0.381)
+				(color 0 0 0 1)
+			)
+			(justify left top)
+			(href "#6")
+		)
+		(uuid "3cb81b71-c5c8-4e54-b29d-60798c39ab0e")
+	)
+	(text_box "Page 4"
+		(exclude_from_sim no)
+		(at 218.44 64.77 0)
+		(size 19.05 8.89)
+		(stroke
+			(width -0.0001)
+			(type default)
+		)
+		(fill
+			(type none)
+		)
+		(effects
+			(font
+				(face "Arial")
+				(size 3.048 3.048)
+				(thickness 0.381)
+				(color 0 0 0 1)
+			)
+			(justify left top)
+			(href "#4")
+		)
+		(uuid "6118f02c-cc1e-49eb-8174-c63ea1a59e71")
+	)
+	(text_box "[${#}] ${TITLE}"
+		(exclude_from_sim no)
+		(at 11.43 11.43 0)
+		(size 274.32 22.86)
+		(stroke
+			(width -0.0001)
+			(type default)
+		)
+		(fill
+			(type none)
+		)
+		(effects
+			(font
+				(face "Arial")
+				(size 7.62 7.62)
+			)
+			(justify top)
+		)
+		(uuid "831be4d1-62f3-4282-a99f-e988637c4282")
+	)
+	(text_box "Page 5"
+		(exclude_from_sim no)
+		(at 218.44 106.68 0)
+		(size 19.05 8.89)
+		(stroke
+			(width -0.0001)
+			(type default)
+		)
+		(fill
+			(type none)
+		)
+		(effects
+			(font
+				(face "Arial")
+				(size 3.048 3.048)
+				(thickness 0.381)
+				(color 0 0 0 1)
+			)
+			(justify left top)
+			(href "#5")
+		)
+		(uuid "aeb418fd-c0f2-4768-a6fd-77f9ad4e0c97")
+	)
+	(text_box "Page 2"
+		(exclude_from_sim no)
+		(at 139.7 149.86 0)
+		(size 19.05 8.89)
+		(stroke
+			(width -0.0001)
+			(type default)
+		)
+		(fill
+			(type none)
+		)
+		(effects
+			(font
+				(face "Arial")
+				(size 3.048 3.048)
+				(thickness 0.381)
+				(color 0 0 0 1)
+			)
+			(justify left top)
+			(href "#2")
+		)
+		(uuid "d656994d-9321-487f-be50-39b2ed5f3a1f")
+	)
+	(text_box "Page 1"
+		(exclude_from_sim no)
+		(at 55.88 106.68 0)
+		(size 27.94 8.89)
+		(stroke
+			(width -0.0001)
+			(type default)
+		)
+		(fill
+			(type none)
+		)
+		(effects
+			(font
+				(face "Arial")
+				(size 3.048 3.048)
+				(thickness 0.381)
+				(color 0 0 0 1)
+			)
+			(justify top)
+			(href "#1")
+		)
+		(uuid "f0e1690f-548f-465d-89ff-0972091bf139")
+	)
+	(text_box "Page 7"
+		(exclude_from_sim no)
+		(at 62.23 149.86 0)
+		(size 19.05 8.89)
+		(stroke
+			(width -0.0001)
+			(type default)
+		)
+		(fill
+			(type none)
+		)
+		(effects
+			(font
+				(face "Arial")
+				(size 3.048 3.048)
+				(thickness 0.381)
+				(color 0 0 0 1)
+			)
+			(justify left top)
+			(href "#7")
+		)
+		(uuid "f9cace3b-6f8e-48db-9d92-f55a45683b44")
+	)
+	(symbol
+		(lib_id "power:+3V3")
+		(at 109.22 40.64 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "105f3e1e-95d4-482d-b9c0-756fa9d6acef")
+		(property "Reference" "#PWR061"
+			(at 109.22 44.45 0)
+			(effects
+				(font
+					(face "Arial")
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "+3V3"
+			(at 109.22 36.576 0)
+			(effects
+				(font
+					(face "Arial")
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 109.22 40.64 0)
+			(effects
+				(font
+					(face "Arial")
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 109.22 40.64 0)
+			(effects
+				(font
+					(face "Arial")
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"+3V3\""
+			(at 109.22 40.64 0)
+			(effects
+				(font
+					(face "Arial")
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "98c91c6f-a716-49a7-8b47-f381b2a3e43e")
+		)
+		(instances
+			(project ""
+				(path "/bf89e20f-cdc6-4060-8fa3-3034702818c2"
+					(reference "#PWR061")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:+5V")
+		(at 105.41 36.83 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "698034b0-6f60-4db3-9082-94b5b343be7a")
+		(property "Reference" "#PWR049"
+			(at 105.41 40.64 0)
+			(effects
+				(font
+					(face "Arial")
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "+5V"
+			(at 105.41 33.02 0)
+			(effects
+				(font
+					(face "Arial")
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 105.41 36.83 0)
+			(effects
+				(font
+					(face "Arial")
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 105.41 36.83 0)
+			(effects
+				(font
+					(face "Arial")
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"+5V\""
+			(at 105.41 36.83 0)
+			(effects
+				(font
+					(face "Arial")
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "2b44393a-51ab-4e2e-8509-7c671cd5925e")
+		)
+		(instances
+			(project ""
+				(path "/bf89e20f-cdc6-4060-8fa3-3034702818c2"
+					(reference "#PWR049")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "0_power:+BATT_P")
+		(at 100.33 38.1 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom no)
+		(on_board no)
+		(dnp no)
+		(uuid "f4770cb5-2944-4ad0-afbf-d20ede1eb585")
+		(property "Reference" "#PWR026"
+			(at 100.33 34.29 0)
+			(effects
+				(font
+					(face "Arial")
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "+BATT_P"
+			(at 100.33 37.084 0)
+			(effects
+				(font
+					(face "Arial")
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 100.33 38.1 0)
+			(effects
+				(font
+					(face "Arial")
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 100.33 38.1 0)
+			(effects
+				(font
+					(face "Arial")
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"+BATT_P\""
+			(at 100.33 38.1 0)
+			(effects
+				(font
+					(face "Arial")
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin ""
+			(uuid "05422a15-7857-43f9-9fa7-97fb52982fd6")
+		)
+		(instances
+			(project ""
+				(path "/bf89e20f-cdc6-4060-8fa3-3034702818c2"
+					(reference "#PWR026")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(sheet
+		(at 200.66 124.46)
+		(size 53.34 34.29)
+		(stroke
+			(width 0.1524)
+			(type solid)
+		)
+		(fill
+			(color 213 232 212 1.0000)
+		)
+		(uuid "00fd0b45-3f44-4837-8bf6-c57850ba9bcb")
+		(property "Sheetname" "Flash Memory"
+			(at 201.93 129.794 0)
+			(effects
+				(font
+					(face "Arial")
+					(size 3.048 3.048)
+					(thickness 0.6096)
+					(bold yes)
+					(color 0 0 0 1)
+				)
+				(justify left bottom)
+			)
+		)
+		(property "Sheetfile" "atmos-fc_flash-memory.kicad_sch"
+			(at 200.66 159.3346 0)
+			(effects
+				(font
+					(face "Arial")
+					(size 1.27 1.27)
+				)
+				(justify left top)
+			)
+		)
+		(pin "{FLASH_COM.}" bidirectional
+			(at 200.66 140.97 180)
+			(effects
+				(font
+					(face "Arial")
+					(size 1.016 1.016)
+				)
+				(justify left)
+			)
+			(uuid "e39f9efb-2ffc-4fc2-8775-6cf5849d482f")
+		)
+		(instances
+			(project "atmos-fc"
+				(path "/bf89e20f-cdc6-4060-8fa3-3034702818c2"
+					(page "6")
+				)
+			)
+		)
+	)
+	(sheet
+		(at 44.45 124.46)
+		(size 53.34 34.29)
+		(stroke
+			(width 0.1524)
+			(type solid)
+		)
+		(fill
+			(color 213 232 212 1.0000)
+		)
+		(uuid "0f7464b6-8f60-4b38-94e6-c22574b05317")
+		(property "Sheetname" "OSD"
+			(at 45.72 129.54 0)
+			(effects
+				(font
+					(face "Arial")
+					(size 3.048 3.048)
+					(thickness 0.6096)
+					(bold yes)
+					(color 0 0 0 1)
+				)
+				(justify left bottom)
+			)
+		)
+		(property "Sheetfile" "atmos_fc-osd.kicad_sch"
+			(at 44.45 159.3346 0)
+			(effects
+				(font
+					(face "Arial")
+					(size 1.27 1.27)
+				)
+				(justify left top)
+			)
+		)
+		(pin "VIDEO_CAM" input
+			(at 44.45 142.24 180)
+			(effects
+				(font
+					(face "Arial")
+					(size 1.016 1.016)
+				)
+				(justify left)
+			)
+			(uuid "60c727c8-f5c0-433b-b71a-16a9bd60a42e")
+		)
+		(pin "{OSD_COM.}" bidirectional
+			(at 97.79 140.97 0)
+			(effects
+				(font
+					(face "Arial")
+					(size 1.016 1.016)
+				)
+				(justify right)
+			)
+			(uuid "2b8ac439-7eeb-4e3f-ba64-c6adf8480d32")
+		)
+		(pin "VIDEO_VTX" output
+			(at 44.45 139.7 180)
+			(effects
+				(font
+					(face "Arial")
+					(size 1.016 1.016)
+				)
+				(justify left)
+			)
+			(uuid "ae7e2166-5370-474c-bd23-a319f4b910c8")
+		)
+		(instances
+			(project "atmos-fc"
+				(path "/bf89e20f-cdc6-4060-8fa3-3034702818c2"
+					(page "7")
+				)
+			)
+		)
+	)
+	(sheet
+		(at 44.45 81.28)
+		(size 53.34 34.29)
+		(stroke
+			(width 0.1524)
+			(type solid)
+		)
+		(fill
+			(color 255 242 204 1.0000)
+		)
+		(uuid "5e719b3d-923f-4466-9ae4-4285b64f63a3")
+		(property "Sheetname" "Connectors"
+			(at 45.466 86.614 0)
+			(effects
+				(font
+					(face "Arial")
+					(size 3.048 3.048)
+					(bold yes)
+					(color 0 0 0 1)
+				)
+				(justify left bottom)
+			)
+		)
+		(property "Sheetfile" "atmos-fc_connectors.kicad_sch"
+			(at 44.704 116.078 0)
+			(effects
+				(font
+					(face "Arial")
+					(size 1.27 1.27)
+				)
+				(justify left top)
+			)
+		)
+		(pin "{GPS_COM.}" bidirectional
+			(at 97.79 106.68 0)
+			(effects
+				(font
+					(face "Arial")
+					(size 1.016 1.016)
+				)
+				(justify right)
+			)
+			(uuid "1ddca56b-f14a-460b-8f83-0e8f06fda55e")
+		)
+		(pin "{RX_COM.}" bidirectional
+			(at 97.79 104.14 0)
+			(effects
+				(font
+					(face "Arial")
+					(size 1.016 1.016)
+				)
+				(justify right)
+			)
+			(uuid "84399b43-bd2a-4487-88a9-23bb871be828")
+		)
+		(pin "+5V_USB" output
+			(at 44.45 93.98 180)
+			(effects
+				(font
+					(face "Arial")
+					(size 1.016 1.016)
+				)
+				(justify left)
+			)
+			(uuid "88361b27-517b-4167-a6f3-674c30ff5754")
+		)
+		(pin "+BATT" output
+			(at 44.45 91.44 180)
+			(effects
+				(font
+					(face "Arial")
+					(size 1.016 1.016)
+				)
+				(justify left)
+			)
+			(uuid "3256a615-0701-4466-a308-b71a72f59e5c")
+		)
+		(pin "{USB}" bidirectional
+			(at 97.79 86.36 0)
+			(effects
+				(font
+					(face "Arial")
+					(size 1.016 1.016)
+				)
+				(justify right)
+			)
+			(uuid "7c136350-a838-47b6-b8ed-0f2125e1060c")
+		)
+		(pin "{VTX_COM.}" bidirectional
+			(at 97.79 101.6 0)
+			(effects
+				(font
+					(face "Arial")
+					(size 1.016 1.016)
+				)
+				(justify right)
+			)
+			(uuid "777274a1-a35d-4fed-8ec8-8e0af05df72e")
+		)
+		(pin "VIDEO_VTX" input
+			(at 44.45 111.76 180)
+			(effects
+				(font
+					(face "Arial")
+					(size 1.016 1.016)
+				)
+				(justify left)
+			)
+			(uuid "f2fdcd20-65b8-440c-894e-109c0673b9f9")
+		)
+		(pin "CURRENT_SENSE" output
+			(at 97.79 93.98 0)
+			(effects
+				(font
+					(face "Arial")
+					(size 1.016 1.016)
+				)
+				(justify right)
+			)
+			(uuid "772d78ba-542b-4ade-ac6b-398e5d580721")
+		)
+		(pin "TELEMETRY" output
+			(at 97.79 96.52 0)
+			(effects
+				(font
+					(face "Arial")
+					(size 1.016 1.016)
+				)
+				(justify right)
+			)
+			(uuid "5d9ef8aa-a5b1-47ea-9d8f-2320e38a1d8f")
+		)
+		(pin "VIDEO_CAM" output
+			(at 44.45 109.22 180)
+			(effects
+				(font
+					(face "Arial")
+					(size 1.016 1.016)
+				)
+				(justify left)
+			)
+			(uuid "92243768-e149-41ee-bcd7-421b3f82ad7d")
+		)
+		(pin "{MOTOR_CTRL}" bidirectional
+			(at 97.79 91.44 0)
+			(effects
+				(font
+					(face "Arial")
+					(size 1.016 1.016)
+				)
+				(justify right)
+			)
+			(uuid "af4a82fe-50e9-41b6-84d3-33f7d5d64750")
+		)
+		(pin "BUZZER-" input
+			(at 97.79 111.76 0)
+			(effects
+				(font
+					(face "Arial")
+					(size 1.016 1.016)
+				)
+				(justify right)
+			)
+			(uuid "6933f0a9-f807-41d1-9af3-be7a4b16bdb6")
+		)
+		(instances
+			(project "atmos-fc"
+				(path "/bf89e20f-cdc6-4060-8fa3-3034702818c2"
+					(page "1")
+				)
+			)
+		)
+	)
+	(sheet
+		(at 200.66 39.37)
+		(size 53.34 34.29)
+		(stroke
+			(width 0.1524)
+			(type solid)
+		)
+		(fill
+			(color 213 232 212 1.0000)
+		)
+		(uuid "6a43df57-0b07-41f1-8e47-13bbefe2e612")
+		(property "Sheetname" "Barometer"
+			(at 201.676 44.45 0)
+			(effects
+				(font
+					(face "Arial")
+					(size 3.048 3.048)
+					(thickness 0.6096)
+					(bold yes)
+					(color 0 0 0 1)
+				)
+				(justify left bottom)
+			)
+		)
+		(property "Sheetfile" "atmos-fc_barometer.kicad_sch"
+			(at 200.66 74.2446 0)
+			(effects
+				(font
+					(face "Arial")
+					(size 1.27 1.27)
+				)
+				(justify left top)
+			)
+		)
+		(pin "{BARO_COM.}" bidirectional
+			(at 200.66 55.88 180)
+			(effects
+				(font
+					(face "Arial")
+					(size 1.016 1.016)
+				)
+				(justify left)
+			)
+			(uuid "722a9a69-a5a2-4e7d-8ba6-d8bd49e371e2")
+		)
+		(instances
+			(project "atmos-fc"
+				(path "/bf89e20f-cdc6-4060-8fa3-3034702818c2"
+					(page "4")
+				)
+			)
+		)
+	)
+	(sheet
+		(at 200.66 81.28)
+		(size 53.34 34.29)
+		(stroke
+			(width 0.1524)
+			(type solid)
+		)
+		(fill
+			(color 213 232 212 1.0000)
+		)
+		(uuid "9d9bc187-64fa-4551-8758-c2222efa9d0f")
+		(property "Sheetname" "IMU"
+			(at 201.93 86.36 0)
+			(effects
+				(font
+					(face "Arial")
+					(size 3.048 3.048)
+					(thickness 0.6096)
+					(bold yes)
+					(color 0 0 0 1)
+				)
+				(justify left bottom)
+			)
+		)
+		(property "Sheetfile" "atmos-fc_imu.kicad_sch"
+			(at 200.66 116.1546 0)
+			(effects
+				(font
+					(face "Arial")
+					(size 1.27 1.27)
+				)
+				(justify left top)
+			)
+		)
+		(pin "{IMU_COM.}" bidirectional
+			(at 200.66 97.79 180)
+			(effects
+				(font
+					(face "Arial")
+					(size 1.016 1.016)
+				)
+				(justify left)
+			)
+			(uuid "1c5c5700-6d12-47c5-a914-5b4fd5a35985")
+		)
+		(instances
+			(project "atmos-fc"
+				(path "/bf89e20f-cdc6-4060-8fa3-3034702818c2"
+					(page "5")
+				)
+			)
+		)
+	)
+	(sheet
+		(at 114.3 39.37)
+		(size 69.85 119.38)
+		(stroke
+			(width 0.1524)
+			(type solid)
+		)
+		(fill
+			(color 218 232 252 1.0000)
+		)
+		(uuid "acc5c063-59e7-43d2-9ac0-1f9e01806290")
+		(property "Sheetname" "MCU"
+			(at 115.57 44.704 0)
+			(effects
+				(font
+					(face "Arial")
+					(size 3.048 3.048)
+					(thickness 0.6096)
+					(bold yes)
+					(color 0 0 0 1)
+				)
+				(justify left bottom)
+			)
+		)
+		(property "Sheetfile" "atmos-fc_mcu.kicad_sch"
+			(at 114.554 159.512 0)
+			(effects
+				(font
+					(face "Arial")
+					(size 1.27 1.27)
+				)
+				(justify left top)
+			)
+		)
+		(pin "TELEMETRY" input
+			(at 114.3 96.52 180)
+			(effects
+				(font
+					(face "Arial")
+					(size 1.016 1.016)
+				)
+				(justify left)
+			)
+			(uuid "c4c198df-40c5-4d7d-a24d-b13fad86ac5e")
+		)
+		(pin "CURRENT_SENSE" input
+			(at 114.3 93.98 180)
+			(effects
+				(font
+					(face "Arial")
+					(size 1.016 1.016)
+				)
+				(justify left)
+			)
+			(uuid "55eb8250-e41b-4f83-851d-853c86befca9")
+		)
+		(pin "{USB}" bidirectional
+			(at 114.3 86.36 180)
+			(effects
+				(font
+					(face "Arial")
+					(size 1.016 1.016)
+				)
+				(justify left)
+			)
+			(uuid "70125c6f-d36e-44ce-add9-e8b26af417c0")
+		)
+		(pin "{RX_COM.}" bidirectional
+			(at 114.3 104.14 180)
+			(effects
+				(font
+					(face "Arial")
+					(size 1.016 1.016)
+				)
+				(justify left)
+			)
+			(uuid "6d4959b7-7756-4e7c-bedb-59de1e4fe2b1")
+		)
+		(pin "{GPS_COM.}" bidirectional
+			(at 114.3 106.68 180)
+			(effects
+				(font
+					(face "Arial")
+					(size 1.016 1.016)
+				)
+				(justify left)
+			)
+			(uuid "03c9e8de-0db2-4ba9-95c4-cd96c0630523")
+		)
+		(pin "{VTX_COM.}" bidirectional
+			(at 114.3 101.6 180)
+			(effects
+				(font
+					(face "Arial")
+					(size 1.016 1.016)
+				)
+				(justify left)
+			)
+			(uuid "6d4bab09-51ca-4345-9ca0-dde78e71dbe5")
+		)
+		(pin "{OSD_COM.}" bidirectional
+			(at 114.3 140.97 180)
+			(effects
+				(font
+					(face "Arial")
+					(size 1.016 1.016)
+				)
+				(justify left)
+			)
+			(uuid "5d60fa6f-d043-4b04-ab79-c33d5a291228")
+		)
+		(pin "{FLASH_COM.}" bidirectional
+			(at 184.15 140.97 0)
+			(effects
+				(font
+					(face "Arial")
+					(size 1.016 1.016)
+				)
+				(justify right)
+			)
+			(uuid "8911e97f-cfdf-4647-a837-102febcc7b24")
+		)
+		(pin "{IMU_COM.}" bidirectional
+			(at 184.15 97.79 0)
+			(effects
+				(font
+					(face "Arial")
+					(size 1.016 1.016)
+				)
+				(justify right)
+			)
+			(uuid "2602429d-dc25-46a9-9696-fd0344de6e05")
+		)
+		(pin "{MOTOR_CTRL}" bidirectional
+			(at 114.3 91.44 180)
+			(effects
+				(font
+					(face "Arial")
+					(size 1.016 1.016)
+				)
+				(justify left)
+			)
+			(uuid "898a24b2-7910-4d22-aaf7-464ff2dacbbf")
+		)
+		(pin "{BARO_COM.}" bidirectional
+			(at 184.15 55.88 0)
+			(effects
+				(font
+					(face "Arial")
+					(size 1.016 1.016)
+				)
+				(justify right)
+			)
+			(uuid "2d666461-a075-42a0-8f9f-262c9c407322")
+		)
+		(pin "BUZZER-" output
+			(at 114.3 111.76 180)
+			(effects
+				(font
+					(face "Arial")
+					(size 1.016 1.016)
+				)
+				(justify left)
+			)
+			(uuid "49252ec2-af5d-40d7-9280-23e499743140")
+		)
+		(instances
+			(project "atmos-fc"
+				(path "/bf89e20f-cdc6-4060-8fa3-3034702818c2"
+					(page "2")
+				)
+			)
+		)
+	)
+	(sheet
+		(at 44.45 39.37)
+		(size 53.34 34.29)
+		(stroke
+			(width 0.1524)
+			(type solid)
+		)
+		(fill
+			(color 248 206 204 1.0000)
+		)
+		(uuid "c578b4b5-57f7-4da1-80a3-18e46193f930")
+		(property "Sheetname" "Power Management"
+			(at 45.466 44.704 0)
+			(effects
+				(font
+					(face "Arial")
+					(size 3.048 3.048)
+					(thickness 0.6096)
+					(bold yes)
+					(color 0 0 0 1)
+				)
+				(justify left bottom)
+			)
+		)
+		(property "Sheetfile" "atmos-fc_power.kicad_sch"
+			(at 44.45 74.2446 0)
+			(effects
+				(font
+					(face "Arial")
+					(size 1.27 1.27)
+				)
+				(justify left top)
+			)
+		)
+		(pin "+5V" output
+			(at 97.79 45.72 0)
+			(effects
+				(font
+					(face "Arial")
+					(size 1.016 1.016)
+				)
+				(justify right)
+			)
+			(uuid "f1d928ec-ebc6-4843-b44b-363cc877ae96")
+		)
+		(pin "+3V3" output
+			(at 97.79 48.26 0)
+			(effects
+				(font
+					(face "Arial")
+					(size 1.016 1.016)
+				)
+				(justify right)
+			)
+			(uuid "1e3c53a8-312c-49d2-a292-35126bc70580")
+		)
+		(pin "+BATT" input
+			(at 44.45 69.85 180)
+			(effects
+				(font
+					(face "Arial")
+					(size 1.016 1.016)
+				)
+				(justify left)
+			)
+			(uuid "b89155ab-09ed-48fb-b86d-8404db78ce68")
+		)
+		(pin "+5V_USB" input
+			(at 44.45 67.31 180)
+			(effects
+				(font
+					(face "Arial")
+					(size 1.016 1.016)
+				)
+				(justify left)
+			)
+			(uuid "17714ab3-d1ac-4182-87c8-91c755b8a70f")
+		)
+		(pin "+BATT_P" output
+			(at 97.79 43.18 0)
+			(effects
+				(font
+					(face "Arial")
+					(size 1.016 1.016)
+				)
+				(justify right)
+			)
+			(uuid "09cb3309-c386-412f-b9f6-528f4654e224")
+		)
+		(instances
+			(project "atmos-fc"
+				(path "/bf89e20f-cdc6-4060-8fa3-3034702818c2"
+					(page "3")
+				)
+			)
+		)
+	)
+	(sheet_instances
+		(path "/"
+			(page "1")
+		)
+	)
+)

@@ -1,0 +1,2 @@
+/usr/bin/ar qc libperiph_library.a CMakeFiles/periph_library.dir/PeriphDrivers/I2C.c.o CMakeFiles/periph_library.dir/PeriphDrivers/SPI.c.o
+/usr/bin/ranlib libperiph_library.a

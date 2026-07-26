@@ -1,0 +1,8 @@
+{
+  "source": "ai-in-pm/FPV-Drone-AI-Agent",
+  "upstream_commit": "10e69d702b9e9c72ec0ed832a3350d7edd70f589",
+  "upstream_updated": "2026-03-08T19:05:50Z",
+  "synced_at": "2026-07-26T23:48:45+00:00",
+  "discovered_via": "search:expresslrs mavlink:p1",
+  "score": 10.3
+}

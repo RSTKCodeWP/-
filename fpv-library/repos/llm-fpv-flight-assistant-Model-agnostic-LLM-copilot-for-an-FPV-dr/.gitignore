@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Secrets / config
+.env
+.env.*
+!.env.example
+
+# Frontend
+node_modules/
+dist/
+.vite/
+
+# Flight logs / sim artifacts (can be large)
+*.ulg
+*.ulog
+*.bag
+logs/
+flight_logs/
+
+# OS / editor
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# Brainstorming visual-companion scratch
+.superpowers/
+
+# Eval harness run outputs (regenerate on demand)
+evals/results/

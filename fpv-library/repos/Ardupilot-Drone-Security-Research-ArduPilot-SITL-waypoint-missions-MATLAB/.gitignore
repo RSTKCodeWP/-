@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+
+# Large video files — store separately (Google Drive / YouTube)
+*.mp4
+*.avi
+*.mov
+
+# MATLAB generated files
+*.asv
+*.mex*
+Hexsoon.mat
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/

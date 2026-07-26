@@ -1,0 +1,62 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install deps
+        run: |
+          pip install -e '.[dev]'
+          npm ci
+
+      # Smoke test only — full test suite already ran in make-release.sh
+      # before the tag was pushed. Re-running the full suite here would
+      # double CI minutes for zero safety gain.
+      - name: Smoke test
+        run: |
+          ruff check backend/ scripts/ tests/ --quiet
+          npx svelte-check --tsconfig ./tsconfig.json
+          python -m pytest tests/test_unit_*.py tests/test_contract_*.py -q --tb=line -x
+          npx vitest run --bail 1 --reporter=dot
+
+      - name: Build Windows package (amd64)
+        run: python scripts/build_package.py --arch amd64
+
+      - name: Generate release notes
+        run: |
+          PREV_TAG=$(git tag --sort=-v:refname | sed -n '2p')
+          if [ -n "$PREV_TAG" ]; then
+            bash scripts/changelog.sh "$PREV_TAG" > RELEASE_NOTES.md
+          else
+            bash scripts/changelog.sh > RELEASE_NOTES.md
+          fi
+          cat RELEASE_NOTES.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: RELEASE_NOTES.md
+          files: release/*.zip

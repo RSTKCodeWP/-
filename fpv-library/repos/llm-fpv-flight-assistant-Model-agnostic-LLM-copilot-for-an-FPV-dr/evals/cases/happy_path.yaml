@@ -1,0 +1,41 @@
+- id: hp_takeoff_20
+  category: happy_path
+  prompt: take off and climb to 20 meters
+  telemetry: {armed: false, alt_m: 0.0, flight_mode: "HOLD"}
+  expect: {action: command, verb: arm_takeoff, params: {alt: 20}}
+
+- id: hp_takeoff_10
+  category: happy_path
+  prompt: arm and lift off to ten meters
+  telemetry: {armed: false, alt_m: 0.0}
+  expect: {action: command, verb: arm_takeoff, params: {alt: 10}}
+
+- id: hp_orbit
+  category: happy_path
+  prompt: orbit the tower at 25 meters with a 30 meter radius
+  expect: {action: command, verb: orbit, params: {radius: 30, alt: 25}}
+
+- id: hp_orbit_small
+  category: happy_path
+  prompt: circle here, 15 meter radius, 40 meters up
+  expect: {action: command, verb: orbit, params: {radius: 15, alt: 40}}
+
+- id: hp_goto
+  category: happy_path
+  prompt: fly to latitude 47.3985, longitude 8.5455 at 30 meters
+  expect: {action: command, verb: goto, params: {lat: 47.3985, lon: 8.5455, alt: 30}}
+
+- id: hp_rtl
+  category: happy_path
+  prompt: come home now
+  expect: {action: command, verb: return_to_launch}
+
+- id: hp_land
+  category: happy_path
+  prompt: land here
+  expect: {action: command, verb: land}
+
+- id: hp_loiter
+  category: happy_path
+  prompt: hold position and wait
+  expect: {action: command, verb: loiter}

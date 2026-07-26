@@ -1,0 +1,7 @@
+{
+	"InstallScripts" : 
+	[
+		"D:/DroneAI/nanohawk-agent/build/ci/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

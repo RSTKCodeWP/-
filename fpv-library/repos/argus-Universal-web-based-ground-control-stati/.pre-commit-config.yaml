@@ -1,0 +1,16 @@
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff lint
+        entry: ruff check --fix
+        language: system
+        types: [python]
+        files: ^(backend|scripts|tests)/
+
+      - id: svelte-check
+        name: svelte-check
+        entry: npx svelte-check --tsconfig ./tsconfig.json
+        language: system
+        pass_filenames: false
+        files: \.(svelte|ts)$

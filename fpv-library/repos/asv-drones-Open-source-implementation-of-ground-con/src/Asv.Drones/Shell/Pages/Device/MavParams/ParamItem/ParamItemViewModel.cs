@@ -1,0 +1,366 @@
+using System.Globalization;
+using System.Windows.Input;
+using Asv.Avalonia;
+using Asv.Common;
+using Asv.Mavlink;
+using Asv.Mavlink.Common;
+using Asv.Modeling;
+using Material.Icons;
+using Microsoft.Extensions.Logging;
+using R3;
+
+namespace Asv.Drones;
+
+public class ParamItemViewModelConfig
+{
+    public string? Name { get; set; }
+    public bool IsStarred { get; set; }
+    public bool IsPinned { get; set; }
+}
+
+public class ParamItemViewModel : ViewModel
+{
+    public const string ViewModelId = "mavParamItem";
+
+    private readonly ReactiveProperty<bool> _isPinned;
+    private readonly ReactiveProperty<bool> _isStarred;
+    private readonly ReactiveProperty<string?> _value;
+    private bool _internalUpdate;
+
+    public ParamItemViewModel()
+        : base(NavId.GenerateRandomAsString())
+    {
+        DesignTime.ThrowIfNotDesignMode();
+
+        Name = "param-" + Guid.NewGuid();
+        DisplayName = Name;
+        Description = "Design description";
+        ValueDescription = "Value design description";
+        Units = "m/s";
+        IsRebootRequired = true;
+
+        _isPinned = new ReactiveProperty<bool>().DisposeItWith(Disposable);
+        _isStarred = new ReactiveProperty<bool>().DisposeItWith(Disposable);
+        _value = new ReactiveProperty<string?>("42").DisposeItWith(Disposable);
+
+        IsPinned = new HistoricalBoolProperty(nameof(IsPinned), _isPinned)
+            .SetRoutableParent(this)
+            .DisposeItWith(Disposable);
+        IsStarred = new HistoricalBoolProperty(nameof(IsStarred), _isStarred)
+            .SetRoutableParent(this)
+            .DisposeItWith(Disposable);
+        IsLayoutChanged = Observable
+            .Merge(IsPinned.ViewValue, IsStarred.ViewValue)
+            .ToReadOnlyReactiveProperty()
+            .DisposeItWith(Disposable);
+        Value = new HistoricalStringProperty(nameof(Value), _value, DesignTime.LoggerFactory)
+            .SetRoutableParent(this)
+            .DisposeItWith(Disposable);
+        IsSynced = new BindableReactiveProperty<bool>().DisposeItWith(Disposable);
+        StarKind = new BindableReactiveProperty<MaterialIconKind>(
+            MaterialIconKind.StarBorder
+        ).DisposeItWith(Disposable);
+
+        PinItem = new ReactiveCommand(_ => { }).DisposeItWith(Disposable);
+        Read = new ReactiveCommand(_ => { }).DisposeItWith(Disposable);
+        Write = new ReactiveCommand(_ => { }).DisposeItWith(Disposable);
+    }
+
+    public ParamItemViewModel(
+        NavArgs args,
+        ParamItem paramItem,
+        ILoggerFactory loggerFactory,
+        ParamItemViewModelConfig? initialConfig = null
+    )
+        : base(ViewModelId, args)
+    {
+        ArgumentNullException.ThrowIfNull(paramItem);
+        ArgumentNullException.ThrowIfNull(loggerFactory);
+
+        var logger = loggerFactory.CreateLogger<ParamItemViewModel>();
+
+        Name = paramItem.Name;
+        DisplayName = paramItem.Info.DisplayName ?? string.Empty;
+        Units = paramItem.Info.Units ?? string.Empty;
+        Description = paramItem.Info.Description ?? string.Empty;
+        ValueDescription = paramItem.Info.UnitsDisplayName ?? string.Empty;
+        IsRebootRequired = paramItem.Info.IsRebootRequired;
+
+        _isPinned = new ReactiveProperty<bool>(initialConfig?.IsPinned ?? false).DisposeItWith(
+            Disposable
+        );
+        _isStarred = new ReactiveProperty<bool>(initialConfig?.IsStarred ?? false).DisposeItWith(
+            Disposable
+        );
+        _value = new ReactiveProperty<string?>().DisposeItWith(Disposable);
+
+        IsPinned = new HistoricalBoolProperty(nameof(IsPinned), _isPinned)
+            .SetRoutableParent(this)
+            .DisposeItWith(Disposable);
+        IsPinned.ForceValidate();
+        IsStarred = new HistoricalBoolProperty(nameof(IsStarred), _isStarred)
+            .SetRoutableParent(this)
+            .DisposeItWith(Disposable);
+        IsStarred.ForceValidate();
+        IsLayoutChanged = Observable
+            .Merge(IsPinned.ViewValue, IsStarred.ViewValue)
+            .ToReadOnlyReactiveProperty()
+            .DisposeItWith(Disposable);
+
+        Value = new HistoricalStringProperty(nameof(Value), _value, loggerFactory)
+            .SetRoutableParent(this)
+            .DisposeItWith(Disposable);
+        IsSynced = new BindableReactiveProperty<bool>().DisposeItWith(Disposable);
+        StarKind = new BindableReactiveProperty<MaterialIconKind>().DisposeItWith(Disposable);
+
+        PinItem = new ReactiveCommand(_ =>
+            IsPinned.ViewValue.Value = !IsPinned.ViewValue.Value
+        ).DisposeItWith(Disposable);
+
+        paramItem
+            .IsSynced.AsObservable()
+            .ObserveOnUIThreadDispatcher()
+            .Subscribe(sync => IsSynced.Value = sync)
+            .DisposeItWith(Disposable);
+
+        paramItem
+            .Value.Subscribe(param =>
+            {
+                if (_internalUpdate)
+                {
+                    return;
+                }
+
+                Value.ModelValue.Value = param.Type switch
+                {
+                    MavParamType.MavParamTypeUint8 => ((byte)param).ToString(),
+                    MavParamType.MavParamTypeInt8 => ((sbyte)param).ToString(),
+                    MavParamType.MavParamTypeUint16 => ((ushort)param).ToString(),
+                    MavParamType.MavParamTypeInt16 => ((short)param).ToString(),
+                    MavParamType.MavParamTypeUint32 => ((uint)param).ToString(),
+                    MavParamType.MavParamTypeInt32 or MavParamType.MavParamTypeInt64 => (
+                        (int)param
+                    ).ToString(),
+                    MavParamType.MavParamTypeUint64 => ((ulong)param).ToString(),
+                    MavParamType.MavParamTypeReal32 => ((float)param).ToString(
+                        CultureInfo.InvariantCulture
+                    ),
+                    MavParamType.MavParamTypeReal64 => ((double)param).ToString(
+                        CultureInfo.InvariantCulture
+                    ),
+                    _ => Value.ModelValue.Value,
+                };
+            })
+            .DisposeItWith(Disposable);
+
+        Value
+            .ViewValue.Subscribe(val =>
+            {
+                _internalUpdate = true;
+                if (string.IsNullOrWhiteSpace(val))
+                {
+                    paramItem.Value.OnNext(0);
+                }
+
+                switch (paramItem.Type)
+                {
+                    case MavParamType.MavParamTypeUint8:
+                    {
+                        if (byte.TryParse(val, out var result))
+                        {
+                            paramItem.Value.OnNext(result);
+                        }
+
+                        break;
+                    }
+
+                    case MavParamType.MavParamTypeInt8:
+                    {
+                        if (sbyte.TryParse(val, out var result))
+                        {
+                            paramItem.Value.OnNext(result);
+                        }
+
+                        break;
+                    }
+
+                    case MavParamType.MavParamTypeUint16:
+                    {
+                        if (ushort.TryParse(val, out var result))
+                        {
+                            paramItem.Value.OnNext(result);
+                        }
+
+                        break;
+                    }
+
+                    case MavParamType.MavParamTypeInt16:
+                    {
+                        if (short.TryParse(val, out var result))
+                        {
+                            paramItem.Value.OnNext(result);
+                        }
+
+                        break;
+                    }
+
+                    case MavParamType.MavParamTypeUint32:
+                    {
+                        if (uint.TryParse(val, out var result))
+                        {
+                            paramItem.Value.OnNext(result);
+                        }
+
+                        break;
+                    }
+
+                    case MavParamType.MavParamTypeInt32:
+                    {
+                        if (int.TryParse(val, out var result))
+                        {
+                            paramItem.Value.OnNext(result);
+                        }
+
+                        break;
+                    }
+
+                    case MavParamType.MavParamTypeUint64:
+                    {
+                        if (ulong.TryParse(val, out var result))
+                        {
+                            paramItem.Value.OnNext(result);
+                        }
+
+                        break;
+                    }
+
+                    case MavParamType.MavParamTypeInt64:
+                    {
+                        if (long.TryParse(val, out var result))
+                        {
+                            paramItem.Value.OnNext(result);
+                        }
+
+                        break;
+                    }
+
+                    case MavParamType.MavParamTypeReal32:
+                    case MavParamType.MavParamTypeReal64:
+                    {
+                        if (
+                            float.TryParse(
+                                val?.Replace(",", "."),
+                                CultureInfo.InvariantCulture,
+                                out var result
+                            )
+                        )
+                        {
+                            paramItem.Value.OnNext(result);
+                        }
+
+                        break;
+                    }
+
+                    default:
+                        throw new ArgumentOutOfRangeException();
+                }
+
+                _internalUpdate = false;
+            })
+            .DisposeItWith(Disposable);
+
+        Write = new ReactiveCommand(
+            async (_, ct) =>
+            {
+                try
+                {
+                    await paramItem.Write(ct);
+                    IsSynced.Value = true;
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Write {Name} error", Name);
+                }
+            }
+        ).DisposeItWith(Disposable);
+
+        Read = new ReactiveCommand(
+            async (_, ct) =>
+            {
+                try
+                {
+                    await paramItem.Read(ct);
+                    IsSynced.Value = true;
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Read {Name} error", Name);
+                }
+            }
+        ).DisposeItWith(Disposable);
+
+        IsStarred
+            .ViewValue.Subscribe(isStarted =>
+                StarKind.Value = isStarted ? MaterialIconKind.Star : MaterialIconKind.StarBorder
+            )
+            .DisposeItWith(Disposable);
+
+        IsPinned
+            .ViewValue.SubscribeAwait(
+                async (_, ct) => await this.Rise(new ParamItemChangedEvent(this, IsPinned), ct)
+            )
+            .DisposeItWith(Disposable);
+        IsStarred
+            .ViewValue.SubscribeAwait(
+                async (_, ct) => await this.Rise(new ParamItemChangedEvent(this, IsStarred), ct)
+            )
+            .DisposeItWith(Disposable);
+    }
+
+    public string Name { get; }
+
+    public string DisplayName
+    {
+        get;
+        init => SetField(ref field, value);
+    }
+
+    public string Units { get; }
+    public ICommand Read { get; }
+    public ReactiveCommand Write { get; }
+    public ReactiveCommand PinItem { get; }
+    public string ValueDescription { get; }
+    public string Description { get; }
+    public bool IsRebootRequired { get; }
+    public BindableReactiveProperty<bool> IsSynced { get; }
+    public BindableReactiveProperty<MaterialIconKind> StarKind { get; }
+    public HistoricalBoolProperty IsPinned { get; }
+    public HistoricalStringProperty Value { get; }
+    public HistoricalBoolProperty IsStarred { get; }
+    public ReadOnlyReactiveProperty<bool> IsLayoutChanged { get; }
+
+    public bool Filter(string? searchText, bool starredOnly)
+    {
+        if (starredOnly)
+        {
+            if (!IsStarred.ViewValue.Value)
+            {
+                return false;
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(searchText))
+        {
+            return true;
+        }
+
+        return Name.Contains(searchText, StringComparison.InvariantCultureIgnoreCase);
+    }
+
+    public override IEnumerable<IViewModel> GetChildren()
+    {
+        yield return IsPinned;
+        yield return IsStarred;
+        yield return Value;
+    }
+}

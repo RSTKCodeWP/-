@@ -1,0 +1,8 @@
+flask>=3.0.0
+flask-socketio>=5.3.6
+eventlet>=0.35.2
+pandas>=2.2.0
+openpyxl>=3.1.2
+pymavlink>=2.4.41
+requests>=2.31.0
+numpy>=1.26.0

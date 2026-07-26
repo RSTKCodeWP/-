@@ -1,0 +1,4 @@
+def detect_anomaly(signal_strength):
+    if signal_strength > 100:
+        return "Possible spoofing"
+    return "Normal"

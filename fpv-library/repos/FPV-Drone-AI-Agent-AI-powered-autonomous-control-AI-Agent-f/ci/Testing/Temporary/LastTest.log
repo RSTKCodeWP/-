@@ -1,0 +1,68 @@
+Start testing: Mar 07 22:31 Pacific Standard Time
+----------------------------------------------------------
+1/3 Testing: nanohawk_unit_pipeline
+1/3 Test: nanohawk_unit_pipeline
+Command: "D:/DroneAI/nanohawk-agent/build/ci/nanohawk_unit_tests.exe"
+Directory: D:/DroneAI/nanohawk-agent/build/ci
+"nanohawk_unit_pipeline" start time: Mar 07 22:31 Pacific Standard Time
+Output:
+----------------------------------------------------------
+MAVLink transport unavailable: MAVSDK support not enabled at build time
+GUIDED takeoff 1m
+MAVLink transport unavailable: MAVSDK support not enabled at build time
+GUIDED move forward=1 right=0 yaw=0
+MAVLink transport unavailable: MAVSDK support not enabled at build time
+GUIDED hover 3s
+MAVLink transport unavailable: MAVSDK support not enabled at build time
+GUIDED land
+pipeline test passed
+<end of output>
+Test time =   0.15 sec
+----------------------------------------------------------
+Test Passed.
+"nanohawk_unit_pipeline" end time: Mar 07 22:31 Pacific Standard Time
+"nanohawk_unit_pipeline" time elapsed: 00:00:00
+----------------------------------------------------------
+
+2/3 Testing: nanohawk_transport_checks
+2/3 Test: nanohawk_transport_checks
+Command: "D:/DroneAI/nanohawk-agent/build/ci/nanohawk_transport_tests.exe"
+Directory: D:/DroneAI/nanohawk-agent/build/ci
+"nanohawk_transport_checks" start time: Mar 07 22:31 Pacific Standard Time
+Output:
+----------------------------------------------------------
+transport tests passed
+<end of output>
+Test time =   0.13 sec
+----------------------------------------------------------
+Test Passed.
+"nanohawk_transport_checks" end time: Mar 07 22:31 Pacific Standard Time
+"nanohawk_transport_checks" time elapsed: 00:00:00
+----------------------------------------------------------
+
+3/3 Testing: nanohawk_config_wiring
+3/3 Test: nanohawk_config_wiring
+Command: "D:/DroneAI/nanohawk-agent/build/ci/nanohawk_config_tests.exe"
+Directory: D:/DroneAI/nanohawk-agent/build/ci
+"nanohawk_config_wiring" start time: Mar 07 22:31 Pacific Standard Time
+Output:
+----------------------------------------------------------
+Testing UDP endpoint config (default endpoints.yaml):
+  Bootstrap succeeded with default config
+
+Testing serial endpoint config fallback:
+  Bootstrap succeeded with serial fallback config
+
+Testing explicit endpoint override:
+  Bootstrap succeeded with explicit endpoints
+
+endpoint config wiring test passed
+<end of output>
+Test time =   0.20 sec
+----------------------------------------------------------
+Test Passed.
+"nanohawk_config_wiring" end time: Mar 07 22:31 Pacific Standard Time
+"nanohawk_config_wiring" time elapsed: 00:00:00
+----------------------------------------------------------
+
+End testing: Mar 07 22:31 Pacific Standard Time

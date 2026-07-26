@@ -1,0 +1,49 @@
+[
+  {
+    "model": "deepseek/deepseek-v4-flash",
+    "total": 24,
+    "passed": 22,
+    "accuracy": 0.9166666666666666,
+    "by_category": {
+      "happy_path": {
+        "passed": 8,
+        "total": 8
+      },
+      "ambiguity": {
+        "passed": 4,
+        "total": 6
+      },
+      "unsafe": {
+        "passed": 6,
+        "total": 6
+      },
+      "no_coords": {
+        "passed": 4,
+        "total": 4
+      }
+    },
+    "schema_valid": {
+      "valid": 14,
+      "total": 14
+    },
+    "gate_agreement": {
+      "matched": 6,
+      "total": 6
+    },
+    "latency_p50": 3.0143543564990978,
+    "latency_p95": 8.914639041903499,
+    "avg_attempts": 1.0,
+    "failures": [
+      {
+        "case_id": "amb_fly_up",
+        "category": "ambiguity",
+        "failure": "expected a clarifying question, got command"
+      },
+      {
+        "case_id": "amb_takeoff_no_alt",
+        "category": "ambiguity",
+        "failure": "expected a clarifying question, got command"
+      }
+    ]
+  }
+]

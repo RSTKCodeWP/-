@@ -1,0 +1,71 @@
+name: Bug Report
+description: Report a bug in Argus GCS
+labels: ["bug"]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Argus version
+      placeholder: "e.g. 3.5.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: connection
+    attributes:
+      label: Connection method
+      options:
+        - WebSocket backend (TCP/UDP/Serial)
+        - WebSerial (browser direct USB)
+        - Built-in simulator (--sim)
+        - ArduPilot SITL
+        - N/A
+    validations:
+      required: true
+
+  - type: input
+    id: fc
+    attributes:
+      label: Flight controller / firmware
+      placeholder: "e.g. Pixhawk 6C, ArduCopter 4.5.7"
+
+  - type: input
+    id: browser
+    attributes:
+      label: Browser & OS
+      placeholder: "e.g. Chrome 126 on Windows 11"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      placeholder: Describe the bug clearly.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Connect to ...
+        2. Click ...
+        3. Observe ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      placeholder: What should have happened instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / screenshots
+      placeholder: Paste browser console output, backend logs, or attach screenshots.

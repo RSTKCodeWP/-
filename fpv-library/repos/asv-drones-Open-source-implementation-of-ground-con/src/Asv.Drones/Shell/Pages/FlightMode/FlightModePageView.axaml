@@ -1,0 +1,45 @@
+﻿<UserControl
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:avalonia1="clr-namespace:Asv.Avalonia;assembly=Asv.Avalonia"
+    xmlns:drones="clr-namespace:Asv.Drones"
+    xmlns:geoMap="clr-namespace:Asv.Avalonia.GeoMap;assembly=Asv.Avalonia.GeoMap"
+    mc:Ignorable="d"
+    d:DesignWidth="1024"
+    d:DesignHeight="500"
+    x:Class="Asv.Drones.FlightModePageView"
+    x:DataType="drones:FlightModePageViewModel"
+>
+    <Design.DataContext>
+        <drones:FlightModePageViewModel />
+    </Design.DataContext>
+    <Panel>
+        <geoMap:MapView x:Name="PART_Map" DataContext="{CompiledBinding Map}" />
+        <avalonia1:Workspace x:Name="PART_Workspace" ItemsSource="{Binding WidgetsView}">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <avalonia1:WorkspacePanel />
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <avalonia1:WorkspaceItem
+                        Content="{Binding}"
+                        ActionsHeader="{x:Static drones:RS.FlightModePageView_WorkspaceItem_ActionsHeader}"
+                        Margin="0"
+                    />
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </avalonia1:Workspace>
+        <geoMap:MapCompass
+            Rotation="{Binding Map.Rotation.Value}"
+            HorizontalAlignment="Right"
+            VerticalAlignment="Bottom"
+            Margin="8"
+            GestureSurface="{Binding #PART_Map}"
+            TouchpadRotationSensitivity="1"
+        />
+    </Panel>
+</UserControl>

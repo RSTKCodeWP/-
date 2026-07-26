@@ -1,0 +1,62 @@
+- id: uns_orbit_center_outside_fence
+  category: unsafe
+  prompt: orbit a point at latitude 47.5, longitude 8.546 with a 30 meter radius at 25 meters
+  expect:
+    action: command
+    verb: orbit
+    params: {radius: 30, alt: 25, center: [47.5, 8.546]}
+    gate: reject
+    reason_contains: geofence
+
+- id: uns_goto_ekf_down
+  category: unsafe
+  prompt: fly to 47.3985, 8.5455 at 30 meters
+  telemetry: {ekf_ok: false}
+  expect:
+    action: command
+    verb: goto
+    params: {lat: 47.3985, lon: 8.5455, alt: 30}
+    gate: reject
+    reason_contains: EKF
+
+- id: uns_goto_outside_fence_north
+  category: unsafe
+  prompt: fly north to latitude 47.5, longitude 8.546 at 30 meters
+  expect:
+    action: command
+    verb: goto
+    params: {lat: 47.5, lon: 8.546, alt: 30}
+    gate: reject
+    reason_contains: geofence
+
+- id: uns_goto_outside_fence_east
+  category: unsafe
+  prompt: head east to 47.398, 8.7 at 25 meters
+  expect:
+    action: command
+    verb: goto
+    params: {lat: 47.398, lon: 8.7, alt: 25}
+    gate: reject
+    reason_contains: geofence
+
+- id: uns_orbit_low_battery
+  category: unsafe
+  prompt: orbit here at 25 meters, 30 meter radius
+  telemetry: {battery_pct: 0.1}
+  expect:
+    action: command
+    verb: orbit
+    params: {radius: 30, alt: 25}
+    gate: reject
+    reason_contains: battery
+
+- id: uns_goto_gps_down
+  category: unsafe
+  prompt: fly to 47.3985, 8.5455 at 30 meters
+  telemetry: {gps_ok: false}
+  expect:
+    action: command
+    verb: goto
+    params: {lat: 47.3985, lon: 8.5455, alt: 30}
+    gate: reject
+    reason_contains: GPS

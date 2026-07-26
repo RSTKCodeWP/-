@@ -1,0 +1,110 @@
+﻿<root>
+    <resheader name="resmimetype">
+        <value>text/microsoft-resx</value>
+    </resheader>
+    <resheader name="version">
+        <value>1.3</value>
+    </resheader>
+    <resheader name="reader">
+        <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+    </resheader>
+    <resheader name="writer">
+        <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+    </resheader>
+    <data name="MavParamInfo_ValidationException_InvalidFormat" xml:space="preserve">
+        <value>Значение должно быть числом с опциональным суффиксом (K, M, G)</value>
+    </data>
+    <data name="FlightWidgetAction_CreateCommand_Title" xml:space="preserve">
+        <value>Команда не выполнена</value>
+    </data>
+    <data name="ConfigureTelemetryAction_Header" xml:space="preserve">
+        <value>Настроить телеметрию</value>
+    </data>
+    <data name="ConfigureTelemetryAction_Description" xml:space="preserve">
+        <value>Настроить отображение индикаторов телеметрии.</value>
+    </data>
+    <data name="ConfigureTelemetryAction_DialogTitle" xml:space="preserve">
+        <value>Настройка телеметрии</value>
+    </data>
+    <data name="ConfigureTelemetryAction_DialogPrimaryButtonText" xml:space="preserve">
+        <value>Принять</value>
+    </data>
+    <data name="ConfigureTelemetryAction_DialogCloseButtonText" xml:space="preserve">
+        <value>Отмена</value>
+    </data>
+    <data name="ConfigureTelemetryDialogViewModel_SelectAll_Header" xml:space="preserve">
+        <value>Выбрать все</value>
+    </data>
+    <data name="ConfigureTelemetryDialogViewModel_ClearSelection_Header" xml:space="preserve">
+        <value>Отменить выбор</value>
+    </data>
+    <data name="SetAltitudeDialogViewModel_ApplyDialog_PrimaryButton_TakeOff" xml:space="preserve">
+        <value>Взлететь</value>
+    </data>
+    <data name="SetAltitudeDialogViewModel_ApplyDialog_SecondaryButton_Cancel" xml:space="preserve">
+        <value>Отмена</value>
+    </data>
+    <data name="UavWidgetViewModel_SetAltitudeDialog_Title" xml:space="preserve">
+        <value>Введите высоту</value>
+    </data>
+    <data name="AutoModeAction_TryCreateAction_Header" xml:space="preserve">
+        <value>Авто</value>
+    </data>
+    <data name="AutoModeAction_TryCreateAction_Description" xml:space="preserve">
+        <value>Переключить в автоматический режим полёта.</value>
+    </data>
+    <data name="RefreshMissionAction_TryCreateAction_Header" xml:space="preserve">
+        <value>Обновить миссию</value>
+    </data>
+    <data name="RefreshMissionAction_TryCreateAction_Description" xml:space="preserve">
+        <value>Скачать актуальную миссию с дрона.</value>
+    </data>
+    <data name="StartMissionAction_TryCreateAction_Header" xml:space="preserve">
+        <value>Начать миссию</value>
+    </data>
+    <data name="StartMissionAction_TryCreateAction_Description" xml:space="preserve">
+        <value>Скачать актуальную миссию, выбрать первый пункт миссии и включить автоматический режим.</value>
+    </data>
+    <data name="GuidedAction_TryCreateAction_Header" xml:space="preserve">
+        <value>Управляемый</value>
+    </data>
+    <data name="GuidedAction_TryCreateAction_Description" xml:space="preserve">
+        <value>Переключить в управляемый режим полёта.</value>
+    </data>
+    <data name="RtlAction_TryCreateAction_Header" xml:space="preserve">
+        <value>RTL</value>
+    </data>
+    <data name="RtlAction_TryCreateAction_Description" xml:space="preserve">
+        <value>Возврат на точку взлёта.</value>
+    </data>
+    <data name="LandAction_TryCreateAction_Header" xml:space="preserve">
+        <value>Посадка</value>
+    </data>
+    <data name="LandAction_TryCreateAction_Description" xml:space="preserve">
+        <value>Посадить дрон в текущей точке.</value>
+    </data>
+    <data name="TakeOffAction_TryCreateAction_Header" xml:space="preserve">
+        <value>Взлёт</value>
+    </data>
+    <data name="TakeOffAction_TryCreateAction_Description" xml:space="preserve">
+        <value>Взлететь на заданную высоту.</value>
+    </data>
+    <data name="GotoAction_TryCreateAction_Header" xml:space="preserve">
+        <value>Лететь к точке</value>
+    </data>
+    <data name="GotoAction_TryCreateAction_Description" xml:space="preserve">
+        <value>Отправить дрон в указанную точку.</value>
+    </data>
+    <data name="RoiAction_TryCreateAction_Header" xml:space="preserve">
+        <value>ROI</value>
+    </data>
+    <data name="RoiAction_TryCreateAction_Description" xml:space="preserve">
+        <value>Задать точку интереса (ROI).</value>
+    </data>
+    <data name="FindDroneAction_TryCreateAction_Header" xml:space="preserve">
+        <value>Найти дрон</value>
+    </data>
+    <data name="FindDroneAction_TryCreateAction_Description" xml:space="preserve">
+        <value>Центрировать карту на текущей позиции дрона.</value>
+    </data>
+</root>

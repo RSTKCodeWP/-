@@ -1,0 +1,11 @@
+using Avalonia.Controls;
+
+namespace Asv.Drones;
+
+public partial class BurstDownloadDialogView : UserControl
+{
+    public BurstDownloadDialogView()
+    {
+        InitializeComponent();
+    }
+}

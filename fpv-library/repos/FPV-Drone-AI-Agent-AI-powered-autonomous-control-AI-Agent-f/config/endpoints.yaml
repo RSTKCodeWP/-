@@ -1,0 +1,47 @@
+# nanohawk-agent endpoint configuration
+# Edit this file to match your hardware setup.
+# Bootstrap::buildAutoDetect() reads the discovery section and overrides
+# mavlink.serial_port / mavlink.udp_listen with the auto-detected endpoint.
+
+# ── Mavlink / drone transport ──────────────────────────────────────────────────
+mavlink:
+  # Serial: EMAX Nanohawk connected via USB (STM32 Betaflight FC on COM3).
+  # Comment out serial_port to switch to the UDP path below.
+  serial_port: COM3
+  serial_baud: 115200
+
+  # UDP: used when communicating via WiFi.
+  # Uncomment and comment out serial_port above to use WiFi instead.
+  # udp_listen: udp://0.0.0.0:14550
+
+# ── Auto-detection settings (used by Bootstrap::buildAutoDetect) ───────────────
+discovery:
+  # WiFi UDP broadcast discovery.
+  # The companion MCU listens on this port for "NHAWK_DISCOVER" packets
+  # and replies with "NHAWK_FOUND" so the agent can learn its IP address.
+  wifi_port: 14560
+  wifi_timeout_ms: 2000
+
+  # USB serial scan.
+  # Every registered COM port is opened and probed with the 6-byte NHAWK?
+  # handshake at this baud rate. Match the companion MCU firmware setting.
+  serial_baud: 500000
+
+# ── LLM inference ─────────────────────────────────────────────────────────────
+llm:
+  # Local llama.cpp server (default, no cloud dependency).
+  base_url: http://127.0.0.1:8080/v1
+  model: local-gguf
+  # Uncomment to use a remote or cloud endpoint instead:
+  # base_url: https://api.openai.com/v1
+  # model: gpt-4o
+
+# ── FPV video source ───────────────────────────────────────────────────────────
+video:
+  # OpenCV device index for the USB analog capture card (EasyCap / MS2109).
+  # Increment if multiple cameras are present.
+  uvc_index: 0
+
+  # Optional: RTSP stream URL for digital FPV systems or IP cameras.
+  # If set, VideoSource tries RTSP first and falls back to uvc_index.
+  # default_source: rtsp://127.0.0.1:8554/live

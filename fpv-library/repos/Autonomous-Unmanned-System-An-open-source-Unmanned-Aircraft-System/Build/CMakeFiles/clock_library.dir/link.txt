@@ -1,0 +1,2 @@
+/usr/bin/ar qc libclock_library.a CMakeFiles/clock_library.dir/Clocks/Clocks.c.o CMakeFiles/clock_library.dir/Clocks/DWT_Clock.c.o
+/usr/bin/ranlib libclock_library.a

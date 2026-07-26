@@ -70,13 +70,48 @@ python3 fpv-library/scripts/register_legacy.py
 
 ## Automation
 
-`.github/workflows/fpv-library-sync.yml` runs daily:
+`.github/workflows/fpv-library-sync.yml` runs **daily**:
 
-1. **Discover** — search GitHub for `Fpv`, score results, optionally crawl owners
-2. **Sync** — re-clone any repo whose default-branch SHA changed
-3. **Commit** — push updates to this repository
+1. **Keyword discovery** — rotating batch from `keywords.txt` (FPV, betaflight, OpenIPC, ELRS, GCS, fiber, …)
+2. **Themed discovery** — GCS / link / fiber queries + owner ecosystems
+3. **Triage** — classify each repo: `keep` / `watch` / `skip`; write `HOOKS.md`
+4. **Sync** — pull upstream for `verdict=keep` repos (skip >150 MB)
+5. **Commit** — push catalog + mirror updates
 
 Manual run: Actions → **FPV Library Sync** → Run workflow.
+
+### Keyword discovery
+
+```bash
+# Today's rotating batch (12 keywords)
+python3 fpv-library/scripts/discover_keywords.py --pages 1 --expand-owners
+
+# All keywords (heavy — uses API quota)
+python3 fpv-library/scripts/discover_keywords.py --no-rotate --pages 1-2 --expand-owners
+```
+
+Edit `keywords.txt` to add search terms.
+
+### Triage hooks
+
+When a search hit looks like a "hook", triage assigns:
+
+| Verdict | Meaning |
+|---------|---------|
+| `keep` | Useful — auto-synced |
+| `watch` | Weak signal — listed in `HOOKS.md` for review |
+| `skip` | Noise (coursework, dotfiles, unrelated) |
+
+```bash
+python3 fpv-library/scripts/triage_catalog.py --force   # re-classify all
+cat fpv-library/HOOKS.md                                 # interesting + watch list
+```
+
+### Sync policies
+
+```bash
+python3 fpv-library/scripts/sync.py --all --verdict keep --max-size-mb 150
+```
 
 ## Relevance scoring
 

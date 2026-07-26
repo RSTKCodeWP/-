@@ -1,0 +1,2 @@
+/usr/bin/ar qc libUNITTEST_library.a CMakeFiles/UNITTEST_library.dir/HIL_UNIT_TEST/HIL_Clock_test.c.o CMakeFiles/UNITTEST_library.dir/HIL_UNIT_TEST/Mock_task.c.o
+/usr/bin/ranlib libUNITTEST_library.a

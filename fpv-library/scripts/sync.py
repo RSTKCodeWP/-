@@ -87,6 +87,13 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Sync FPV library repos from GitHub")
     parser.add_argument("--all", action="store_true", help="Sync every catalog entry under fpv-library/repos/")
     parser.add_argument("--source", action="append", help="Sync specific owner/repo")
+    parser.add_argument("--verdict", default=None, help="Only sync entries with this triage verdict (e.g. keep)")
+    parser.add_argument("--max-size-mb", type=int, default=150, help="Skip mirrors larger than this (0=disable)")
+    parser.add_argument(
+        "--update-only",
+        action="store_true",
+        help="Only refresh repos already mirrored (have synced_at)",
+    )
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args(argv)
 
@@ -103,6 +110,26 @@ def main(argv: list[str] | None = None) -> int:
         selected = [e for e in entries if e.get("path", "").startswith("fpv-library/repos/")]
     else:
         parser.error("Use --all or --source owner/repo")
+
+    if args.verdict:
+        selected = [e for e in selected if e.get("verdict") == args.verdict]
+
+    if args.update_only:
+        selected = [e for e in selected if e.get("synced_at")]
+
+    if args.max_size_mb:
+        limit_kb = args.max_size_mb * 1024
+        filtered = []
+        for e in selected:
+            size_kb = int(e.get("size_kb") or 0)
+            if size_kb and size_kb > limit_kb:
+                print(f"skip-large {e['source']} ({size_kb // 1024} MB)")
+                continue
+            if e.get("sync_policy") == "catalog-only":
+                print(f"skip-policy {e['source']} (catalog-only)")
+                continue
+            filtered.append(e)
+        selected = filtered
 
     if not selected:
         print("No matching catalog entries.")

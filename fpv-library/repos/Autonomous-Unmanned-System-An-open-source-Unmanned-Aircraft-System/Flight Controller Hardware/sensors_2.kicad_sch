@@ -1,0 +1,61 @@
+(kicad_sch
+	(version 20260306)
+	(generator "eeschema")
+	(generator_version "10.0")
+	(uuid "8254b125-7680-466e-a0b7-0246e3a45396")
+	(paper "A3")
+	(title_block
+		(title "Sensors 2 & Connectors")
+		(date "06/14/2026")
+		(rev "A0")
+		(comment 1 "LiPo Bat Connector")
+		(comment 2 "Hall Effect Current sensor")
+		(comment 3 "ESC motor Connector")
+	)
+	(lib_symbols)
+	(text_box "ESC Motor Conn"
+		(exclude_from_sim no)
+		(at 16.51 16.51 0)
+		(size 91.44 72.39)
+		(margins 0.9525 0.9525 0.9525 0.9525)
+		(stroke
+			(width 0)
+			(type solid)
+		)
+		(fill
+			(type none)
+		)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left top)
+		)
+		(uuid "4321a036-97f1-424c-bf22-e488b568eb5d")
+	)
+	(text_box "LiPo Bat Current Sense"
+		(exclude_from_sim no)
+		(at 160.02 20.32 0)
+		(size 201.93 74.93)
+		(margins 0.9525 0.9525 0.9525 0.9525)
+		(stroke
+			(width 0)
+			(type solid)
+		)
+		(fill
+			(type none)
+		)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left top)
+		)
+		(uuid "7c98cca8-433f-48a6-99e8-9e6481962e74")
+	)
+	(sheet_instances
+		(path "/"
+			(page "3")
+		)
+	)
+)

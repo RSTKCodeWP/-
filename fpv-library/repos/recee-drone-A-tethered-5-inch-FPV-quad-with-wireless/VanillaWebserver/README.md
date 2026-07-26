@@ -1,0 +1,19 @@
+This project comes from [Espressif's routine CameraWebServer](https://github.com/espressif/arduino-esp32/blob/master/libraries/ESP32/examples/Camera/CameraWebServer/CameraWebServer.ino) and has been changed to work directly with XIAO ESP32S3 Sense.
+
+
+Before using this routine, please check the version number of the ESP32 on-board package you are using, if it is version 2.0.x or above, please use this code:
+
+https://github.com/limengdu/SeeedStudio-XIAO-ESP32S3-Sense-camera/blob/main/CameraWebServer_for_esp-arduino_2.0.x/CameraWebServer_for_esp-arduino_2.0.x.ino
+
+This code only supports esp-arduino 3.0.x or above.
+
+
+
+
+**According to [Espressif](https://github.com/espressif/arduino-esp32/issues/10881), this programme no longer supports versions 3.0.7 and above due to changes in ESP-IDF.**
+
+
+
+
+
+

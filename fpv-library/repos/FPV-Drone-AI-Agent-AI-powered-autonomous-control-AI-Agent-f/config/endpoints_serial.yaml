@@ -1,0 +1,13 @@
+mavlink:
+  # udp_listen: udp://0.0.0.0:14550
+  serial_port: COM6
+  serial_baud: 115200
+
+video:
+  default_source: rtsp://127.0.0.1:8554/live
+  uvc_index: 0
+
+llm:
+  base_url: http://127.0.0.1:8080/v1
+  model: local-gguf
+

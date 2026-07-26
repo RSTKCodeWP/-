@@ -1,0 +1,11 @@
+app:
+  name: nanohawk-agent
+  log_level: info
+  llm_timeout_ms: 12000
+  mission_timeout_s: 300
+
+runtime:
+  require_operator_authorization: true
+  indoor_mode: true
+  auto_launch_on_vehicle_detect: true
+

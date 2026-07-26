@@ -1,0 +1,764 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+
+<root>
+    <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+                xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+        <xsd:element name="root" msdata:IsDataSet="true">
+
+        </xsd:element>
+    </xsd:schema>
+    <resheader name="resmimetype">
+        <value>text/microsoft-resx</value>
+    </resheader>
+    <resheader name="version">
+        <value>1.3</value>
+    </resheader>
+    <resheader name="reader">
+        <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=2.0.0.0, Culture=neutral,
+            PublicKeyToken=b77a5c561934e089
+        </value>
+    </resheader>
+    <resheader name="writer">
+        <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=2.0.0.0, Culture=neutral,
+            PublicKeyToken=b77a5c561934e089
+        </value>
+    </resheader>
+    <data name="ParamItemView_PinToggleButton_ToolTip" xml:space="preserve">
+        <value>On/ off pin for this parameter</value>
+    </data>
+    <data name="ParamItemView_UpdateButton_ToolTip" xml:space="preserve">
+        <value>Update this parameter from UAV</value>
+    </data>
+    <data name="ParamItemView_UpdateButton_Text" xml:space="preserve">
+        <value>Refresh</value>
+    </data>
+    <data name="ParamItemView_WriteButton_ToolTip" xml:space="preserve">
+        <value>Write this parameter to UAV</value>
+    </data>
+    <data name="ParamItemView_WriteButton_Text" xml:space="preserve">
+        <value>Set</value>
+    </data>
+    <data name="ParamItemView_InlineNotification_RebootRequired" xml:space="preserve">
+        <value>Reboot required</value>
+    </data>
+    <data name="ParametersEditorPageView_StarsToggleButton_ToolTip" xml:space="preserve">
+        <value>Show only starred parameters</value>
+    </data>
+    <data name="ParametersEditorPageView_UpdateButton_ToolTip" xml:space="preserve">
+        <value>Update all parameters</value>
+    </data>
+    <data name="ParametersEditorPageView_PinsOffButton_ToolTip" xml:space="preserve">
+        <value>Remove all pinned parameters</value>
+    </data>
+    <data name="ParametersEditorPageViewModel_Search" xml:space="preserve">
+        <value>Search</value>
+    </data>
+    <data name="ParametersEditorPageViewModel_Total" xml:space="preserve">
+        <value>Total: {0}</value>
+    </data>
+    <data name="ParametersEditorPageView_StarButton_ToolTip" xml:space="preserve">
+        <value>Star this parameter</value>
+    </data>
+    <data name="MavParamsPageViewModel_DataLossDialog_NotSyncedParamMessage" xml:space="preserve">
+        <value>Parameter '{0}' is not synced</value>
+    </data>
+    <data name="Unit_Byte_Abbreviation" xml:space="preserve">
+        <value>byte</value>
+    </data>
+    <data name="Unit_Kilobyte_Abbreviation" xml:space="preserve">
+        <value>KB</value>
+    </data>
+    <data name="Unit_Megabyte_Abbreviation" xml:space="preserve">
+        <value>MB</value>
+    </data>
+    <data name="Unit_Gigabyte_Abbreviation" xml:space="preserve">
+        <value>GB</value>
+    </data>
+    <data name="Unit_Terabyte_Abbreviation" xml:space="preserve">
+        <value>TB</value>
+    </data>
+    <data name="FileBrowserViewModel_UploadingDialog_Title" xml:space="preserve">
+        <value>Uploading</value>
+    </data>
+    <data name="FileBrowserViewModel_UploadingDialog_Message" xml:space="preserve">
+        <value>Do you want to upload file '{0}' to device?</value>
+    </data>
+    <data name="FileBrowserViewModel_DownloadDialog_Title" xml:space="preserve">
+        <value>Download</value>
+    </data>
+    <data name="FileBrowserViewModel_DownloadDialog_Message" xml:space="preserve">
+        <value>Do you want to download file '{0}'?</value>
+    </data>
+    <data name="FileBrowserViewModel_FileDownloadedSuccessfully" xml:space="preserve">
+        <value>File downloaded successfully: {0}</value>
+    </data>
+    <data name="FileBrowserViewModel_RemoveDialog_Title" xml:space="preserve">
+        <value>Remove</value>
+    </data>
+    <data name="FileBrowserViewModel_RemoveDialog_Message" xml:space="preserve">
+        <value>Do you want to remove the item?</value>
+    </data>
+    <data name="FileBrowserViewModel_BurstDownloadDialog_Title" xml:space="preserve">
+        <value>Burst download</value>
+    </data>
+    <data name="FileBrowserViewModel_BurstDownloadDialog_PrimaryButtonText" xml:space="preserve">
+        <value>Download</value>
+    </data>
+    <data name="FileBrowserViewModel_BurstDownloadDialog_SecondaryButtonText" xml:space="preserve">
+        <value>Cancel</value>
+    </data>
+    <data name="NotANumber" xml:space="preserve">
+        <value>N/A</value>
+    </data>
+    <data name="MissionProgressView_Title" xml:space="preserve">
+        <value>Mission progress</value>
+    </data>
+    <data name="MissionProgressView_SubStatusText" xml:space="preserve">
+        <value>before complete</value>
+    </data>
+    <data name="MissionDistanceTelemetry_MissionDistance" xml:space="preserve">
+        <value>Mission distance</value>
+    </data>
+    <data name="MissionTotalDistanceTelemetry_Header" xml:space="preserve">
+        <value>Mission total distance</value>
+    </data>
+    <data name="MissionProgressTelemetry_RemainingDistance" xml:space="preserve">
+        <value>Remaining distance</value>
+    </data>
+    <data name="MissionTelemetry_RemainingTime" xml:space="preserve">
+        <value>Remaining</value>
+    </data>
+    <data name="MissionProgressTelemetry_Header" xml:space="preserve">
+        <value>Mission Progress</value>
+    </data>
+    <data name="MissionDistanceTelemetry_Header" xml:space="preserve">
+        <value>Mission distance</value>
+    </data>
+    <data name="HomeDistanceTelemetry_Header" xml:space="preserve">
+        <value>Home</value>
+    </data>
+    <data name="MissionTargetTelemetry_Header" xml:space="preserve">
+        <value>Next mission item</value>
+    </data>
+    <data name="MissionTargetTelemetry_TargetDistance" xml:space="preserve">
+        <value>Distance</value>
+    </data>
+    <data name="MissionProgressView_TargetIndexRTT" xml:space="preserve">
+        <value>Number</value>
+    </data>
+    <data name="MissionProgressView_DownLoadingMission" xml:space="preserve">
+        <value>Downloading mission</value>
+    </data>
+    <data name="ModeTelemetry_Header" xml:space="preserve">
+        <value>Mode</value>
+    </data>
+    <data name="AltitudeTelemetry_Header" xml:space="preserve">
+        <value>Altitude</value>
+    </data>
+    <data name="HorizontalVelocityTelemetry_Header" xml:space="preserve">
+        <value>Horizontal Velocity</value>
+    </data>
+    <data name="AzimuthTelemetry_Header" xml:space="preserve">
+        <value>Azimuth</value>
+    </data>
+    <data name="BatteryTelemetry_Header" xml:space="preserve">
+        <value>Battery</value>
+    </data>
+    <data name="GnssTelemetry_Satellites_Header" xml:space="preserve">
+        <value>GNSS satellites</value>
+    </data>
+    <data name="LinkTelemetry_Header" xml:space="preserve">
+        <value>Link</value>
+    </data>
+    <data name="UavWidgetViewModel_StatusText_Armed" xml:space="preserve">
+        <value>Armed</value>
+    </data>
+    <data name="AltitudeTelemetry_StatusText_PullUp" xml:space="preserve">
+        <value>Pull Up</value>
+    </data>
+    <data name="UavWidgetViewModel_StatusText_DisArmed" xml:space="preserve">
+        <value>Disarmed</value>
+    </data>
+    <data name="FlightPageViewModel_Title" xml:space="preserve">
+        <value>Flight</value>
+    </data>
+    <data name="GpsFixType_GpsFixType2dFix" xml:space="preserve">
+        <value>2D position Fix</value>
+    </data>
+    <data name="GpsFixType_GpsFixTypeRtkFloat" xml:space="preserve">
+        <value>RTK Float</value>
+    </data>
+    <data name="GpsFixType_GpsFixTypeRtkFixed" xml:space="preserve">
+        <value>Rtk Fixed</value>
+    </data>
+    <data name="GpsFixType_GpsFixTypeDgps" xml:space="preserve">
+        <value>DGPS/SBAS</value>
+    </data>
+    <data name="GpsFixType_GpsFixTypePpp" xml:space="preserve">
+        <value>PPP 3D position</value>
+    </data>
+    <data name="GpsFixType_GpsFixType3dFix" xml:space="preserve">
+        <value>3D position Fix</value>
+    </data>
+    <data name="GpsFixType_GpsFixTypeStatic" xml:space="preserve">
+        <value>Static Fix</value>
+    </data>
+    <data name="GpsFixType_GpsFixTypeNoGps" xml:space="preserve">
+        <value>No GPS connected</value>
+    </data>
+    <data name="SetAltitudeDialogViewModel_ApplyDialog_PrimaryButton_TakeOff" xml:space="preserve">
+        <value>Take off</value>
+    </data>
+    <data name="SetAltitudeDialogViewModel_ApplyDialog_SecondaryButton_Cancel" xml:space="preserve">
+        <value>Cancel</value>
+    </data>
+    <data name="MissionProgressViewModel_MissionFlightTime_Symbol" xml:space="preserve">
+        <value>min</value>
+    </data>
+    <data name="FileBrowserView_Watermark_Local" xml:space="preserve">
+        <value>Local Search</value>
+    </data>
+    <data name="FileBrowserView_Watermark_Remote" xml:space="preserve">
+        <value>Remote Search</value>
+    </data>
+    <data name="FileBrowserView_Button_Download_Content" xml:space="preserve">
+        <value>Download</value>
+    </data>
+    <data name="FileBrowserView_Button_BurstDownload_Content" xml:space="preserve">
+        <value>Burst download</value>
+    </data>
+    <data name="UnpinAllParamsCommand_CommandInfo_Name" xml:space="preserve">
+        <value>Unpin all params</value>
+    </data>
+    <data name="WriteParamCommand_CommandInfo_Description" xml:space="preserve">
+        <value>Command that writes the param to the mavlink device</value>
+    </data>
+    <data name="WritePatamCommand_CommandInfo_Name" xml:space="preserve">
+        <value>Write param</value>
+    </data>
+    <data name="UnpinAllParamsCommand_CommandInfo_Description" xml:space="preserve">
+        <value>Command removes all pinned items from the params page</value>
+    </data>
+    <data name="StopUpdateParamsCommand_CommandInfo_Name" xml:space="preserve">
+        <value>Stop refreshing params</value>
+    </data>
+    <data name="StopUpdateParamsCommand_CommandInfo_Description" xml:space="preserve">
+        <value>Command to stop receiving parameters from the mavlink device</value>
+    </data>
+    <data name="UpdateParamsCommand_CommandInfo_Name" xml:space="preserve">
+        <value>Refresh params</value>
+    </data>
+    <data name="UpdateParamsCommand_CommandInfo_Description" xml:space="preserve">
+        <value>Command that refreshes params from the mavlink device</value>
+    </data>
+    <data name="ReadParamCommand_CommandInfo_Name" xml:space="preserve">
+        <value>Update param</value>
+    </data>
+    <data name="ReadParamCommand_CommandInfo_Description" xml:space="preserve">
+        <value>Command that updates param from the mavlink device</value>
+    </data>
+    <data name="OpenMavParamsCommand_CommandInfo_Name" xml:space="preserve">
+        <value>Open mavlink params</value>
+    </data>
+    <data name="OpenMavParamsCommand_CommandInfo_Description" xml:space="preserve">
+        <value>Command opens mavlink params editor</value>
+    </data>
+    <data name="HomePageParamsDeviceItemAction_ActionViewModel_Header" xml:space="preserve">
+        <value>Params editor</value>
+    </data>
+    <data name="HomePageParamsDeviceItemAction_ActionViewModel_Description" xml:space="preserve">
+        <value>Edit mavlink device parameters</value>
+    </data>
+    <data name="PacketViewerViewModel_SavePacketMessagesDialog_Title" xml:space="preserve">
+        <value>Select Separator:</value>
+    </data>
+    <data name="SavePacketMessagesDialogView_Separator_Tab" xml:space="preserve">
+        <value>TAB</value>
+    </data>
+    <data name="PacketViewerView_ToolTip_Save" xml:space="preserve">
+        <value>Save</value>
+    </data>
+    <data name="PacketViewerView_ToolTip_ClearAll" xml:space="preserve">
+        <value>Clear All</value>
+    </data>
+    <data name="PacketViewerView_ToolTip_PlayPause" xml:space="preserve">
+        <value>PLAY/PAUSE</value>
+    </data>
+    <data name="PacketMessageViewModel_CsvColumn_Date" xml:space="preserve">
+        <value>Date</value>
+    </data>
+    <data name="PacketMessageViewModel_CsvColumn_Source" xml:space="preserve">
+        <value>Source</value>
+    </data>
+    <data name="PacketMessageViewModel_CsvColumn_Type" xml:space="preserve">
+        <value>Type</value>
+    </data>
+    <data name="PacketMessageViewModel_CsvColumn_Message" xml:space="preserve">
+        <value>Message</value>
+    </data>
+    <data name="PacketViewerView_ExpanderFilterBySources_Header" xml:space="preserve">
+        <value>Sources</value>
+    </data>
+    <data name="PacketViewerView_ExpanderFilterByTypes_Header" xml:space="preserve">
+        <value>Types</value>
+    </data>
+    <data name="PacketViewerView_Filters_CheckAll" xml:space="preserve">
+        <value>Check All</value>
+    </data>
+    <data name="PacketViewerViewModel_SavePacketMessagesDialog_CloseButtonText" xml:space="preserve">
+        <value>Cancel</value>
+    </data>
+    <data name="PacketViewerViewModel_SavePacketMessagesDialog_PrimaryButtonText" xml:space="preserve">
+        <value>Accept</value>
+    </data>
+    <data name="FileBrowserViewModel_RenameDialog_Title" xml:space="preserve">
+        <value>Rename</value>
+    </data>
+    <data name="FileBrowserViewModel_RenameDialog_PrimaryButtonText" xml:space="preserve">
+        <value>Accept</value>
+    </data>
+    <data name="FileBrowserViewModel_RenameDialog_SecondaryButtonText" xml:space="preserve">
+        <value>Cancel</value>
+    </data>
+    <data name="FileBrowserViewModel_RenameDialog_Message" xml:space="preserve">
+        <value>Input new name</value>
+    </data>
+    <data name="OpenFlightModeCommand_CommandInfo_Name" xml:space="preserve">
+        <value>Open flight mode</value>
+    </data>
+    <data name="OpenFlightModeCommand_CommandInfo_Description" xml:space="preserve">
+        <value>Command that opens flight mode page</value>
+    </data>
+    <data name="OpenFileBrowserCommand_CommandInfo_Name" xml:space="preserve">
+        <value>Open file browser</value>
+    </data>
+    <data name="OpenFileBrowserCommand_CommandInfo_Description" xml:space="preserve">
+        <value>Command that opens file browser</value>
+    </data>
+    <data name="OpenPacketViewerCommand_CommandInfo_Name" xml:space="preserve">
+        <value>Open packet viewer</value>
+    </data>
+    <data name="OpenPacketViewerCommand_CommandInfo_Description" xml:space="preserve">
+        <value>Command that opens packet viewer</value>
+    </data>
+    <data name="AltitudeIndicatorStyles_ToolTip_Altitude" xml:space="preserve">
+        <value>Altitude</value>
+    </data>
+    <data name="AltitudeIndicatorStyles_ToolTip_Compass" xml:space="preserve">
+        <value>Compass</value>
+    </data>
+    <data name="AltitudeIndicatorStyles_ToolTip_Vibration" xml:space="preserve">
+        <value>Vibration</value>
+    </data>
+    <data name="FileBrowserViewModel_Title" xml:space="preserve">
+        <value>Browser</value>
+    </data>
+    <data name="UavWidgetViewModel_SetAltitudeDialog_Title" xml:space="preserve">
+        <value>Input Altitude</value>
+    </data>
+    <data name="MavParamsPageView_AwaitingScreen_Header" xml:space="preserve">
+        <value>Connecting</value>
+    </data>
+    <data name="MavParamsPageView_AwaitingScreen_Description" xml:space="preserve">
+        <value>Connecting to the device...</value>
+    </data>
+    <data name="MavParamsPageView_CancelButton_Content" xml:space="preserve">
+        <value>Cancel</value>
+    </data>
+    <data name="MavParamsPageView_Loading_Text" xml:space="preserve">
+        <value>Loading</value>
+    </data>
+    <data name="PacketViewerViewModel_Title" xml:space="preserve">
+        <value>Packet Viewer</value>
+    </data>
+    <data name="MavParamsPageViewModel_Title" xml:space="preserve">
+        <value>Params</value>
+    </data>
+    <data name="ClearAllPacketsCommand_CommandInfo_Name" xml:space="preserve">
+        <value>Clear all packets</value>
+    </data>
+    <data name="ClearAllPacketsCommand_CommandInfo_Description" xml:space="preserve">
+        <value>Command that clears all packets</value>
+    </data>
+    <data name="ExportPacketsToCsvCommand_CommandInfo_Name" xml:space="preserve">
+        <value>Export packets to CSV</value>
+    </data>
+    <data name="ExportPacketsToCsvCommand_CommandInfo_Description" xml:space="preserve">
+        <value>Command that exports packets to a CSV file</value>
+    </data>
+    <data name="RenameItemCommand_CommandInfo_Name" xml:space="preserve">
+        <value>Commit item rename</value>
+    </data>
+    <data name="RenameItemCommand_CommandInfo_Description" xml:space="preserve">
+        <value>Command that commits an item renaming</value>
+    </data>
+    <data name="FileBrowserView_AwaitingScreen_Header" xml:space="preserve">
+        <value>Connecting</value>
+    </data>
+    <data name="FileBrowserView_AwaitingScreen_Description" xml:space="preserve">
+        <value>Connect to the device's FTP service...</value>
+    </data>
+    <data name="RemoveItemCommand_CommandInfo_Name" xml:space="preserve">
+        <value>Remove item</value>
+    </data>
+    <data name="RemoveItemCommand_CommandInfo_Description" xml:space="preserve">
+        <value>Command that removes item</value>
+    </data>
+    <data name="CalculateCrc32Command_CommandInfo_Description" xml:space="preserve">
+        <value>Command that checks a cyclic redundancy of a file (crc32)</value>
+    </data>
+    <data name="CalculateCrc32Command_CommandInfo_Name" xml:space="preserve">
+        <value>Calculate CRC32</value>
+    </data>
+    <data name="CreateDirectoryCommand_CommandInfo_Name" xml:space="preserve">
+        <value>Create a folder</value>
+    </data>
+    <data name="CreateDirectoryCommand_CommandInfo_Description" xml:space="preserve">
+        <value>Command that creates a folder</value>
+    </data>
+    <data name="BurstDownloadItemCommand_CommandInfo_Name" xml:space="preserve">
+        <value>Burst-Download</value>
+    </data>
+    <data name="BurstDownloadItemCommand_CommandInfo_Description" xml:space="preserve">
+        <value>Command that download an element by burst</value>
+    </data>
+    <data name="DownloadItemCommand_CommandInfo_Name" xml:space="preserve">
+        <value>Download</value>
+    </data>
+    <data name="DownloadItemCommand_CommandInfo_Description" xml:space="preserve">
+        <value>Command that downloads remote entries</value>
+    </data>
+    <data name="UploadItemCommand_CommandInfo_Name" xml:space="preserve">
+        <value>Upload</value>
+    </data>
+    <data name="UploadItemCommand_CommandInfo_Description" xml:space="preserve">
+        <value>Command that uploads files to the remote device</value>
+    </data>
+    <data name="FindFileOnLocalCommand_CommandInfo_Name" xml:space="preserve">
+        <value>Find file</value>
+    </data>
+    <data name="FindFileOnLocalCommand_CommandInfo_Description" xml:space="preserve">
+        <value>Command that finds a file selected in a remote tree in a local tree</value>
+    </data>
+    <data name="SetupPageViewModel_Title" xml:space="preserve">
+        <value>Setup</value>
+    </data>
+    <data name="SetupFrameTypeViewModel_Name" xml:space="preserve">
+        <value>Frame type</value>
+    </data>
+    <data name="ChangeFrameTypeCommand_CommandInfo_Description" xml:space="preserve">
+        <value>Command that changes frame type</value>
+    </data>
+    <data name="ChangeFrameTypeCommand_CommandInfo_Name" xml:space="preserve">
+        <value>Change frame type</value>
+    </data>
+    <data name="SetupFrameTypeView_Loader_Header" xml:space="preserve">
+        <value>Loading...</value>
+    </data>
+    <data name="SetupFrameTypeView_Loader_Description" xml:space="preserve">
+        <value>Please wait</value>
+    </data>
+    <data name="SetupFrameTypeView_CurrentFrame" xml:space="preserve">
+        <value>Current frame</value>
+    </data>
+    <data name="SetupFrameTypeView_FrameMetadata" xml:space="preserve">
+        <value>Metadata</value>
+    </data>
+    <data name="SetupFrameTypeView_ApplyFrame" xml:space="preserve">
+        <value>Set</value>
+    </data>
+    <data name="SetupFrameTypeViewModel_ApplyConfirmation_Title" xml:space="preserve">
+        <value>Change frame type</value>
+    </data>
+    <data name="SetupFrameTypeViewModel_ApplyConfirmation_Message" xml:space="preserve">
+        <value>Do you want to change frame type?</value>
+    </data>
+    <data name="SetupFrameTypeViewModel_CurrentFrame_Unknown" xml:space="preserve">
+        <value>Unknown</value>
+    </data>
+    <data name="OpenSetupCommand_CommandInfo_Name" xml:space="preserve">
+        <value>Open Setup page</value>
+    </data>
+    <data name="OpenSetupCommand_CommandInfo_Description" xml:space="preserve">
+        <value>Command that opens setup page for the drone</value>
+    </data>
+    <data name="SetupFrameTypeView_CurrentFrame_Refresh" xml:space="preserve">
+        <value>Refresh current frame</value>
+    </data>
+    <data name="SetupFrameTypeView_CurrentFrame_Meta" xml:space="preserve">
+        <value>Description</value>
+    </data>
+    <data name="MissionProgressView_RefreshButton_Text" xml:space="preserve">
+        <value>Refresh mission</value>
+    </data>
+    <data name="MissionProgressView_DownloadButton_Text" xml:space="preserve">
+        <value>Download Mission</value>
+    </data>
+    <data name="SetupMotorsView_TestDuration" xml:space="preserve">
+        <value>Duration</value>
+    </data>
+    <data name="SetupMotorsView_DurationLabel_TimeUnit" xml:space="preserve">
+        <value>s</value>
+    </data>
+    <data name="MotorItemView_Label_MotorId" xml:space="preserve">
+        <value>Motor</value>
+    </data>
+    <data name="MotorItemView_MonitoringLabel_Servo" xml:space="preserve">
+        <value>Servo</value>
+    </data>
+    <data name="MotorItemView_MonitoringLabel_Pwm" xml:space="preserve">
+        <value>PWM</value>
+    </data>
+    <data name="MotorItemView_ToolTip_StartStop" xml:space="preserve">
+        <value>START/STOP</value>
+    </data>
+    <data name="SetupMotorsViewModel_Name" xml:space="preserve">
+        <value>Motor Test</value>
+    </data>
+    <data name="HeadingScaleItem_Direction_N" xml:space="preserve">
+        <value>N</value>
+    </data>
+    <data name="HeadingScaleItem_Direction_NE" xml:space="preserve">
+        <value>NE</value>
+    </data>
+    <data name="HeadingScaleItem_Direction_E" xml:space="preserve">
+        <value>E</value>
+    </data>
+    <data name="HeadingScaleItem_Direction_SE" xml:space="preserve">
+        <value>SE</value>
+    </data>
+    <data name="HeadingScaleItem_Direction_S" xml:space="preserve">
+        <value>S</value>
+    </data>
+    <data name="HeadingScaleItem_Direction_SW" xml:space="preserve">
+        <value>SW</value>
+    </data>
+    <data name="HeadingScaleItem_Direction_W" xml:space="preserve">
+        <value>W</value>
+    </data>
+    <data name="HeadingScaleItem_Direction_NW" xml:space="preserve">
+        <value>NW</value>
+    </data>
+    <data name="BurstDownloadDialogView_Description_Text" xml:space="preserve">
+        <value>Enter the size of a download block</value>
+    </data>
+    <data name="UavWidgetViewModel_BatteryRttBox_BatteryCharge_Header" xml:space="preserve">
+        <value>Charge</value>
+    </data>
+    <data name="UavWidgetViewModel_BatteryRttBox_BatteryAmperage_Header" xml:space="preserve">
+        <value>Amperage</value>
+    </data>
+    <data name="UavWidgetViewModel_BatteryRttBox_BatteryVoltage_Header" xml:space="preserve">
+        <value>Voltage</value>
+    </data>
+    <data name="UavWidgetViewModel_BatteryRttBox_BatteryConsumed_Header" xml:space="preserve">
+        <value>Capacity</value>
+    </data>
+    <data name="UavWidgetViewModel_GnssRttBox_SatellitesCount_Header" xml:space="preserve">
+        <value>Satellites</value>
+    </data>
+    <data name="GnssTelemetry_Hdop_Header" xml:space="preserve">
+        <value>GNSS Hdop</value>
+    </data>
+    <data name="GnssTelemetry_Vdop_Header" xml:space="preserve">
+        <value>GNSS Vdop</value>
+    </data>
+    <data name="GnssTelemetry_Mode_Header" xml:space="preserve">
+        <value>GNSS Mode</value>
+    </data>
+    <data name="HeadingTelemetry_Header" xml:space="preserve">
+        <value>Heading</value>
+    </data>
+    <data name="HomeAzimuthTelemetry_Header" xml:space="preserve">
+        <value>Home azimuth</value>
+    </data>
+    <data name="HomeAzimuthTelemetry_Header_Short" xml:space="preserve">
+        <value>Home</value>
+    </data>
+    <data name="VerticalVelocityTelemetry_Header" xml:space="preserve">
+        <value>Vertical Velocity</value>
+    </data>
+    <data name="TimeInAirTelemetry_Header" xml:space="preserve">
+        <value>Time in air</value>
+    </data>
+    <data name="AngleTelemetry_Header" xml:space="preserve">
+        <value>Angle</value>
+    </data>
+    <data name="AltitudeUavIndicatorViewModel_Agl" xml:space="preserve">
+        <value>AGL</value>
+    </data>
+    <data name="MslAltitudeTelemetry_Header" xml:space="preserve">
+        <value>MSL Altitude</value>
+    </data>
+    <data name="AngleUavRttIndicatorViewModel_Pitch" xml:space="preserve">
+        <value>Pitch</value>
+    </data>
+    <data name="AngleTelemetry_Roll" xml:space="preserve">
+        <value>Roll</value>
+    </data>
+    <data name="AddTelemetryItemCommand_CommandInfo_Name" xml:space="preserve">
+        <value>Add telemetry indicator</value>
+    </data>
+    <data name="AddTelemetryItemCommand_CommandInfo_Description" xml:space="preserve">
+        <value>Add a telemetry indicator to the flight mode widget.</value>
+    </data>
+    <data name="ConfigureTelemetryAction_TryCreateAction_Header" xml:space="preserve">
+        <value>Configure telemetry</value>
+    </data>
+    <data name="ConfigureTelemetryAction_TryCreateAction_Description" xml:space="preserve">
+        <value>Configure how telemetry indicators are displayed.</value>
+    </data>
+    <data name="ConfigureTelemetryDialogViewModel_SelectAll_Header" xml:space="preserve">
+        <value>Select all</value>
+    </data>
+    <data name="ConfigureTelemetryDialogViewModel_ClearSelection_Header" xml:space="preserve">
+        <value>Clear selection</value>
+    </data>
+    <data name="RemoveTelemetryItemCommand_CommandInfo_Name" xml:space="preserve">
+        <value>Remove telemetry indicator</value>
+    </data>
+    <data name="RemoveTelemetryItemCommand_CommandInfo_Description" xml:space="preserve">
+        <value>Remove a telemetry indicator from the flight mode widget.</value>
+    </data>
+    <data name="ResetTelemetryItemsCommand_CommandInfo_Name" xml:space="preserve">
+        <value>Reset telemetry indicators</value>
+    </data>
+    <data name="ResetTelemetryItemsCommand_CommandInfo_Description" xml:space="preserve">
+        <value>Reset telemetry indicators to the default layout.</value>
+    </data>
+    <data name="AddTelemetryDisplayItemView_AddIndicatorButton_ToolTip" xml:space="preserve">
+        <value>Add indicator</value>
+    </data>
+    <data name="TelemetrySectionView_DoneButton_ToolTip" xml:space="preserve">
+        <value>Done</value>
+    </data>
+    <data name="TelemetrySectionView_ConfirmEditingMenuItem_Header" xml:space="preserve">
+        <value>Confirm changes</value>
+    </data>
+    <data name="TelemetrySectionView_EditIndicatorsMenuItem_Header" xml:space="preserve">
+        <value>Edit indicators</value>
+    </data>
+    <data name="TelemetrySectionView_ResetButton_ToolTip" xml:space="preserve">
+        <value>Reset to default</value>
+    </data>
+    <data name="TelemetrySectionView_ResetMenuItem_Header" xml:space="preserve">
+        <value>Reset to default</value>
+    </data>
+    <data name="TelemetrySectionViewModel_ConfigureTelemetryDialog_CloseButtonText" xml:space="preserve">
+        <value>Cancel</value>
+    </data>
+    <data name="TelemetrySectionViewModel_ConfigureTelemetryDialog_Title" xml:space="preserve">
+        <value>Configure telemetry</value>
+    </data>
+    <data name="TelemetrySectionViewModel_ConfigureTelemetryDialog_PrimaryButtonText" xml:space="preserve">
+        <value>Accept</value>
+    </data>
+    <data name="AutoModeAction_TryCreateAction_Header" xml:space="preserve">
+        <value>Auto</value>
+    </data>
+    <data name="AutoModeAction_TryCreateAction_Description" xml:space="preserve">
+        <value>Switch to auto flight mode.</value>
+    </data>
+    <data name="RefreshMissionAction_TryCreateAction_Header" xml:space="preserve">
+        <value>Refresh mission</value>
+    </data>
+    <data name="RefreshMissionAction_TryCreateAction_Description" xml:space="preserve">
+        <value>Download the latest mission from the drone.</value>
+    </data>
+    <data name="StartMissionAction_TryCreateAction_Header" xml:space="preserve">
+        <value>Start mission</value>
+    </data>
+    <data name="StartMissionAction_TryCreateAction_Description" xml:space="preserve">
+        <value>Download the latest mission, select the first mission item, and switch to auto mode.</value>
+    </data>
+    <data name="GuidedAction_TryCreateAction_Header" xml:space="preserve">
+        <value>Guided</value>
+    </data>
+    <data name="GuidedAction_TryCreateAction_Description" xml:space="preserve">
+        <value>Switch to guided flight mode.</value>
+    </data>
+    <data name="RtlAction_TryCreateAction_Header" xml:space="preserve">
+        <value>RTL</value>
+    </data>
+    <data name="RtlAction_TryCreateAction_Description" xml:space="preserve">
+        <value>Return to launch.</value>
+    </data>
+    <data name="LandAction_TryCreateAction_Header" xml:space="preserve">
+        <value>Land</value>
+    </data>
+    <data name="LandAction_TryCreateAction_Description" xml:space="preserve">
+        <value>Land the drone at the current location.</value>
+    </data>
+    <data name="TakeOffAction_TryCreateAction_Header" xml:space="preserve">
+        <value>Take off</value>
+    </data>
+    <data name="TakeOffAction_TryCreateAction_Description" xml:space="preserve">
+        <value>Take off to the specified altitude.</value>
+    </data>
+    <data name="GotoAction_TryCreateAction_Header" xml:space="preserve">
+        <value>Go to</value>
+    </data>
+    <data name="GotoAction_TryCreateAction_Description" xml:space="preserve">
+        <value>Send the drone to the specified location.</value>
+    </data>
+    <data name="RoiAction_TryCreateAction_Header" xml:space="preserve">
+        <value>ROI</value>
+    </data>
+    <data name="RoiAction_TryCreateAction_Description" xml:space="preserve">
+        <value>Set region of interest.</value>
+    </data>
+    <data name="FindDroneAction_TryCreateAction_Header" xml:space="preserve">
+        <value>Find drone</value>
+    </data>
+    <data name="FindDroneAction_TryCreateAction_Description" xml:space="preserve">
+        <value>Center the map on the drone's current position.</value>
+    </data>
+    <data name="FlightModePageView_WorkspaceItem_ActionsHeader" xml:space="preserve">
+        <value>Actions</value>
+    </data>
+    <data name="MslAltitudeTelemetry_Header_Short" xml:space="preserve">
+        <value>MSL</value>
+    </data>
+    <data name="AltitudeTelemetry_Header_Short" xml:space="preserve">
+        <value>Alt</value>
+    </data>
+    <data name="GnssTelemetry_Hdop_Header_Short" xml:space="preserve">
+        <value>Hdop</value>
+    </data>
+    <data name="GnssTelemetry_Mode_Header_Short" xml:space="preserve">
+        <value>GNSS</value>
+    </data>
+    <data name="GnssTelemetry_Satellites_Header_Short" xml:space="preserve">
+        <value>Sat</value>
+    </data>
+    <data name="GnssTelemetry_Satellites_Unit" xml:space="preserve">
+        <value>sat</value>
+    </data>
+    <data name="GnssTelemetry_Vdop_Header_Short" xml:space="preserve">
+        <value>Vdop</value>
+    </data>
+    <data name="MissionDistanceTelemetry_Header_Short" xml:space="preserve">
+        <value>Mission</value>
+    </data>
+    <data name="MissionProgressTelemetry_Header_Short" xml:space="preserve">
+        <value>Mission</value>
+    </data>
+    <data name="MissionTargetTelemetry_Header_Short" xml:space="preserve">
+        <value>Mis item</value>
+    </data>
+    <data name="VerticalVelocityTelemetry_Header_Short" xml:space="preserve">
+        <value>VS</value>
+    </data>
+    <data name="HorizontalVelocityTelemetry_Header_Short" xml:space="preserve">
+        <value>HV</value>
+    </data>
+    <data name="MissionTotalDistanceTelemetry_Header_Short" xml:space="preserve">
+        <value>Mis Tot</value>
+    </data>
+    <data name="BatteryTelemetry_Header_Short" xml:space="preserve">
+        <value>Bat</value>
+    </data>
+    <data name="TimeInAirTelemetry_Header_Short" xml:space="preserve">
+        <value>In air</value>
+    </data>
+</root>

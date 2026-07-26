@@ -1,0 +1,50 @@
+[project]
+name = "argus-gcs"
+version = "3.6.0"
+description = "Universal web-based ground control station for MAVLink drones"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [{name = "L-X-Yao", email = "lsc1476907630@gmail.com"}]
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.115.0,<1.0",
+    "uvicorn[standard]>=0.34.0,<1.0",
+    "websockets>=14.0,<17.0",
+    "python-multipart>=0.0.9",
+    "pyserial>=3.5",
+]
+
+[project.urls]
+Homepage = "https://github.com/L-X-Yao/argus"
+Repository = "https://github.com/L-X-Yao/argus"
+Issues = "https://github.com/L-X-Yao/argus/issues"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.25.0",
+    "httpx>=0.28.0",
+    "pytest-cov>=6.0",
+    "ruff>=0.8.0",
+    "pymavlink>=2.4.49",
+]
+
+[tool.setuptools.packages.find]
+include = ["backend*"]
+
+[tool.coverage.run]
+omit = [
+    "backend/server.py",
+]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+extend-exclude = ["tests/sitl_verify.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM"]
+ignore = ["E501", "UP031", "SIM105", "SIM102", "SIM108", "SIM115", "E402", "E741", "E701", "B023", "B904", "B011"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["backend"]

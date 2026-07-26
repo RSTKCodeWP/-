@@ -42,6 +42,20 @@ KEYWORDS: list[tuple[str, float]] = [
     (r"\btelemetry\b", 1.0),
     (r"\bvideo\s*encoder\b", 1.5),
     (r"\bexpresslrs\b", 1.8),
+    (r"\bfiber\b", 1.8),
+    (r"\boptical\b", 1.2),
+    (r"\brepeater\b", 1.5),
+    (r"\bdatalink\b", 1.5),
+    (r"\bconfigurator\b", 1.2),
+    (r"\blap\s*timer\b", 1.5),
+    (r"\binventory\b", 1.0),
+    (r"\bsteam\s*deck\b", 1.2),
+    (r"\bandroid\b.*\bfpv\b", 1.5),
+    (r"\bwalksnail\b", 1.5),
+    (r"\bavatar\b", 0.8),
+    (r"\bremote\s*id\b", 1.2),
+    (r"\bmadflight\b", 2.0),
+    (r"\bmeshtastic\b", 1.0),
 ]
 
 # Penalize obvious non-library targets
@@ -54,6 +68,11 @@ NEGATIVE: list[tuple[str, float]] = [
     (r"\bwebsite\b", -0.8),
     (r"\b\.github\.io\b", -0.5),
     (r"\bgun\s+fpv\b", -3.0),
+    (r"\borgtestcodacy\b", -4.0),
+    (r"\bconfig\s+files\s+for\s+my\s+github\s+profile\b", -3.0),
+    (r"\bhomework\b", -2.0),
+    (r"\bcourse\b", -1.0),
+    (r"\bdotfiles\b", -1.5),
 ]
 
 

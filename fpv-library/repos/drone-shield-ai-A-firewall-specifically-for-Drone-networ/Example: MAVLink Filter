@@ -1,0 +1,8 @@
+def filter_mavlink(message):
+    blocked_commands = ["ARM", "DISARM"]
+
+    if message["command"] in blocked_commands:
+        print("⚠️ Blocked MAVLink command:", message)
+        return False
+
+    return True
