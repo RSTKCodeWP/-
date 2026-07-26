@@ -1,0 +1,80 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv
+
+# Poetry
+poetry.lock
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project specific
+cache/
+output/
+temp/
+logs/
+*.log
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Settings & Secrets (IMPORTANT!)
+data/
+.secret_key
+*.enc
+secrets.json
+
+# Frontend
+frontend-new/node_modules/
+frontend-new/dist/
+frontend-new/.env.local
+frontend-new/npm-debug.log*
+frontend-new/yarn-debug.log*
+frontend-new/yarn-error.log*
+
+# Old frontend (if keeping)
+frontend/node_modules/
+
+# Tests
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Build artifacts
+*.zip
+*.tar.gz

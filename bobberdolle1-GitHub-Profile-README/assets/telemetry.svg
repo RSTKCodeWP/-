@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 132" width="100%" role="img" aria-label="Language composition: PYTHON 58.3%  ·  RUST 14.4%  ·  LUA 6.1%  ·  TYPESCRIPT 5.5%  ·  GO 3.3%  ·  C++ 3.2%  ·  OTHER 9.3%. Since 2018, longest streak 9 days, 70 stars, 11 followers">
+  
+    <defs>
+        <linearGradient id="skyFade" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#020713" />
+            <stop offset="55%" stop-color="#01030a" />
+            <stop offset="100%" stop-color="#020713" />
+        </linearGradient>
+        <radialGradient id="horizonGlow" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="#0a4a86" stop-opacity="0.55" />
+            <stop offset="60%" stop-color="#062a52" stop-opacity="0.18" />
+            <stop offset="100%" stop-color="#01030a" stop-opacity="0" />
+        </radialGradient>
+        <filter id="bloom" x="-30%" y="-30%" width="160%" height="160%">
+            <feGaussianBlur stdDeviation="4" result="b" />
+            <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+        </filter>
+        <style>
+            .t-title { font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif; font-weight: 300; letter-spacing: 6px; fill: #cfeeff; }
+            .t-sub   { font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif; font-weight: 300; letter-spacing: 3px; fill: #4a5a70; }
+            .t-mono  { font-family: "SFMono-Regular", Consolas, "Courier New", monospace; fill: #7fd4ff; }
+            .t-num   { font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif; font-weight: 200; fill: #cfeeff; }
+            /* Animation contract for every class below: the resting state is
+               fully visible. A renderer that never advances the timeline shows
+               a complete, slightly-still page — never an empty one. Negative
+               delays put looping effects mid-flight at frame 0. */
+            @keyframes rise { from { transform: translateY(18px); } to { transform: translateY(0); } }
+            .tw { animation: rise 0.75s cubic-bezier(0.16, 0.84, 0.24, 1) both; }
+            @keyframes dustRise { from { transform: translateY(0); } to { transform: translateY(-20px); } }
+            .dust { animation: dustRise 12s ease-in-out infinite alternate; }
+            @keyframes beamFlicker { 0% { opacity: 0.12; } 50% { opacity: 0.28; } 100% { opacity: 0.12; } }
+            .beam { animation: beamFlicker 8s ease-in-out infinite; }
+            @keyframes beaconPulse { from { opacity: 0.12; } to { opacity: 0.38; } }
+            .beacon { animation: beaconPulse 1.5s ease-in-out infinite alternate; }
+            @keyframes pulseFade { 0% { opacity: 0.15; } 50% { opacity: 0.6; } 100% { opacity: 0.15; } }
+            .pulse { animation: pulseFade 4s ease-in-out infinite; }
+            @keyframes scanSweep { from { transform: translateX(0); } to { transform: translateX(1100px); } }
+            .scan { animation: scanSweep 14s linear infinite; }
+            @media (prefers-reduced-motion: reduce) {
+                .tw, .rb1, .rb2, .dust, .beam, .beacon, .pulse, .scan { animation: none; }
+            }
+        </style>
+    </defs>
+  <defs>
+    <!-- The shared bloom's ±30% region would clip the glow of a 12px-tall
+         bar to ~4px; this one gives the strip real vertical headroom. -->
+    <filter id="bloomBar" x="-3%" y="-300%" width="106%" height="700%">
+      <feGaussianBlur stdDeviation="3.5" result="b" />
+      <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+    </filter>
+  </defs>
+  <rect width="100%" height="100%" fill="url(#skyFade)" />
+  <text x="46" y="28" class="t-sub" font-size="9.5">CODE COMPOSITION // PUBLIC SOURCE</text>
+  <g filter="url(#bloomBar)"><rect x="46" y="44" width="527.44" height="12" fill="#cfeeff"/><rect x="575.44" y="44" width="128.69" height="12" fill="#aecee3"/><rect x="706.13" y="44" width="53.55" height="12" fill="#8dadc6"/><rect x="761.68" y="44" width="47.63" height="12" fill="#6d8daa"/><rect x="811.31" y="44" width="27.89" height="12" fill="#4c6d8e"/><rect x="841.2" y="44" width="26.81" height="12" fill="#2b4c71"/><rect x="870.01" y="44" width="81.99" height="12" fill="#0a1d38"/></g>
+  <text x="500" y="82" class="t-sub" font-size="9.5" text-anchor="middle" style="letter-spacing:1px">PYTHON 58.3%  ·  RUST 14.4%  ·  LUA 6.1%  ·  TYPESCRIPT 5.5%  ·  GO 3.3%  ·  C++ 3.2%  ·  OTHER 9.3%</text>
+  <line x1="46" y1="100" x2="954" y2="100" stroke="#1d6fb8" stroke-width="0.75" opacity="0.3"/>
+  <text x="500" y="120" class="t-mono" font-size="10" text-anchor="middle" style="letter-spacing:2px"><tspan fill="#4a5a70">EST. </tspan><tspan fill="#7fd4ff">2018</tspan><tspan fill="#0a2c55">  ·  </tspan><tspan fill="#7fd4ff">9D</tspan><tspan fill="#4a5a70"> LONGEST STREAK</tspan><tspan fill="#0a2c55">  ·  </tspan><tspan fill="#7fd4ff">70</tspan><tspan fill="#4a5a70"> STARS</tspan><tspan fill="#0a2c55">  ·  </tspan><tspan fill="#7fd4ff">11</tspan><tspan fill="#4a5a70"> FOLLOWERS</tspan></text>
+</svg>

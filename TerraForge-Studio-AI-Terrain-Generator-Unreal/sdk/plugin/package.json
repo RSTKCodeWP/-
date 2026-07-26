@@ -1,0 +1,28 @@
+{
+  "name": "@terraforge/plugin-sdk",
+  "version": "1.0.0",
+  "description": "Plugin SDK for TerraForge Studio",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "jest",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "terraforge",
+    "plugin",
+    "sdk",
+    "exporter",
+    "terrain"
+  ],
+  "author": "TerraForge Studio",
+  "license": "MIT",
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.2.0"
+  }
+}

@@ -1,0 +1,23 @@
+[package]
+name = "openflash-firmware-stm32f1"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+cortex-m = "0.7"
+cortex-m-rt = "0.7"
+embassy-stm32 = { version = "0.1", features = ["stm32f103c8", "time-driver-any", "unstable-pac", "critical-section-impl"] }
+embassy-time = "0.1"
+embassy-usb = "0.1"
+panic-probe = { version = "0.3", features = ["print-defmt"] }
+defmt = "0.3"
+defmt-rtt = "0.4"
+heapless = "0.8"
+
+[profile.dev]
+debug = 2
+lto = true
+
+[profile.release]
+lto = true
+

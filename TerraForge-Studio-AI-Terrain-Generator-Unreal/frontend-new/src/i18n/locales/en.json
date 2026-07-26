@@ -1,0 +1,55 @@
+{
+  "app": {
+    "title": "TerraForge Studio",
+    "subtitle": "Professional 3D Terrain Generator"
+  },
+  "nav": {
+    "map2d": "2D Map Selector",
+    "preview3d": "3D Preview",
+    "settings": "Settings",
+    "history": "History",
+    "cache": "Cache",
+    "share": "Share"
+  },
+  "export": {
+    "title": "Export Configuration",
+    "terrainName": "Terrain Name",
+    "heightmapResolution": "Heightmap Resolution",
+    "exportFormats": "Export Formats",
+    "elevationSource": "Elevation Source",
+    "features": "Features",
+    "roads": "Roads",
+    "buildings": "Buildings",
+    "weightmaps": "Weightmaps",
+    "useAI": "Use AI (Qwen3)",
+    "aiDescription": "AI will analyze terrain and optimize parameters",
+    "generate": "Generate Terrain",
+    "loadPreset": "Load Preset Template"
+  },
+  "settings": {
+    "title": "Settings",
+    "dataSources": "Data Sources",
+    "generation": "Generation",
+    "exportProfiles": "Export Profiles",
+    "uiLanguage": "UI & Language",
+    "storage": "Storage",
+    "save": "Save Settings"
+  },
+  "ai": {
+    "title": "AI Terrain Assistant",
+    "analyze": "Analyze Terrain",
+    "analyzing": "Analyzing...",
+    "recommendations": "Recommendations"
+  },
+  "map": {
+    "selectArea": "Draw a rectangle or polygon to select area",
+    "selectedArea": "Selected Area",
+    "area": "Area",
+    "mapType": {
+      "osm": "Map",
+      "satellite": "Satellite",
+      "hybrid": "Hybrid",
+      "topo": "Topographic"
+    }
+  }
+}

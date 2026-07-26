@@ -1,0 +1,45 @@
+# Core dependencies
+aiogram
+python-dotenv
+pydantic
+pydantic-settings
+SQLAlchemy
+aiosqlite
+asyncpg
+alembic
+httpx
+APScheduler
+pytz
+python-dateutil
+uvloop; sys_platform != 'win32'
+Pillow
+yt-dlp
+chromadb
+ollama
+cachetools
+redis
+arq
+
+# GIF/MP4 processing
+imageio[pyav]
+
+# TTS
+edge-tts
+gTTS
+
+# Silero TTS - offline Russian TTS
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch
+numpy
+
+# Development dependencies
+pytest
+pytest-asyncio
+pytest-cov
+hypothesis
+black
+flake8
+isort
+mypy
+pre-commit
+pytest-mock

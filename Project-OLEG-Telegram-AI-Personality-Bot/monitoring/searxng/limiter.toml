@@ -1,0 +1,15 @@
+# SearXNG limiter config - отключаем bot detection
+# https://docs.searxng.org/admin/searx.limiter.html
+
+[botdetection.ip_limit]
+# Отключаем лимиты по IP
+link_token = false
+
+[botdetection.ip_lists]
+# Пустые списки
+pass_ip = []
+block_ip = []
+
+# Доверенные прокси (пустой = доверяем всем)
+[botdetection]
+trusted_proxies = []

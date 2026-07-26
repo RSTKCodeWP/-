@@ -1,0 +1,8 @@
+id: advanced_servo_drop
+name: Servo Drop
+version: 2.5.0
+author: Bobberdolle1
+desc: Auto servo drop for RC plane targeting
+category: Tool
+type: python
+exec: main.py

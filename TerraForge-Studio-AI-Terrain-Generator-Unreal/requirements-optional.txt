@@ -1,0 +1,32 @@
+# ========================================
+# TerraForge Studio - Optional Dependencies
+#
+# Everything here unlocks an extra capability. The application starts and
+# generates terrain without any of it; each import is guarded and the
+# corresponding feature reports itself as unavailable when missing.
+#
+#   pip install -r requirements.txt -r requirements-optional.txt
+# ========================================
+
+# --- 3D / GIS export formats ---
+# GLTF/GLB mesh export
+trimesh>=4.0.5,<5.0
+pygltflib>=1.16.1,<2.0
+# GeoTIFF export (also pulls in GDAL bindings)
+rasterio>=1.3.10,<2.0
+
+# --- OpenStreetMap vector data (roads, buildings, land use) ---
+osmnx>=2.0.0,<3.0
+geopandas>=1.0.1,<2.0
+shapely>=2.0.6,<3.0
+pyproj>=3.7.0,<4.0
+networkx>=3.4.0,<4.0
+
+# --- Premium elevation and imagery providers (each needs an API key) ---
+sentinelhub>=3.10.0,<4.0
+earthengine-api>=0.1.387
+azure-maps-geolocation>=1.0.0b1
+azure-maps-render>=1.0.0b1
+
+# --- AI terrain analysis (requires a running Ollama instance) ---
+ollama>=0.4.0,<1.0

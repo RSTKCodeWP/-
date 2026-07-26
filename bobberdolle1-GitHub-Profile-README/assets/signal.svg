@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 116" width="100%" role="img" aria-label="Commit activity by hour of day (UTC+3), from the last 331 commits">
+  
+    <defs>
+        <linearGradient id="skyFade" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#020713" />
+            <stop offset="55%" stop-color="#01030a" />
+            <stop offset="100%" stop-color="#020713" />
+        </linearGradient>
+        <radialGradient id="horizonGlow" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="#0a4a86" stop-opacity="0.55" />
+            <stop offset="60%" stop-color="#062a52" stop-opacity="0.18" />
+            <stop offset="100%" stop-color="#01030a" stop-opacity="0" />
+        </radialGradient>
+        <filter id="bloom" x="-30%" y="-30%" width="160%" height="160%">
+            <feGaussianBlur stdDeviation="4" result="b" />
+            <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+        </filter>
+        <style>
+            .t-title { font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif; font-weight: 300; letter-spacing: 6px; fill: #cfeeff; }
+            .t-sub   { font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif; font-weight: 300; letter-spacing: 3px; fill: #4a5a70; }
+            .t-mono  { font-family: "SFMono-Regular", Consolas, "Courier New", monospace; fill: #7fd4ff; }
+            .t-num   { font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif; font-weight: 200; fill: #cfeeff; }
+            /* Animation contract for every class below: the resting state is
+               fully visible. A renderer that never advances the timeline shows
+               a complete, slightly-still page — never an empty one. Negative
+               delays put looping effects mid-flight at frame 0. */
+            @keyframes rise { from { transform: translateY(18px); } to { transform: translateY(0); } }
+            .tw { animation: rise 0.75s cubic-bezier(0.16, 0.84, 0.24, 1) both; }
+            @keyframes dustRise { from { transform: translateY(0); } to { transform: translateY(-20px); } }
+            .dust { animation: dustRise 12s ease-in-out infinite alternate; }
+            @keyframes beamFlicker { 0% { opacity: 0.12; } 50% { opacity: 0.28; } 100% { opacity: 0.12; } }
+            .beam { animation: beamFlicker 8s ease-in-out infinite; }
+            @keyframes beaconPulse { from { opacity: 0.12; } to { opacity: 0.38; } }
+            .beacon { animation: beaconPulse 1.5s ease-in-out infinite alternate; }
+            @keyframes pulseFade { 0% { opacity: 0.15; } 50% { opacity: 0.6; } 100% { opacity: 0.15; } }
+            .pulse { animation: pulseFade 4s ease-in-out infinite; }
+            @keyframes scanSweep { from { transform: translateX(0); } to { transform: translateX(1100px); } }
+            .scan { animation: scanSweep 14s linear infinite; }
+            @media (prefers-reduced-motion: reduce) {
+                .tw, .rb1, .rb2, .dust, .beam, .beacon, .pulse, .scan { animation: none; }
+            }
+        </style>
+    </defs>
+  <defs>
+    <linearGradient id="sigArea" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#7fd4ff" stop-opacity="0.14" />
+      <stop offset="100%" stop-color="#7fd4ff" stop-opacity="0" />
+    </linearGradient>
+    <linearGradient id="scanGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#cfeeff" stop-opacity="0" />
+      <stop offset="50%" stop-color="#cfeeff" stop-opacity="0.1" />
+      <stop offset="100%" stop-color="#cfeeff" stop-opacity="0" />
+    </linearGradient>
+    <clipPath id="plotClip"><rect x="46" y="26" width="908" height="62" /></clipPath>
+  </defs>
+  <rect width="100%" height="100%" fill="url(#skyFade)" />
+  <text x="46" y="24" class="t-sub" font-size="9.5">SIGNAL // COMMIT HOURS · RECENT 331 COMMITS · UTC+3</text>
+  <path d="M46,48.07C58.61,46.02 71.22,43.79 83.83,46.06C96.44,48.33 109.06,57.35 121.67,61.67C134.28,66 146.89,70.28 159.5,72C172.11,73.72 184.72,72 197.33,72C209.94,72 222.56,72 235.17,72C247.78,72 260.39,72 273,72C285.61,72 298.22,72.38 310.83,72C323.44,71.62 336.06,70.57 348.67,69.73C361.28,68.89 373.89,67.55 386.5,66.96C399.11,66.38 411.72,66.59 424.33,66.21C436.94,65.83 449.56,66.33 462.17,64.7C474.78,63.06 487.39,59.62 500,56.39C512.61,53.15 525.22,46.94 537.83,45.3C550.44,43.67 563.06,45.14 575.67,46.56C588.28,47.99 600.89,53.36 613.5,53.87C626.11,54.37 638.72,52.23 651.33,49.59C663.94,46.94 676.56,39.51 689.17,38C701.78,36.49 714.39,38.38 727,40.52C739.61,42.66 752.22,48.75 764.83,50.84C777.44,52.94 790.06,52.06 802.67,53.11C815.28,54.16 827.89,55.76 840.5,57.14C853.11,58.53 865.72,61.21 878.33,61.42C890.94,61.63 903.56,60.62 916.17,58.4C928.78,56.18 941.39,50.13 954,48.07L954,86L46,86Z" fill="url(#sigArea)" />
+  <g filter="url(#bloom)">
+    <path d="M46,48.07C58.61,46.02 71.22,43.79 83.83,46.06C96.44,48.33 109.06,57.35 121.67,61.67C134.28,66 146.89,70.28 159.5,72C172.11,73.72 184.72,72 197.33,72C209.94,72 222.56,72 235.17,72C247.78,72 260.39,72 273,72C285.61,72 298.22,72.38 310.83,72C323.44,71.62 336.06,70.57 348.67,69.73C361.28,68.89 373.89,67.55 386.5,66.96C399.11,66.38 411.72,66.59 424.33,66.21C436.94,65.83 449.56,66.33 462.17,64.7C474.78,63.06 487.39,59.62 500,56.39C512.61,53.15 525.22,46.94 537.83,45.3C550.44,43.67 563.06,45.14 575.67,46.56C588.28,47.99 600.89,53.36 613.5,53.87C626.11,54.37 638.72,52.23 651.33,49.59C663.94,46.94 676.56,39.51 689.17,38C701.78,36.49 714.39,38.38 727,40.52C739.61,42.66 752.22,48.75 764.83,50.84C777.44,52.94 790.06,52.06 802.67,53.11C815.28,54.16 827.89,55.76 840.5,57.14C853.11,58.53 865.72,61.21 878.33,61.42C890.94,61.63 903.56,60.62 916.17,58.4C928.78,56.18 941.39,50.13 954,48.07" fill="none" stroke="#7fd4ff" stroke-width="1.4" />
+  </g>
+  <circle cx="689.17" cy="38" r="2" fill="#cfeeff"/>
+  <text x="697.17" y="32" class="t-mono" font-size="9" text-anchor="start">PEAK 17:00</text>
+  <g clip-path="url(#plotClip)">
+    <rect x="-44" y="26" width="70" height="62" fill="url(#scanGrad)" class="scan" style="animation-delay:-5s"/>
+  </g>
+  <line x1="46" y1="88" x2="46" y2="92" stroke="#4a5a70" stroke-width="0.75" opacity="0.6"/><text x="46" y="103" class="t-mono" font-size="8" fill="#4a5a70" text-anchor="middle">00</text><line x1="273" y1="88" x2="273" y2="92" stroke="#4a5a70" stroke-width="0.75" opacity="0.6"/><text x="273" y="103" class="t-mono" font-size="8" fill="#4a5a70" text-anchor="middle">06</text><line x1="500" y1="88" x2="500" y2="92" stroke="#4a5a70" stroke-width="0.75" opacity="0.6"/><text x="500" y="103" class="t-mono" font-size="8" fill="#4a5a70" text-anchor="middle">12</text><line x1="727" y1="88" x2="727" y2="92" stroke="#4a5a70" stroke-width="0.75" opacity="0.6"/><text x="727" y="103" class="t-mono" font-size="8" fill="#4a5a70" text-anchor="middle">18</text><line x1="954" y1="88" x2="954" y2="92" stroke="#4a5a70" stroke-width="0.75" opacity="0.6"/><text x="954" y="103" class="t-mono" font-size="8" fill="#4a5a70" text-anchor="middle">24</text>
+</svg>

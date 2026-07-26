@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# MaixCAM specific
+wildtrap/captures/*
+wildtrap/logs/*
+wildtrap/temp/*
+*.jpg
+*.jpeg
+*.png
+*.mp4
+*.avi
+
+# Keep directory structure
+!wildtrap/captures/.gitkeep
+!wildtrap/logs/.gitkeep
+!wildtrap/temp/.gitkeep
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Config (keep template)
+# wildtrap_config.json is tracked as template

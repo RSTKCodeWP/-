@@ -1,0 +1,157 @@
+/**
+ * Mobile Optimizations
+ * Responsive design for devices < 768px
+ */
+
+/* Mobile-specific utilities */
+@media (max-width: 768px) {
+  /* Touch-friendly tap targets */
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Simplified header */
+  .mobile-header {
+    padding: 0.75rem 1rem;
+  }
+
+  .mobile-header h1 {
+    font-size: 1.25rem;
+  }
+
+  /* Bottom navigation for mobile */
+  .mobile-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: white;
+    border-top: 1px solid #e5e7eb;
+    z-index: 40;
+    padding: 0.5rem;
+  }
+
+  .dark .mobile-nav {
+    background: #1f2937;
+    border-top-color: #374151;
+  }
+
+  /* Full-screen modals on mobile */
+  .mobile-modal {
+    position: fixed;
+    inset: 0;
+    max-width: 100%;
+    max-height: 100%;
+    margin: 0;
+    border-radius: 0;
+  }
+
+  /* Simplified cards */
+  .mobile-card {
+    padding: 0.75rem;
+  }
+
+  /* Stack layout */
+  .mobile-stack > * + * {
+    margin-top: 0.75rem;
+  }
+
+  /* Hide labels, show icons only */
+  .mobile-icon-only .label {
+    display: none;
+  }
+
+  /* Larger touch inputs */
+  .mobile-input {
+    font-size: 16px; /* Prevents zoom on iOS */
+    padding: 0.75rem;
+  }
+
+  /* Simplified grid */
+  .mobile-grid {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+
+  /* Compact spacing */
+  .mobile-compact {
+    padding: 0.5rem;
+  }
+
+  /* Slide-up panels */
+  .mobile-panel {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    max-height: 80vh;
+    border-radius: 1rem 1rem 0 0;
+    overflow-y: auto;
+  }
+
+  /* Touch-friendly buttons */
+  .mobile-button {
+    min-height: 48px;
+    font-size: 1rem;
+    padding: 0.75rem 1.5rem;
+  }
+
+  /* Simplified map controls */
+  .mobile-map-controls {
+    position: fixed;
+    top: 4rem;
+    right: 0.5rem;
+    z-index: 30;
+  }
+
+  /* Hide desktop-only elements */
+  .desktop-only {
+    display: none !important;
+  }
+
+  /* Swipe-friendly horizontal scroll */
+  .mobile-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .mobile-scroll::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Full-width buttons on mobile */
+  .mobile-full-width {
+    width: 100%;
+  }
+
+  /* Compact header on mobile */
+  .container.mobile {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+}
+
+/* Tablet optimizations (768px - 1024px) */
+@media (min-width: 768px) and (max-width: 1024px) {
+  .tablet-grid-2 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .tablet-compact {
+    padding: 1rem;
+  }
+}
+
+/* Landscape mobile */
+@media (max-width: 896px) and (orientation: landscape) {
+  .landscape-stack {
+    flex-direction: row;
+  }
+
+  .landscape-half {
+    width: 50%;
+  }
+}
+

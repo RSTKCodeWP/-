@@ -1,0 +1,165 @@
+.ufs-lun-selector {
+  padding: 1rem;
+}
+
+.ufs-lun-selector h3 {
+  margin: 0 0 1rem 0;
+  font-size: 1.1rem;
+  color: var(--text-primary, #e0e0e0);
+}
+
+/* UFS Version */
+.ufs-version {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg-secondary, #1a1a1a);
+  border-radius: 6px;
+}
+
+.ufs-version .label {
+  color: var(--text-secondary, #a0a0a0);
+  font-size: 0.85rem;
+}
+
+.ufs-version .value {
+  color: var(--accent-color, #3b82f6);
+  font-weight: 600;
+}
+
+/* LUN List */
+.lun-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.empty-luns {
+  padding: 1rem;
+  text-align: center;
+  color: var(--text-secondary, #a0a0a0);
+  background: var(--bg-secondary, #1a1a1a);
+  border-radius: 6px;
+}
+
+/* LUN Item */
+.lun-item {
+  padding: 0.75rem;
+  background: var(--bg-secondary, #1a1a1a);
+  border: 2px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.lun-item:hover:not(.disabled) {
+  background: var(--bg-tertiary, #2a2a2a);
+  border-color: var(--border-color, #333);
+}
+
+.lun-item.selected {
+  border-color: var(--accent-color, #3b82f6);
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.lun-item.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.lun-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.lun-icon {
+  font-size: 1.2rem;
+}
+
+.lun-name {
+  font-weight: 600;
+  color: var(--text-primary, #e0e0e0);
+  flex: 1;
+}
+
+.lun-protected {
+  font-size: 0.9rem;
+  color: #f59e0b;
+}
+
+.lun-details {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.8rem;
+  color: var(--text-secondary, #a0a0a0);
+  font-family: monospace;
+}
+
+.lun-capacity {
+  color: var(--text-primary, #e0e0e0);
+}
+
+/* Selected LUN Info */
+.selected-lun-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid var(--accent-color, #3b82f6);
+  border-radius: 6px;
+  margin-bottom: 1rem;
+}
+
+.selected-lun-info .label {
+  color: var(--text-secondary, #a0a0a0);
+  font-size: 0.85rem;
+}
+
+.selected-lun-info .value {
+  color: var(--text-primary, #e0e0e0);
+  font-weight: 500;
+}
+
+/* LUN Descriptions */
+.lun-descriptions {
+  margin-top: 1rem;
+}
+
+.lun-descriptions details {
+  background: var(--bg-secondary, #1a1a1a);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.lun-descriptions summary {
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  color: var(--text-secondary, #a0a0a0);
+  font-size: 0.85rem;
+  user-select: none;
+}
+
+.lun-descriptions summary:hover {
+  background: var(--bg-tertiary, #2a2a2a);
+}
+
+.lun-descriptions ul {
+  margin: 0;
+  padding: 0.5rem 0.75rem 0.75rem 1.5rem;
+  font-size: 0.8rem;
+  color: var(--text-secondary, #a0a0a0);
+}
+
+.lun-descriptions li {
+  margin-bottom: 0.25rem;
+}
+
+.lun-descriptions li strong {
+  color: var(--text-primary, #e0e0e0);
+}

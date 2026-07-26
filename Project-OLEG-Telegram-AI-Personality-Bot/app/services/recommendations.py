@@ -1,0 +1,210 @@
+"""Система рекомендаций для пользователей."""
+
+import random
+import time
+from collections import defaultdict
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.database.models import User
+
+# Кулдаун рекомендаций для каждого пользователя (в секундах)
+RECOMMENDATION_COOLDOWN = 300  # 5 минут
+# Шанс показа рекомендации
+RECOMMENDATION_CHANCE = 0.12  # 12%
+
+# Трекер последних рекомендаций
+_last_recommendation_time: dict[int, float] = defaultdict(float)
+_last_recommendation_type: dict[int, str] = {}
+
+
+# Рекомендации по категориям
+RECOMMENDATIONS = {
+    # === ОСНОВНЫЕ КОМАНДЫ ===
+    "grow": [
+        "💡 /grow — качай размер раз в 12 часов",
+        "💡 Не забывай про /grow каждый день",
+        "💡 Размер решает! Жми /grow",
+    ],
+    "pvp": [
+        "💡 /challenge @ник — вызови на дуэль",
+        "💡 Ответь на сообщение + /challenge = бой",
+        "💡 PvP с Олегом: просто /challenge",
+    ],
+    "top": [
+        "💡 /top — топ по размеру",
+        "💡 /top_rep — топ по репутации",
+        "💡 /top_elo — топ по рейтингу PvP",
+    ],
+    
+    # === ИГРЫ ===
+    "casino": [
+        "💡 /casino 100 — слоты, джекпот x5",
+        "💡 /bj 100 — блэкджек против дилера",
+        "💡 /coinflip 100 орёл — подбрось монетку",
+    ],
+    "blackjack": [
+        "💡 /bj — классический блэкджек",
+        "💡 В блэкджеке: hit, stand, double",
+    ],
+    "fish": [
+        "💡 /fish — рыбалка, продавай улов",
+        "💡 Редкая рыба = больше монет",
+    ],
+    "crash": [
+        "💡 /crash 100 — успей выйти до краша",
+        "💡 В crash чем дольше ждёшь, тем больше риск",
+    ],
+    "roulette": [
+        "💡 /roulette — русская рулетка",
+    ],
+    "dice": [
+        "💡 /dice 100 — кости, угадай сумму",
+    ],
+    "wheel": [
+        "💡 /wheel — колесо фортуны",
+    ],
+    
+    # === СОЦИАЛКА ===
+    "guild": [
+        "💡 /guilds — список гильдий",
+        "💡 /create_guild Название — создай свою",
+        "💡 /guild_info — инфо о твоей гильдии",
+    ],
+    "duo": [
+        "💡 /duo_invite @друг — создай дуэт",
+        "💡 /duo_profile — статистика дуэта",
+    ],
+    "achievements": [
+        "💡 /my_achievements — твои ачивки",
+        "💡 Есть секретные достижения 👀",
+    ],
+    "quests": [
+        "💡 /quests — ежедневные задания",
+        "💡 Квесты дают монеты и опыт",
+    ],
+    "profile": [
+        "💡 /profile — твоя статистика",
+        "💡 /profile @ник — чужой профиль",
+    ],
+    
+    # === УТИЛИТЫ ===
+    "quote": [
+        "💡 /q в ответ на сообщение — цитата",
+        "💡 /q 3 — цепочка из 3 сообщений",
+        "💡 /q * — прожарка от Олега",
+    ],
+    "voice": [
+        "💡 /say текст — Олег озвучит",
+        "💡 Отправь голосовое — Олег поймёт",
+    ],
+    "help": [
+        "💡 /games — все игровые команды",
+        "💡 /help — справка по боту",
+        "💡 /limit — твой лимит запросов",
+    ],
+    "shop": [
+        "💡 /shop — магазин предметов",
+        "💡 /inventory — твой инвентарь",
+    ],
+    "tournament": [
+        "💡 /tournament — текущие турниры",
+    ],
+    
+    # === ОЛЕГ ===
+    "oleg": [
+        "💡 Спроси Олега про железо — он шарит",
+        "💡 Скинь картинку — Олег прокомментирует",
+        "💡 Олег знает про Linux, Steam Deck, разгон",
+    ],
+}
+
+# Ключевые слова для триггера
+KEYWORDS = {
+    "grow": ["размер", "маленький", "больше", "вырасти", "рост", "см"],
+    "pvp": ["пвп", "дуэль", "бой", "драка", "вызов", "сразиться"],
+    "top": ["топ", "лучший", "рейтинг", "первый", "лидер"],
+    "casino": ["казино", "ставка", "удача", "выиграть", "слоты"],
+    "blackjack": ["блэкджек", "карты", "21", "bj"],
+    "fish": ["рыба", "рыбалка", "ловить", "удочка"],
+    "crash": ["краш", "множитель"],
+    "roulette": ["рулетка", "патрон"],
+    "dice": ["кости", "кубик"],
+    "wheel": ["колесо", "фортуна"],
+    "guild": ["гильдия", "клан", "команда"],
+    "duo": ["дуэт", "вдвоем", "партнер", "напарник"],
+    "achievements": ["достижения", "ачивки", "награды"],
+    "quests": ["квесты", "задания", "миссии"],
+    "profile": ["профиль", "статистика", "мои данные"],
+    "quote": ["цитата", "цитатник", "сохранить"],
+    "voice": ["голос", "озвучить", "сказать"],
+    "help": ["помощь", "команды", "что умеешь", "функции"],
+    "shop": ["магазин", "купить", "предметы"],
+    "tournament": ["турнир", "соревнование"],
+    "oleg": ["олег", "железо", "комп", "видеокарта", "процессор", "linux"],
+}
+
+
+def _can_show_recommendation(user_id: int, category: str) -> bool:
+    """Проверяет, можно ли показать рекомендацию."""
+    now = time.time()
+    last_time = _last_recommendation_time.get(user_id, 0)
+    last_type = _last_recommendation_type.get(user_id)
+    
+    if now - last_time < RECOMMENDATION_COOLDOWN:
+        return False
+    
+    # Не показываем ту же категорию подряд
+    if last_type == category:
+        return False
+    
+    return True
+
+
+def _record_recommendation(user_id: int, category: str):
+    """Записывает факт показа рекомендации."""
+    _last_recommendation_time[user_id] = time.time()
+    _last_recommendation_type[user_id] = category
+
+
+def get_random_tip() -> str:
+    """Получить случайную рекомендацию (для дейликов и т.п.)."""
+    category = random.choice(list(RECOMMENDATIONS.keys()))
+    return random.choice(RECOMMENDATIONS[category])
+
+
+async def generate_recommendation(
+    session: AsyncSession, user: User, user_text: str
+) -> str:
+    """
+    Генерирует рекомендацию на основе текста пользователя.
+    
+    Показывается с шансом 12%, не чаще раза в 5 минут.
+    """
+    if random.random() > RECOMMENDATION_CHANCE:
+        return ""
+    
+    text_lower = user_text.lower()
+    matched_categories = []
+    
+    for category, keywords in KEYWORDS.items():
+        for keyword in keywords:
+            if keyword in text_lower:
+                matched_categories.append(category)
+                break
+    
+    if not matched_categories:
+        return ""
+    
+    available = [
+        cat for cat in matched_categories 
+        if _can_show_recommendation(user.id, cat)
+    ]
+    
+    if not available:
+        return ""
+    
+    category = random.choice(available)
+    recommendation = random.choice(RECOMMENDATIONS[category])
+    
+    _record_recommendation(user.id, category)
+    
+    return recommendation

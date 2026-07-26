@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 132" width="100%" role="img" aria-label="openflash: OpenFlash is an open-source NAND/eMMC/NOR flash programmer that turns cheap microcontrollers ($4 Raspberry Pi Pico, STM32, ESP32) into full-featured flash memory readers/writers.">
+  <defs><style>
+        .t-title { font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif; font-weight: 300; fill: #cfeeff; }
+        .t-sub   { font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif; font-weight: 300; fill: #4a5a70; }
+        .t-mono  { font-family: "SFMono-Regular", Consolas, "Courier New", monospace; fill: #7fd4ff; }
+    </style></defs>
+  <rect x="0.5" y="0.5" width="479" height="131" fill="#050b16" stroke="#0a2c55" stroke-width="1"/>
+  <rect width="2.5" height="132" fill="#7fd4ff" opacity="0.9"/>
+  <path d="M454,10 L470,10 L470,26" fill="none" stroke="#1d6fb8" stroke-width="1" opacity="0.4"/>
+  <text x="20" y="32" class="t-title" font-size="16" style="letter-spacing:2px">openflash</text>
+  <text x="20" y="56" class="t-sub" font-size="11.5" style="letter-spacing:0.5px">OpenFlash is an open-source NAND/eMMC/NOR flash</text>
+  <text x="20" y="73" class="t-sub" font-size="11.5" style="letter-spacing:0.5px">programmer that turns cheap microcontrollers ($4</text>
+  <text x="20" y="90" class="t-sub" font-size="11.5" style="letter-spacing:0.5px">Raspberry Pi Pico, STM32, ESP32) into…</text>
+  <text x="20" y="116" class="t-mono" font-size="11">★ 8</text>
+  <text x="70" y="116" class="t-mono" font-size="11" fill="#4a5a70">Rust</text>
+  <text x="464" y="116" class="t-mono" font-size="9" fill="#4a5a70" opacity="0.8" text-anchor="end">PUSHED TODAY</text>
+</svg>

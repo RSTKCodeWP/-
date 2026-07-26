@@ -1,0 +1,261 @@
+services:
+  # Основной сервис бота
+  oleg-bot:
+    build: .
+    container_name: oleg-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - PYTHONUNBUFFERED=1
+      - LOG_FILE=/app/logs/oleg.log
+      # Media features (можно переопределить в .env)
+      - VOICE_RECOGNITION_ENABLED=${VOICE_RECOGNITION_ENABLED:-true}
+      - WHISPER_MODEL=${WHISPER_MODEL:-base}
+      - CONTENT_DOWNLOAD_ENABLED=${CONTENT_DOWNLOAD_ENABLED:-true}
+    ports:
+      # Metrics endpoint for Prometheus
+      - "9090:9090"
+    volumes:
+      # Сохранение базы данных между перезагрузками
+      - ./data:/app/data
+      # Сохранение логов (локальная папка для удобного доступа)
+      - ./logs:/app/logs
+      # Данные векторной базы
+      - chroma-data:/app/chroma_data
+      # Кэш моделей Whisper и Silero TTS (чтобы не скачивать при каждом перезапуске)
+      - whisper-cache:/home/oleg/.cache
+    networks:
+      - oleg-network
+    depends_on:
+      - chromadb
+      - redis
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:9090/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s  # 2 min grace period for Whisper model loading
+    labels:
+      # For autoheal to restart unhealthy containers
+      - "autoheal=true"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ChromaDB - векторная база данных для RAG (Мозг Олега)
+  chromadb:
+    image: ghcr.io/chroma-core/chroma:latest
+    container_name: chromadb-server
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - chroma-data:/chroma/chroma
+    environment:
+      - CHROMA_DB_IMPL=clickhouse
+      - CLICKHOUSE_HOST=clickhouse
+      - CLICKHOUSE_PORT=9000
+    networks:
+      - oleg-network
+    depends_on:
+      - clickhouse
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  # ClickHouse - для обеспечения хранения в ChromaDB
+  clickhouse:
+    image: clickhouse/clickhouse-server:latest
+    container_name: clickhouse-server
+    restart: unless-stopped
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+    ports:
+      - "9000:9000"
+      - "8123:8123"
+    networks:
+      - oleg-network
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8123/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  # SearXNG - метапоисковик для веб-поиска (Anti-Hallucination)
+  searxng:
+    image: searxng/searxng:latest
+    container_name: oleg-searxng
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./monitoring/searxng:/etc/searxng
+    environment:
+      - SEARXNG_BASE_URL=http://localhost:8080
+    networks:
+      - oleg-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  # Redis для кэширования и rate limiting
+  redis:
+    image: redis:7-alpine
+    container_name: oleg-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - oleg-network
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  # PostgreSQL для продакшена (закомментирован по умолчанию)
+  # postgres:
+  #   image: postgres:15-alpine
+  #   container_name: oleg-postgres
+  #   restart: unless-stopped
+  #   environment:
+  #     POSTGRES_DB: oleg_db
+  #     POSTGRES_USER: oleg
+  #     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+  #   volumes:
+  #     - postgres-data:/var/lib/postgresql/data
+  #   ports:
+  #     - "5432:5432"
+  #   networks:
+  #     - oleg-network
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U oleg"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+  #   logging:
+  #     driver: "json-file"
+  #     options:
+  #       max-size: "5m"
+  #       max-file: "2"
+
+  # Prometheus для сбора метрик (опционально)
+  # prometheus:
+  #   image: prom/prometheus:latest
+  #   container_name: oleg-prometheus
+  #   restart: unless-stopped
+  #   ports:
+  #     - "9091:9090"
+  #   volumes:
+  #     - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+  #     - prometheus-data:/prometheus
+  #   networks:
+  #     - oleg-network
+  #   command:
+  #     - '--config.file=/etc/prometheus/prometheus.yml'
+  #     - '--storage.tsdb.path=/prometheus'
+  #     - '--web.enable-lifecycle'
+  #   healthcheck:
+  #     test: ["CMD", "wget", "-q", "--spider", "http://localhost:9090/-/healthy"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
+
+  # Grafana для визуализации (опционально)
+  # grafana:
+  #   image: grafana/grafana:latest
+  #   container_name: oleg-grafana
+  #   restart: unless-stopped
+  #   ports:
+  #     - "3000:3000"
+  #   volumes:
+  #     - grafana-data:/var/lib/grafana
+  #     - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+  #   environment:
+  #     - GF_SECURITY_ADMIN_USER=admin
+  #     - GF_SECURITY_ADMIN_PASSWORD=admin
+  #     - GF_USERS_ALLOW_SIGN_UP=false
+  #   networks:
+  #     - oleg-network
+  #   depends_on:
+  #     - prometheus
+
+  # Autoheal - автоматический рестарт unhealthy контейнеров
+  autoheal:
+    image: willfarrell/autoheal:latest
+    container_name: oleg-autoheal
+    restart: unless-stopped
+    environment:
+      - AUTOHEAL_CONTAINER_LABEL=autoheal
+      - AUTOHEAL_INTERVAL=30
+      - AUTOHEAL_START_PERIOD=120
+      - AUTOHEAL_DEFAULT_STOP_TIMEOUT=10
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - oleg-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+volumes:
+  # oleg-data и oleg-logs теперь bind mounts (./data и ./logs)
+  chroma-data:
+    driver: local
+  clickhouse-data:
+    driver: local
+  redis-data:
+    driver: local
+  whisper-cache:
+    driver: local
+  searxng-data:
+    driver: local
+  # postgres-data:
+  #   driver: local
+  # prometheus-data:
+  #   driver: local
+  # grafana-data:
+  #   driver: local
+
+networks:
+  oleg-network:
+    driver: bridge

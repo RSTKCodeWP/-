@@ -1,0 +1,30 @@
+[package]
+name = "openflash-firmware-stm32f4"
+version = "1.5.0"
+edition = "2021"
+description = "OpenFlash firmware for STM32F4 series (STM32F401, STM32F411, STM32F446)"
+
+[dependencies]
+cortex-m = "0.7"
+cortex-m-rt = "0.7"
+embassy-stm32 = { version = "0.1", features = ["stm32f411ce", "time-driver-any", "unstable-pac", "critical-section-impl"] }
+embassy-time = "0.1"
+embassy-usb = "0.1"
+embassy-executor = { version = "0.5", features = ["task-arena-size-32768", "arch-cortex-m", "executor-thread", "executor-interrupt"] }
+panic-probe = { version = "0.3", features = ["print-defmt"] }
+defmt = "0.3"
+defmt-rtt = "0.4"
+heapless = "0.8"
+
+[features]
+default = ["stm32f411"]
+stm32f401 = []
+stm32f411 = []
+stm32f446 = []
+
+[profile.dev]
+debug = 2
+lto = true
+
+[profile.release]
+lto = true

@@ -1,0 +1,161 @@
+{
+  "app": {
+    "title": "BeamNG.WorldForge",
+    "subtitle": "Generate Maps from Satellite Data",
+    "version": "v1.8.0"
+  },
+  "nav": {
+    "map": "Map",
+    "settings": "Settings"
+  },
+  "map": {
+    "search": {
+      "placeholder": "Search location (e.g., San Francisco, Tokyo, Moscow)...",
+      "button": "Search",
+      "searching": "Searching..."
+    },
+    "selectionMode": {
+      "on": "Selection Mode: ON",
+      "off": "Selection Mode: OFF",
+      "hint": "Click button above to enable square selection"
+    },
+    "instructions": {
+      "title": "🎯 How to select area:",
+      "step1": "Enable Selection Mode (top right of the map)",
+      "step2": "Click and drag to create square",
+      "step3": "Release to confirm selection",
+      "searchHint": "💡 Use search bar to find locations quickly",
+      "disabled": "Map selection disabled during generation"
+    },
+    "layers": {
+      "title": "Map Layer",
+      "street": "🗺️ Street Map",
+      "satellite": "🛰️ Satellite",
+      "topographic": "⛰️ Topographic",
+      "hybrid": "🌍 Hybrid"
+    },
+    "selection": {
+      "size": "{{width}} × {{height}} km",
+      "square": "{{area}} km²",
+      "ratio": "{{ratio}}:1 ratio"
+    }
+  },
+  "settings": {
+    "title": "Settings",
+    "subtitle": "Manage your API keys and preferences for BeamNG.WorldForge",
+    "apiKeys": {
+      "title": "API Keys",
+      "subtitle": "Configure API keys for external services. All keys are securely encrypted.",
+      "sentinelHubId": {
+        "label": "Sentinel Hub Client ID",
+        "description": "Free satellite imagery and DEM data (30,000 requests/month)"
+      },
+      "sentinelHubSecret": {
+        "label": "Sentinel Hub Client Secret",
+        "description": "Client secret for Sentinel Hub authentication"
+      },
+      "opentopography": {
+        "label": "OpenTopography API Key",
+        "description": "Free high-resolution DEM data worldwide"
+      },
+      "azureMaps": {
+        "label": "Azure Maps Subscription Key",
+        "description": "Microsoft Azure Maps for satellite imagery"
+      },
+      "gee": {
+        "label": "Google Earth Engine Project ID",
+        "description": "Optional: For advanced Earth Engine features"
+      },
+      "verify": "Verify",
+      "placeholder": "Enter {{label}}"
+    },
+    "preferences": {
+      "title": "Preferences",
+      "defaultDataSource": "Default Data Source",
+      "defaultImageSource": "Default Image Source",
+      "language": "Language"
+    },
+    "actions": {
+      "reset": "Reset",
+      "save": "Save Settings",
+      "saving": "Saving..."
+    },
+    "messages": {
+      "saveSuccess": "Settings saved successfully!",
+      "saveError": "Failed to save settings"
+    },
+    "help": {
+      "title": "Need Help?",
+      "sentinelHub": "Get Sentinel Hub API keys",
+      "opentopography": "Get OpenTopography API key",
+      "azureMaps": "Get Azure Maps subscription"
+    }
+  },
+  "generation": {
+    "title": "Map Generation",
+    "mapName": "Map Name",
+    "mapNamePlaceholder": "Enter map name (e.g., san_francisco)",
+    "selectArea": "Select Area",
+    "configure": "Configure",
+    "generate": "Generate Map",
+    "generating": "Generating...",
+    "dataSource": "Data Source",
+    "imageSource": "Image Source",
+    "resolution": "DEM Resolution",
+    "heightmapSize": "Heightmap Size",
+    "aiSegmentation": "AI-Powered Segmentation",
+    "aiDescription": "Automatically detect roads, buildings, water, and forests",
+    "status": {
+      "idle": "Ready to generate",
+      "processing": "Generating...",
+      "completed": "Generation completed",
+      "error": "Generation failed"
+    },
+    "progress": {
+      "validating": "Validating parameters",
+      "downloadingDEM": "Downloading DEM data",
+      "downloadingImagery": "Downloading satellite imagery",
+      "processingTerrain": "Processing terrain",
+      "aiSegmentation": "AI object detection",
+      "packaging": "Packaging map",
+      "generatingHeightmap": "Generating heightmap",
+      "renderingPreview": "Rendering preview",
+      "extractingVectors": "Extracting vector geometry"
+    },
+    "results": {
+      "roadsDetected": "Roads detected: {{count}}",
+      "buildingsDetected": "Buildings detected: {{count}}",
+      "downloadMap": "Download Map (.zip)",
+      "viewPreview": "View Preview",
+      "preview3D": "🎮 3D Preview"
+    },
+    "areaTooLarge": "Selected area is too large",
+    "selectRegionFirst": "Select a region on the map first",
+    "enterMapName": "Enter a map name",
+    "dataSourceUnavailable": "Not configured",
+    "regionSize": "Region: {{area}} km²",
+    "aiUnavailable": "AI features were unavailable for this run",
+    "startOver": "Start over"
+  },
+  "preview": {
+    "title": "3D Preview",
+    "controls": "Use mouse to rotate • Scroll to zoom • Right-click to pan",
+    "mapSize": "Map Size",
+    "coordinates": "Coordinates",
+    "roads": "Roads",
+    "detected": "{{count}} detected",
+    "tip": "💡 Tip: This is a preview visualization. The actual BeamNG.drive map will have higher quality textures and physics."
+  },
+  "common": {
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success",
+    "cancel": "Cancel",
+    "close": "Close",
+    "download": "Download",
+    "back": "Back",
+    "next": "Next",
+    "finish": "Finish",
+    "retry": "Retry"
+  }
+}

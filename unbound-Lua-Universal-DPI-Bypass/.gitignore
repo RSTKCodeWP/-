@@ -1,0 +1,80 @@
+# ─── Compiled binaries ──────────────────────────────────────────────────────
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.bin
+*.sys
+
+# The bundled bypass engine assets are *deliberately* versioned. Without these
+# negations the rules above silently swallow `git add` for updated binaries.
+!engine/core_bin/**
+!engine/lists/**
+!engine/lua_scripts/**
+!engine/windivert.filter/**
+!magisk-module/binaries/**
+
+# ─── Dependencies ───────────────────────────────────────────────────────────
+node_modules/
+
+# ─── Build output ───────────────────────────────────────────────────────────
+build/bin/
+/dist/
+release/
+website/dist/
+website/.astro/
+target/
+
+# Wails embeds frontend/dist, so `go build` fails on a clean clone unless the
+# directory exists. Keep the placeholder, ignore everything Vite writes there.
+frontend/dist/*
+!frontend/dist/.gitkeep
+*.ipk
+*.apk
+*.aab
+
+# ─── Test artifacts ─────────────────────────────────────────────────────────
+*.test
+test_bypass.exe
+unbound-*.exe
+unbound-*.zip
+unbound-*.tar.gz
+scripts/test-results/
+test_output.txt
+coverage.out
+RELEASE_SUMMARY.txt
+
+# ─── References & local docs ────────────────────────────────────────────────
+reference/
+
+# ─── Temporary files ────────────────────────────────────────────────────────
+*.log
+tmp/
+zapdpi.txt
+unbound_debug.log
+
+# ─── Go ─────────────────────────────────────────────────────────────────────
+go.work
+go.work.sum
+
+# ─── IDE / editors ──────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.kiro
+.gemini
+
+# ─── OS ─────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# Upstream tpws sources fetched by scripts/fetch-tpws.sh (GPL-3.0,
+# third-party, not vendored). ios_main.c and the shims below stay tracked.
+theos/unbound-legacy/engine/tpws/*.c
+theos/unbound-legacy/engine/tpws/*.h
+!theos/unbound-legacy/engine/tpws/ios_main.c
+!theos/unbound-legacy/engine/tpws/tpws.h
+!theos/unbound-legacy/engine/tpws/darwin_compat.h

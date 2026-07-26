@@ -1,0 +1,35 @@
+# Core dependencies
+aiogram
+python-dotenv
+pydantic
+pydantic-settings
+SQLAlchemy
+aiosqlite
+asyncpg
+alembic
+httpx
+APScheduler
+pytz
+python-dateutil
+uvloop; sys_platform != 'win32'
+orjson
+Pillow
+yt-dlp
+chromadb
+ollama
+cachetools
+redis
+arq
+
+# GIF/MP4 processing
+imageio[pyav]
+
+# TTS
+edge-tts
+gTTS
+pyttsx3
+
+# STT
+faster-whisper
+numpy==1.26.4
+

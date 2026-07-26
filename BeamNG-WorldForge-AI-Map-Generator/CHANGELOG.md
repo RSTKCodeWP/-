@@ -1,0 +1,599 @@
+# Changelog
+
+All notable changes to BeamNG.WorldForge will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [1.8.0] - 2026-07-26
+
+Covers the last two untested packages - the AI segmentation and vector
+extraction chain - and fixes four defects found by doing so.
+
+### Fixed
+
+- **Road centrelines were traced twice.** `cv2.findContours` was run over the
+  skeletonised road mask, but that traces an *outline*, not a path: an L-shaped
+  road of 85 skeleton pixels came back as a 137-pixel polyline that ran to the
+  far end and then all the way back. Every non-trivial road exported as a decal
+  road doubled over itself. Replaced with a proper skeleton graph walk
+  (`services/vector_extraction/skeleton.py`) that visits each pixel once and
+  splits branches at junctions.
+- **Detected attributes were thrown away in the raster round trip.** Features
+  are rasterised to a mask and traced back out, and the vectoriser then
+  substituted constants: a fixed 5-pixel road width and a 10 m default height.
+  On a 6 km tile that turned a detected 9 m road into a 60 m one - fifteen
+  lanes - and an 18 m building into a 10 m one. Widths are now measured from
+  the mask with a distance transform, and both width and height are inherited
+  from the originating detection, which wins over any measurement.
+- **`np.int0` was removed in NumPy 2**, which this project pins, so
+  `rectangle_to_polygon` raised `AttributeError` on every call.
+- **Latitude scaling, in two more places.** `mask_generator` and `vectorizer`
+  both computed metres per pixel as `degrees * 111000` on the longitude axis,
+  overstating east-west distance by 21% at 38 degrees and 100% at 60. Both now
+  use the shared `core.geo` helper.
+- `extract_contours` rejected the bool masks that scikit-image returns.
+
+### Changed
+
+- **The optional-AI handler no longer hides bugs.** It caught every exception
+  so a missing Ollama install would degrade gracefully - which is also how the
+  original `temp_dir` `NameError` stayed invisible for so long, and it caught a
+  second `NameError` introduced during this very change. `NameError`,
+  `TypeError`, `AttributeError` and friends now propagate; only genuine
+  environment failures are absorbed.
+- Model reply parsing moved to `services/ollama/json_parsing.py` and made
+  considerably more tolerant. The previous greedy `(\{.*\})` regex spanned
+  from the first brace to the last, so a reply containing two objects - or an
+  object followed by prose with a brace in it - was captured as one malformed
+  blob and discarded, wasting a completed inference. Now: balanced,
+  quote-aware scanning, markdown fences, trailing commas, line comments, and
+  bare or wrapped feature lists grouped by class.
+
+### Added
+
+- 80 tests across the previously untested chain: skeleton tracing, contour
+  extraction, vectorising, mask generation, model reply parsing, attribute
+  preservation, and the whole AI path end to end with only the inference
+  stubbed.
+- A round-trip test asserting `MaskGenerator._geo_to_pixel` is the exact
+  inverse of `Vectorizer.pixel_to_geo`, so features cannot drift between
+  rasterising and vectorising.
+
+## [1.7.0] - 2026-07-26
+
+The release that makes the app work without signing up for anything.
+
+### Added
+
+- **AWS Terrain Tiles data source - no API key, no account, no setup.** Every
+  previous elevation provider required registration, so a fresh clone could not
+  generate a single map. AWS hosts the Terrain Tiles dataset as anonymous
+  public GeoTIFF tiles: ~30 m worldwide, ~10 m over the continental US. It is
+  now first in the auto-selection order, so generation works out of the box.
+- **Binary `.ter` terrain file.** BeamNG loads terrain from a `.ter`, not from
+  a PNG - an archive with only `heightmap.png` was never a drop-in mod. The
+  writer follows the community-documented layout and is covered by round-trip
+  tests, but has **not** been verified by loading a level in the game. The PNG
+  still ships alongside it and the World Editor import path is documented.
+- **Roads and buildings are now real level content.** Detected roads become
+  BeamNG decal roads; detected building footprints are extruded into COLLADA
+  meshes and placed as `TSStatic` items.
+- `core/projection.py`: lat/lon to level-space metres, plus elevation sampling
+  from the generated heightmap.
+- Whole-archive validation tests: every path the level metadata references must
+  be present, the `.ter` must match the PNG, and `squareSize` x heightmap size
+  must equal the real ground size.
+- Frontend selection geometry extracted to `lib/selection.ts` with 19 tests.
+- `@pytest.mark.network` plus an autouse fixture that makes unmarked tests fail
+  on any real HTTP request, so CI cannot start depending on a third-party
+  service being up.
+
+### Fixed
+
+- **Exported terrain was stretched.** The selected region was resampled into a
+  square heightmap regardless of its real aspect ratio, and `squareSize` is a
+  single scalar - so a 6.15 x 6.68 km selection came out 8.6% too wide
+  east-west. The terrain is now cropped to a centred ground square before
+  resampling, and the recorded bbox shrinks to match.
+- **"Square" selection was square in degrees, not metres.** A degree of
+  longitude is shorter than a degree of latitude everywhere but the equator, so
+  a box drawn at 37.9 deg N was 21% narrower east-west than north-south; at
+  60 deg N, half as wide. Selection is now square on the ground.
+- **Roads and buildings would have been placed ~13,600 km from the level.**
+  The unwired placement code used `x = lon * 111000, y = lat * 111000, z = 0`:
+  absolute coordinates, no cosine correction, and every object at sea level
+  regardless of terrain. All three are fixed.
+- A drag that ended outside the map left the selector stuck mid-gesture, with
+  the rectangle following the cursor indefinitely.
+- Leaflet panned the map during selection, since dragging is the same gesture
+  as drawing a box. Map dragging is suspended while selection mode is on.
+- Map search failures only reached the console, so a failed search looked
+  identical to one that simply did not move the map.
+- Building meshes were written under `art/terrains/*/shapes/`, which is not
+  where BeamNG looks for shapes.
+
+### Removed
+
+- **`services/code_generation/` (~1000 lines).** It asked a language model to
+  emit JBeam JSON and COLLADA XML - fixed-schema documents - and fell back to
+  procedural generation whenever the output failed validation. The procedural
+  path was already doing the work, deterministically and without a network
+  call; it now lives in `services/beamng_integration/mesh_builder.py`.
+
+### Verified
+
+Generated Mount Tamalpais (37.88..37.94 N, -122.62..-122.55 W) end to end from
+live data in 2.4 s with no credentials configured: 4 tiles at zoom 12, peak
+elevation 785 m against the real summit of 784 m, 6.15 x 6.15 km of square
+terrain, a 3.7 MB archive whose `.ter` round-trips to exactly the packaged PNG.
+
+## [1.6.1] - 2026-07-26
+
+### Fixed
+
+- **The Settings page was broken by the 1.6.0 API change.** Moving credential
+  validation from a query parameter to a request body was not mirrored in
+  `SettingsPage.tsx`, so every "Verify" click returned 422. Three further
+  defects on the same page:
+  - Sentinel Hub sent the Client ID and Client Secret as two separate
+    single-value requests, so the OAuth2 client-credentials exchange could
+    never succeed. They are now verified as a pair.
+  - The Google Earth Engine field offered a Verify button for a `gee` service
+    the backend has never implemented; it returned 400 on every click. The
+    button is gone - a GCP project id is not a credential.
+  - Masked placeholders (`***abcd`) were rendered as editable input values, so
+    "configured" was indistinguishable from a key that literally reads
+    `***abcd`. Stored keys now show a "configured" badge with an empty input.
+- Saving now sends only the keys that were actually edited, so a
+  preferences-only change cannot touch stored credentials.
+- The job's map name survives status polls instead of being dropped if a
+  response omits it.
+
+### Added
+
+- **Frontend test suite (Vitest + Testing Library), 38 tests** covering the
+  stage-progress maths, the polling hook's lifecycle, API error normalisation,
+  and the settings page's request shapes. Wired into CI.
+- **API contract test** asserting every path and method the frontend calls
+  exists in the backend's OpenAPI schema, plus checks that credentials are a
+  body parameter and that the response fields the UI renders are declared.
+  This is the class of bug that the 1.6.0 settings break belonged to: the
+  backend suite and TypeScript each pass in isolation while disagreeing across
+  the HTTP boundary.
+
+### Changed
+
+- Settings page uses the shared typed API client instead of raw axios, and is
+  styled to match the rest of the dark UI.
+
+## [1.6.0] - 2026-07-26
+
+Correctness, security and maintainability release. Several features that were
+documented as working did not run at all; this release fixes them and adds a
+test suite so they stay fixed.
+
+### Security
+
+- **Removed the committed Fernet key.** `backend/config/settings.key` was
+  tracked in git, so anyone with the repository could decrypt `user_settings.enc`
+  and read stored API keys. The file is now git-ignored, and the key is created
+  with `0600` permissions at generation time rather than chmod-ed afterwards.
+  **If you used a previous version, rotate every API key you entered.**
+- **Removed the key from release binaries.** The PyInstaller spec bundled
+  `backend/config`, shipping the build machine's encryption key inside every
+  published executable and giving all installs the same key.
+- **Closed a path traversal hole.** Map names came from the request body and
+  were interpolated straight into filesystem paths, so a name like
+  `../../config/settings.key` could read or overwrite files outside the output
+  directory. Names are now validated and slugified, downloads resolve from
+  recorded job artefacts instead of rebuilt paths, and the SPA file handler
+  refuses to serve anything outside the static directory.
+- **Moved credentials out of the query string.** `POST /api/settings/validate/{service}`
+  took the API key as a query parameter, which lands in access logs, proxy logs
+  and browser history. It now takes a JSON body.
+- **Masked values no longer overwrite real secrets.** Submitting the settings
+  form unchanged used to save the `***abcd` placeholder as the new key,
+  destroying it.
+- Backend Docker image runs as an unprivileged user.
+
+### Fixed
+
+- **AI segmentation never worked.** `temp_dir` was referenced ~80 lines before
+  it was assigned; the resulting `NameError` was swallowed by a bare `except`,
+  so every run silently reported zero features. Fixed, and failures are now
+  reported on the job instead of being hidden.
+- **The server froze during generation.** The pipeline was declared `async` but
+  its body was entirely blocking (`requests.get`, SciPy resampling, PNG
+  encoding), so as a FastAPI background task it ran on the event loop and
+  stalled every other request - including the status polling the UI depends on.
+  It is now a sync task dispatched to the worker thread pool.
+- **`/api/health` returned 404 in the bundled build.** The SPA catch-all route
+  was registered before it, and FastAPI matches in registration order.
+- **API keys entered in the UI were ignored.** Data source clients read only
+  from `os.environ`, so nothing saved through the Settings page ever reached a
+  request. Credentials now flow from the settings store, and the client cache is
+  invalidated when settings change.
+- **Nodata was replaced with sea level.** Voided DEM samples became `0.0`,
+  producing kilometre-deep cliffs and compressing the real elevation range into
+  a fraction of the available bit depth. Voids are now filled from the nearest
+  valid sample.
+- **Terrain had no relationship to the selected region.** `squareSize` was
+  hardcoded to `2.0`, so a 1 km and a 20 km selection produced identically sized
+  terrain. It is now derived from the region's true ground size, and the real
+  elevation span is written as `minHeight` + `heightScale`.
+- **The preview image was accepted and then discarded.** `info.json` referenced
+  a `preview.jpg` that was never placed in the archive.
+- **Sentinel Hub validation always failed.** It sent the client ID as a bearer
+  token; it now performs the OAuth2 client-credentials exchange.
+- Preview rendering divided by zero on flat terrain.
+- Frontend polling recreated its interval on every tick and could leave the
+  Generate button permanently disabled.
+- The standalone executable crashed at startup (`pkg_resources` runtime hook,
+  and missing NumPy/SciPy C-extension modules).
+- `pip install -r backend/requirements.txt` failed on a clean machine: the
+  `GDAL` PyPI package is source-only and needs a matching system libgdal.
+  rasterio's wheels already bundle GDAL, so the dependency was removed.
+- `npm run lint` failed - the script existed but no ESLint config did.
+- Vite dev proxy defaulted to `http://backend:8000`, a hostname that only
+  resolves inside the compose network.
+- `docker compose up` aborted when `backend/.env` did not exist.
+
+### Added
+
+- `core/` package: environment-driven configuration (`pydantic-settings`),
+  logging setup, path-safety helpers and shared geo maths. Directories resolve
+  absolutely instead of against the current working directory.
+- Typed job registry with a lock, TTL cleanup of finished jobs and their files,
+  and explicit artefact tracking. `GET /api/jobs` and `DELETE /api/jobs/{id}`.
+- Request validation: bounding boxes must be non-degenerate and under 400 km²,
+  heightmap sizes must be powers of two, map names must be safe slugs. Errors
+  come back as readable strings rather than nested objects.
+- Concurrency limit on simultaneous generations.
+- OpenTopography now falls back across datasets when one has no coverage for
+  the requested region.
+- `WORLDFORGE.md` inside each archive documenting provenance, scale values and
+  import steps.
+- Backend test suite (147 tests) covering path safety, terrain processing,
+  export, the job store, settings encryption and the HTTP API.
+- CI workflow running backend lint + tests on Python 3.11/3.12, and frontend
+  lint, type-check and build.
+
+### Changed
+
+- Generation pipeline extracted from the API route into `services/pipeline.py`
+  with a declarative stage table; the frontend derives its progress bar from a
+  matching table instead of hardcoded percentages.
+- `TerrainData` holds a NumPy array instead of a `list[list[float]]` inside a
+  Pydantic model - a 2048x2048 DEM no longer round-trips through ~4.2 million
+  individually validated Python floats.
+- Data sources declare their capabilities (`dem` / `imagery`) instead of the
+  caller discovering them by catching `NotImplementedError`.
+- OpenTopography availability checks are cached; they previously downloaded a
+  real DEM tile every time the generation panel rendered.
+- 3D preview is lazy-loaded and vendor code is split into cacheable chunks:
+  initial JS download drops from ~913 kB to ~300 kB.
+- `print()` replaced with structured logging in the rewritten modules.
+- Backend image on Python 3.12 without the GDAL build toolchain (~700 MB
+  smaller); frontend image uses `npm ci`.
+- Docs updated to describe what the pipeline actually produces: terrain, not
+  roads, buildings or traffic.
+
+## [1.5.1] - 2026-03-02
+
+### 🎁 Standalone Executable Release
+
+Added complete build system for standalone executables - no Docker or dependencies required!
+
+### Added
+
+#### Build System
+- 🔨 **PyInstaller integration** - Bundle Python backend into single executable
+- 📦 **Automated build script** (`build.py`) - One-command build process
+- 🤖 **GitHub Actions workflow** - Automatic builds for Windows/macOS/Linux
+- 🌐 **Embedded frontend** - Static files bundled into executable
+- 🚀 **Auto-browser launch** - Opens browser automatically on startup
+- 📋 **Build specification** (`beamng-worldforge.spec`) - Complete PyInstaller config
+
+#### Platform Support
+- 🪟 **Windows x64** - Native .exe with all dependencies
+- 🍎 **macOS x64** - Universal binary for Intel Macs
+- 🐧 **Linux x64** - Portable executable for major distros
+
+### Changed
+- 🔧 **Modified backend/main.py** - Detect PyInstaller bundle mode
+- 📁 **Static file serving** - Serve frontend from bundled files
+- 🌍 **CORS configuration** - Support standalone mode
+- 📦 **Added pyinstaller** to requirements.txt
+
+### Technical Details
+
+**Build Process:**
+1. Frontend: `npm run build` → static files
+2. Backend: Copy static files → PyInstaller bundle
+3. Output: Single-folder executable with all dependencies
+
+**Executable Features:**
+- No Python installation required
+- No Docker required
+- No npm/node required
+- Embedded web server (FastAPI + Uvicorn)
+- Auto-opens browser on http://localhost:8000
+- Portable - run from any directory
+
+**File Sizes (approximate):**
+- Windows: ~250MB (includes GDAL, OpenCV, NumPy)
+- macOS: ~220MB
+- Linux: ~200MB
+
+### Usage
+
+**Download & Run:**
+```bash
+# Windows
+BeamNG-WorldForge.exe
+
+# macOS/Linux
+./BeamNG-WorldForge
+```
+
+**Build from source:**
+```bash
+pip install -r backend/requirements.txt
+python build.py
+```
+
+## [1.5.0] - 2026-03-02
+
+### 🎉 Feature Complete Release!
+
+This release completes all planned features for v1.5.0, bringing the project to production-ready status.
+
+### Added
+
+#### UI Settings Management
+- ⚙️ **Settings Page** with encrypted API key storage (Fernet encryption)
+- 🔐 **Secure key management** with show/hide masking
+- ✅ **Built-in key validation** for all data sources
+- 🔄 **Reset to defaults** functionality
+- 💾 **Automatic encryption** of sensitive credentials
+
+#### Advanced Map Interface
+- 📐 **Square selection** with automatic area adjustment
+- 🎨 **4 map layer types**: Street, Satellite, Topographic, Hybrid
+- 📊 **4×4 grid overlay** with size display in kilometers
+- 🗺️ **Real-time area calculation** using Haversine formula
+- 🎯 **Aspect ratio display** for selected regions
+
+#### Localization System
+- 🌐 **Full i18next integration** with React
+- 🇬🇧 **English translations** (~150 strings)
+- 🇷🇺 **Russian translations** (~150 strings)
+- 💾 **localStorage persistence** for language preference
+- 🔄 **Dynamic language switching** without reload
+
+#### Progress Tracking
+- 📊 **9-stage detailed progress** indicators
+- ✨ **Animated state transitions** (pending, active, completed, error)
+- 📈 **Progress bars** for active stages
+- 🎯 **Dynamic stage display** (AI steps shown conditionally)
+- 💬 **Real-time status messages**
+
+### Changed
+- 🔧 **Removed obsolete `version` attribute** from docker-compose.yml
+- 📚 **Updated all documentation** to reflect v1.5.0 features
+- 🎨 **Enhanced UI/UX** across all components
+
+### Technical Details
+
+**New Dependencies:**
+- `cryptography==44.0.0` (backend) - Fernet encryption
+- `i18next==23.16.0` (frontend) - Internationalization
+- `react-i18next==15.1.0` (frontend) - React i18n integration
+
+**New Files:**
+- `backend/models/user_settings.py` - Settings data models
+- `backend/services/settings_manager.py` - Encrypted storage manager
+- `backend/api/routes/settings.py` - Settings API endpoints
+- `frontend/src/pages/SettingsPage.tsx` - Settings UI
+- `frontend/src/components/LanguageSwitcher.tsx` - Language selector
+- `frontend/src/components/ProgressIndicator.tsx` - Progress display
+- `frontend/src/i18n/config.ts` - i18next configuration
+- `frontend/src/i18n/locales/en.json` - English translations
+- `frontend/src/i18n/locales/ru.json` - Russian translations
+- `docs/UI_GUIDE.md` - Complete UI documentation
+- `docs/LOCALIZATION.md` - Translation guide
+
+### Statistics
+- 📁 **12 new files** created
+- 💻 **2,000+ lines** of new code
+- 📚 **800+ lines** of documentation
+- 🌐 **~150 translation strings** per language
+- ✅ **100% feature completion**
+
+## [Unreleased]
+
+## [1.0.0] - 2025-10-21
+
+### 🎉 Initial Release - Production Ready!
+
+This is the first public release of BeamNG.WorldForge - an AI-powered map generator for BeamNG.drive using real satellite data.
+
+### Added
+
+#### Stage 1: MVP (v0.1.0)
+- ✨ **Full-stack application** with React + TypeScript frontend and FastAPI backend
+- 🌍 **Google Earth Engine integration** for DEM data
+- 🏔️ **Heightmap generation** from real elevation data (16-bit PNG)
+- 📦 **BeamNG.drive mod export** with complete folder structure
+- 🗺️ **Interactive map selector** using React Leaflet
+- ⏱️ **Real-time progress tracking** with status updates
+- 🐳 **Docker support** for easy deployment
+
+#### Stage 2: AI Segmentation (v0.2.0)
+- 🤖 **Ollama AI integration** with qwen3-vl:235b-cloud (235B parameters)
+- 🛣️ **Automatic road detection** from satellite imagery
+- 🏢 **Building extraction** with height estimation
+- 💧 **Water body identification** (rivers, lakes)
+- 🌲 **Forest detection** and vegetation mapping
+- 📊 **Segmentation masks** (PNG visualization)
+- 📐 **Vector data extraction** to GeoJSON format
+- 📈 **AI statistics** display in UI
+- ✨ **Graceful degradation** - works without AI
+
+#### Stage 3: AI Code Generation (v0.3.0)
+- 💻 **qwen3-coder integration** (480B parameters)
+- 🚗 **JBeam road generation** from vector data
+- 🏗️ **3D building mesh generation** (Collada DAE format)
+- 🛤️ **decalRoad system** for BeamNG
+- 🏘️ **Building placement** in items.level.json
+- 🎨 **Material definitions** for roads and buildings
+- 🔄 **Procedural fallbacks** for all AI features
+- 🏁 **Complete BeamNG mod** packaging with all assets
+
+#### Stage 4: 3D Preview (v0.4.0)
+- 🎮 **Three.js integration** with React Three Fiber
+- 🏔️ **Terrain 3D visualization** with displacement mapping
+- 🛣️ **Roads 3D rendering** as tube geometries
+- 🏢 **Buildings 3D display** with extrusion
+- 🚗 **Traffic simulation** with animated vehicles
+- 📹 **OrbitControls** for camera navigation
+- 💡 **PBR materials** and realistic shadows
+- 🎛️ **Layer toggles** (Terrain, Roads, Buildings, Traffic)
+- 📊 **Performance stats** (FPS counter)
+- 🖥️ **Fullscreen mode** for immersive view
+
+#### Stage 5: Final Polish (v1.0.0)
+- 📚 **Complete documentation** (10+ guides)
+- 📄 **MIT License** added
+- 🤝 **Contributing guidelines** created
+- 📋 **Changelog** (this file!)
+- 🎯 **Code quality** improvements
+- ♿ **Accessibility** enhancements
+- 📱 **Responsive design** improvements
+
+### Technical Details
+
+**Frontend Stack:**
+- React 18 + TypeScript
+- Vite 5 (build tool)
+- React Leaflet 4 (maps)
+- TailwindCSS 3 (styling)
+- Three.js + React Three Fiber (3D)
+- Lucide React (icons)
+
+**Backend Stack:**
+- Python 3.11+
+- FastAPI (async framework)
+- Google Earth Engine API
+- Ollama AI (local inference)
+- OpenCV + scikit-image
+- GDAL + Rasterio
+
+**AI Models:**
+- qwen3-vl:235b-cloud (235B params) - Vision
+- qwen3-coder:480b-cloud (480B params) - Code generation
+- **Total: 715 BILLION parameters!**
+
+### Statistics
+
+- 📁 **80+ files** created
+- 💻 **8,500+ lines** of production code
+- 📚 **10 documentation** files
+- 🧪 **100%** test pass rate
+- 🏗️ **8 service modules** (modular architecture)
+- ⚡ **2-5 minute** generation time
+- 🎯 **85-95%** AI accuracy for roads
+- 🎯 **80-90%** AI accuracy for buildings
+
+### Performance
+
+- ⚡ Generation time: 2-5 minutes
+- 🎮 3D Preview FPS: 50-60
+- 📦 Mod size: 20-60 MB
+- 🚀 Frontend bundle: Optimized
+- 💾 Memory usage: Efficient
+
+### Known Limitations
+
+- Requires Google Earth Engine credentials
+- Requires Ollama for AI features (optional)
+- Maximum region size: ~10km²
+- Maximum buildings per map: ~200
+- 3D Preview requires modern browser with WebGL
+
+### Breaking Changes
+
+N/A - First release
+
+---
+
+## [0.4.0] - 2025-10-21
+
+### Added
+- 3D Preview with Three.js
+- Traffic simulation
+- Camera controls
+- 6 new 3D components
+
+## [0.3.0] - 2025-10-21
+
+### Added
+- AI code generation with qwen3-coder
+- JBeam road generation
+- 3D building meshes
+- BeamNG integration
+
+## [0.2.0] - 2025-10-21
+
+### Added
+- AI segmentation with qwen3-vl
+- Road and building detection
+- Vector data extraction
+- GeoJSON export
+
+## [0.1.0] - 2025-10-20
+
+### Added
+- Initial MVP release
+- Basic heightmap generation
+- BeamNG.drive export
+- Interactive UI
+
+---
+
+## Roadmap
+
+### Future Enhancements (v1.1.0+)
+
+**Planned Features:**
+- 💧 Water bodies rendering in 3D
+- 🌳 Vegetation system (trees, grass)
+- ☁️ Weather effects
+- 🌅 Day/night cycle
+- 🎥 Multiple camera modes
+- 📸 Export 3D view as image
+- 🔍 Advanced map search
+- 🎨 Custom texture support
+- 🚀 Performance optimizations
+- 📊 Analytics dashboard
+
+**Community Requests:**
+- Share your ideas on GitHub Issues!
+
+---
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for ways to get started.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+**BeamNG.WorldForge** - From Satellite to Playable in Minutes! 🌍→🎮
+
+*Powered by 715 Billion AI Parameters* 🤖
+

@@ -1,0 +1,38 @@
+[package]
+name = "persona_forge"
+version = "1.0.0"
+edition = "2021"
+
+[[bin]]
+name = "PersonaForge"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "*"
+axum = { version = "*", features = ["macros"] }
+base64 = "*"
+bincode = "3"
+chrono = { version = "*", features = ["serde"] }
+colored = "3"
+dotenv = "*"
+envy = "*"
+futures = "*"
+hex = "*"
+hmac = "*"
+log = "*"
+mime_guess = "*"
+nu-ansi-term = "0.50"
+once_cell = "1"
+rand = "*"
+reqwest = { version = "*", features = ["json", "multipart"] }
+rust-embed = { version = "*", features = ["axum"] }
+serde = { version = "*", features = ["derive"] }
+serde_json = "*"
+sha2 = "*"
+sqlx = { version = "*", features = ["runtime-tokio", "tls-rustls-ring-webpki", "sqlite", "macros", "chrono"] }
+teloxide = { version = "*", features = ["macros"] }
+tokio = { version = "*", features = ["full"] }
+tower-http = { version = "*", features = ["cors"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "ansi"] }
+urlencoding = "*"

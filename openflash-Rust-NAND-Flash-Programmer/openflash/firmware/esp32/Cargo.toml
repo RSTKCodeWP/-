@@ -1,0 +1,27 @@
+[package]
+name = "openflash-firmware-esp32"
+version = "1.5.0"
+edition = "2021"
+description = "OpenFlash firmware for ESP32 series microcontrollers"
+
+[dependencies]
+esp-hal = { version = "0.22", features = ["esp32"] }
+esp-backtrace = { version = "0.14", features = ["esp32", "panic-handler", "println"] }
+esp-println = { version = "0.12", features = ["esp32", "log"] }
+log = "0.4"
+heapless = "0.8"
+embedded-hal = "1.0"
+embedded-io = "0.6"
+
+# USB Serial/JTAG support
+esp-hal-embassy = { version = "0.4", features = ["esp32"] }
+embassy-executor = { version = "0.6", features = ["task-arena-size-32768"] }
+embassy-time = "0.3"
+
+[profile.dev]
+debug = 2
+opt-level = "s"
+
+[profile.release]
+opt-level = "s"
+lto = true

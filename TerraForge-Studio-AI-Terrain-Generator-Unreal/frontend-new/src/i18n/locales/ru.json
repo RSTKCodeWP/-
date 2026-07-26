@@ -1,0 +1,55 @@
+{
+  "app": {
+    "title": "TerraForge Studio",
+    "subtitle": "Профессиональный генератор 3D местности"
+  },
+  "nav": {
+    "map2d": "2D Карта",
+    "preview3d": "3D Превью",
+    "settings": "Настройки",
+    "history": "История",
+    "cache": "Кэш",
+    "share": "Поделиться"
+  },
+  "export": {
+    "title": "Настройки экспорта",
+    "terrainName": "Название местности",
+    "heightmapResolution": "Разрешение карты высот",
+    "exportFormats": "Форматы экспорта",
+    "elevationSource": "Источник высот",
+    "features": "Функции",
+    "roads": "Дороги",
+    "buildings": "Здания",
+    "weightmaps": "Карты весов",
+    "useAI": "Использовать AI (Qwen3)",
+    "aiDescription": "AI будет анализировать местность и оптимизировать параметры",
+    "generate": "Сгенерировать местность",
+    "loadPreset": "Загрузить шаблон"
+  },
+  "settings": {
+    "title": "Настройки",
+    "dataSources": "Источники данных",
+    "generation": "Генерация",
+    "exportProfiles": "Профили экспорта",
+    "uiLanguage": "Интерфейс и язык",
+    "storage": "Хранилище",
+    "save": "Сохранить настройки"
+  },
+  "ai": {
+    "title": "AI Ассистент местности",
+    "analyze": "Анализировать местность",
+    "analyzing": "Анализ...",
+    "recommendations": "Рекомендации"
+  },
+  "map": {
+    "selectArea": "Нарисуйте прямоугольник или полигон для выбора области",
+    "selectedArea": "Выбранная область",
+    "area": "Площадь",
+    "mapType": {
+      "osm": "Карта",
+      "satellite": "Спутник",
+      "hybrid": "Гибрид",
+      "topo": "Топография"
+    }
+  }
+}

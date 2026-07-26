@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 44" width="100%" role="img" aria-label="Selected work">
+  
+    <defs>
+        <linearGradient id="skyFade" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#020713" />
+            <stop offset="55%" stop-color="#01030a" />
+            <stop offset="100%" stop-color="#020713" />
+        </linearGradient>
+        <radialGradient id="horizonGlow" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="#0a4a86" stop-opacity="0.55" />
+            <stop offset="60%" stop-color="#062a52" stop-opacity="0.18" />
+            <stop offset="100%" stop-color="#01030a" stop-opacity="0" />
+        </radialGradient>
+        <filter id="bloom" x="-30%" y="-30%" width="160%" height="160%">
+            <feGaussianBlur stdDeviation="4" result="b" />
+            <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+        </filter>
+        <style>
+            .t-title { font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif; font-weight: 300; letter-spacing: 6px; fill: #cfeeff; }
+            .t-sub   { font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif; font-weight: 300; letter-spacing: 3px; fill: #4a5a70; }
+            .t-mono  { font-family: "SFMono-Regular", Consolas, "Courier New", monospace; fill: #7fd4ff; }
+            .t-num   { font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif; font-weight: 200; fill: #cfeeff; }
+            /* Animation contract for every class below: the resting state is
+               fully visible. A renderer that never advances the timeline shows
+               a complete, slightly-still page — never an empty one. Negative
+               delays put looping effects mid-flight at frame 0. */
+            @keyframes rise { from { transform: translateY(18px); } to { transform: translateY(0); } }
+            .tw { animation: rise 0.75s cubic-bezier(0.16, 0.84, 0.24, 1) both; }
+            @keyframes dustRise { from { transform: translateY(0); } to { transform: translateY(-20px); } }
+            .dust { animation: dustRise 12s ease-in-out infinite alternate; }
+            @keyframes beamFlicker { 0% { opacity: 0.12; } 50% { opacity: 0.28; } 100% { opacity: 0.12; } }
+            .beam { animation: beamFlicker 8s ease-in-out infinite; }
+            @keyframes beaconPulse { from { opacity: 0.12; } to { opacity: 0.38; } }
+            .beacon { animation: beaconPulse 1.5s ease-in-out infinite alternate; }
+            @keyframes pulseFade { 0% { opacity: 0.15; } 50% { opacity: 0.6; } 100% { opacity: 0.15; } }
+            .pulse { animation: pulseFade 4s ease-in-out infinite; }
+            @keyframes scanSweep { from { transform: translateX(0); } to { transform: translateX(1100px); } }
+            .scan { animation: scanSweep 14s linear infinite; }
+            @media (prefers-reduced-motion: reduce) {
+                .tw, .rb1, .rb2, .dust, .beam, .beacon, .pulse, .scan { animation: none; }
+            }
+        </style>
+    </defs>
+  <rect width="100%" height="100%" fill="url(#skyFade)" />
+  <text x="46" y="26" class="t-title" font-size="15">SELECTED WORK</text>
+  <line x1="46" y1="36" x2="954" y2="36" stroke="#1d6fb8" stroke-width="0.75" opacity="0.35"/>
+</svg>

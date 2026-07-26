@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <defs>
+    <linearGradient id="favGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#2563eb;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1d4ed8;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="32" height="32" rx="6" fill="url(#favGradient)"/>
+  
+  <!-- Simple mountain silhouette -->
+  <path d="M 10 22 L 16 10 L 22 22 Z" fill="#ffffff" opacity="0.9"/>
+  <path d="M 16 10 L 22 22 L 16 22 Z" fill="#ffffff" opacity="0.5"/>
+  
+  <!-- Base terrain -->
+  <path d="M 0 24 Q 8 20, 16 22 T 32 24 L 32 32 L 0 32 Z" fill="#1e3a8a" opacity="0.6"/>
+</svg>

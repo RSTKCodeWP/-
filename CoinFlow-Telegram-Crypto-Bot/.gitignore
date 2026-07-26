@@ -1,0 +1,53 @@
+# Environment
+.env
+
+# Poetry
+.venv
+.venv/
+dist/
+build/
+*.egg-info/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.pyc
+
+# Database
+alerts.db
+alerts.db.*
+coinflo*.db
+coinflo*.db.*
+*.db
+*.db-journal
+data/
+
+# Logs
+*.log
+logs/
+coinflo*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Documentation
+docs/_build/
+
+# Temporary files
+*.tmp
+*.temp
+.cache/

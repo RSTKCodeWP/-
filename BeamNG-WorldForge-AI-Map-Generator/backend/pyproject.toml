@@ -1,0 +1,47 @@
+[project]
+name = "beamng-worldforge-backend"
+version = "1.8.0"
+description = "Backend API for BeamNG.WorldForge - generate BeamNG.drive maps from real geodata"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+
+# Runtime dependencies are pinned in requirements.txt, which is what both the
+# Docker image and the PyInstaller build install. Declaring them here as well
+# (the previous file said numpy ^1.26 while requirements.txt pinned 2.2.1) meant
+# the two disagreed about what the project actually runs on.
+dynamic = ["dependencies"]
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.txt"] }
+
+[tool.setuptools.packages.find]
+include = ["api*", "core*", "models*", "services*"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+# -- tooling -------------------------------------------------------------------
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = ["static", "build", "dist"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "I",   # import sorting
+    "UP",  # pyupgrade
+    "B",   # bugbear
+    "C4",  # comprehensions
+    "SIM", # simplifications
+]
+ignore = [
+    "E501",  # long lines are the formatter's business
+    "B008",  # FastAPI declares dependencies as call-in-default by design
+]
+
+[tool.ruff.format]
+quote-style = "double"

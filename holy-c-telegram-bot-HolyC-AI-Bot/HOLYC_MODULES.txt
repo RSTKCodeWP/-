@@ -1,0 +1,34 @@
+HOLY C MODULES MANIFEST
+=======================
+
+CORE LIBRARIES (lib/):
+- string_utils.HC    - String manipulation (len, cmp, reverse, etc)
+- math_divine.HC     - Mathematics (prime, fibonacci, gcd, etc)
+- crypto_holy.HC     - Cryptography (hash, cipher, base64, etc)
+- json_parser.HC     - JSON parsing (get, array, escape, etc)
+- http_client.HC     - HTTP interface (request/response structures)
+
+PLUGINS (plugins/):
+- oracle.HC          - Divine oracle with random answers
+- weather.HC         - Divine weather predictions
+- astronomy.HC       - Cosmos facts and planet info
+- wisdom.HC          - Programming wisdom and life proverbs
+- games.HC           - Dice, coin flip, rock-paper-scissors
+- calculator.HC      - Simple math calculations
+- time.HC            - Time display and countdown
+- crypto.HC          - Hash, encode, decode, key generation
+- text.HC            - Text processing (reverse, count, palindrome)
+- number.HC          - Number theory (prime, fibonacci, factors)
+- fun.HC             - Jokes, riddles, facts, compliments, 8-ball
+
+TOTAL HOLYC CODE:
+- 11 plugins
+- 5 libraries
+- 1 main bot (telegram_bot.HC)
+= 17 HolyC files
+
+PHILOSOPHY:
+- Simple, readable code
+- No bloat
+- Divine inspiration through randomness
+- Terry's principles: 640x480, 16 colors, simplicity

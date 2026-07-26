@@ -23,3 +23,29 @@ Repository for embedded and mobile control projects.
 | [`fpv-tools-Deno-Browser-Betaflight-Utilities/`](fpv-tools-Deno-Browser-Betaflight-Utilities/) | [FPVibe/fpv-tools](https://github.com/FPVibe/fpv-tools) | Browser PWA tools: CLI merge, rate profiles, prop/motor sizer |
 | [`fpvibe-github-io-FPVibe-Org-Website/`](fpvibe-github-io-FPVibe-Org-Website/) | [FPVibe/fpvibe.github.io](https://github.com/FPVibe/fpvibe.github.io) | FPVibe GitHub Pages site (placeholder) |
 | [`FPVibe-github-Org-Profile-Defaults/`](FPVibe-github-Org-Profile-Defaults/) | [FPVibe/.github](https://github.com/FPVibe/.github) | Org-level GitHub profile and defaults |
+
+## bobberdolle1 ([github.com/bobberdolle1](https://github.com/bobberdolle1))
+
+| Folder | Source | Description |
+|--------|--------|-------------|
+| [`SkySweep32-ESP32-Drone-Detector/`](SkySweep32-ESP32-Drone-Detector/) | [bobberdolle1/SkySweep32](https://github.com/bobberdolle1/SkySweep32) | ESP32 passive drone detector (see above) |
+| [`GyroChad-Rust-FPV-Drone-AI-Bot/`](GyroChad-Rust-FPV-Drone-AI-Bot/) | [bobberdolle1/GyroChad](https://github.com/bobberdolle1/GyroChad) | AI-powered FPV drone assistant Telegram bot (RAG, vision, blackbox) |
+| [`at32f435-rgt7-manual-AT32-Flight-Controller-Manual/`](at32f435-rgt7-manual-AT32-Flight-Controller-Manual/) | [bobberdolle1/at32f435-rgt7-manual](https://github.com/bobberdolle1/at32f435-rgt7-manual) | User manual for AT32F435 RGT7 flight controller |
+| [`maixcam-servo-control-AI-Ballistic-Servo-MaixCAM/`](maixcam-servo-control-AI-Ballistic-Servo-MaixCAM/) | [bobberdolle1/maixcam-servo-control](https://github.com/bobberdolle1/maixcam-servo-control) | AI ballistic servo drop system for MaixCAM (YOLOv8, optical flow) |
+| [`maixcam-wildtrap-AI-Camera-Trap-MaixCAM/`](maixcam-wildtrap-AI-Camera-Trap-MaixCAM/) | [bobberdolle1/maixcam-wildtrap](https://github.com/bobberdolle1/maixcam-wildtrap) | AI camera trap for MaixCAM with Telegram notifications |
+| [`openflash-Rust-NAND-Flash-Programmer/`](openflash-Rust-NAND-Flash-Programmer/) | [bobberdolle1/openflash](https://github.com/bobberdolle1/openflash) | Open-source NAND/eMMC/NOR flash programmer (Pico, STM32, ESP32) |
+| [`Pico-Nand-Flasher-RaspberryPi-Pico-NAND/`](Pico-Nand-Flasher-RaspberryPi-Pico-NAND/) | [bobberdolle1/Pico-Nand-Flasher](https://github.com/bobberdolle1/Pico-Nand-Flasher) | NAND flasher for Raspberry Pi Pico |
+| [`BeamNG-WorldForge-AI-Map-Generator/`](BeamNG-WorldForge-AI-Map-Generator/) | [bobberdolle1/BeamNG.WorldForge](https://github.com/bobberdolle1/BeamNG.WorldForge) | AI map generator for BeamNG.drive from satellite data |
+| [`TerraForge-Studio-AI-Terrain-Generator-Unreal/`](TerraForge-Studio-AI-Terrain-Generator-Unreal/) | [bobberdolle1/TerraForge-Studio](https://github.com/bobberdolle1/TerraForge-Studio) | AI real-world terrain generator for Unreal Engine / Unity |
+| [`CoinFlow-Telegram-Crypto-Bot/`](CoinFlow-Telegram-Crypto-Bot/) | [bobberdolle1/CoinFlow](https://github.com/bobberdolle1/CoinFlow) | Telegram bot for currency conversion and crypto analysis |
+| [`EFT-Helper-Tarkov-Telegram-Bot/`](EFT-Helper-Tarkov-Telegram-Bot/) | [bobberdolle1/EFT-Helper](https://github.com/bobberdolle1/EFT-Helper) | Escape From Tarkov helper Telegram bot |
+| [`PersonaForge-Rust-Telegram-AI-Personalities/`](PersonaForge-Rust-Telegram-AI-Personalities/) | [bobberdolle1/PersonaForge](https://github.com/bobberdolle1/PersonaForge) | Telegram bot with custom AI personalities and memory |
+| [`Puppeteer-Rust-Telegram-Userbot-Orchestration/`](Puppeteer-Rust-Telegram-Userbot-Orchestration/) | [bobberdolle1/Puppeteer](https://github.com/bobberdolle1/Puppeteer) | Multi-account Telegram userbot orchestration with AI |
+| [`Project-OLEG-Telegram-AI-Personality-Bot/`](Project-OLEG-Telegram-AI-Personality-Bot/) | [bobberdolle1/Project-OLEG](https://github.com/bobberdolle1/Project-OLEG) | Telegram AI personality bot (Gemini) |
+| [`MailPechkinBot-Telegram-Mail-Bot/`](MailPechkinBot-Telegram-Mail-Bot/) | [bobberdolle1/MailPechkinBot](https://github.com/bobberdolle1/MailPechkinBot) | Telegram bot for email codes and registration |
+| [`holy-c-telegram-bot-HolyC-AI-Bot/`](holy-c-telegram-bot-HolyC-AI-Bot/) | [bobberdolle1/holy-c-telegram-bot](https://github.com/bobberdolle1/holy-c-telegram-bot) | Telegram bot written in HolyC |
+| [`HolyBot-Batch-Telegram-Bot/`](HolyBot-Batch-Telegram-Bot/) | [bobberdolle1/HolyBot](https://github.com/bobberdolle1/HolyBot) | HolyBot batch script launcher |
+| [`clearflow-Lua-DPI-Bypass-Engine/`](clearflow-Lua-DPI-Bypass-Engine/) | [bobberdolle1/clearflow](https://github.com/bobberdolle1/clearflow) | Cross-platform DPI bypass engine (Zapret 2, GoodbyeDPI) |
+| [`unbound-Lua-Universal-DPI-Bypass/`](unbound-Lua-Universal-DPI-Bypass/) | [bobberdolle1/unbound](https://github.com/bobberdolle1/unbound) | Universal packet-level DPI bypass (Windows, macOS, Linux, OpenWrt) |
+| [`slrr-macos-resolution-fix-SLRR-High-Res-macOS/`](slrr-macos-resolution-fix-SLRR-High-Res-macOS/) | [bobberdolle1/slrr-macos-resolution-fix](https://github.com/bobberdolle1/slrr-macos-resolution-fix) | High resolution fix for SLRR on macOS (CrossOver/Wine) |
+| [`bobberdolle1-GitHub-Profile-README/`](bobberdolle1-GitHub-Profile-README/) | [bobberdolle1/bobberdolle1](https://github.com/bobberdolle1/bobberdolle1) | GitHub profile README |

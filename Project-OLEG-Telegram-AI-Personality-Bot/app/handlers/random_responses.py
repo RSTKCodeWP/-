@@ -1,0 +1,277 @@
+"""Модуль рандомных ответов от Олега."""
+
+import logging
+import random
+import asyncio
+from datetime import datetime, timedelta
+from aiogram import Router
+from aiogram.types import Message
+from aiogram.filters import Command
+from sqlalchemy import select
+
+from app.database.session import get_session
+from app.database.models import Chat, User
+from app.utils import utc_now
+
+logger = logging.getLogger(__name__)
+
+router = Router()
+
+# Словарь для отслеживания последнего рандомного сообщения в каждом чате
+last_random_message_time = {}
+
+# Коллекция случайных фраз Олега
+RANDOM_PHRASES = [
+    "А чё молчите, как партия молчуния?",
+    "Кто в чате живой? А ну оживите!",
+    "Сидим тихо? Или уже умерли?",
+    "Так, чё тут у вас творится?",
+    "Опять тишина? Как на кладбище...",
+    "Ну и чё, молчим дальше? Дрова не рубим.",
+    "А ну ка, давай пообщаемся, не то скучно станет.",
+    "Эй, вы там! Не спите? А то чат как убитый.",
+    "Кто-нибудь живой? Давайте оживим эту помойку!",
+    "Здрасте, народ. Ну и тишина у вас тут...",
+    "Кто-то кроме меня тут есть? Или все схоронились?",
+    "О, тут как будто люди умерли. Кто живой?",
+    "Так, а ну оживайте, а то я один разговор начну.",
+    "Эй, спящие красавцы! Пора просыпаться!",
+    "Ну и чатик у вас. Как морг в час ночи."
+]
+
+# Темы для случайных сообщений
+TOPICS = [
+    "техника",
+    "железо",
+    "разгон",
+    "стим дэк",
+    "железка",
+    "процессоры",
+    "видеокарты",
+    "оверклок",
+    "капсулы",
+    "чипы",
+    "архитектура",
+    "производительность",
+    "температура",
+    "напряжение",
+    "платы",
+    "память",
+    "охлаждение",
+    "водянка",
+    "вентиляторы",
+    "термопаста"
+]
+
+# Паттерны для случайных сообщений
+PATTERNS = [
+    "Кстати, {topic} - это вам не игрушки, это святое.",
+    "По {topic} вопрос есть? Не стесняйтесь, я слушаю.",
+    "Кто разбирается в {topic}? А ну выходи!",
+    "А {topic} у вас как? Работает или сломалась?",
+    "Когда по {topic} статью напишете?",
+    "Кто тут шарит в {topic}? А ну сюда!",
+    "Ну и чё с {topic}? Живо или нет?",
+    "Кто в {topic} копается? Я жду ответов!",
+    "По {topic} вопросы вон в ту тему, не сюда.",
+    "А кто тут в {topic} шарит?"
+]
+
+
+class RandomResponseManager:
+    """Класс для управления рандомными ответами."""
+    
+    def __init__(self):
+        self.chats_with_random_enabled = set()
+        self.last_message_times = {}  # Словарь для отслеживания времени последнего сообщения
+        self.random_chance = 0.02  # 2% шанс на случайное сообщение для каждого сообщения в чате
+        self.min_interval_minutes = 30  # Минимальный интервал между случайными сообщениями (в минутах)
+        self.max_interval_minutes = 120  # Максимальный интервал между случайными сообщениями (в минутах)
+        
+    def is_random_enabled_for_chat(self, chat_id: int) -> bool:
+        """Проверяет, включены ли случайные сообщения для чата."""
+        return chat_id in self.chats_with_random_enabled
+    
+    def set_random_enabled_for_chat(self, chat_id: int, enabled: bool):
+        """Включает/выключает случайные сообщения для чата."""
+        if enabled:
+            self.chats_with_random_enabled.add(chat_id)
+        else:
+            self.chats_with_random_enabled.discard(chat_id)
+    
+    def can_send_random_message(self, chat_id: int) -> bool:
+        """
+        Проверяет, можно ли отправить случайное сообщение в чат.
+        
+        Args:
+            chat_id: ID чата
+            
+        Returns:
+            True, если можно отправить случайное сообщение
+        """
+        current_time = utc_now()
+        
+        # Проверяем, включены ли случайные сообщения для этого чата
+        if chat_id not in self.chats_with_random_enabled:
+            return False
+        
+        # Проверяем минимальный интервал с момента последнего случайного сообщения
+        if chat_id in self.last_message_times:
+            time_since_last = current_time - self.last_message_times[chat_id]
+            min_interval = timedelta(minutes=self.min_interval_minutes)
+            
+            if time_since_last < min_interval:
+                return False
+        
+        return True
+    
+    def get_random_message(self) -> str:
+        """
+        Генерирует случайное сообщение от Олега.
+        
+        Returns:
+            Случайное сообщение
+        """
+        # С вероятностью 70% выбираем из заранее заданных фраз
+        if random.random() < 0.7:
+            return random.choice(RANDOM_PHRASES)
+        else:
+            # Иначе генерируем сообщение по паттерну
+            topic = random.choice(TOPICS)
+            pattern = random.choice(PATTERNS)
+            return pattern.format(topic=topic)
+    
+    def record_random_message_sent(self, chat_id: int):
+        """
+        Записывает время отправки случайного сообщения.
+        
+        Args:
+            chat_id: ID чата
+        """
+        self.last_message_times[chat_id] = utc_now()
+
+
+# Создаем глобальный экземпляр менеджера
+random_manager = RandomResponseManager()
+
+
+# ============================================================================
+# КОМАНДЫ (должны быть ВЫШЕ общего хендлера!)
+# ============================================================================
+
+@router.message(Command("random_toggle"))
+async def cmd_toggle_random(msg: Message):
+    """
+    Команда для включения/выключения рандомных ответов в чате.
+    """
+    # Проверяем, является ли пользователь администратором
+    try:
+        member = await msg.bot.get_chat_member(msg.chat.id, msg.from_user.id)
+        if member.status not in ['administrator', 'creator']:
+            await msg.reply("❌ Только администраторы могут управлять этой функцией.")
+            return
+    except Exception:
+        # Если не удалось получить статус участника
+        await msg.reply("❌ Не удалось проверить статус администратора.")
+        return
+    
+    # Получаем текущий статус
+    is_enabled = random_manager.is_random_enabled_for_chat(msg.chat.id)
+    
+    # Переключаем статус
+    random_manager.set_random_enabled_for_chat(msg.chat.id, not is_enabled)
+    
+    if is_enabled:
+        response_text = "🔴 Случайные сообщения от Олега отключены в этом чате."
+    else:
+        response_text = "🟢 Случайные сообщения от Олега включены! Он может вставить свои пять копеек без повода."
+    
+    await msg.reply(response_text)
+
+
+@router.message(Command("random_test"))
+async def cmd_test_random(msg: Message):
+    """
+    Команда для тестирования случайных сообщений.
+    """
+    # Проверяем, является ли пользователь администратором
+    try:
+        member = await msg.bot.get_chat_member(msg.chat.id, msg.from_user.id)
+        if member.status not in ['administrator', 'creator']:
+            await msg.reply("❌ Только администраторы могут тестировать эту функцию.")
+            return
+    except Exception:
+        await msg.reply("❌ Не удалось проверить статус администратора.")
+        return
+    
+    # Получаем случайное сообщение
+    random_msg = random_manager.get_random_message()
+    
+    await msg.reply(f"🎭 Тестовое случайное сообщение от Олега:\n{random_msg}")
+
+
+# ============================================================================
+# ОБЩИЙ ХЕНДЛЕР (должен быть ПОСЛЕ команд!)
+# ============================================================================
+
+@router.message()
+async def handle_random_trigger(msg: Message):
+    """
+    Обработчик, который может вызывать случайные сообщения.
+    """
+    # Проверяем, не является ли сообщение командой
+    if msg.text and msg.text.startswith('/'):
+        return
+    
+    # Проверяем, можно ли отправить случайное сообщение в этот чат
+    if random_manager.can_send_random_message(msg.chat.id):
+        # С некоторой вероятностью отправляем случайное сообщение
+        if random.random() < random_manager.random_chance:
+            # Получаем случайное сообщение
+            random_message = random_manager.get_random_message()
+            
+            try:
+                # Отправляем случайное сообщение
+                await msg.answer(random_message)
+                
+                # Записываем время отправки
+                random_manager.record_random_message_sent(msg.chat.id)
+                
+                logger.info(f"Случайное сообщение отправлено в чат {msg.chat.id}: {random_message}")
+            except Exception as e:
+                logger.error(f"Ошибка при отправке случайного сообщения: {e}")
+
+
+# Функция для периодической отправки случайных сообщений
+async def schedule_random_messages(bot):
+    """
+    Функция для периодической отправки случайных сообщений в чатах, 
+    где включена эта функция.
+    """
+    while True:
+        try:
+            # Ждем случайное время до следующей проверки (от 5 до 15 минут)
+            wait_time = random.randint(300, 900)  # 5-15 минут
+            await asyncio.sleep(wait_time)
+            
+            # Получаем список чатов, где включена функция
+            for chat_id in random_manager.chats_with_random_enabled.copy():
+                try:
+                    # Проверяем, можно ли отправить случайное сообщение
+                    if random_manager.can_send_random_message(chat_id):
+                        # С небольшой вероятностью отправляем сообщение
+                        if random.random() < 0.3:  # 30% шанс при проверке
+                            random_msg = random_manager.get_random_message()
+                            
+                            await bot.send_message(chat_id, random_msg)
+                            random_manager.record_random_message_sent(chat_id)
+                            
+                            logger.info(f"Периодическое случайное сообщение в чат {chat_id}: {random_msg}")
+                except Exception as e:
+                    logger.error(f"Ошибка при отправке периодического сообщения в чат {chat_id}: {e}")
+                    # Если чат неактивен или бота там нет, удаляем из списка
+                    if "Forbidden" in str(e) or "not found" in str(e).lower():
+                        random_manager.set_random_enabled_for_chat(chat_id, False)
+                        logger.info(f"Функция случайных сообщений отключена для чата {chat_id} из-за ошибки доступа")
+        except Exception as e:
+            logger.error(f"Ошибка в цикле периодических случайных сообщений: {e}")

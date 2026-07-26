@@ -1,0 +1,31 @@
+[package]
+name = "openflash-firmware-arduino-giga"
+version = "2.3.0"
+edition = "2021"
+description = "OpenFlash firmware for Arduino GIGA R1 WiFi (STM32H747)"
+
+[dependencies]
+cortex-m = "0.7"
+cortex-m-rt = "0.7"
+embassy-stm32 = { version = "0.1", features = ["stm32h747xi-cm7", "time-driver-any", "unstable-pac", "critical-section-impl"] }
+embassy-time = "0.3"
+embassy-usb = "0.3"
+embassy-executor = { version = "0.6", features = ["task-arena-size-65536", "arch-cortex-m", "executor-thread", "executor-interrupt"] }
+panic-probe = { version = "0.3", features = ["print-defmt"] }
+defmt = "0.3"
+defmt-rtt = "0.4"
+heapless = "0.8"
+
+[features]
+default = ["cm7"]
+# Arduino GIGA has dual-core STM32H747
+cm7 = []  # Cortex-M7 (480MHz)
+cm4 = []  # Cortex-M4 (240MHz)
+
+[profile.dev]
+debug = 2
+lto = true
+
+[profile.release]
+lto = true
+opt-level = "z"

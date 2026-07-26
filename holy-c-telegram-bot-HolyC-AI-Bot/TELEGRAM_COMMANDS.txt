@@ -1,0 +1,33 @@
+TELEGRAM BOT COMMANDS REGISTRATION
+===================================
+
+To register commands with BotFather:
+
+1. Open @BotFather in Telegram
+2. Send /setcommands
+3. Select your bot
+4. Paste this list:
+
+start - Initialize divine connection
+help - Show help
+commands - Full command list
+grow - Divine growth game
+growtop - Growth leaderboard
+dice - Roll dice
+coin - Flip coin
+quote - Terry's wisdom
+joke - Programming joke
+calc - Calculator
+prime - Check prime number
+hash - Hash text
+oracle - Ask divine oracle
+ascii - ASCII art
+terry - About Terry A. Davis
+info - Bot information
+
+These commands will appear in Telegram's autocomplete when users type /
+
+Note: The bot supports 65+ commands total, but only 16 most important
+are registered with Telegram for autocomplete (Telegram limit).
+
+Full list available via /commands in the bot.

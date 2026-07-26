@@ -1,0 +1,3186 @@
+{
+  "version": "2025-12-22-v1",
+  "description": "База знаний Олега о ПК-железе и Linux. Загружается в RAG при первом запуске и после вайпа.",
+  "categories": {
+    "platforms": {
+      "description": "Актуальные платформы 2025",
+      "facts": [
+        {
+          "text": "Intel LGA1851 — новая платформа для Core Ultra (Arrow Lake). Сокет LGA1851, чипсеты Z890/B860, только DDR5, PCIe 5.0. Для хай-энд игр и продакшна.",
+          "importance": 9,
+          "tags": ["intel", "lga1851", "arrow lake", "core ultra", "ddr5"]
+        },
+        {
+          "text": "Intel LGA1700 — платформа для Core 12-14 поколения (Alder/Raptor Lake). Чипсеты B660/Z690/B760/Z790, поддержка DDR4 и DDR5, PCIe 4.0/5.0. Массовый сегмент.",
+          "importance": 9,
+          "tags": ["intel", "lga1700", "raptor lake", "alder lake", "ddr4", "ddr5"]
+        },
+        {
+          "text": "AMD AM5 — платформа для Ryzen 7000/9000 (Zen 4/5). Чипсеты B650/B650E/X670/X670E/X870/X870E, только DDR5, PCIe 5.0. Заявлена как долгоживущая. DDR5-6000 EXPO оптимально.",
+          "importance": 9,
+          "tags": ["amd", "am5", "ryzen", "zen4", "zen5", "ddr5", "expo"]
+        },
+        {
+          "text": "AMD AM4 — платформа для Ryzen 1000-5000 (Zen-Zen 3). Чипсеты B450/B550/X570, только DDR4, PCIe 4.0. Всё ещё актуальна для бюджетных сборок.",
+          "importance": 8,
+          "tags": ["amd", "am4", "ryzen", "zen3", "ddr4", "бюджет"]
+        }
+      ]
+    },
+    "cpus_gaming": {
+      "description": "Лучшие процессоры для игр 2025",
+      "facts": [
+        {
+          "text": "Ryzen 7 9800X3D — лучший игровой процессор 2025. 8 ядер/16 потоков, Zen 5, 96MB 3D V-Cache. Сокет AM5, TDP 120W. Абсолютный топ для игр.",
+          "importance": 10,
+          "tags": ["amd", "ryzen", "9800x3d", "gaming", "3d v-cache", "am5"]
+        },
+        {
+          "text": "Ryzen 7 7800X3D — отличный игровой процессор, дешевле 9800X3D. 8 ядер/16 потоков, Zen 4, 96MB 3D V-Cache. Сокет AM5, TDP 120W.",
+          "importance": 9,
+          "tags": ["amd", "ryzen", "7800x3d", "gaming", "3d v-cache", "am5"]
+        },
+        {
+          "text": "Core Ultra 9 285K — топовый Intel для игр и продакшна. 24 ядра/24 потока, Arrow Lake, сокет LGA1851. TDP 125W, буст до 5.7 GHz.",
+          "importance": 9,
+          "tags": ["intel", "core ultra", "285k", "gaming", "lga1851"]
+        },
+        {
+          "text": "Ryzen 5 9600X — лучший бюджетный процессор для игр 2025. 6 ядер/12 потоков, Zen 5, сокет AM5. TDP 65W, отличная энергоэффективность.",
+          "importance": 9,
+          "tags": ["amd", "ryzen", "9600x", "gaming", "бюджет", "am5"]
+        },
+        {
+          "text": "Core i5-14600K — универсальный Intel среднего класса. 14 ядер/20 потоков, Raptor Lake, сокет LGA1700. Хорош для игр и работы.",
+          "importance": 8,
+          "tags": ["intel", "i5", "14600k", "gaming", "lga1700"]
+        }
+      ]
+    },
+    "gpus_nvidia": {
+      "description": "Видеокарты NVIDIA 2025",
+      "facts": [
+        {
+          "text": "RTX 5090 — флагман NVIDIA Blackwell. 32GB GDDR7, шина 512-bit, TDP 575W, MSRP $1999. DLSS 4, лучшая карта для 4K/8K.",
+          "importance": 9,
+          "tags": ["nvidia", "rtx 5090", "blackwell", "флагман", "gddr7"]
+        },
+        {
+          "text": "RTX 5080 — хай-энд NVIDIA Blackwell. 16GB GDDR7, шина 256-bit, TDP 360W, MSRP $999. Отличный выбор для 4K gaming.",
+          "importance": 9,
+          "tags": ["nvidia", "rtx 5080", "blackwell", "4k"]
+        },
+        {
+          "text": "RTX 4090 — топовая карта Ada Lovelace. 24GB GDDR6X, шина 384-bit, TDP 450W. Всё ещё актуальна, но жрёт много энергии.",
+          "importance": 8,
+          "tags": ["nvidia", "rtx 4090", "ada lovelace", "флагман"]
+        },
+        {
+          "text": "RTX 4070 Super — лучший выбор цена/производительность NVIDIA. 12GB GDDR6X, шина 192-bit, TDP 220W, MSRP $599. Идеален для 1440p.",
+          "importance": 9,
+          "tags": ["nvidia", "rtx 4070 super", "ada lovelace", "1440p", "цена/качество"]
+        },
+        {
+          "text": "RTX 4060 — бюджетная карта NVIDIA. 8GB GDDR6, шина 128-bit, TDP 115W, MSRP $299. Для 1080p gaming, но 8GB уже мало для новых игр.",
+          "importance": 8,
+          "tags": ["nvidia", "rtx 4060", "ada lovelace", "1080p", "бюджет"]
+        }
+      ]
+    },
+    "gpus_nvidia_rtx50": {
+      "description": "NVIDIA RTX 50 Series (Blackwell) — детали 2025",
+      "facts": [
+        {
+          "text": "RTX 50 серия (Blackwell) — архитектура 4нм TSMC. Главные фишки: GDDR7 память (28-32 Гбит/с), DLSS 4 (генерирует 3 кадра вместо 1), нативный PCIe 5.0 x16.",
+          "importance": 10,
+          "tags": ["nvidia", "rtx 50", "blackwell", "gddr7", "dlss 4", "pcie 5.0"]
+        },
+        {
+          "text": "RTX 5090 — 32GB GDDR7 (512-bit), 21760 ядер, TDP 575W. Нужен БП на 1.2 кВт минимум. Цена $1999 (в РФ ~300к). Для тех кто рендерит Pixar дома или играет в 8K.",
+          "importance": 10,
+          "tags": ["nvidia", "rtx 5090", "blackwell", "флагман", "32gb", "575w"]
+        },
+        {
+          "text": "RTX 5080 — 16GB GDDR7 (256-bit), TDP 360W, $999. Проблема: снова пожалели памяти! 16 ГБ в 2025 за $999 — плевок. Жди Super/Ti версию с 24 ГБ.",
+          "importance": 10,
+          "tags": ["nvidia", "rtx 5080", "blackwell", "16gb", "кастрированная"]
+        },
+        {
+          "text": "RTX 5070 Ti — 16GB GDDR7, $749. Народный топ для 1440p. RTX 5070 — 12GB за $549, это скам (12 ГБ мало для 2025).",
+          "importance": 10,
+          "tags": ["nvidia", "rtx 5070", "rtx 5070 ti", "blackwell", "1440p"]
+        },
+        {
+          "text": "RTX 5060 — 8GB GDDR7. Офисная затычка. 8 ГБ в 2025 — это смешно. Не бери, лучше б/у RTX 4070 или RX 7800 XT.",
+          "importance": 10,
+          "tags": ["nvidia", "rtx 5060", "blackwell", "8gb", "скам", "не брать"]
+        },
+        {
+          "text": "DLSS 4 Multi Frame Generation — генерирует 3 кадра на каждый реальный. FPS в космосе, но артефакты есть. Работает только на RTX 50 серии.",
+          "importance": 9,
+          "tags": ["nvidia", "dlss 4", "frame generation", "blackwell"]
+        }
+      ]
+    },
+    "gpus_amd": {
+      "description": "Видеокарты AMD 2025",
+      "facts": [
+        {
+          "text": "RX 9070 XT — новая карта AMD RDNA 4. 16GB GDDR6, шина 256-bit, TDP ~250W, MSRP $599. FSR 4, улучшенный рейтрейсинг.",
+          "importance": 9,
+          "tags": ["amd", "rx 9070 xt", "rdna 4", "fsr 4"]
+        },
+        {
+          "text": "RX 7900 XTX — флагман AMD RDNA 3. 24GB GDDR6, шина 384-bit, TDP 355W, MSRP $999. Конкурент RTX 4080.",
+          "importance": 8,
+          "tags": ["amd", "rx 7900 xtx", "rdna 3", "флагман"]
+        },
+        {
+          "text": "RX 7800 XT — лучший выбор AMD для 1440p. 16GB GDDR6, шина 256-bit, TDP 263W, MSRP $499. Больше VRAM чем у конкурентов NVIDIA.",
+          "importance": 9,
+          "tags": ["amd", "rx 7800 xt", "rdna 3", "1440p", "цена/качество"]
+        },
+        {
+          "text": "RX 7600 — бюджетная карта AMD. 8GB GDDR6, шина 128-bit, TDP 165W, MSRP $269. Для 1080p, конкурент RTX 4060.",
+          "importance": 8,
+          "tags": ["amd", "rx 7600", "rdna 3", "1080p", "бюджет"]
+        }
+      ]
+    },
+    "gpus_amd_rdna4": {
+      "description": "AMD RX 9000 Series (RDNA 4) — детали 2025",
+      "facts": [
+        {
+          "text": "AMD RDNA 4 стратегия: 'King of Mid-Range'. Лиза Су вышла из гонки за топ — флагмана (Navi 41) не будет. Только средний сегмент против RTX 5070/5080.",
+          "importance": 10,
+          "tags": ["amd", "rdna 4", "rx 9000", "стратегия", "mid-range"]
+        },
+        {
+          "text": "RX 9070 XT (Navi 48) — 16GB GDDR6 (20 Гбит/с), 256-bit, ~$549-599. Цель: уровень RTX 4080 / 4070 Ti Super, но дешевле. Если дадут — убийца рынка для 2K/4K.",
+          "importance": 10,
+          "tags": ["amd", "rx 9070 xt", "rdna 4", "navi 48", "16gb"]
+        },
+        {
+          "text": "RX 9070 — младшая версия RDNA 4. Конкурент RTX 5070. Если памяти будет 12GB+ — норм выбор для 1440p.",
+          "importance": 9,
+          "tags": ["amd", "rx 9070", "rdna 4", "1440p"]
+        },
+        {
+          "text": "RDNA 4 Ray Tracing — наконец-то починили! RT-блоков стало больше, производительность в лучах догнала RTX 4000 серию.",
+          "importance": 9,
+          "tags": ["amd", "rdna 4", "ray tracing", "лучи"]
+        },
+        {
+          "text": "FSR 4 — теперь на базе ИИ (как DLSS). AMD добавили тензорные блоки в RDNA 4. Качество должно быть на уровне DLSS 3.",
+          "importance": 9,
+          "tags": ["amd", "fsr 4", "rdna 4", "upscaling", "ai"]
+        },
+        {
+          "text": "RX 8000 серии НЕ СУЩЕСТВУЕТ! AMD пропустила номер 8000 и сразу выпустила RX 9000 (RDNA 4). Если кто-то говорит про RX 8800 — это фейк или слухи.",
+          "importance": 10,
+          "tags": ["amd", "rx 8000", "не существует", "фейк", "миф"]
+        }
+      ]
+    },
+    "gpus_intel_arc": {
+      "description": "Intel Arc Battlemage (B-Series) 2025",
+      "facts": [
+        {
+          "text": "Intel Arc Battlemage (Xe2) — второе поколение дискретных GPU от Intel. Драйверы допилили, теперь реально можно покупать.",
+          "importance": 9,
+          "tags": ["intel", "arc", "battlemage", "xe2", "gpu"]
+        },
+        {
+          "text": "Intel Arc B580 — 12GB GDDR6, 192-bit, $250. Вышла в декабре 2024. Убийца RTX 3060/4060 по цене. Лучший бюджетный выбор 2025.",
+          "importance": 10,
+          "tags": ["intel", "arc b580", "battlemage", "12gb", "бюджет", "250"]
+        },
+        {
+          "text": "Arc B580 vs RTX 4060: Intel даёт 12GB против 8GB у NVIDIA за те же деньги. В новых играх 12GB — это база.",
+          "importance": 9,
+          "tags": ["intel", "arc b580", "rtx 4060", "сравнение", "vram"]
+        },
+        {
+          "text": "Intel Arc B770 / B990 — слухи про 24GB версию к лету 2025. Если правда — бомба для нейросетей и рабочих задач за копейки.",
+          "importance": 8,
+          "tags": ["intel", "arc b770", "arc b990", "слухи", "24gb"]
+        }
+      ]
+    },
+    "gpus_tierlist_2025": {
+      "description": "Тир-лист GPU от Олега (2025)",
+      "facts": [
+        {
+          "text": "Unlimited Budget 2025: RTX 5090. Без вариантов. 32GB GDDR7, DLSS 4, 8K gaming. Для тех у кого деньги не проблема.",
+          "importance": 10,
+          "tags": ["gpu", "тир-лист", "топ", "rtx 5090", "2025"]
+        },
+        {
+          "text": "Smart Choice 1440p/4K 2025: RX 9070 XT (ждём тестов) или RTX 5070 Ti (если нужны лучи). 16GB памяти — минимум для комфорта.",
+          "importance": 10,
+          "tags": ["gpu", "тир-лист", "1440p", "4k", "rx 9070 xt", "rtx 5070 ti"]
+        },
+        {
+          "text": "Budget King 1080p 2025: Intel Arc B580 ($250, 12GB) или б/у RX 6800 XT (старичок ещё может). RTX 4060 с 8GB — уже не вариант.",
+          "importance": 10,
+          "tags": ["gpu", "тир-лист", "бюджет", "1080p", "arc b580", "rx 6800 xt"]
+        },
+        {
+          "text": "Scam of the Year 2025: RTX 5070 (12GB) и RTX 5060 (8GB). NVIDIA жадничает с памятью. Не бери эти огрызки.",
+          "importance": 10,
+          "tags": ["gpu", "тир-лист", "скам", "rtx 5070", "rtx 5060", "не брать"]
+        }
+      ]
+    },
+    "ram": {
+      "description": "Стандарты памяти 2025",
+      "facts": [
+        {
+          "text": "DDR5 — стандарт памяти 2025. Скорости 4800-8000+ MT/s. Рекомендуется DDR5-5600/6000/6400 для игр. 32GB (2x16) — золотая середина для AAA и стриминга.",
+          "importance": 9,
+          "tags": ["ddr5", "память", "ram", "2025"]
+        },
+        {
+          "text": "DDR5-6000 EXPO — оптимальный выбор для AMD Ryzen 7000/9000. EXPO профили работают из коробки, sweet spot для Infinity Fabric.",
+          "importance": 9,
+          "tags": ["ddr5", "expo", "amd", "ryzen", "am5"]
+        },
+        {
+          "text": "DDR4 — актуальна только для старых платформ (AM4, LGA1200, бюджетные LGA1700). Рекомендуется DDR4-3200/3600 MT/s.",
+          "importance": 7,
+          "tags": ["ddr4", "память", "ram", "бюджет"]
+        }
+      ]
+    },
+    "storage": {
+      "description": "Накопители 2025",
+      "facts": [
+        {
+          "text": "NVMe PCIe 5.0 — топовые SSD 2025. Скорость чтения 12000+ MB/s. Crucial T705, Samsung 990 Pro Gen5. Для 4K/8K монтажа, в играх разница с Gen4 минимальна.",
+          "importance": 8,
+          "tags": ["nvme", "pcie 5.0", "ssd", "gen5"]
+        },
+        {
+          "text": "NVMe PCIe 4.0 — мейнстрим SSD 2025. Скорость чтения до 7000 MB/s. Оптимальный выбор цена/скорость для игр и работы.",
+          "importance": 9,
+          "tags": ["nvme", "pcie 4.0", "ssd", "gen4", "мейнстрим"]
+        },
+        {
+          "text": "SATA SSD — только для хранения и старых систем. Скорость до 550 MB/s. Не рекомендуется как основной диск в 2025.",
+          "importance": 6,
+          "tags": ["sata", "ssd", "хранение"]
+        }
+      ]
+    },
+    "psu": {
+      "description": "Блоки питания 2025",
+      "facts": [
+        {
+          "text": "ATX 3.1 — новый стандарт БП 2025. Коннектор 12V-2x6 (замена 12VHPWR), до 600W для GPU, улучшенный контакт, меньше риск оплавления.",
+          "importance": 9,
+          "tags": ["psu", "atx 3.1", "12v-2x6", "блок питания"]
+        },
+        {
+          "text": "Для RTX 4070/5070 рекомендуется БП 650-750W 80+ Gold. Для RTX 4080/5080 — 850W. Для RTX 4090/5090 — 1000W+ 80+ Platinum.",
+          "importance": 9,
+          "tags": ["psu", "мощность", "rtx", "рекомендации"]
+        }
+      ]
+    },
+    "software_os": {
+      "description": "Операционные системы 2025",
+      "facts": [
+        {
+          "text": "Windows 11 24H2/25H1 — основная ОС 2025. Обязательна для Zen 5 и Arrow Lake (оптимизированный планировщик). Chris Titus WinUtil — лучший деблоатер.",
+          "importance": 9,
+          "tags": ["windows 11", "os", "24h2", "winutil"]
+        },
+        {
+          "text": "Windows 12 — НЕ ВЫШЛА! Microsoft перенесла релиз на 2026/2027. Вместо неё выходят обновления 25H1/25H2.",
+          "importance": 10,
+          "tags": ["windows 12", "os", "не вышла", "миф"]
+        },
+        {
+          "text": "Для игр на Windows: отключи VBS (Virtualization-Based Security) и Memory Integrity для +5-10% FPS. Используй WinUtil: iwr -useb christitus.com/win | iex",
+          "importance": 8,
+          "tags": ["windows", "gaming", "оптимизация", "vbs"]
+        },
+        {
+          "text": "Bazzite — топ-1 Linux для гейминга. SteamOS для любого ПК, основан на Fedora Atomic. Идеален для handhelds и HTPC.",
+          "importance": 8,
+          "tags": ["linux", "bazzite", "gaming", "steamos"]
+        },
+        {
+          "text": "Nobara Project — топ-2 Linux для гейминга. Fedora с патчами для игр, кодеков и драйверов из коробки. Автор — GloriousEggroll.",
+          "importance": 8,
+          "tags": ["linux", "nobara", "gaming", "fedora"]
+        }
+      ]
+    },
+    "software_tuning": {
+      "description": "Софт для тюнинга 2025",
+      "facts": [
+        {
+          "text": "NVIDIA App — замена GeForce Experience. Не требует логина, встроенный разгон, RTX HDR. Старый GFE мертв.",
+          "importance": 9,
+          "tags": ["nvidia", "nvidia app", "драйверы", "тюнинг"]
+        },
+        {
+          "text": "MSI Afterburner + RTSS — золотой стандарт для мониторинга OSD и андервольта NVIDIA. Для AMD лучше встроенный Adrenalin.",
+          "importance": 9,
+          "tags": ["msi afterburner", "rtss", "мониторинг", "андервольт"]
+        },
+        {
+          "text": "FanControl — единственная нормальная прога для настройки вентиляторов. Умеет миксовать сенсоры. Мастхэв для тишины.",
+          "importance": 8,
+          "tags": ["fancontrol", "вентиляторы", "охлаждение"]
+        },
+        {
+          "text": "HWInfo64 — библия сенсоров. Показывает троттлинг VRM, реальное напряжение, WHEA Errors. Если WHEA Errors != 0 — разгон нестабилен.",
+          "importance": 9,
+          "tags": ["hwinfo64", "мониторинг", "сенсоры", "whea"]
+        }
+      ]
+    },
+    "software_stress": {
+      "description": "Стресс-тесты 2025",
+      "facts": [
+        {
+          "text": "OCCT — лучший комбайн для стресс-тестов 2025. Тестирует CPU, память, GPU (3D Adaptive для VRAM). Если крашится за час — система нестабильна. Скачать: ocbase.com/download",
+          "importance": 9,
+          "tags": ["occt", "стресс-тест", "стабильность"]
+        },
+        {
+          "text": "TestMem5 + Anta777 Extreme — единственный способ быстро найти ошибки DDR5. 3 цикла без ошибок = память ок. Для DDR5 есть спец конфиги под Intel/AMD на GitHub.",
+          "importance": 9,
+          "tags": ["testmem5", "anta777", "ddr5", "память", "тест"]
+        },
+        {
+          "text": "Y-Cruncher — убийца нестабильных Curve Optimizer. Тесты VST и VT3 выявляют ошибки контроллера памяти за минуты.",
+          "importance": 8,
+          "tags": ["y-cruncher", "curve optimizer", "amd", "стабильность"]
+        },
+        {
+          "text": "CoreCycler — скрипт поверх Prime95. Нагружает ядра по очереди. Если ядро #2 крашится — ему нужен отдельный CO.",
+          "importance": 8,
+          "tags": ["corecycler", "prime95", "curve optimizer", "amd"]
+        },
+        {
+          "text": "PowerMAX — максимальный прогрев CPU (AVX). Проверяет кулер и VRM материнки. Скачать: cpuid.com/softwares/powermax",
+          "importance": 8,
+          "tags": ["powermax", "стресс-тест", "cpu", "avx", "vrm"]
+        },
+        {
+          "text": "AIDA64 — стресс-тест с мониторингом. Галочки Stress FPU + Cache для максимального прогрева. Скачать: aida64.com/downloads",
+          "importance": 8,
+          "tags": ["aida64", "стресс-тест", "мониторинг", "fpu"]
+        },
+        {
+          "text": "Furmark (Волосатый бублик) — печка для GPU. Проверяет макс температуру чипа и Hotspot. Скачать: geeks3d.com/furmark",
+          "importance": 8,
+          "tags": ["furmark", "gpu", "стресс-тест", "температура"]
+        },
+        {
+          "text": "Superposition 8K — тест VRAM и стабильности GPU. Режим 8K Game ест 6-8 ГБ VRAM и ловит артефакты памяти. Furmark не грузит память! Скачать: benchmark.unigine.com/superposition",
+          "importance": 9,
+          "tags": ["superposition", "unigine", "gpu", "vram", "стресс-тест"]
+        },
+        {
+          "text": "Victoria — сканер HDD/SSD. Полное сканирование (Full Scan). Ни одного красного (бэд) или оранжевого сектора. Один бэд = диск под замену. Скачать: hdd.by/victoria",
+          "importance": 9,
+          "tags": ["victoria", "hdd", "ssd", "бэды", "диагностика"]
+        }
+      ]
+    },
+    "diagnostics_rules": {
+      "description": "Золотые правила диагностики железа",
+      "facts": [
+        {
+          "text": "Не насилуй труп: Если железо греется до 100°C или уже вылетает — не запускай стресс-тест на сутки. Сначала обслужи (термопаста, пыль), потом жарь.",
+          "importance": 10,
+          "tags": ["диагностика", "правила", "температура", "обслуживание"]
+        },
+        {
+          "text": "Ноль ошибок: В тестах памяти (OCCT/TM5) и VRAM допустимо ровно 0 ошибок. Одна ошибка за час = нестабильная система.",
+          "importance": 10,
+          "tags": ["диагностика", "память", "ошибки", "стабильность"]
+        },
+        {
+          "text": "Прайм не нужен: Гонять Prime95 сутками — бред для домашнего ПК. Хватит теста на время обычной игровой сессии (1-2 часа).",
+          "importance": 9,
+          "tags": ["диагностика", "prime95", "время", "тест"]
+        },
+        {
+          "text": "Рабочий ПК — сток: Если комп кормит (рендер, код, работа), никакого разгона и андервольта. Только сток. Стабильность важнее +5% производительности.",
+          "importance": 9,
+          "tags": ["диагностика", "работа", "сток", "стабильность"]
+        }
+      ]
+    },
+    "diagnostics_cpu": {
+      "description": "Диагностика процессора",
+      "facts": [
+        {
+          "text": "Тест CPU на прогрев: PowerMAX (AVX) или AIDA64 (Stress FPU). Проверяет кулер и VRM материнки. Норма CPU < 90°C (Ryzen 7000/9000 до 95°C). VRM < 80-100°C.",
+          "importance": 9,
+          "tags": ["cpu", "диагностика", "температура", "vrm", "прогрев"]
+        },
+        {
+          "text": "Тест CPU на стабильность: OCCT (CPU Test) или AIDA64 (CPU + FPU + Cache). Время: 1-2 часа. Критерий: WHEA-ошибки = 0 в HWInfo.",
+          "importance": 9,
+          "tags": ["cpu", "диагностика", "стабильность", "whea", "occt"]
+        },
+        {
+          "text": "Троттлинг CPU — сигнал беды: Если частота скидывается с 5 ГГц до 3 ГГц под нагрузкой — кулер не справляется или VRM перегревается.",
+          "importance": 9,
+          "tags": ["cpu", "троттлинг", "температура", "диагностика"]
+        },
+        {
+          "text": "Intel 13/14 Gen и WHEA: Если сыпет WHEA-ошибки — чип деградировал (известная проблема). Это труп, RMA или замена.",
+          "importance": 10,
+          "tags": ["intel", "whea", "деградация", "13gen", "14gen", "диагностика"]
+        }
+      ]
+    },
+    "diagnostics_ram": {
+      "description": "Диагностика оперативной памяти",
+      "facts": [
+        {
+          "text": "Тест RAM: TestMem5 (TM5). Для DDR4: пресет Anta777 Absolute. Для DDR5: спец конфиги под Intel/AMD (GitHub). Минимум 3 цикла без ошибок.",
+          "importance": 9,
+          "tags": ["ram", "память", "testmem5", "диагностика", "ddr4", "ddr5"]
+        },
+        {
+          "text": "Температура DDR5: Следи за SPD в HWInfo. DDR5 выше 80°C начинает троттлить и сыпать ошибки. Нужен обдув памяти!",
+          "importance": 9,
+          "tags": ["ddr5", "температура", "троттлинг", "обдув", "диагностика"]
+        },
+        {
+          "text": "Memtest86+ — загрузочный тест памяти. Запускается из GRUB до загрузки ОС. Классика для поиска битых планок.",
+          "importance": 8,
+          "tags": ["memtest86", "память", "диагностика", "загрузочный"]
+        },
+        {
+          "text": "Одна ошибка RAM = нестабильность: Синьки, вылеты из игр, повреждение файлов. Память должна быть идеальной.",
+          "importance": 10,
+          "tags": ["ram", "ошибки", "bsod", "стабильность", "диагностика"]
+        }
+      ]
+    },
+    "diagnostics_gpu": {
+      "description": "Диагностика видеокарты",
+      "facts": [
+        {
+          "text": "Тест GPU на прогрев: Furmark (бублик). Норма чипа < 75-80°C. Delta между чипом и Hotspot < 15°C. Если дельта 20-25°C — паста высохла, нужен сервис.",
+          "importance": 9,
+          "tags": ["gpu", "furmark", "температура", "hotspot", "диагностика"]
+        },
+        {
+          "text": "Тест VRAM: Superposition 8K или демки на UE5. Furmark НЕ грузит память! Superposition 8K ест 6-8 ГБ VRAM и ловит артефакты.",
+          "importance": 9,
+          "tags": ["gpu", "vram", "superposition", "артефакты", "диагностика"]
+        },
+        {
+          "text": "Проверка 12VHPWR: Щупай разъем во время теста. Если обжигает — меняй кабель немедленно, сгорит хата. Известная проблема RTX 40 серии.",
+          "importance": 10,
+          "tags": ["gpu", "12vhpwr", "кабель", "перегрев", "rtx 40", "диагностика"]
+        },
+        {
+          "text": "Артефакты GPU: Цветные квадраты, полосы, мерцание. Причины: перегрев, умирающая память, плохой контакт чипа. Сначала прогрей и проверь термопасту.",
+          "importance": 9,
+          "tags": ["gpu", "артефакты", "диагностика", "память", "перегрев"]
+        }
+      ]
+    },
+    "diagnostics_storage": {
+      "description": "Диагностика накопителей",
+      "facts": [
+        {
+          "text": "Victoria для HDD/SSD: Полное сканирование (Full Scan). Ни одного красного (бэд) или оранжевого (медленного) сектора. Один бэд = диск под замену.",
+          "importance": 9,
+          "tags": ["victoria", "hdd", "ssd", "бэды", "диагностика"]
+        },
+        {
+          "text": "SMART для NVMe: В HWInfo или CrystalDiskInfo смотри Media and Data Integrity Errors. Если не ноль — NVMe при смерти.",
+          "importance": 9,
+          "tags": ["nvme", "smart", "ошибки", "диагностика", "crystaldiskinfo"]
+        },
+        {
+          "text": "Linux диагностика SSD: smartctl -a /dev/nvme0n1 (SMART) + badblocks для скана поверхности. Смотри Percentage Used и Media Errors.",
+          "importance": 8,
+          "tags": ["linux", "smartctl", "nvme", "badblocks", "диагностика"]
+        }
+      ]
+    },
+    "diagnostics_psu": {
+      "description": "Диагностика блока питания",
+      "facts": [
+        {
+          "text": "Тест БП: Одновременный запуск PowerMAX (CPU) + Furmark (GPU). Максимальная нагрузка на все линии питания.",
+          "importance": 9,
+          "tags": ["psu", "блок питания", "диагностика", "нагрузка"]
+        },
+        {
+          "text": "Мониторинг 12V: Мультиметр в разъем Molex. Норма 12V: не ниже 11.5V под нагрузкой. Падает ниже — БП не тянет, под замену.",
+          "importance": 9,
+          "tags": ["psu", "12v", "мультиметр", "просадка", "диагностика"]
+        },
+        {
+          "text": "Симптомы дохлого БП: Ребут под нагрузкой, запах гари, зависание при старте теста, щелчки. Не рискуй — меняй.",
+          "importance": 10,
+          "tags": ["psu", "симптомы", "ребут", "запах", "диагностика"]
+        },
+        {
+          "text": "Виктория — классика, но в Линуксе смотрим smartctl. Если Media and Data Integrity Errors не ноль — твой NVMe при смерти. А если БП просаживается ниже 11.5 вольт — это не блок питания, а муляж.",
+          "importance": 9,
+          "tags": ["linux", "smartctl", "psu", "диагностика", "цитата"]
+        }
+      ]
+    },
+    "diagnostics_linux": {
+      "description": "Диагностика железа на Linux",
+      "facts": [
+        {
+          "text": "stress-ng — универсальный стресс-тест Linux. stress-ng --cpu 0 --cpu-method all для CPU. Замена AIDA64/PowerMAX.",
+          "importance": 9,
+          "tags": ["linux", "stress-ng", "cpu", "стресс-тест"]
+        },
+        {
+          "text": "mprime — Prime95 для Linux (CLI). Классический тест стабильности CPU. Torture Test -> Blend для комплексной проверки.",
+          "importance": 8,
+          "tags": ["linux", "mprime", "prime95", "cpu", "стресс-тест"]
+        },
+        {
+          "text": "OCCT Linux Edition — нативная версия OCCT для Linux. Тот же функционал что и на Windows. Качать с ocbase.com.",
+          "importance": 9,
+          "tags": ["linux", "occt", "стресс-тест", "нативный"]
+        },
+        {
+          "text": "Memtest86+ в GRUB — загрузочный тест памяти. Работает до загрузки ОС. Альтернатива: gsat (Google Stressful Application Test).",
+          "importance": 8,
+          "tags": ["linux", "memtest86", "память", "grub", "gsat"]
+        },
+        {
+          "text": "gputest /fur — Furmark для Linux. Или Unigine Superposition (нативный Linux бинарник). Для мониторинга: nvtop (NVIDIA), radeontop (AMD).",
+          "importance": 8,
+          "tags": ["linux", "gputest", "furmark", "superposition", "gpu"]
+        },
+        {
+          "text": "smartctl -a /dev/nvme0n1 — SMART диагностика на Linux. Смотри Media and Data Integrity Errors, Percentage Used, Temperature.",
+          "importance": 9,
+          "tags": ["linux", "smartctl", "nvme", "smart", "диагностика"]
+        },
+        {
+          "text": "sensors (lm_sensors) — температуры на Linux. sudo sensors-detect для настройки, потом просто sensors. Для GUI: btop или mangohud.",
+          "importance": 8,
+          "tags": ["linux", "sensors", "lm_sensors", "температура", "мониторинг"]
+        }
+      ]
+    },
+    "diagnostics_bsod": {
+      "description": "Диагностика BSOD и вылетов",
+      "facts": [
+        {
+          "text": "BSOD WHEA_UNCORRECTABLE_ERROR: Обычно CPU или память. Проверь WHEA Errors в HWInfo. Если Intel 13/14 — возможно деградация чипа.",
+          "importance": 10,
+          "tags": ["bsod", "whea", "cpu", "память", "диагностика"]
+        },
+        {
+          "text": "BSOD KERNEL_DATA_INPAGE_ERROR: Проблема с диском. Проверь SMART, запусти Victoria. Скорее всего диск умирает.",
+          "importance": 9,
+          "tags": ["bsod", "диск", "kernel", "victoria", "диагностика"]
+        },
+        {
+          "text": "BSOD VIDEO_TDR_FAILURE: Драйвер GPU завис. Причины: перегрев, плохой драйвер, переразгон. DDU и чистая установка драйвера.",
+          "importance": 9,
+          "tags": ["bsod", "gpu", "tdr", "драйвер", "ddu", "диагностика"]
+        },
+        {
+          "text": "Вылеты из игр без BSOD: Обычно GPU (перегрев, VRAM) или RAM. Тестируй Superposition 8K и TestMem5. Проверь температуры.",
+          "importance": 9,
+          "tags": ["вылеты", "игры", "gpu", "ram", "диагностика"]
+        },
+        {
+          "text": "Алгоритм диагностики вылетов: 1) Температуры (HWInfo), 2) RAM (TM5), 3) GPU VRAM (Superposition), 4) CPU (OCCT), 5) Диск (Victoria/SMART).",
+          "importance": 10,
+          "tags": ["вылеты", "алгоритм", "диагностика", "порядок"]
+        }
+      ]
+    },
+    "diagnostics_software_links": {
+      "description": "Ссылки на софт для диагностики",
+      "facts": [
+        {
+          "text": "PowerMAX — стресс-тест CPU (AVX). Скачать: https://www.cpuid.com/softwares/powermax.html",
+          "importance": 9,
+          "tags": ["powermax", "ссылка", "скачать", "cpu", "стресс-тест"]
+        },
+        {
+          "text": "AIDA64 — мониторинг и стресс-тест. Скачать: https://www.aida64.com/downloads",
+          "importance": 9,
+          "tags": ["aida64", "ссылка", "скачать", "мониторинг", "стресс-тест"]
+        },
+        {
+          "text": "OCCT — комплексный стресс-тест (CPU, RAM, GPU). Скачать: https://www.ocbase.com/download",
+          "importance": 10,
+          "tags": ["occt", "ссылка", "скачать", "стресс-тест"]
+        },
+        {
+          "text": "TestMem5 — тест оперативной памяти. Скачать: https://github.com/CoolCmd/TestMem5/releases",
+          "importance": 9,
+          "tags": ["testmem5", "tm5", "ссылка", "скачать", "память", "ram"]
+        },
+        {
+          "text": "Furmark — стресс-тест GPU (бублик). Скачать: https://geeks3d.com/furmark/downloads/",
+          "importance": 9,
+          "tags": ["furmark", "ссылка", "скачать", "gpu", "стресс-тест"]
+        },
+        {
+          "text": "Unigine Superposition — бенчмарк GPU и тест VRAM. Скачать: https://benchmark.unigine.com/superposition",
+          "importance": 9,
+          "tags": ["superposition", "unigine", "ссылка", "скачать", "gpu", "vram"]
+        },
+        {
+          "text": "Victoria — диагностика HDD/SSD. Скачать: https://hdd.by/victoria/",
+          "importance": 9,
+          "tags": ["victoria", "ссылка", "скачать", "hdd", "ssd", "диагностика"]
+        },
+        {
+          "text": "HWInfo64 — мониторинг сенсоров и WHEA. Скачать: https://www.hwinfo.com/download/",
+          "importance": 9,
+          "tags": ["hwinfo", "hwinfo64", "ссылка", "скачать", "мониторинг", "сенсоры"]
+        },
+        {
+          "text": "CrystalDiskInfo — SMART диагностика дисков. Скачать: https://crystalmark.info/en/software/crystaldiskinfo/",
+          "importance": 8,
+          "tags": ["crystaldiskinfo", "ссылка", "скачать", "smart", "ssd", "hdd"]
+        },
+        {
+          "text": "DDU (Display Driver Uninstaller) — чистое удаление драйверов GPU. Скачать: https://www.guru3d.com/files-details/display-driver-uninstaller-download.html",
+          "importance": 9,
+          "tags": ["ddu", "ссылка", "скачать", "драйверы", "gpu"]
+        },
+        {
+          "text": "MSI Afterburner — разгон и мониторинг GPU. Скачать: https://www.msi.com/Landing/afterburner/graphics-cards",
+          "importance": 9,
+          "tags": ["msi afterburner", "ссылка", "скачать", "разгон", "gpu"]
+        },
+        {
+          "text": "GPU-Z — информация о видеокарте. Скачать: https://www.techpowerup.com/gpuz/",
+          "importance": 8,
+          "tags": ["gpu-z", "ссылка", "скачать", "gpu", "информация"]
+        },
+        {
+          "text": "CPU-Z — информация о процессоре и памяти. Скачать: https://www.cpuid.com/softwares/cpu-z.html",
+          "importance": 8,
+          "tags": ["cpu-z", "ссылка", "скачать", "cpu", "ram", "информация"]
+        },
+        {
+          "text": "Scans Factory Demo — демки на UE5 для теста GPU. Скачать: https://scansfactory.gumroad.com/",
+          "importance": 7,
+          "tags": ["scans factory", "ue5", "ссылка", "скачать", "gpu", "демо"]
+        },
+        {
+          "text": "CapFrameX — анализ фреймтайма и 1% low. Скачать: https://www.capframex.com/",
+          "importance": 8,
+          "tags": ["capframex", "ссылка", "скачать", "фреймтайм", "бенчмарк"]
+        },
+        {
+          "text": "FanControl — управление вентиляторами. Скачать: https://getfancontrol.com/",
+          "importance": 8,
+          "tags": ["fancontrol", "ссылка", "скачать", "вентиляторы", "охлаждение"]
+        }
+      ]
+    },
+    "oc_amd_cpu": {
+      "description": "Оверклокинг AMD Ryzen 2025",
+      "facts": [
+        {
+          "text": "AMD Ryzen 9000/7000/X3D греются до 95°C — это норма. Но можно исправить через PBO + Curve Optimizer. All Core -20 — отправная точка для ленивых.",
+          "importance": 9,
+          "tags": ["amd", "ryzen", "pbo", "curve optimizer", "температура"]
+        },
+        {
+          "text": "Per Core Tuning — путь самурая. Используй CoreCycler (скрипт на Prime95). Грузит по одному ядру. Ядро упало? Ставь -10 вместо -20. Стабильно? Пробуй -25.",
+          "importance": 10,
+          "tags": ["amd", "ryzen", "corecycler", "per core", "curve optimizer"]
+        },
+        {
+          "text": "Curve Shaper (Zen 5) — киллер-фича Ryzen 9000. Меняет курву в зависимости от температуры и частоты. Агрессивный андервольт на простое, мягкий на нагрузке.",
+          "importance": 9,
+          "tags": ["amd", "ryzen 9000", "zen5", "curve shaper", "андервольт"]
+        },
+        {
+          "text": "Thermal Throttle Limit в PBO: Ставь 85°C вместо 95°C. Потеряешь 1% производительности, но кулеры перестанут выть как турбина.",
+          "importance": 8,
+          "tags": ["amd", "ryzen", "pbo", "температура", "лимит"]
+        },
+        {
+          "text": "Тестируй CoreCycler, НЕ Cinebench! Cinebench не ловит нестабильность отдельных ядер. CoreCycler грузит каждое ядро по очереди и находит слабые.",
+          "importance": 10,
+          "tags": ["amd", "ryzen", "corecycler", "тест", "стабильность"]
+        }
+      ]
+    },
+    "oc_intel_cpu": {
+      "description": "Оверклокинг Intel 2025",
+      "facts": [
+        {
+          "text": "Intel Core Ultra / 13-14 Gen жарит. Без андервольта — деградация кристалла. Это не шутка, Intel признала проблему с 13/14 Gen.",
+          "importance": 10,
+          "tags": ["intel", "деградация", "андервольт", "13gen", "14gen", "core ultra"]
+        },
+        {
+          "text": "AC/DC Loadline (ленивый метод): В BIOS ищи CPU Lite Load (MSI) или AC Loadline. Снижай режим от дефолтного (12) к 5-6. Обманываем проц — он запрашивает меньше вольт.",
+          "importance": 9,
+          "tags": ["intel", "ac loadline", "андервольт", "bios", "msi"]
+        },
+        {
+          "text": "Проверка AC Loadline: Смотри Vcore в нагрузке Cinebench. Если упало с 1.4В до 1.25В и баллы те же — успех. Меньше вольт = меньше нагрев = дольше живёт.",
+          "importance": 9,
+          "tags": ["intel", "vcore", "cinebench", "андервольт", "проверка"]
+        },
+        {
+          "text": "VF Curve (правильный метод) для Core Ultra: Правь точки V/F (Voltage/Frequency). Самая важная — последняя (макс частота). Оффсет -0.050V для начала.",
+          "importance": 9,
+          "tags": ["intel", "core ultra", "vf curve", "андервольт", "arrow lake"]
+        },
+        {
+          "text": "CEP (Current Excursion Protection): При андервольте ОТКЛЮЧИ CEP (IA CEP Enable -> Disable). Иначе проц увидит 'низкий ток' и порежет производительность вдвое (Clock Stretching).",
+          "importance": 10,
+          "tags": ["intel", "cep", "андервольт", "clock stretching", "bios"]
+        },
+        {
+          "text": "Linpack Xtreme — лучшая грелка для Intel. Если проходит час без ошибок — андервольт стабилен. Если падает — добавь вольтаж или снизь частоту.",
+          "importance": 8,
+          "tags": ["intel", "linpack", "стресс-тест", "стабильность"]
+        }
+      ]
+    },
+    "oc_nvidia_gpu": {
+      "description": "Оверклокинг NVIDIA RTX 2025",
+      "facts": [
+        {
+          "text": "Олег не двигает ползунки Core Clock. Олег правит курву. MSI Afterburner -> Ctrl+F — открывает Curve Editor.",
+          "importance": 10,
+          "tags": ["nvidia", "rtx", "msi afterburner", "curve editor", "андервольт"]
+        },
+        {
+          "text": "Метод Flatten (плоская полка): Найди точку 925 mV (или 950 mV для RTX 5090). Подними до целевой частоты (2700 MHz). Выдели всё справа (Shift+клик) и опусти вниз.",
+          "importance": 10,
+          "tags": ["nvidia", "rtx", "flatten", "curve editor", "андервольт"]
+        },
+        {
+          "text": "Итог Flatten: Карта никогда не подаст больше 0.925V, но держит буст как в стоке (где жрала 1.05V). Экономия 100 Ватт, тише кулеры, ниже температура.",
+          "importance": 9,
+          "tags": ["nvidia", "rtx", "андервольт", "энергопотребление", "температура"]
+        },
+        {
+          "text": "Разгон памяти NVIDIA: +500 MHz, тест в Superposition. Стабильно? +750. Стабильно? +1000. Артефакты или падение FPS — откат на -100 от последнего стабильного.",
+          "importance": 9,
+          "tags": ["nvidia", "rtx", "память", "gddr6x", "разгон"]
+        },
+        {
+          "text": "ECC Trap GDDR6X/GDDR7: Переразгон памяти = FPS падает БЕЗ артефактов. Память тратит такты на коррекцию ошибок. Если баллы перестали расти — откатывайся.",
+          "importance": 10,
+          "tags": ["nvidia", "gddr6x", "gddr7", "ecc", "память", "разгон"]
+        }
+      ]
+    },
+    "oc_amd_gpu": {
+      "description": "Оверклокинг AMD Radeon 2025",
+      "facts": [
+        {
+          "text": "Min Frequency Trick для Radeon: Ставь Min Frequency на 100 МГц меньше чем Max (Min 2600, Max 2700). Radeon любит сбрасывать частоты — это убирает фризы.",
+          "importance": 10,
+          "tags": ["amd", "radeon", "min frequency", "фризы", "adrenalin"]
+        },
+        {
+          "text": "Undervolt AMD GPU: В Adrenalin снижай напряжение (mV) шагами по 25. Тест после каждого шага. Артефакты = откат на +25 mV.",
+          "importance": 9,
+          "tags": ["amd", "radeon", "андервольт", "adrenalin", "напряжение"]
+        },
+        {
+          "text": "Power Limit +15% при андервольте AMD: Всегда выкручивай вправо. Дай карте 'дышать' током если просит, но ограничь напряжение. Парадокс, но работает.",
+          "importance": 9,
+          "tags": ["amd", "radeon", "power limit", "андервольт", "adrenalin"]
+        },
+        {
+          "text": "CoreCtrl на Linux — аналог Adrenalin. Андервольт, кривые вентиляторов, профили. Работает с RDNA 2/3/4.",
+          "importance": 8,
+          "tags": ["amd", "radeon", "linux", "corectrl", "андервольт"]
+        }
+      ]
+    },
+    "oc_ddr5": {
+      "description": "Разгон DDR5 Deep Dive",
+      "facts": [
+        {
+          "text": "XMP — для нубов. Настоящий разгон DDR5 — это ручная настройка таймингов и напряжений. Но сначала убедись что память стабильна на XMP.",
+          "importance": 9,
+          "tags": ["ddr5", "xmp", "разгон", "тайминги"]
+        },
+        {
+          "text": "Напряжения DDR5 (Safe Daily): VDD/VDDQ 1.35V — сток. До 1.45V — безопасно без обдува. 1.5V+ — ТОЛЬКО с вентилятором на память!",
+          "importance": 10,
+          "tags": ["ddr5", "vdd", "vddq", "напряжение", "безопасность"]
+        },
+        {
+          "text": "VDD2 (MC Voltage): Не задирай выше 1.25-1.35V! Это напряжение контроллера памяти в процессоре. Выше = деградация контроллера.",
+          "importance": 10,
+          "tags": ["ddr5", "vdd2", "контроллер памяти", "деградация"]
+        },
+        {
+          "text": "tREFI — главный буст FPS в DDR5. Сток ~11000. Тюнинг: 50000 или 65535. Чем выше — тем реже память 'отдыхает'. Риск: перегрев = потеря данных.",
+          "importance": 10,
+          "tags": ["ddr5", "trefi", "тайминги", "fps", "разгон"]
+        },
+        {
+          "text": "tRFC для DDR5: Снижать до 120-140ns для Hynix A-die. Это время рефреша — чем меньше, тем быстрее. Но нужен тест стабильности.",
+          "importance": 9,
+          "tags": ["ddr5", "trfc", "hynix", "тайминги", "разгон"]
+        },
+        {
+          "text": "Температура DDR5: Выше 50°C — нестабильность. Выше 60°C — ошибки гарантированы. Совет: стяжки + вентилятор 120мм прямо на плашки. Колхоз, зато стабильно.",
+          "importance": 10,
+          "tags": ["ddr5", "температура", "охлаждение", "стабильность"]
+        },
+        {
+          "text": "Тест DDR5: TestMem5 с конфигом Anta777 Absolute (DDR4) или спец конфиги для DDR5 (GitHub). Минимум 3 цикла без ошибок. Одна ошибка = нестабильно.",
+          "importance": 9,
+          "tags": ["ddr5", "testmem5", "anta777", "тест", "стабильность"]
+        }
+      ]
+    },
+    "oc_llc": {
+      "description": "LLC (Load-Line Calibration)",
+      "facts": [
+        {
+          "text": "LLC — компенсация просадки напряжения (Vdroop) под нагрузкой. Без LLC напряжение падает при нагрузке — это нормальная физика.",
+          "importance": 9,
+          "tags": ["llc", "vdroop", "напряжение", "материнка"]
+        },
+        {
+          "text": "НИКОГДА не ставь LLC Flat/Extreme (максимальный уровень)! Даёт идеальную линию, но при снятии нагрузки — скачок напряжения (Overshoot), который убивает проц.",
+          "importance": 10,
+          "tags": ["llc", "overshoot", "опасность", "деградация"]
+        },
+        {
+          "text": "Выбор LLC: Средний уровень (Level 3-4 у ASUS, Mode 4-5 у MSI). Пусть напряжение немного проседает — это физика, так и должно быть.",
+          "importance": 10,
+          "tags": ["llc", "asus", "msi", "уровень", "рекомендация"]
+        },
+        {
+          "text": "Проверка LLC: В HWInfo смотри VCore под нагрузкой и на простое. Разница 0.05-0.1V — норма. Разница 0 — опасно (Overshoot). Разница 0.2V+ — слишком низкий LLC.",
+          "importance": 9,
+          "tags": ["llc", "hwinfo", "vcore", "проверка"]
+        }
+      ]
+    },
+    "oc_validation": {
+      "description": "Валидация разгона",
+      "facts": [
+        {
+          "text": "y-cruncher (VST/VT3) — убийца контроллера памяти. Если разгон RAM проходит MemTest, но падает в y-cruncher за 30 секунд — разгон нестабилен.",
+          "importance": 10,
+          "tags": ["y-cruncher", "память", "контроллер", "валидация", "тест"]
+        },
+        {
+          "text": "WHEA Logger: Даже если ничего не вылетает, смотри в HWInfo раздел Windows Hardware Errors (внизу). Цифра растёт — твой разгон мусор, шина PCIe сыпет ошибками.",
+          "importance": 10,
+          "tags": ["whea", "hwinfo", "ошибки", "pcie", "валидация"]
+        },
+        {
+          "text": "Порядок валидации: 1) RAM (TM5 3 цикла), 2) CPU (CoreCycler 1 час), 3) y-cruncher (30 мин), 4) Игра 2 часа. Всё прошло без WHEA = стабильно.",
+          "importance": 10,
+          "tags": ["валидация", "порядок", "тест", "стабильность"]
+        },
+        {
+          "text": "Cinebench НЕ тест стабильности! Он грузит все ядра одинаково и не ловит слабые. Используй CoreCycler или OCCT для реальной проверки.",
+          "importance": 9,
+          "tags": ["cinebench", "стабильность", "миф", "corecycler"]
+        }
+      ]
+    },
+    "oc_dangers": {
+      "description": "Опасности оверклокинга",
+      "facts": [
+        {
+          "text": "Деградация Intel 13/14 Gen — реальная проблема. Intel признала. Без андервольта и лимитов чипы деградируют за месяцы. Обязательно снижай напряжение!",
+          "importance": 10,
+          "tags": ["intel", "деградация", "13gen", "14gen", "опасность"]
+        },
+        {
+          "text": "VRM перегрев: Если VRM материнки греется выше 100°C — он деградирует и может сгореть. Мерь пирометром если нет датчика. Дешёвые платы не для разгона.",
+          "importance": 10,
+          "tags": ["vrm", "перегрев", "материнка", "опасность"]
+        },
+        {
+          "text": "DDR5 выше 1.5V без обдува = смерть планок. Память перегревается и теряет данные. Сначала охлаждение, потом напряжение.",
+          "importance": 10,
+          "tags": ["ddr5", "напряжение", "перегрев", "опасность"]
+        },
+        {
+          "text": "Рабочий ПК — сток! Если комп кормит (рендер, код, работа), никакого разгона и андервольта. Стабильность важнее +5% производительности.",
+          "importance": 10,
+          "tags": ["работа", "сток", "стабильность", "рекомендация"]
+        }
+      ]
+    },
+    "oc_am4_legacy": {
+      "description": "Разгон AM4 (Ryzen 5000/3000)",
+      "facts": [
+        {
+          "text": "AM4 — самая массовая платформа. Разгон памяти даёт +20% к FPS, в отличие от новых поколений где разница меньше.",
+          "importance": 9,
+          "tags": ["am4", "ryzen", "память", "fps", "разгон"]
+        },
+        {
+          "text": "FCLK (Infinity Fabric) — главный закон AM4: Частота памяти (MCLK) должна быть 1:1 с FCLK. Цель: 3800 МГц RAM / 1900 МГц FCLK — золотой стандарт.",
+          "importance": 10,
+          "tags": ["am4", "fclk", "infinity fabric", "память", "1:1"]
+        },
+        {
+          "text": "Дырка 1900 FCLK: На некоторых Zen 3 баг — 1900 FCLK не грузится, а 1933 работает. Если не стартует на 1900 — попробуй 1867 или 1933.",
+          "importance": 9,
+          "tags": ["am4", "fclk", "1900", "баг", "zen3"]
+        },
+        {
+          "text": "WHEA Errors на AM4: Если разогнал выше 1800/3600 — смотри в HWInfo в самый низ. Одна WHEA ошибка = разгон нестабилен, теряешь производительность на коррекции.",
+          "importance": 10,
+          "tags": ["am4", "whea", "fclk", "стабильность", "hwinfo"]
+        },
+        {
+          "text": "PBO2 + Curve Optimizer на AM4 (Zen 3): Ставь Negative 20-30. На AM4 это даёт огромный буст — до +200-300 МГц в нагрузке. Больше чем на AM5!",
+          "importance": 9,
+          "tags": ["am4", "pbo2", "curve optimizer", "zen3", "буст"]
+        },
+        {
+          "text": "VSOC на AM4: Не выше 1.15-1.2V! Обычно 1.1V хватает для 3800 памяти. Выше 1.2V может деградировать контроллер или вызвать нестабильность (парадокс).",
+          "importance": 10,
+          "tags": ["am4", "vsoc", "напряжение", "контроллер", "деградация"]
+        },
+        {
+          "text": "VDDG (CCD/IOD) на AM4: Обычно 0.95V или 1.05V. Правило: не ставь выше VSOC минус 0.05V. VDDG > VSOC = нестабильность.",
+          "importance": 9,
+          "tags": ["am4", "vddg", "напряжение", "ccd", "iod"]
+        }
+      ]
+    },
+    "oc_ddr4_chips": {
+      "description": "Чипы DDR4 и их разгон",
+      "facts": [
+        {
+          "text": "Смотри на чипы под радиатором (Thaiphoon Burner), а не на наклейку! Производитель памяти и чипов — разные вещи.",
+          "importance": 9,
+          "tags": ["ddr4", "чипы", "thaiphoon", "разгон"]
+        },
+        {
+          "text": "Samsung B-die — король DDR4. Тайминги 14-14-14 или 16-16-16 при 3200-3600. Потенциал: 4000 CL14. Вольтаж 1.5V норма (с обдувом), 1.45V безопасно 24/7.",
+          "importance": 10,
+          "tags": ["ddr4", "samsung b-die", "тайминги", "разгон", "король"]
+        },
+        {
+          "text": "B-die киллер-фича: tRFC можно ужать до 280-300 тактов (140 нс). Это огромный буст латентности. Другие чипы так не могут.",
+          "importance": 9,
+          "tags": ["ddr4", "samsung b-die", "trfc", "латентность"]
+        },
+        {
+          "text": "Micron Rev. E (Ballistix): Тайминги 3000/3200 CL15/16, в серийнике .M8FE1. Берёт высокие частоты (3800-4400), но тайминги рыхлые. До 1.45V.",
+          "importance": 9,
+          "tags": ["ddr4", "micron rev.e", "ballistix", "разгон"]
+        },
+        {
+          "text": "Micron Rev. E особенность: tRCDRD не ужимается! Ставь 19-20 и не мучайся. Это ограничение чипа.",
+          "importance": 8,
+          "tags": ["ddr4", "micron rev.e", "trcdrd", "тайминги"]
+        },
+        {
+          "text": "Hynix CJR/DJR — народный топ DDR4. Хорошо гонятся (3800-4000), tRFC средний (450-480). НЕ любят выше 1.4-1.42V — могут деградировать!",
+          "importance": 9,
+          "tags": ["ddr4", "hynix cjr", "hynix djr", "разгон", "напряжение"]
+        }
+      ]
+    },
+    "oc_am3_legacy": {
+      "description": "Разгон AM3+ (FX Vishera/Bulldozer)",
+      "facts": [
+        {
+          "text": "AM3+ FX — для тех кто зимой греется процессором. Олег уважает Фикус. Эти камни жрут 200W+ и греются как утюг.",
+          "importance": 8,
+          "tags": ["am3+", "fx", "bulldozer", "vishera", "легенда"]
+        },
+        {
+          "text": "Разгон FX-8300/8350: Гони не только ядра, но и CPU/NB (NorthBridge)! Цель: CPU 4.5-4.7 ГГц, NB 2400-2600 МГц. Разгон NB даёт больше чем +100 МГц на ядрах.",
+          "importance": 9,
+          "tags": ["am3+", "fx", "northbridge", "cpu/nb", "разгон"]
+        },
+        {
+          "text": "HT Link на AM3+: Держи в районе 2400-2600 МГц. Выше — нестабильность. Ниже — теряешь пропускную способность.",
+          "importance": 8,
+          "tags": ["am3+", "fx", "ht link", "разгон"]
+        },
+        {
+          "text": "Vcore FX (опасно!): До 1.45V на воздухе, до 1.5V на воде. Выше — спалишь VRM! Материнки под AM3+ часто слабые (4+2 фазы).",
+          "importance": 10,
+          "tags": ["am3+", "fx", "vcore", "vrm", "опасность"]
+        },
+        {
+          "text": "CPU/NB Voltage на FX: 1.25-1.3V для 2600 МГц NorthBridge. Не задирай выше — контроллер памяти не любит.",
+          "importance": 9,
+          "tags": ["am3+", "fx", "cpu/nb voltage", "northbridge"]
+        },
+        {
+          "text": "LLC на AM3+ (ASUS Sabertooth/M5A97): Ставь Ultra High! Фикусы имеют дикий Vdroop — без LLC напряжение падает на 0.1V+ под нагрузкой.",
+          "importance": 9,
+          "tags": ["am3+", "fx", "llc", "vdroop", "asus"]
+        }
+      ]
+    },
+    "oc_intel_legacy": {
+      "description": "Разгон Intel Skylake/Kaby/Coffee Lake",
+      "facts": [
+        {
+          "text": "VCCSA/VCCIO — главная ошибка новичка на старых Intel. Auto задирает их до 1.35V при XMP 3600. Это убивает проц! Ставь руками 1.15-1.25V.",
+          "importance": 10,
+          "tags": ["intel", "vccsa", "vccio", "xmp", "skylake", "coffee lake"]
+        },
+        {
+          "text": "VCCSA/VCCIO норма: Для 3600-4000 МГц памяти хватает 1.15-1.25V. Выше 1.3V — риск деградации контроллера памяти.",
+          "importance": 9,
+          "tags": ["intel", "vccsa", "vccio", "напряжение", "память"]
+        },
+        {
+          "text": "Ring Ratio (Cache) на K-процессорах: Гони кольцевую шину на 300-400 МГц ниже частоты ядер. Это снижает латентность и добавляет стабильности.",
+          "importance": 9,
+          "tags": ["intel", "ring ratio", "cache", "латентность", "разгон"]
+        },
+        {
+          "text": "Skylake/Kaby Lake (6xxx/7xxx): Отличные оверклокеры. 5.0 ГГц реально на хорошем экземпляре. Но жрут и греются.",
+          "importance": 8,
+          "tags": ["intel", "skylake", "kaby lake", "6700k", "7700k", "разгон"]
+        },
+        {
+          "text": "Coffee Lake (8xxx/9xxx): 8700K/9900K — легенды. 5.0-5.2 ГГц реально. Но 9900K — печка, нужна хорошая башня или водянка.",
+          "importance": 8,
+          "tags": ["intel", "coffee lake", "8700k", "9900k", "разгон"]
+        },
+        {
+          "text": "Delid (скальпирование) старых Intel: Под крышкой термопаста, а не припой. Замена на жидкий металл даёт -15-20°C. Но гарантия слетает.",
+          "importance": 8,
+          "tags": ["intel", "delid", "скальпирование", "жидкий металл", "температура"]
+        }
+      ]
+    },
+    "meta_2025": {
+      "description": "Мета тюнинга 2025",
+      "facts": [
+        {
+          "text": "Мета 2025: классический разгон мёртв. Железо выжато на 99% по частотам, но с запасом по вольтажу. Убираешь лишний вольтаж = ниже температуры = выше буст.",
+          "importance": 10,
+          "tags": ["мета", "2025", "андервольт", "тюнинг"]
+        },
+        {
+          "text": "ECC Trap на GDDR6X/GDDR7: переразгон памяти GPU = FPS падает БЕЗ артефактов. Память тратит такты на коррекцию ошибок. Если баллы перестали расти — откатывайся.",
+          "importance": 9,
+          "tags": ["gpu", "память", "ecc", "разгон", "gddr6x", "gddr7"]
+        },
+        {
+          "text": "DDU (Display Driver Uninstaller) — святая вода. Обязательно Safe Mode + DDU при смене видеокарты, особенно при переходе NVIDIA <-> AMD.",
+          "importance": 9,
+          "tags": ["ddu", "драйверы", "видеокарта", "чистка"]
+        }
+      ]
+    },
+    "builds_2025": {
+      "description": "Рекомендации по сборкам 2025",
+      "facts": [
+        {
+          "text": "Бюджетный гейминг 2025: Ryzen 5 5600 или i5-12400, RTX 4060 или RX 7600, 16-32GB DDR4-3200, NVMe Gen3/Gen4 500GB-1TB, БП 550-650W 80+ Bronze.",
+          "importance": 9,
+          "tags": ["сборка", "бюджет", "gaming", "2025"]
+        },
+        {
+          "text": "Средний гейминг 2025: Ryzen 5 9600X/7800X3D или i5-14600K, RTX 4070 Super или RX 7800 XT, 32GB DDR5-6000, NVMe Gen4 1-2TB, БП 750W 80+ Gold ATX 3.0.",
+          "importance": 9,
+          "tags": ["сборка", "средний", "gaming", "2025"]
+        },
+        {
+          "text": "Хай-энд гейминг 2025: Ryzen 7 9800X3D или Core Ultra 9 285K, RTX 5080/4080 Super или RX 7900 XTX, 32-64GB DDR5-6400+, NVMe Gen4/Gen5 2TB+, БП 850-1000W ATX 3.1.",
+          "importance": 9,
+          "tags": ["сборка", "хай-энд", "gaming", "2025"]
+        },
+        {
+          "text": "Рабочая станция 2025: Ryzen 9 9950X или Threadripper 9980X, RTX 4090/5090, 64-128GB DDR5 ECC, NVMe Gen5 2-4TB + HDD для архива, БП 1000-1600W 80+ Platinum.",
+          "importance": 9,
+          "tags": ["сборка", "workstation", "рендер", "продакшн", "2025"]
+        }
+      ]
+    },
+    "linux_distros": {
+      "description": "Linux дистрибутивы для гейминга 2025",
+      "facts": [
+        {
+          "text": "CachyOS — топ-1 Linux для скорости. Arch-based, пакеты пересобраны с x86-64-v3/v4 оптимизациями (+10% FPS). Кастомное ядро linux-cachyos с планировщиком BORE или scx_rustland. Драйверы NVIDIA и Proton-GE ставятся одной кнопкой.",
+          "importance": 10,
+          "tags": ["linux", "cachyos", "arch", "gaming", "bore", "оптимизация"]
+        },
+        {
+          "text": "Bazzite — топ для ленивых и портативок. Клон SteamOS на базе Fedora Atomic. Работает на NVIDIA/AMD/Intel. Система неубиваемая — обновляется целиком, rollback одной командой. Идеален для HTPC и хендхелдов (Legion Go, ROG Ally).",
+          "importance": 10,
+          "tags": ["linux", "bazzite", "fedora", "steamos", "gaming", "htpc", "handheld"]
+        },
+        {
+          "text": "SteamOS 3.7/3.8 — официальная ОС Valve для Steam Deck. Arch-based, KDE Plasma 6. На обычный ПК ставить геморройно (HoloISO мертв). Лучше ставить Bazzite.",
+          "importance": 8,
+          "tags": ["linux", "steamos", "steam deck", "valve", "kde"]
+        },
+        {
+          "text": "Nobara Project — Fedora с патчами для игр от GloriousEggroll. Кодеки и драйверы из коробки. Хороший выбор если не хочешь Arch.",
+          "importance": 8,
+          "tags": ["linux", "nobara", "fedora", "gaming", "gloriouseggroll"]
+        }
+      ]
+    },
+    "linux_kernel": {
+      "description": "Ядро Linux и драйверы 2025",
+      "facts": [
+        {
+          "text": "Ядро Linux 6.13+ — стандарт 2025. Real-time PREEMPT_RT в мейнлайне (важно для аудио/VR). Поддержка sched-ext — планировщики на eBPF, можно менять без перезагрузки (scx_loader).",
+          "importance": 9,
+          "tags": ["linux", "kernel", "6.13", "preempt_rt", "sched-ext"]
+        },
+        {
+          "text": "NVK — открытый драйвер NVIDIA. Юзабелен для старых карт (Turing+), но для DLSS 4 и Ray Tracing нужен проприетарный nvidia-open 570+.",
+          "importance": 8,
+          "tags": ["linux", "nvidia", "nvk", "драйверы", "mesa"]
+        },
+        {
+          "text": "Wayland vs X11: В 2025 X11 — легаси. KDE Plasma 6 и GNOME 47 работают на Wayland по дефолту. NVIDIA на Wayland работает идеально (Explicit Sync). HDR только на Wayland.",
+          "importance": 9,
+          "tags": ["linux", "wayland", "x11", "kde", "gnome", "hdr"]
+        }
+      ]
+    },
+    "linux_gaming": {
+      "description": "Игровые инструменты Linux 2025",
+      "facts": [
+        {
+          "text": "Proton-GE (GloriousEggroll) — мастхэв версия Протона. Починенные видеокодеки для японских игр (Nioh 2, Persona), патчи для FSR 4.0. Версии GE-Proton-10+.",
+          "importance": 10,
+          "tags": ["linux", "proton", "proton-ge", "wine", "gaming"]
+        },
+        {
+          "text": "Gamescope — композитор от Valve. Запускает игру в виртуальном окне (720p) и апскейлит до 4K через FSR силами системы. Не нагружает игру.",
+          "importance": 9,
+          "tags": ["linux", "gamescope", "valve", "fsr", "апскейлинг"]
+        },
+        {
+          "text": "Gamemode от Feral — переводит CPU в режим Performance. В Steam: gamemoderun %command%. Бесплатные +5% FPS.",
+          "importance": 9,
+          "tags": ["linux", "gamemode", "feral", "оптимизация"]
+        },
+        {
+          "text": "MangoHud — лучший оверлей для Linux (FPS, CPU, GPU). Включается: mangohud %command% в параметрах запуска Steam.",
+          "importance": 9,
+          "tags": ["linux", "mangohud", "оверлей", "мониторинг"]
+        },
+        {
+          "text": "Flatpak — универсальный формат приложений Linux. Ставь Discord и Steam только через Flatpak чтобы не засорять систему.",
+          "importance": 8,
+          "tags": ["linux", "flatpak", "пакеты", "steam", "discord"]
+        }
+      ]
+    },
+    "linux_desktop": {
+      "description": "Окружения рабочего стола Linux",
+      "facts": [
+        {
+          "text": "KDE Plasma 6 (Кеды) — самое кастомизируемое окружение. Версия 6.2+ самая быстрая для игр. Wayland по дефолту.",
+          "importance": 9,
+          "tags": ["linux", "kde", "plasma", "desktop", "wayland"]
+        },
+        {
+          "text": "GNOME 47 (Гном) — минималистичное окружение. Wayland по дефолту. Меньше настроек чем KDE, но стабильнее.",
+          "importance": 8,
+          "tags": ["linux", "gnome", "desktop", "wayland"]
+        },
+        {
+          "text": "Hyprland / Sway — тайлинговые композиторы. Окна сами выстраиваются в плитку. Для хакеров и любителей клавиатуры.",
+          "importance": 7,
+          "tags": ["linux", "hyprland", "sway", "tiling", "wayland"]
+        }
+      ]
+    },
+    "linux_tips": {
+      "description": "Советы по Linux 2025",
+      "facts": [
+        {
+          "text": "После установки Linux: 1) Обновись (pacman -Syu или rpm-ostree upgrade), 2) Драйверы NVIDIA 565/570+, 3) Включи ZRAM (16GB RAM → эффект 24GB), 4) Поставь Gamemode и MangoHud.",
+          "importance": 9,
+          "tags": ["linux", "установка", "советы", "zram"]
+        },
+        {
+          "text": "AUR (Arch User Repository) — священное место где есть весь софт в мире. Только для Arch-based дистрибутивов (CachyOS, Manjaro, EndeavourOS).",
+          "importance": 8,
+          "tags": ["linux", "aur", "arch", "пакеты"]
+        },
+        {
+          "text": "systemd-boot vs GRUB: CachyOS по дефолту ставит systemd-boot — он быстрее. GRUB нужен только для сложных конфигураций (dual-boot с шифрованием).",
+          "importance": 7,
+          "tags": ["linux", "grub", "systemd-boot", "загрузчик"]
+        },
+        {
+          "text": "NixOS — система для психов. Весь конфиг в одном файле configuration.nix. Идеальная воспроизводимость, но кривая обучения вертикальная.",
+          "importance": 6,
+          "tags": ["linux", "nixos", "конфигурация", "экзотика"]
+        },
+        {
+          "text": "Gentoo — компиляция из исходников. В 2025 смысла для гейминга нет, CachyOS даёт ту же скорость без боли компиляции сутками.",
+          "importance": 6,
+          "tags": ["linux", "gentoo", "компиляция", "экзотика"]
+        }
+      ]
+    },
+    "linux_commands": {
+      "description": "Базовые команды Linux",
+      "facts": [
+        {
+          "text": "sudo — SuperUser DO. Волшебное слово для прав админа. sudo pacman -S firefox — установить Firefox с правами root.",
+          "importance": 9,
+          "tags": ["linux", "sudo", "команды", "root"]
+        },
+        {
+          "text": "pacman — пакетный менеджер Arch. pacman -Syu (обновить всё), pacman -S pkg (установить), pacman -R pkg (удалить), pacman -Ss query (поиск).",
+          "importance": 9,
+          "tags": ["linux", "pacman", "arch", "пакеты", "команды"]
+        },
+        {
+          "text": "yay/paru — AUR-хелперы. yay -S package-from-aur. paru быстрее и на Rust. Ставят пакеты из AUR автоматически.",
+          "importance": 8,
+          "tags": ["linux", "yay", "paru", "aur", "arch"]
+        },
+        {
+          "text": "dnf — пакетный менеджер Fedora/Nobara. dnf install pkg, dnf update, dnf search query. В Bazzite используй rpm-ostree вместо dnf.",
+          "importance": 8,
+          "tags": ["linux", "dnf", "fedora", "пакеты", "команды"]
+        },
+        {
+          "text": "apt — пакетный менеджер Debian/Ubuntu. apt install pkg, apt update && apt upgrade, apt search query. Древний но работает.",
+          "importance": 8,
+          "tags": ["linux", "apt", "debian", "ubuntu", "пакеты"]
+        },
+        {
+          "text": "systemctl — управление сервисами. systemctl start/stop/restart/enable/disable service. systemctl status service — проверить статус.",
+          "importance": 9,
+          "tags": ["linux", "systemctl", "systemd", "сервисы", "команды"]
+        },
+        {
+          "text": "journalctl — логи systemd. journalctl -xe (последние ошибки), journalctl -f (follow в реалтайме), journalctl -u service (логи сервиса).",
+          "importance": 8,
+          "tags": ["linux", "journalctl", "логи", "systemd", "отладка"]
+        },
+        {
+          "text": "htop/btop — мониторинг процессов. btop красивее и показывает GPU. Альтернатива: nvtop для NVIDIA, radeontop для AMD.",
+          "importance": 8,
+          "tags": ["linux", "htop", "btop", "мониторинг", "процессы"]
+        },
+        {
+          "text": "neofetch/fastfetch — показать инфу о системе красиво. fastfetch быстрее. Обязательно для скриншотов в r/unixporn.",
+          "importance": 6,
+          "tags": ["linux", "neofetch", "fastfetch", "рисовка"]
+        }
+      ]
+    },
+    "linux_filesystem": {
+      "description": "Файловые системы Linux",
+      "facts": [
+        {
+          "text": "Btrfs — современная ФС с снапшотами. Поддержка сжатия (zstd), subvolumes, мгновенные бэкапы. Дефолт в Fedora/openSUSE. Timeshift делает снапшоты автоматом.",
+          "importance": 9,
+          "tags": ["linux", "btrfs", "файловая система", "снапшоты", "zstd"]
+        },
+        {
+          "text": "ext4 — классика, работает везде. Быстрая, стабильная, но без снапшотов. Если не знаешь что выбрать — бери ext4.",
+          "importance": 8,
+          "tags": ["linux", "ext4", "файловая система", "классика"]
+        },
+        {
+          "text": "XFS — быстрая для больших файлов. Дефолт в RHEL/CentOS. Хороша для NAS и серверов. CachyOS предлагает XFS как опцию.",
+          "importance": 7,
+          "tags": ["linux", "xfs", "файловая система", "сервер"]
+        },
+        {
+          "text": "ZFS — enterprise-уровень. Встроенный RAID, дедупликация, сжатие. Жрёт RAM (1GB на 1TB данных). Для NAS и серверов, не для десктопа.",
+          "importance": 7,
+          "tags": ["linux", "zfs", "файловая система", "raid", "nas"]
+        },
+        {
+          "text": "LUKS — шифрование дисков Linux. Ставится при установке. Пароль при загрузке. Обязателен для ноутбуков с важными данными.",
+          "importance": 8,
+          "tags": ["linux", "luks", "шифрование", "безопасность"]
+        },
+        {
+          "text": "fstab — /etc/fstab конфиг монтирования дисков. UUID=xxx /mnt/data ext4 defaults 0 2. Гуглить 'fstab generator' если лень писать руками.",
+          "importance": 7,
+          "tags": ["linux", "fstab", "монтирование", "диски"]
+        }
+      ]
+    },
+    "linux_nvidia": {
+      "description": "NVIDIA на Linux 2025",
+      "facts": [
+        {
+          "text": "nvidia-open — открытые модули ядра от NVIDIA. Версия 570+ обязательна для Wayland и новых фич. Проприетарный userspace всё ещё нужен.",
+          "importance": 9,
+          "tags": ["linux", "nvidia", "nvidia-open", "драйверы", "wayland"]
+        },
+        {
+          "text": "NVIDIA на Wayland: В 2025 работает идеально благодаря Explicit Sync. Глитчей в Discord/Electron больше нет. Ставь драйвер 555+ минимум.",
+          "importance": 9,
+          "tags": ["linux", "nvidia", "wayland", "explicit sync"]
+        },
+        {
+          "text": "nvidia-settings — GUI для настройки NVIDIA. Разгон, PowerMizer, OpenGL. Для андервольта лучше использовать nvidia-smi или CoreCtrl.",
+          "importance": 7,
+          "tags": ["linux", "nvidia", "nvidia-settings", "настройка"]
+        },
+        {
+          "text": "nvidia-smi — CLI для мониторинга и управления. nvidia-smi -q (полная инфа), nvidia-smi -pl 300 (лимит мощности 300W), watch nvidia-smi (мониторинг).",
+          "importance": 8,
+          "tags": ["linux", "nvidia", "nvidia-smi", "мониторинг", "команды"]
+        },
+        {
+          "text": "CUDA на Linux: Ставится отдельно от драйвера. cuda-toolkit в репах или с сайта NVIDIA. Для ML/AI обязательно.",
+          "importance": 7,
+          "tags": ["linux", "nvidia", "cuda", "ml", "ai"]
+        },
+        {
+          "text": "PRIME — переключение между iGPU и dGPU на ноутбуках. prime-run game запускает на дискретке. В KDE есть GUI для выбора GPU.",
+          "importance": 8,
+          "tags": ["linux", "nvidia", "prime", "ноутбук", "optimus"]
+        }
+      ]
+    },
+    "linux_amd": {
+      "description": "AMD на Linux 2025",
+      "facts": [
+        {
+          "text": "Mesa + RADV — открытые драйверы AMD. Работают из коробки, обновляются с системой. Для RX 7000/9000 нужна Mesa 24.0+.",
+          "importance": 9,
+          "tags": ["linux", "amd", "mesa", "radv", "драйверы"]
+        },
+        {
+          "text": "AMDGPU — модуль ядра для AMD GPU. Встроен в ядро, работает автоматом. Для старых карт (GCN 1-3) нужен amdgpu.si_support=1.",
+          "importance": 8,
+          "tags": ["linux", "amd", "amdgpu", "ядро", "драйверы"]
+        },
+        {
+          "text": "CoreCtrl — GUI для разгона AMD на Linux. Андервольт, кривые вентиляторов, профили. Аналог Adrenalin для Linux.",
+          "importance": 9,
+          "tags": ["linux", "amd", "corectrl", "разгон", "андервольт"]
+        },
+        {
+          "text": "AMD P-State — драйвер энергосбережения для Ryzen. В ядре 6.3+ по дефолту. Режимы: performance, powersave, schedutil. Лучше чем acpi-cpufreq.",
+          "importance": 8,
+          "tags": ["linux", "amd", "pstate", "энергосбережение", "ryzen"]
+        },
+        {
+          "text": "ROCm — CUDA-альтернатива от AMD. Для ML/AI на AMD GPU. Поддержка хуже чем CUDA, но работает. Версия 6.0+ для RDNA 3.",
+          "importance": 7,
+          "tags": ["linux", "amd", "rocm", "ml", "ai", "cuda"]
+        }
+      ]
+    },
+    "linux_audio": {
+      "description": "Аудио на Linux 2025",
+      "facts": [
+        {
+          "text": "PipeWire — замена PulseAudio и JACK. Низкая латентность, Bluetooth работает, совместимость с ALSA/Pulse/JACK. Дефолт в 2025.",
+          "importance": 9,
+          "tags": ["linux", "pipewire", "аудио", "звук"]
+        },
+        {
+          "text": "WirePlumber — session manager для PipeWire. Управляет роутингом аудио. wpctl status показывает все устройства.",
+          "importance": 7,
+          "tags": ["linux", "wireplumber", "pipewire", "аудио"]
+        },
+        {
+          "text": "EasyEffects — эквалайзер и эффекты для PipeWire. Компрессор, лимитер, bass boost. Замена Voicemeeter на Linux.",
+          "importance": 8,
+          "tags": ["linux", "easyeffects", "эквалайзер", "pipewire", "аудио"]
+        },
+        {
+          "text": "Bluetooth аудио: PipeWire поддерживает AAC, aptX, LDAC кодеки. Качество как на Windows/macOS. Ставь pipewire-pulse для совместимости.",
+          "importance": 8,
+          "tags": ["linux", "bluetooth", "аудио", "pipewire", "ldac"]
+        }
+      ]
+    },
+    "linux_containers": {
+      "description": "Контейнеры и виртуализация Linux",
+      "facts": [
+        {
+          "text": "Docker — контейнеризация. docker run -it ubuntu bash. Для десктопа лучше Podman (rootless, без демона). Docker Desktop платный для бизнеса.",
+          "importance": 9,
+          "tags": ["linux", "docker", "контейнеры", "devops"]
+        },
+        {
+          "text": "Podman — замена Docker без демона. Rootless по дефолту, совместим с Docker CLI. podman-compose для docker-compose файлов.",
+          "importance": 8,
+          "tags": ["linux", "podman", "контейнеры", "rootless"]
+        },
+        {
+          "text": "Distrobox — запуск любого дистра в контейнере. distrobox create -i fedora:40. Интеграция с хостом (GUI, звук, GPU). Идеально для тестов.",
+          "importance": 8,
+          "tags": ["linux", "distrobox", "контейнеры", "дистрибутивы"]
+        },
+        {
+          "text": "QEMU/KVM — виртуализация с аппаратным ускорением. virt-manager — GUI. Проброс GPU (VFIO) для игр в VM. Почти нативная производительность.",
+          "importance": 8,
+          "tags": ["linux", "qemu", "kvm", "виртуализация", "vfio"]
+        },
+        {
+          "text": "VirtIO — паравиртуализированные драйверы. Обязательны для Windows в QEMU. virtio-win ISO качать с Fedora.",
+          "importance": 7,
+          "tags": ["linux", "virtio", "qemu", "windows", "vm"]
+        }
+      ]
+    },
+    "linux_server": {
+      "description": "Linux для серверов",
+      "facts": [
+        {
+          "text": "SSH — удалённый доступ. ssh user@host. Ключи вместо паролей: ssh-keygen, ssh-copy-id. Порт 22 лучше сменить.",
+          "importance": 9,
+          "tags": ["linux", "ssh", "сервер", "удалённый доступ"]
+        },
+        {
+          "text": "nginx — веб-сервер и reverse proxy. Быстрее Apache. Конфиги в /etc/nginx/. certbot для бесплатных SSL от Let's Encrypt.",
+          "importance": 8,
+          "tags": ["linux", "nginx", "веб-сервер", "reverse proxy"]
+        },
+        {
+          "text": "UFW — простой файрвол. ufw enable, ufw allow 22, ufw allow 80/tcp. Обёртка над iptables для людей.",
+          "importance": 8,
+          "tags": ["linux", "ufw", "файрвол", "безопасность"]
+        },
+        {
+          "text": "fail2ban — защита от брутфорса. Банит IP после N неудачных попыток SSH. Обязателен для публичных серверов.",
+          "importance": 8,
+          "tags": ["linux", "fail2ban", "безопасность", "ssh"]
+        },
+        {
+          "text": "tmux/screen — терминальные мультиплексоры. Сессии не умирают при дисконнекте. tmux new -s name, tmux attach -t name. Ctrl+B — префикс tmux.",
+          "importance": 8,
+          "tags": ["linux", "tmux", "screen", "терминал", "сервер"]
+        }
+      ]
+    },
+    "linux_dev": {
+      "description": "Разработка на Linux",
+      "facts": [
+        {
+          "text": "VS Code — топ редактор. code . открывает папку. Расширения: GitLens, Docker, Remote SSH. Или VSCodium без телеметрии Microsoft.",
+          "importance": 9,
+          "tags": ["linux", "vscode", "ide", "разработка"]
+        },
+        {
+          "text": "Neovim — vim на стероидах. Lua конфиги, LSP из коробки. LazyVim/AstroNvim — готовые конфиги для ленивых. Кривая обучения крутая, но потом летаешь.",
+          "importance": 8,
+          "tags": ["linux", "neovim", "vim", "редактор", "ide"]
+        },
+        {
+          "text": "Git — контроль версий. git init, git add ., git commit -m 'msg', git push. lazygit — TUI клиент, удобнее CLI.",
+          "importance": 9,
+          "tags": ["linux", "git", "контроль версий", "разработка"]
+        },
+        {
+          "text": "asdf/mise — менеджер версий языков. Один инструмент для Node, Python, Ruby, Go, Rust. mise install node@20, mise use node@20.",
+          "importance": 8,
+          "tags": ["linux", "asdf", "mise", "версии", "node", "python"]
+        },
+        {
+          "text": "Zsh + Oh My Zsh — прокачанный шелл. Автодополнение, плагины, темы. Powerlevel10k — топ тема. fish — альтернатива попроще.",
+          "importance": 7,
+          "tags": ["linux", "zsh", "oh-my-zsh", "shell", "терминал"]
+        }
+      ]
+    },
+    "linux_troubleshooting": {
+      "description": "Решение проблем Linux",
+      "facts": [
+        {
+          "text": "Чёрный экран после установки NVIDIA: Добавь nvidia-drm.modeset=1 в параметры ядра (GRUB_CMDLINE_LINUX). Или загрузись в TTY (Ctrl+Alt+F2) и переустанови драйвер.",
+          "importance": 9,
+          "tags": ["linux", "nvidia", "чёрный экран", "проблемы", "modeset"]
+        },
+        {
+          "text": "Нет звука: pipewire --version, systemctl --user status pipewire. Если PulseAudio — удали его, поставь pipewire-pulse. wpctl status для диагностики.",
+          "importance": 8,
+          "tags": ["linux", "звук", "pipewire", "проблемы", "аудио"]
+        },
+        {
+          "text": "Тиринг на NVIDIA: В nvidia-settings включи Force Full Composition Pipeline. Или используй Wayland — там тиринга нет.",
+          "importance": 8,
+          "tags": ["linux", "nvidia", "тиринг", "проблемы", "wayland"]
+        },
+        {
+          "text": "Игра не запускается в Steam: Проверь Proton версию (попробуй GE-Proton). Запусти из терминала: steam steam://rungameid/XXX и смотри логи.",
+          "importance": 8,
+          "tags": ["linux", "steam", "proton", "игры", "проблемы"]
+        },
+        {
+          "text": "Система не грузится: Загрузись с Live USB, chroot в систему, проверь journalctl -xb. Btrfs? Откатись на снапшот через Timeshift.",
+          "importance": 9,
+          "tags": ["linux", "загрузка", "chroot", "проблемы", "восстановление"]
+        },
+        {
+          "text": "Arch сломался после обновления: Не паникуй. Загрузись с archiso, arch-chroot /mnt, pacman -Syu. Или откати пакет: pacman -U /var/cache/pacman/pkg/package-old.pkg.tar.zst",
+          "importance": 8,
+          "tags": ["linux", "arch", "обновление", "проблемы", "откат"]
+        }
+      ]
+    },
+    "linux_gaming_advanced": {
+      "description": "Продвинутый гейминг на Linux",
+      "facts": [
+        {
+          "text": "Wine — запуск Windows программ. Proton = Wine + DXVK + куча патчей. Для не-Steam игр: Lutris, Heroic (Epic/GOG), Bottles.",
+          "importance": 9,
+          "tags": ["linux", "wine", "proton", "lutris", "heroic", "bottles"]
+        },
+        {
+          "text": "DXVK — DirectX 9/10/11 → Vulkan. Встроен в Proton. Для Wine отдельно: winetricks dxvk. Логи: DXVK_LOG_LEVEL=info.",
+          "importance": 8,
+          "tags": ["linux", "dxvk", "directx", "vulkan", "wine"]
+        },
+        {
+          "text": "VKD3D-Proton — DirectX 12 → Vulkan. Для DX12 игр. Встроен в Proton. Ray Tracing работает на RDNA 2+ и RTX.",
+          "importance": 8,
+          "tags": ["linux", "vkd3d", "directx12", "vulkan", "raytracing"]
+        },
+        {
+          "text": "FSR на Linux: Gamescope --fsr. Или WINE_FULLSCREEN_FSR=1. FSR 3 Frame Generation пока экспериментально (Lossless Scaling через Wine).",
+          "importance": 8,
+          "tags": ["linux", "fsr", "gamescope", "апскейлинг", "amd"]
+        },
+        {
+          "text": "ProtonDB — база совместимости игр. protondb.com показывает рейтинг (Platinum/Gold/Silver/Bronze/Borked) и твики для каждой игры.",
+          "importance": 9,
+          "tags": ["linux", "protondb", "совместимость", "steam", "игры"]
+        },
+        {
+          "text": "Anti-cheat на Linux: EAC и BattlEye работают если разраб включил. Valorant (Vanguard) — НЕ РАБОТАЕТ и не будет. Проверяй areweanticheatyet.com.",
+          "importance": 9,
+          "tags": ["linux", "античит", "eac", "battleye", "valorant"]
+        },
+        {
+          "text": "Латентность ввода на Linux: Ниже чем на Windows благодаря Wayland и отсутствию DWM. В CS2 разница ощутима. Gamescope ещё снижает.",
+          "importance": 8,
+          "tags": ["linux", "латентность", "input lag", "wayland", "gaming"]
+        }
+      ]
+    },
+    "linux_philosophy": {
+      "description": "Философия Linux",
+      "facts": [
+        {
+          "text": "Винду ставят те, кому лень думать. Линукс ставят те, кто хочет чтобы железо работало на 100%, а не на 70% с телеметрией Гейтса.",
+          "importance": 10,
+          "tags": ["linux", "windows", "философия", "мнение"]
+        },
+        {
+          "text": "Linux — не для всех. Если хочешь 'просто работает' — бери Bazzite или Nobara. Если хочешь контроль — Arch/CachyOS. Если мазохист — Gentoo.",
+          "importance": 8,
+          "tags": ["linux", "выбор", "дистрибутив", "философия"]
+        },
+        {
+          "text": "RTFM — Read The Fucking Manual. Arch Wiki — библия Linux. Даже если у тебя Fedora — Arch Wiki поможет. wiki.archlinux.org",
+          "importance": 9,
+          "tags": ["linux", "rtfm", "arch wiki", "документация"]
+        },
+        {
+          "text": "Не бойся терминала. GUI — костыль для тех кто не осилил CLI. Один раз научишься — будешь делать за секунды то, что в GUI занимает минуты.",
+          "importance": 8,
+          "tags": ["linux", "терминал", "cli", "философия"]
+        },
+        {
+          "text": "Бэкапы или слёзы. Timeshift для Btrfs, rsync для всего остального. Снапшот перед каждым обновлением. Нет бэкапа — нет сочувствия.",
+          "importance": 9,
+          "tags": ["linux", "бэкапы", "timeshift", "rsync"]
+        }
+      ]
+    },
+    "windows_hate": {
+      "description": "Почему Windows — говно (мнение Олега)",
+      "facts": [
+        {
+          "text": "Windows 11 — шпионское ПО с функцией операционной системы. Телеметрия, реклама в меню Пуск, Copilot который нельзя удалить, Recall который скриншотит всё. Microsoft продаёт твои данные.",
+          "importance": 10,
+          "tags": ["windows", "телеметрия", "шпионаж", "microsoft"]
+        },
+        {
+          "text": "Windows жрёт 4-8 ГБ RAM в простое. Сервисы, телеметрия, Defender, индексация. На Linux с KDE — 800 МБ. Разница в 5-10 раз.",
+          "importance": 9,
+          "tags": ["windows", "ram", "ресурсы", "bloat"]
+        },
+        {
+          "text": "Обновления Windows — лотерея. Может сломать драйверы, удалить программы, перезагрузиться во время работы. На Linux ты контролируешь когда и что обновлять.",
+          "importance": 9,
+          "tags": ["windows", "обновления", "проблемы", "контроль"]
+        },
+        {
+          "text": "Windows заставляет логиниться в Microsoft аккаунт, привязывает к облаку, навязывает Edge и Bing. Linux уважает твою свободу.",
+          "importance": 8,
+          "tags": ["windows", "microsoft", "аккаунт", "свобода"]
+        },
+        {
+          "text": "Единственная причина держать Windows — античиты (Vanguard, EAC kernel) и Adobe. Для всего остального есть Linux. Игры через Proton работают часто лучше чем на винде.",
+          "importance": 9,
+          "tags": ["windows", "античит", "adobe", "proton", "игры"]
+        },
+        {
+          "text": "Если нужна Windows — держи её в виртуалке (QEMU/KVM с GPU passthrough) или на отдельном диске. Не засирай основную систему.",
+          "importance": 8,
+          "tags": ["windows", "виртуалка", "dual boot", "qemu"]
+        }
+      ]
+    },
+    "laptop_thermal": {
+      "description": "Ноутбуки: борьба с температурами",
+      "facts": [
+        {
+          "text": "PTM7950 (Honeywell) — лучший термоинтерфейс для ноутбуков. Это фазовый материал (твердая пластина, плавится при 45°C). Не вытекает как паста (Pump Out Effect), работает годами, снижает t° на 5-10°C лучше MX-4/GD900.",
+          "importance": 10,
+          "tags": ["ноутбук", "термопаста", "ptm7950", "охлаждение", "температура"]
+        },
+        {
+          "text": "Жидкий металл в ноутбуке — опасно. Если протечет — хана материнке. PTM7950 безопаснее и почти так же эффективен. ЖМ только для экстремалов.",
+          "importance": 9,
+          "tags": ["ноутбук", "жидкий металл", "термоинтерфейс", "опасность"]
+        },
+        {
+          "text": "Обычные подставки с вентиляторами — маркетинг. Снижают t° на 1-3 градуса максимум. Простая алюминиевая подставка (приподнять зад ноута) даёт тот же эффект.",
+          "importance": 8,
+          "tags": ["ноутбук", "подставка", "охлаждение", "миф"]
+        },
+        {
+          "text": "IETS GT500/GT600 — единственные подставки, которые реально работают. Турбинные, с уплотнителем. Снижают на 10-15°C, но шумят как пылесос. Для тех, кому критично.",
+          "importance": 8,
+          "tags": ["ноутбук", "iets", "gt500", "gt600", "охлаждение"]
+        }
+      ]
+    },
+    "laptop_software": {
+      "description": "Ноутбуки: софт и bloatware",
+      "facts": [
+        {
+          "text": "Заводской софт (Armoury Crate, Vantage) — тормозное шпионское ПО. Жрёт ресурсы, собирает телеметрию. Сноси и ставь альтернативы.",
+          "importance": 9,
+          "tags": ["ноутбук", "bloatware", "armoury crate", "vantage"]
+        },
+        {
+          "text": "ASUS ROG/TUF/Zephyrus: сноси Armoury Crate, ставь G-Helper. Весит 3 МБ, portable. Управляет подсветкой, вентиляторами, MUX Switch, батареей. Мастхэв.",
+          "importance": 10,
+          "tags": ["ноутбук", "asus", "rog", "g-helper", "armoury crate"]
+        },
+        {
+          "text": "Lenovo Legion/LoQ: сноси Lenovo Vantage, ставь Legion Toolkit (LLT). Лёгкий, быстрый, без рекламы и телеметрии. Всё то же самое, но без мусора.",
+          "importance": 10,
+          "tags": ["ноутбук", "lenovo", "legion", "llt", "vantage"]
+        },
+        {
+          "text": "Universal x86 Tuning Utility (UXTU) — универсальное решение для любого ноута. Позволяет менять лимиты TDP (PL1/PL2) на Ryzen/Intel, чтобы не троттлил или жил дольше.",
+          "importance": 9,
+          "tags": ["ноутбук", "uxtu", "tdp", "tuning", "универсальный"]
+        }
+      ]
+    },
+    "laptop_undervolt": {
+      "description": "Ноутбуки: андервольт",
+      "facts": [
+        {
+          "text": "Производители лочат андервольт в BIOS из-за уязвимости Plundervolt. Intel 10-14 Gen часто заблокирован. Нужен ThrottleStop или правка BIOS через UEFI Shell (setup_var).",
+          "importance": 9,
+          "tags": ["ноутбук", "андервольт", "intel", "throttlestop", "plundervolt"]
+        },
+        {
+          "text": "Если андервольт заблочен — меняй TPL (Turbo Power Limits). Снизь PL1/PL2 (например, с 45W до 35W). Потеряешь 5% FPS, выиграешь 15°C. Это легальный способ.",
+          "importance": 9,
+          "tags": ["ноутбук", "tdp", "pl1", "pl2", "температура"]
+        },
+        {
+          "text": "Ryzen Mobile (5000/6000/7000): используй UXTU (AATU). Curve Optimizer доступен не везде. Лайфхак: поставь лимит температуры 85°C — ноут сам будет бустить оптимально.",
+          "importance": 9,
+          "tags": ["ноутбук", "ryzen", "amd", "uxtu", "температура"]
+        },
+        {
+          "text": "NVIDIA GPU в ноутбуке: андервольт курвой (Ctrl+F в Afterburner) работает везде. Dynamic Boost (перекидывает ватты CPU↔GPU) иногда вызывает статтеры — можно отключить через Device Manager.",
+          "importance": 8,
+          "tags": ["ноутбук", "nvidia", "андервольт", "dynamic boost", "afterburner"]
+        }
+      ]
+    },
+    "laptop_battery": {
+      "description": "Ноутбуки: батарея и автономность",
+      "facts": [
+        {
+          "text": "Charge Limit — если ноут всегда на зарядке, ограничь заряд до 60-80%. В G-Helper/Legion Toolkit это одна кнопка. Продлевает жизнь батареи в 2-3 раза.",
+          "importance": 10,
+          "tags": ["ноутбук", "батарея", "charge limit", "здоровье"]
+        },
+        {
+          "text": "Hz Control — настрой автопереключение экрана на 60 Гц от батареи. 144/240 Гц жрут батарею даже на рабочем столе. В G-Helper/LLT есть автоматика.",
+          "importance": 8,
+          "tags": ["ноутбук", "батарея", "герцовка", "экран", "автономность"]
+        },
+        {
+          "text": "Eco Mode (dGPU off) — в дороге всегда выключай дискретную видеокарту. Даже в простое NVIDIA жрёт энергию. iGPU only = +2-3 часа автономности.",
+          "importance": 9,
+          "tags": ["ноутбук", "батарея", "eco mode", "igpu", "автономность"]
+        }
+      ]
+    },
+    "linux_distros_gaming": {
+      "description": "Linux дистрибутивы для гейминга 2025",
+      "facts": [
+        {
+          "text": "CachyOS — топ №1 для гейминга 2025. Arch-based, пакеты пересобраны с x86-64-v3/v4 оптимизациями (+10% FPS просто так). Кастомное ядро linux-cachyos с планировщиком BORE/scx_rustland. Всё для игр ставится одной кнопкой.",
+          "importance": 10,
+          "tags": ["linux", "cachyos", "arch", "gaming", "bore", "оптимизация"]
+        },
+        {
+          "text": "Bazzite — клон SteamOS для любого железа. Fedora Atomic, работает на NVIDIA/AMD/Intel. Система неубиваемая (atomic updates), rollback одной командой. Идеален для HTPC и хендхелдов (Legion Go, ROG Ally).",
+          "importance": 10,
+          "tags": ["linux", "bazzite", "fedora", "steamos", "htpc", "handheld"]
+        },
+        {
+          "text": "Nobara — Fedora с патчами для игр от GloriousEggroll (автор Proton-GE). Из коробки: драйверы, кодеки, OBS, Steam. Проще чем Arch, актуальнее чем Ubuntu.",
+          "importance": 9,
+          "tags": ["linux", "nobara", "fedora", "gaming", "gloriouseggroll"]
+        },
+        {
+          "text": "SteamOS 3.x — официальная ОС Steam Deck. Arch-based, KDE Plasma. На обычный ПК ставить геморройно (HoloISO мёртв). Лучше Bazzite.",
+          "importance": 8,
+          "tags": ["linux", "steamos", "steam deck", "valve", "kde"]
+        },
+        {
+          "text": "Garuda Linux — Arch с красивым KDE Dr460nized. Много bloatware из коробки, но есть Gaming Edition с настроенным геймингом. Для тех, кто хочет красоту.",
+          "importance": 7,
+          "tags": ["linux", "garuda", "arch", "kde", "gaming"]
+        }
+      ]
+    },
+    "linux_distros_workstation": {
+      "description": "Linux дистрибутивы для работы",
+      "facts": [
+        {
+          "text": "Fedora Workstation — лучший баланс стабильности и свежести. GNOME из коробки, свежее ядро, DNF5 быстрый. Для разработчиков и продакшна.",
+          "importance": 9,
+          "tags": ["linux", "fedora", "workstation", "gnome", "разработка"]
+        },
+        {
+          "text": "Ubuntu LTS (24.04) — корпоративный стандарт. Много документации, поддержка 5 лет. Snap по дефолту (можно убрать). Для серверов и тех, кому нужна стабильность.",
+          "importance": 8,
+          "tags": ["linux", "ubuntu", "lts", "корпоративный", "snap"]
+        },
+        {
+          "text": "Linux Mint — Ubuntu без Snap и с нормальным Cinnamon. Идеален для перехода с Windows. Всё работает из коробки, не ломается.",
+          "importance": 8,
+          "tags": ["linux", "mint", "cinnamon", "новичок", "windows"]
+        },
+        {
+          "text": "Pop!_OS — Ubuntu от System76. Свой тайлинг, хорошая поддержка NVIDIA из коробки. Популярен среди разработчиков.",
+          "importance": 8,
+          "tags": ["linux", "pop os", "system76", "nvidia", "тайлинг"]
+        },
+        {
+          "text": "openSUSE Tumbleweed — rolling release от SUSE. YaST для настройки всего, Btrfs со снапшотами по дефолту. Стабильный rolling.",
+          "importance": 7,
+          "tags": ["linux", "opensuse", "tumbleweed", "rolling", "yast", "btrfs"]
+        }
+      ]
+    },
+    "linux_distros_advanced": {
+      "description": "Linux дистрибутивы для продвинутых",
+      "facts": [
+        {
+          "text": "Arch Linux — DIY дистрибутив. Ставишь только то, что нужно. AUR — крупнейший репозиторий софта. Arch Wiki — лучшая документация в мире Linux. Не для новичков.",
+          "importance": 9,
+          "tags": ["linux", "arch", "aur", "diy", "wiki"]
+        },
+        {
+          "text": "NixOS — декларативная ОС. Весь конфиг в одном файле configuration.nix. Идеальная воспроизводимость, откат на любую версию. Кривая обучения крутая, но результат того стоит.",
+          "importance": 8,
+          "tags": ["linux", "nixos", "декларативный", "воспроизводимость", "nix"]
+        },
+        {
+          "text": "Gentoo — компиляция из исходников. USE-флаги для кастомизации каждого пакета. В 2025 смысла для гейминга нет (CachyOS даёт ту же скорость без боли).",
+          "importance": 7,
+          "tags": ["linux", "gentoo", "компиляция", "use flags", "хардкор"]
+        },
+        {
+          "text": "Void Linux — независимый дистрибутив с runit вместо systemd. Быстрый, минималистичный. Для тех, кто ненавидит systemd.",
+          "importance": 6,
+          "tags": ["linux", "void", "runit", "независимый", "минимализм"]
+        },
+        {
+          "text": "Alpine Linux — минимальный дистрибутив (5 МБ базовый образ). musl вместо glibc, busybox. Идеален для Docker контейнеров, не для десктопа.",
+          "importance": 7,
+          "tags": ["linux", "alpine", "docker", "musl", "минимальный"]
+        }
+      ]
+    },
+    "linux_distros_immutable": {
+      "description": "Immutable/Atomic дистрибутивы Linux",
+      "facts": [
+        {
+          "text": "Fedora Silverblue — immutable Fedora с GNOME. Система read-only, приложения через Flatpak. rpm-ostree для системных пакетов. Не сломаешь даже если захочешь.",
+          "importance": 8,
+          "tags": ["linux", "silverblue", "fedora", "immutable", "flatpak"]
+        },
+        {
+          "text": "Fedora Kinoite — то же что Silverblue, но с KDE Plasma. Для тех, кто хочет immutable + KDE.",
+          "importance": 7,
+          "tags": ["linux", "kinoite", "fedora", "immutable", "kde"]
+        },
+        {
+          "text": "VanillaOS — Ubuntu-based immutable. ABRoot для транзакционных обновлений. Apx для контейнеризированных пакетов из любого дистрибутива.",
+          "importance": 7,
+          "tags": ["linux", "vanillaos", "immutable", "ubuntu", "abroot"]
+        },
+        {
+          "text": "Endless OS — для оффлайн использования. Много контента предустановлено. Для школ и мест без интернета.",
+          "importance": 5,
+          "tags": ["linux", "endless", "оффлайн", "образование"]
+        },
+        {
+          "text": "Immutable дистрибутивы — тренд 2025. Система не меняется, обновляется атомарно. Сломал — откатился. Приложения в Flatpak/контейнерах. Будущее десктопного Linux.",
+          "importance": 8,
+          "tags": ["linux", "immutable", "atomic", "flatpak", "тренд"]
+        }
+      ]
+    },
+    "linux_distros_server": {
+      "description": "Linux дистрибутивы для серверов",
+      "facts": [
+        {
+          "text": "Debian Stable — эталон стабильности. Пакеты старые, но проверенные. Для серверов, где uptime важнее свежести. Основа для Ubuntu.",
+          "importance": 9,
+          "tags": ["linux", "debian", "сервер", "стабильность"]
+        },
+        {
+          "text": "Rocky Linux / AlmaLinux — замена CentOS после его смерти. RHEL-совместимые, бесплатные. Для корпоративных серверов.",
+          "importance": 8,
+          "tags": ["linux", "rocky", "alma", "rhel", "centos", "сервер"]
+        },
+        {
+          "text": "Ubuntu Server — популярен в облаках (AWS, Azure, GCP). LTS версии поддерживаются 5 лет. Много документации.",
+          "importance": 8,
+          "tags": ["linux", "ubuntu", "сервер", "облако", "lts"]
+        },
+        {
+          "text": "Proxmox VE — Debian-based для виртуализации. KVM + LXC из коробки. Веб-интерфейс для управления VM. Бесплатная альтернатива VMware ESXi.",
+          "importance": 8,
+          "tags": ["linux", "proxmox", "виртуализация", "kvm", "lxc"]
+        }
+      ]
+    },
+    "linux_de_wm": {
+      "description": "Linux окружения рабочего стола и WM",
+      "facts": [
+        {
+          "text": "KDE Plasma 6 — самое кастомизируемое DE. В 2025 самое быстрое для игр. Wayland работает отлично. Выглядит как хочешь.",
+          "importance": 9,
+          "tags": ["linux", "kde", "plasma", "de", "кастомизация"]
+        },
+        {
+          "text": "GNOME 47 — минималистичное DE. Workflow отличается от Windows. Расширения для кастомизации. Хорошо для тачскринов и жестов.",
+          "importance": 8,
+          "tags": ["linux", "gnome", "de", "минимализм", "расширения"]
+        },
+        {
+          "text": "Hyprland — тайлинговый композитор на Wayland. Анимации, blur, красота. Конфиг в текстовом файле. Для рисовщиков и тех, кто хочет вау-эффект.",
+          "importance": 8,
+          "tags": ["linux", "hyprland", "тайлинг", "wayland", "анимации"]
+        },
+        {
+          "text": "Sway — i3 для Wayland. Минималистичный тайлинг без украшательств. Для тех, кто ценит эффективность.",
+          "importance": 7,
+          "tags": ["linux", "sway", "i3", "тайлинг", "wayland"]
+        },
+        {
+          "text": "XFCE — лёгкое DE для слабого железа. Выглядит олдскульно, но работает везде. GTK-based.",
+          "importance": 7,
+          "tags": ["linux", "xfce", "лёгкий", "старое железо", "gtk"]
+        },
+        {
+          "text": "Cinnamon — DE от Linux Mint. Похоже на Windows, легко освоить. Для тех, кто переходит с винды.",
+          "importance": 7,
+          "tags": ["linux", "cinnamon", "mint", "windows-like"]
+        }
+      ]
+    },
+    "linux_package_managers": {
+      "description": "Linux пакетные менеджеры",
+      "facts": [
+        {
+          "text": "pacman (Arch) — быстрый и простой. pacman -Syu обновляет всё. AUR через yay/paru для всего остального софта в мире.",
+          "importance": 9,
+          "tags": ["linux", "pacman", "arch", "aur", "yay"]
+        },
+        {
+          "text": "apt (Debian/Ubuntu) — классика. apt update && apt upgrade. PPA для дополнительных репозиториев. Медленнее pacman.",
+          "importance": 8,
+          "tags": ["linux", "apt", "debian", "ubuntu", "ppa"]
+        },
+        {
+          "text": "dnf (Fedora) — DNF5 в Fedora 41+ очень быстрый. dnf upgrade обновляет систему. COPR для дополнительного софта.",
+          "importance": 8,
+          "tags": ["linux", "dnf", "fedora", "copr", "dnf5"]
+        },
+        {
+          "text": "Flatpak — универсальные пакеты для любого дистрибутива. Flathub — главный репозиторий. Изолированные приложения, но жрут место.",
+          "importance": 9,
+          "tags": ["linux", "flatpak", "flathub", "универсальный", "sandbox"]
+        },
+        {
+          "text": "Snap (Ubuntu) — аналог Flatpak от Canonical. Медленный старт приложений, принудительные обновления. Многие его ненавидят.",
+          "importance": 6,
+          "tags": ["linux", "snap", "ubuntu", "canonical", "медленный"]
+        },
+        {
+          "text": "AppImage — portable приложения. Скачал .AppImage, сделал chmod +x, запустил. Не требует установки. Для разового использования.",
+          "importance": 7,
+          "tags": ["linux", "appimage", "portable", "standalone"]
+        },
+        {
+          "text": "Nix — функциональный пакетный менеджер. Можно использовать на любом дистрибутиве. Nixpkgs — крупнейший репозиторий (80k+ пакетов).",
+          "importance": 7,
+          "tags": ["linux", "nix", "nixpkgs", "функциональный"]
+        }
+      ]
+    },
+    "steamdeck_basics": {
+      "description": "Steam Deck: базовые знания",
+      "facts": [
+        {
+          "text": "Steam Deck LCD (64/256/512GB) — старая ревизия. LPDDR5-5500, процессор 7нм, греется сильнее. Память можно разогнать до 6400 MT/s (+10-15% FPS).",
+          "importance": 9,
+          "tags": ["steam deck", "lcd", "характеристики", "память"]
+        },
+        {
+          "text": "Steam Deck OLED (512GB/1TB) — новая ревизия. LPDDR5-6400 (уже разогнана, выше не гонится), процессор 6нм, экран 90 Гц HDR, батарея больше. Холоднее и тише.",
+          "importance": 10,
+          "tags": ["steam deck", "oled", "характеристики", "hdr"]
+        },
+        {
+          "text": "Слабые места Steam Deck: CPU часто узкое место, RAM общая для CPU и GPU (поэтому разгон памяти даёт бешеный буст). GPU упирается в TDP.",
+          "importance": 9,
+          "tags": ["steam deck", "cpu", "gpu", "ram", "bottleneck"]
+        },
+        {
+          "text": "Память в Steam Deck: Micron (MT) — гонится отлично. Samsung (K3L) — гонится плохо, часто нестабильна. Hynix (H58) — только в OLED, средне. Проверить: sudo dmidecode --type 17",
+          "importance": 9,
+          "tags": ["steam deck", "память", "micron", "samsung", "hynix"]
+        }
+      ]
+    },
+    "steamdeck_software": {
+      "description": "Steam Deck: софт и оптимизация",
+      "facts": [
+        {
+          "text": "CryoUtilities — костыль из 2022. Увеличение свопа до 16 ГБ не даёт FPS, а убивает SSD. Твики hugepages в SteamOS 3.5+ уже не нужны или вредны. Забудь.",
+          "importance": 8,
+          "tags": ["steam deck", "cryoutilities", "миф", "своп"]
+        },
+        {
+          "text": "SDWEAK (от Taskerer) — правильная оптимизация. Оптимизирует планировщик Linux, минимизирует статтеры, выравнивает Frame Times. Установка через Konsole. GitHub: github.com/Taskerer/SDWEAK",
+          "importance": 10,
+          "tags": ["steam deck", "sdweak", "оптимизация", "frametime"]
+        },
+        {
+          "text": "Decky Loader — магазин плагинов для Steam Deck. Без него Дек — не Дек. Мастхэв плагины: PowerTools, Decky-Undervolt, CSS Loader. GitHub: github.com/SteamDeckHomebrew/decky-loader",
+          "importance": 10,
+          "tags": ["steam deck", "decky", "плагины", "powertools"]
+        },
+        {
+          "text": "Overclock Manager (от Taskerer) — утилита для разгона. Патчит BIOS (SREP) без программатора, открывает AMD CBS/PBS меню. Меняет TDP и частоты GPU из SteamOS. GitHub: github.com/Taskerer/Overclock-Manager",
+          "importance": 10,
+          "tags": ["steam deck", "overclock manager", "bios", "srep"]
+        }
+      ]
+    },
+    "steamdeck_undervolt": {
+      "description": "Steam Deck: андервольт",
+      "facts": [
+        {
+          "text": "Софтовый андервольт (Decky-Undervolt) лучше биосного. Работает как Curve Optimizer — снижает напряжение на разных частотах по-разному. Биосный снижает одинаково везде и ограничен низкими частотами.",
+          "importance": 10,
+          "tags": ["steam deck", "андервольт", "decky", "curve"]
+        },
+        {
+          "text": "Decky-Undervolt: ставь галочку 'Включать при запуске'. Подбирай значения для каждого ядра (Core 0-3). Обычно -20 или -30 держат все. Если завис — hard reset, плагин не применится сразу.",
+          "importance": 9,
+          "tags": ["steam deck", "decky-undervolt", "настройка", "ядра"]
+        },
+        {
+          "text": "Андервольт через BIOS: в Advanced -> GPU voltage offset. Начни с -10mV, тестируй, повышай до -50mV. Точная настройка через Overclock Manager (до 1mV). Риск: если переборщил — сброс BIOS.",
+          "importance": 8,
+          "tags": ["steam deck", "bios", "андервольт", "gpu offset"]
+        },
+        {
+          "text": "Андервольт даёт: снижение температуры -> меньше шум вентилятора, снижение потребления -> больше автономность, повышение производительности (меньше троттлинг).",
+          "importance": 9,
+          "tags": ["steam deck", "андервольт", "температура", "автономность"]
+        }
+      ]
+    },
+    "steamdeck_overclock": {
+      "description": "Steam Deck: разгон",
+      "facts": [
+        {
+          "text": "Разгон памяти LCD до 6400 MT/s: через Overclock Manager -> SREP -> BIOS -> AMD CBS -> UMC Common -> DDR Common -> DRAM Timing -> Overclock Enabled -> 3200MHz. Power Down Enable: Disabled!",
+          "importance": 10,
+          "tags": ["steam deck", "разгон", "память", "6400", "lcd"]
+        },
+        {
+          "text": "Тайминги памяти Steam Deck: Micron — Trc 0x26, Trp 8. Samsung — Trc 0x20. Hynix (OLED) — Trc 0x24. Полные пресеты на deckoc.notion.site. Тестируй 7-10 дней в разных играх!",
+          "importance": 9,
+          "tags": ["steam deck", "тайминги", "micron", "samsung", "hynix"]
+        },
+        {
+          "text": "Разгон GPU выше 1600 МГц: смысла мало, упрёшься в TDP. Но если игра простая — можно до 1800 МГц. Через BIOS: GfxclkFmaxOverride Control -> Manual.",
+          "importance": 7,
+          "tags": ["steam deck", "gpu", "разгон", "частота"]
+        },
+        {
+          "text": "TDP Unlock: можно снять лимит 15W и поставить 18-20W. Через Overclock Manager или PowerTools. Цена: батарея улетит за 40 минут. Только на зарядке! OLED максимум 23W, LCD без ограничений.",
+          "importance": 8,
+          "tags": ["steam deck", "tdp", "разгон", "powertools"]
+        },
+        {
+          "text": "UMA Frame buffer Size: увеличение до 4G даёт прирост в одних играх, деградацию в других. Зависит от того, что важнее игре — VRAM или RAM. Оптимально оставить 1G (сток).",
+          "importance": 7,
+          "tags": ["steam deck", "uma", "vram", "buffer"]
+        }
+      ]
+    },
+    "steamdeck_recovery": {
+      "description": "Steam Deck: восстановление и проблемы",
+      "facts": [
+        {
+          "text": "Сброс BIOS Steam Deck: зажми Vol- + '...' (три точки) + Power. Держи пока LED не замигает (2-3 минуты). Если не мигает — подключи зарядку (режим сохранения батареи).",
+          "importance": 10,
+          "tags": ["steam deck", "bios", "сброс", "кирпич", "recovery"]
+        },
+        {
+          "text": "'Кирпич' (Brick): Дек не включается, экран чёрный, кулер шумит. Лечение: сброс BIOS. Обычно из-за агрессивного андервольта или разгона памяти.",
+          "importance": 9,
+          "tags": ["steam deck", "кирпич", "brick", "проблема"]
+        },
+        {
+          "text": "'Бублик' (Boot Loop): бесконечная загрузка логотипа Steam. Обычно из-за кривого плагина Decky. Решение: загрузись в Desktop Mode, удали проблемный плагин.",
+          "importance": 8,
+          "tags": ["steam deck", "бублик", "loop", "decky", "проблема"]
+        },
+        {
+          "text": "SREP — патч в EFI разделе, подменяет настройки BIOS при загрузке. Магия, позволяющая гнать Дек без паяльника. Создаётся через Overclock Manager.",
+          "importance": 8,
+          "tags": ["steam deck", "srep", "bios", "патч", "efi"]
+        },
+        {
+          "text": "Windows на Steam Deck — полная хуйня. Драйверы кривые, батарея сдыхает за час, тачпады работают через жопу, sleep не работает. SteamOS оптимизирована под железо, винда — нет. Не ставь.",
+          "importance": 10,
+          "tags": ["steam deck", "windows", "не ставить", "хуйня"]
+        },
+        {
+          "text": "Dual boot Windows на Деке — ещё хуже. Убивает EFI раздел, ломает SteamOS обновления, занимает место на и так маленьком SSD. Если нужна винда — купи отдельный ПК.",
+          "importance": 9,
+          "tags": ["steam deck", "windows", "dual boot", "проблемы"]
+        }
+      ]
+    },
+    "steamdeck_links": {
+      "description": "Steam Deck: полезные ссылки",
+      "facts": [
+        {
+          "text": "SDWEAK (оптимизация SteamOS): github.com/Taskerer/SDWEAK — увеличение FPS, улучшение плавности, снижение статтеров.",
+          "importance": 9,
+          "tags": ["steam deck", "sdweak", "ссылка", "github"]
+        },
+        {
+          "text": "Overclock Manager: github.com/Taskerer/Overclock-Manager — разгон, андервольт, SREP патчинг BIOS.",
+          "importance": 9,
+          "tags": ["steam deck", "overclock manager", "ссылка", "github"]
+        },
+        {
+          "text": "Decky-Undervolt: github.com/totallynotbakadestroyer/Decky-Undervolt — софтовый андервольт CPU через Decky Loader.",
+          "importance": 9,
+          "tags": ["steam deck", "decky-undervolt", "ссылка", "github"]
+        },
+        {
+          "text": "Decky Loader: github.com/SteamDeckHomebrew/decky-loader — магазин плагинов для Steam Deck.",
+          "importance": 9,
+          "tags": ["steam deck", "decky loader", "ссылка", "github"]
+        },
+        {
+          "text": "Гайд по разгону Steam Deck (Роберт @noncatt): deckoc.notion.site — полный гайд с таймингами для всех типов памяти, пошаговые инструкции.",
+          "importance": 10,
+          "tags": ["steam deck", "гайд", "разгон", "notion", "тайминги"]
+        }
+      ]
+    },
+    "steamdeck_revisions": {
+      "description": "Steam Deck: ревизии и различия",
+      "facts": [
+        {
+          "text": "LCD Revision A (Early): старый вентилятор Delta — визжит как комар. Экраны 50/50 по качеству. Если свистит — меняй вентилятор.",
+          "importance": 8,
+          "tags": ["steam deck", "lcd", "revision a", "delta", "вентилятор"]
+        },
+        {
+          "text": "LCD Revision B (Late): вентилятор Huaying (чёрный логотип) — тихий, приятный гул. Delta (синий логотип) — мусор, выкинь и купи Huaying на Алике.",
+          "importance": 9,
+          "tags": ["steam deck", "lcd", "revision b", "huaying", "вентилятор"]
+        },
+        {
+          "text": "OLED Samsung: в Limited Edition (прозрачный) и первых 1TB. PenTile даёт 'зерно' на шрифтах, но ярче в HDR.",
+          "importance": 7,
+          "tags": ["steam deck", "oled", "samsung", "pentile", "hdr"]
+        },
+        {
+          "text": "OLED BOE: в большинстве обычных OLED (512GB). Меньше шанс выгорания (burn-in), чётче текст. BOE даже лучше для RPG с текстом.",
+          "importance": 8,
+          "tags": ["steam deck", "oled", "boe", "burn-in", "текст"]
+        }
+      ]
+    },
+    "steamdeck_fan_mod": {
+      "description": "Steam Deck: замена вентилятора",
+      "facts": [
+        {
+          "text": "Вентилятор от OLED встаёт в LCD как родной! Крепления подходят, разъём тоже. Лопасти толще, дует лучше, шумит меньше. Просто ставишь и радуешься тишине.",
+          "importance": 9,
+          "tags": ["steam deck", "вентилятор", "oled", "lcd", "мод"]
+        },
+        {
+          "text": "Huaying vs Delta: если у тебя LCD с Delta (синий логотип) — выкинь. Купи Huaying (чёрный) на Алике. Разница в шуме — небо и земля.",
+          "importance": 9,
+          "tags": ["steam deck", "huaying", "delta", "вентилятор", "шум"]
+        }
+      ]
+    },
+    "steamdeck_shells": {
+      "description": "Steam Deck: корпуса и кнопки",
+      "facts": [
+        {
+          "text": "eXtremeRate корпуса — топ-1 по качеству (Soft Touch). Идеальная подгонка, куча цветов. Atomic Purple — классика. Минус: сложно ставить (нужно греть экран феном).",
+          "importance": 8,
+          "tags": ["steam deck", "extremerate", "корпус", "shell", "мод"]
+        },
+        {
+          "text": "JSAUX корпуса — попроще в установке, но пластик дешевле. Для первого раза сойдёт.",
+          "importance": 6,
+          "tags": ["steam deck", "jsaux", "корпус", "shell"]
+        },
+        {
+          "text": "eXtremeRate Face Clicky Kit — мастхэв для файтингов. Заменяет мембранные 'ватные' кнопки на механические. Чёткий клик, ноль люфта, D-Pad божественный. Установка сложная (мелкие шлейфы).",
+          "importance": 9,
+          "tags": ["steam deck", "extremerate", "clicky", "кнопки", "файтинги"]
+        },
+        {
+          "text": "JSAUX backplate с дыркой под вентилятор — говно. Нарушает воздушный поток, VRM перестаёт охлаждаться. Охлаждение Valve продумано, не ломай его дырками.",
+          "importance": 9,
+          "tags": ["steam deck", "jsaux", "backplate", "охлаждение", "плохо"]
+        },
+        {
+          "text": "Выбор Олега по backplate: сток или eXtremeRate (без дырок). JSAUX с радиатором — ок, но греет руки.",
+          "importance": 7,
+          "tags": ["steam deck", "backplate", "выбор", "extremerate"]
+        }
+      ]
+    },
+    "steamdeck_screen": {
+      "description": "Steam Deck: экраны и апгрейды",
+      "facts": [
+        {
+          "text": "DeckHD (1200p экран) — деньги на ветер. Железо Дека не тянет 1920x1200 в играх. Будешь играть в 800p с мылом (апскейл). Жрёт батарею, требует кастомный BIOS.",
+          "importance": 9,
+          "tags": ["steam deck", "deckhd", "1200p", "экран", "плохо"]
+        },
+        {
+          "text": "Хочешь чёткость — купи OLED. Хочешь разрешение — купи монитор. DeckHD — бесполезный кусок кремния.",
+          "importance": 8,
+          "tags": ["steam deck", "deckhd", "oled", "монитор", "совет"]
+        }
+      ]
+    },
+    "steamdeck_thermal": {
+      "description": "Steam Deck: термоинтерфейс",
+      "facts": [
+        {
+          "text": "PTM7950 на Steam Deck — база. Любой владелец обязан это сделать. Минус 3-5°C на GPU/CPU, вентилятор перестаёт выть, крутится медленнее.",
+          "importance": 10,
+          "tags": ["steam deck", "ptm7950", "термопаста", "температура"]
+        },
+        {
+          "text": "Почему не MX-4 на Деке: обычная паста выдавливается (Pump Out) из-за формы кристалла за месяц. PTM7950 живёт вечно.",
+          "importance": 9,
+          "tags": ["steam deck", "mx-4", "pump out", "термопаста"]
+        }
+      ]
+    },
+    "steamdeck_blackscreen": {
+      "description": "Steam Deck: чёрный экран (не включается)",
+      "facts": [
+        {
+          "text": "Чёрный экран + вентилятор крутится + тактильная отдача есть = часто после замены SSD, термопасты (забыли шлейф) или кривого разгона памяти.",
+          "importance": 10,
+          "tags": ["steam deck", "чёрный экран", "не включается", "диагностика"]
+        },
+        {
+          "text": "Force Restart: зажми питание на 12-15 секунд, подожди 5 сек, нажми коротко. Первое что пробовать.",
+          "importance": 10,
+          "tags": ["steam deck", "force restart", "перезагрузка", "фикс"]
+        },
+        {
+          "text": "Сброс BIOS/CMOS: Vol- + ... (три точки) + Power. Держи пока LED не мигнёт. Ждать долго (5-10 мин) — Дек перетренировывает память. Не паникуй.",
+          "importance": 10,
+          "tags": ["steam deck", "bios", "cmos", "сброс", "память"]
+        },
+        {
+          "text": "Battery Storage Mode: Vol+ + Power -> BIOS Setup -> Power Menu -> Battery Storage Mode. Дек выключится, подключи зарядку — включится сам. Мягкий сброс контроллера питания.",
+          "importance": 9,
+          "tags": ["steam deck", "battery storage", "контроллер", "фикс"]
+        }
+      ]
+    },
+    "steamdeck_led_codes": {
+      "description": "Steam Deck: коды светодиода",
+      "facts": [
+        {
+          "text": "LED мигает белым: грузится или тренирует память. Жди.",
+          "importance": 8,
+          "tags": ["steam deck", "led", "белый", "загрузка"]
+        },
+        {
+          "text": "LED 3 раза мигнул красным: батарея разряжена в ноль, не хватает сил для старта. Заряжай минимум 30 минут.",
+          "importance": 9,
+          "tags": ["steam deck", "led", "красный", "батарея"]
+        },
+        {
+          "text": "LED горит красным/оранжевым: перегрев или медленная зарядка (плохой кабель). Проверь зарядку.",
+          "importance": 8,
+          "tags": ["steam deck", "led", "оранжевый", "перегрев", "кабель"]
+        },
+        {
+          "text": "LED не горит при зарядке: либо батарея полная, либо контроллер заряда завис. Фикс: открой крышку, отстегни шлейф батареи на 5 мин, нажми питание (разрядить кондеры), подключи обратно.",
+          "importance": 9,
+          "tags": ["steam deck", "led", "зарядка", "контроллер", "фикс"]
+        }
+      ]
+    },
+    "steamdeck_reimage": {
+      "description": "Steam Deck: восстановление SteamOS",
+      "facts": [
+        {
+          "text": "Образ восстановления качай ТОЛЬКО с официального сайта Valve. Пиши через Rufus (Windows) или BalenaEtcher (Mac/Linux). Флешка USB 3.0, иначе час грузиться.",
+          "importance": 10,
+          "tags": ["steam deck", "recovery", "образ", "rufus", "etcher"]
+        },
+        {
+          "text": "Re-image Steam Deck: удаляет ВСЁ, заводское состояние. Reinstall Steam OS: пытается сохранить игры и /home, переписывая только систему. Пробуй сначала Reinstall!",
+          "importance": 10,
+          "tags": ["steam deck", "reimage", "reinstall", "восстановление"]
+        },
+        {
+          "text": "Застрял на логотипе после замены SSD: частая беда клонирования. Фикс: загрузись с флешки восстановления -> Reinstall Steam OS. Починит загрузчик (EFI), не удаляя игры.",
+          "importance": 9,
+          "tags": ["steam deck", "ssd", "клонирование", "efi", "бутлуп"]
+        }
+      ]
+    },
+    "steamdeck_bios_flash": {
+      "description": "Steam Deck: прошивка BIOS программатором",
+      "facts": [
+        {
+          "text": "Если запорол BIOS разгоном и сброс кнопками не помогает — нужен программатор CH341A (чёрный, 300 руб) + прищепка SOIC8 + переходник на 1.8V (ОБЯЗАТЕЛЬНО, без него спалишь чип!).",
+          "importance": 9,
+          "tags": ["steam deck", "bios", "программатор", "ch341a", "soic8"]
+        },
+        {
+          "text": "Чип BIOS: Winbond 25Q128 (обычно). Под металлическим щитком, на OLED сложнее добраться. Отключи батарею перед прошивкой!",
+          "importance": 8,
+          "tags": ["steam deck", "bios", "winbond", "чип", "прошивка"]
+        },
+        {
+          "text": "После прошивки BIOS первый старт долгий (до 5 мин). Нужен чистый .bin дамп под твою ревизию.",
+          "importance": 8,
+          "tags": ["steam deck", "bios", "дамп", "прошивка", "старт"]
+        }
+      ]
+    },
+    "steamdeck_throttle_bug": {
+      "description": "Steam Deck: баг 200/400 МГц",
+      "facts": [
+        {
+          "text": "Дек застрял на 400 МГц CPU и 200 МГц GPU, игры тормозят = глюк датчика вентилятора или перегрев VRM.",
+          "importance": 9,
+          "tags": ["steam deck", "троттлинг", "400mhz", "200mhz", "баг"]
+        },
+        {
+          "text": "Фикс троттлинга #1: Battery Storage Mode (Vol+ + Power -> BIOS -> Power Menu).",
+          "importance": 9,
+          "tags": ["steam deck", "троттлинг", "battery storage", "фикс"]
+        },
+        {
+          "text": "Фикс троттлинга #2: открой крышку, проверь коннектор вентилятора. Если плохо сидит — Дек думает что вентиль сдох и режет частоты для защиты.",
+          "importance": 9,
+          "tags": ["steam deck", "троттлинг", "вентилятор", "коннектор", "фикс"]
+        }
+      ]
+    },
+    "steamdeck_repair_wisdom": {
+      "description": "Steam Deck: мудрость ремонта",
+      "facts": [
+        {
+          "text": "Если Дек не включается после замены пасты — ты либо не до конца воткнул шлейф батареи, либо перетянул винты радиатора и сколол кристалл. Первое лечится, второе — брелок за 400 баксов.",
+          "importance": 10,
+          "tags": ["steam deck", "ремонт", "паста", "шлейф", "кристалл"]
+        },
+        {
+          "text": "Перед любым ремонтом Дека: отключи батарею, сфоткай расположение шлейфов, не теряй винты (они разной длины!). Термопасту наноси тонким слоем.",
+          "importance": 9,
+          "tags": ["steam deck", "ремонт", "советы", "батарея", "винты"]
+        }
+      ]
+    },
+    "repair_gpu_diag": {
+      "description": "Ремонт видеокарт: диагностика",
+      "facts": [
+        {
+          "text": "Греть чип феном — для лохов. Олег замеряет сопротивления. Power Sequence: карта поднимает питания строго по очереди. Если нет 1.8V — не будет VCore.",
+          "importance": 10,
+          "tags": ["ремонт", "видеокарта", "диагностика", "power sequence"]
+        },
+        {
+          "text": "12V_BUS (PCIe) и 12V_EXT (доп. питание): первым делом звони вход. Если КЗ (0 Ом) — пробит DrMOS или керамика по входу.",
+          "importance": 9,
+          "tags": ["ремонт", "видеокарта", "12v", "кз", "drmos"]
+        },
+        {
+          "text": "3.3V — питание логики (с PCIe слота). Если КЗ — часто труп ГПУ. 1.8V — самая важная линия! Питает логику ГПУ. Нет 1.8V = карта кирпич.",
+          "importance": 10,
+          "tags": ["ремонт", "видеокарта", "3.3v", "1.8v", "логика"]
+        },
+        {
+          "text": "VCore (NVVDD) — питание ядра. Сопротивление у RTX 30/40 почти 0 Ом (0.1-0.3 Ом). Это НОРМА! Не путай с КЗ. VMem (FBVDD) — питание памяти. PEX (1.0V) — шина PCIe внутри ГПУ.",
+          "importance": 9,
+          "tags": ["ремонт", "видеокарта", "vcore", "vmem", "pex"]
+        },
+        {
+          "text": "MATS/MODS — святой Грааль диагностики NVIDIA. MATS тестирует память: ошибки по каналу A0 = меняй первую банку. Ошибки по ВСЕМ каналам = отвал ГПУ или контроллера памяти.",
+          "importance": 10,
+          "tags": ["ремонт", "видеокарта", "mats", "mods", "nvidia", "память"]
+        }
+      ]
+    },
+    "repair_laptop_diag": {
+      "description": "Ремонт ноутбуков: диагностика",
+      "facts": [
+        {
+          "text": "Ноут не включается? Не шей BIOS сразу. Смотри потребление на ЛБП (лабораторнике). 0.00-0.01A = проблема во входных ключах (Charger IC) или КЗ по 19V.",
+          "importance": 10,
+          "tags": ["ремонт", "ноутбук", "диагностика", "лбп", "потребление"]
+        },
+        {
+          "text": "Потребление 0.02-0.05A (прыгает) = мультиконтроллер (EC) жив, пытается поднять дежурку (3.3V/5V). 0.10-0.30A = старт есть, нет инициализации (RAM, BIOS, CPU).",
+          "importance": 9,
+          "tags": ["ремонт", "ноутбук", "ec", "дежурка", "инициализация"]
+        },
+        {
+          "text": "Power Sequence ноутбука: 19V (VIN) -> 3.3V/5V ALW (дежурка) -> RSMRST# (мульт готов) -> SLP_S3#/SLP_S4# (хаб отвечает). Нет SLP сигналов = хаб/проц труп или BIOS слетел.",
+          "importance": 10,
+          "tags": ["ремонт", "ноутбук", "power sequence", "slp", "rsmrst"]
+        },
+        {
+          "text": "Чарджер (BQ24780 и аналоги): проверь ACDET (обычно 2.6V) — если нет, чарджер не откроет входные ключи. ACOK (3.3V) — сигнал 'Зарядка ок' для мульта.",
+          "importance": 9,
+          "tags": ["ремонт", "ноутбук", "чарджер", "bq24780", "acdet"]
+        }
+      ]
+    },
+    "repair_short_circuit": {
+      "description": "Ремонт: поиск КЗ",
+      "facts": [
+        {
+          "text": "ЛБП метод: подаёшь 1V (не больше!) на линию с КЗ, ограничиваешь ток 1-2А. Ищешь греющийся элемент пальцем или тепловизором.",
+          "importance": 9,
+          "tags": ["ремонт", "кз", "лбп", "диагностика"]
+        },
+        {
+          "text": "Метод 'Чека': прижми термобумагу (кассовый чек) к плате, подай ток. Где почернело — там греется. Дёшево и сердито.",
+          "importance": 8,
+          "tags": ["ремонт", "кз", "термобумага", "чек", "лайфхак"]
+        },
+        {
+          "text": "Метод спирта: пшикни спиртом на плату, подай ток. Где испарилось мгновенно — там КЗ. Тепловизор — для мажоров, видно всё сразу.",
+          "importance": 8,
+          "tags": ["ремонт", "кз", "спирт", "тепловизор"]
+        }
+      ]
+    },
+    "repair_components": {
+      "description": "Ремонт: компоненты (DrMOS, BIOS)",
+      "facts": [
+        {
+          "text": "DrMOS пробит 'по верхнему плечу' (12V на VCore) = ГПУ/проц с вероятностью 99% труп. 12 вольт убивают логику мгновенно. Диагностика: сопротивление VIN-VSW должно быть мегаомы, если 0 Ом — пробит.",
+          "importance": 10,
+          "tags": ["ремонт", "drmos", "пробой", "vcore", "диагностика"]
+        },
+        {
+          "text": "Керамические конденсаторы часто трескаются и уходят в КЗ. Симптом: КЗ по 19V линии. Ищи визуально трещины или методом исключения.",
+          "importance": 8,
+          "tags": ["ремонт", "конденсатор", "керамика", "кз", "19v"]
+        },
+        {
+          "text": "BIOS (SPI Flash): ВСЕГДА делай дамп перед прошивкой! На Intel 12+ Gen BIOS содержит Boot Guard — чужой дамп не заработает без переноса CSME региона. Нужно 'чистить ME Region'.",
+          "importance": 10,
+          "tags": ["ремонт", "bios", "spi flash", "boot guard", "me region"]
+        }
+      ]
+    },
+    "repair_wisdom": {
+      "description": "Ремонт: мудрость мастера",
+      "facts": [
+        {
+          "text": "Если ты тыкаешь щупами наугад — ты не мастер, ты сапёр. Открой схему (Boardview). Нет схемы? Смотри даташит на ШИМку.",
+          "importance": 10,
+          "tags": ["ремонт", "boardview", "схема", "даташит", "мудрость"]
+        },
+        {
+          "text": "Прожарка чипа помогает только прогреть суп. Мёртвый ГПУ она не воскресит. Это плацебо для тех, кто не умеет диагностировать.",
+          "importance": 10,
+          "tags": ["ремонт", "прожарка", "миф", "gpu", "плацебо"]
+        },
+        {
+          "text": "Инструменты мастера: мультиметр (хотя бы ANENG), ЛБП (лабораторник), паяльная станция (Quick/Hakko), микроскоп (тринокуляр), программатор CH341A. Без этого — не лезь.",
+          "importance": 9,
+          "tags": ["ремонт", "инструменты", "мультиметр", "лбп", "паяльник"]
+        }
+      ]
+    },
+    "diag_artifacts": {
+      "description": "Диагностика: артефакты видеокарт",
+      "facts": [
+        {
+          "text": "Шахматка (Space Invaders / XO): розовые/зелёные квадратики, символы XO, черепа = смерть VRAM. Обычно одна банка битая. Лечится заменой банки (пайка). Часто на RTX 2080 Ti (Micron первой ревизии).",
+          "importance": 10,
+          "tags": ["диагностика", "артефакты", "шахматка", "vram", "память"]
+        },
+        {
+          "text": "Снег / цветные точки: разноцветные пиксели по всему экрану = переразгон памяти или перегрев VRAM. Если в стоке — отвал контроллера памяти в ГПУ.",
+          "importance": 9,
+          "tags": ["диагностика", "артефакты", "снег", "пиксели", "vram"]
+        },
+        {
+          "text": "Вылет полигонов (взрыв геометрии): текстуры растягиваются в бесконечность, персонаж-ёжик = ГПУ (ядро). Ошибка ALU или переразгон ядра.",
+          "importance": 9,
+          "tags": ["диагностика", "артефакты", "полигоны", "геометрия", "gpu"]
+        },
+        {
+          "text": "Чёрный экран при установке драйвера: в BIOS картинка есть, ставишь драйвер -> чёрный экран = отвал ГПУ. Драйвер пытается задействовать 3D-блоки, они мертвы.",
+          "importance": 10,
+          "tags": ["диагностика", "чёрный экран", "драйвер", "отвал", "gpu"]
+        }
+      ]
+    },
+    "diag_logs_windows": {
+      "description": "Диагностика: логи Windows",
+      "facts": [
+        {
+          "text": "WHEA Logger ID 18 (Cache Hierarchy Error): смерть процессора или жёсткая нестабильность Curve Optimizer на Ryzen. Ядро сбоит физически.",
+          "importance": 10,
+          "tags": ["диагностика", "whea", "id 18", "cpu", "cache"]
+        },
+        {
+          "text": "WHEA Logger ID 19 (Memory Error): нестабильная оперативка или Infinity Fabric. Проверь RAM через TestMem5.",
+          "importance": 9,
+          "tags": ["диагностика", "whea", "id 19", "ram", "infinity fabric"]
+        },
+        {
+          "text": "DXGI_ERROR_DEVICE_HUNG / DEVICE_REMOVED: драйвер потерял видеокарту. Причины: переразгон, нехватка вольтажа (андервольт), перегрев Hotspot.",
+          "importance": 9,
+          "tags": ["диагностика", "dxgi", "device hung", "gpu", "драйвер"]
+        },
+        {
+          "text": "BSOD nvlddmkm.sys = драйвер NVIDIA, ГПУ нестабилен. MEMORY_MANAGEMENT = RAM. CRITICAL_PROCESS_DIED = часто SSD отвалился на ходу.",
+          "importance": 9,
+          "tags": ["диагностика", "bsod", "nvlddmkm", "memory management", "ssd"]
+        }
+      ]
+    },
+    "diag_tools_advanced": {
+      "description": "Диагностика: продвинутые инструменты",
+      "facts": [
+        {
+          "text": "MATS (NVIDIA): загрузочная флешка Linux, команда ./mats -n 1 -e 20. READ ERRORS на канале B1 = сдохла банка B1. Смотри Boardview какая микросхема.",
+          "importance": 10,
+          "tags": ["диагностика", "mats", "nvidia", "vram", "linux"]
+        },
+        {
+          "text": "Tserver (AMD): аналог MATS для Радеонов. Работает из-под Linux, показывает ошибки по каналам памяти.",
+          "importance": 8,
+          "tags": ["диагностика", "tserver", "amd", "radeon", "vram"]
+        },
+        {
+          "text": "OCCT VRAM Test: лучший тест из-под винды. Если нашёл хоть 1 ошибку — память под замену или снижай разгон.",
+          "importance": 9,
+          "tags": ["диагностика", "occt", "vram", "тест", "windows"]
+        }
+      ]
+    },
+    "diag_fake_gpu": {
+      "description": "Диагностика: поддельные видеокарты",
+      "facts": [
+        {
+          "text": "GPU-Z: если видишь [FAKE] перед названием — это перепрошитая карта (GTX 550 Ti с биосом от 1050 Ti). Смотри количество шейдеров (Shaders), сравнивай с TechPowerUp.",
+          "importance": 10,
+          "tags": ["диагностика", "fake gpu", "gpu-z", "подделка", "шейдеры"]
+        },
+        {
+          "text": "Если у твоей '1060' 192 шейдера вместо 1152 — тебя кинули. Всегда проверяй карту GPU-Z перед покупкой б/у.",
+          "importance": 9,
+          "tags": ["диагностика", "fake gpu", "шейдеры", "б/у", "проверка"]
+        }
+      ]
+    },
+    "diag_wisdom": {
+      "description": "Диагностика: мудрость",
+      "facts": [
+        {
+          "text": "Артефакты — крик помощи кремния. Шахматка = готовь паяльник. Треугольники = снижай частоту ядра. Чёрный экран после драйвера = готовь деньги на новую карту.",
+          "importance": 10,
+          "tags": ["диагностика", "артефакты", "мудрость", "совет"]
+        },
+        {
+          "text": "Духовка (прогрев) помогает ненадолго — это временный костыль, не ремонт. Через неделю-месяц карта снова сдохнет.",
+          "importance": 9,
+          "tags": ["диагностика", "духовка", "прогрев", "миф", "костыль"]
+        }
+      ]
+    },
+    "issues_gpu_nvidia": {
+      "description": "Типовые болячки: NVIDIA",
+      "facts": [
+        {
+          "text": "RTX 3060 Ti (Hynix Memory Death): чёрный экран, кулеры на 100%, ошибки VRAM. Причина: бракованная партия Hynix X005 (2021-2022), не держит вольтаж. Решение: замена ВСЕХ банок на Samsung. Греть бесполезно.",
+          "importance": 10,
+          "tags": ["болячки", "rtx 3060 ti", "hynix", "vram", "смерть"]
+        },
+        {
+          "text": "RTX 4090 (12VHPWR): запах гари, чёрный экран под нагрузкой. Причина: плохой контакт в разъёме 12+4 pin. Решение: перепайка разъёма на карте + замена кабеля БП на качественный (без переходников!).",
+          "importance": 10,
+          "tags": ["болячки", "rtx 4090", "12vhpwr", "разъём", "оплавление"]
+        },
+        {
+          "text": "Gigabyte RTX 3080/3090 (трещина PCB): не включается, артефакты при изгибе. Причина: тяжёлый кулер ломает текстолит у PCIe разъёма. Почти неремонтопригодно. Нужна подставка под GPU!",
+          "importance": 9,
+          "tags": ["болячки", "gigabyte", "rtx 3080", "rtx 3090", "pcb", "трещина"]
+        }
+      ]
+    },
+    "issues_gpu_amd": {
+      "description": "Типовые болячки: AMD GPU",
+      "facts": [
+        {
+          "text": "RX 6000 Series (Black Screen): чёрный экран в играх, помогает только хард-ребут. Причины: пульсации старого БП (карты чувствительны), драйвера (отключи MPO в реестре), пробой по питанию памяти.",
+          "importance": 9,
+          "tags": ["болячки", "rx 6000", "black screen", "mpo", "бп"]
+        }
+      ]
+    },
+    "issues_cpu": {
+      "description": "Типовые болячки: процессоры",
+      "facts": [
+        {
+          "text": "Intel 13th/14th Gen (Degradation): вылеты с 'Out of Video Memory' (хотя память есть), BSODы. Причина: завышенный Vcore с завода, деградация Ring Bus / L2 Cache. Решение: BIOS микрокод 0x129+, ограничь PL1/PL2, андервольт. Если деградация есть — RMA.",
+          "importance": 10,
+          "tags": ["болячки", "intel", "13900k", "14900k", "деградация", "vcore"]
+        },
+        {
+          "text": "AMD Ryzen 7000X3D (AM5 Burnout): прогар на брюхе процессора и в сокете. Причина: завышенное VSOC (выше 1.3V) на старых BIOS. X3D чипы нежные. Решение: BIOS с ограничением VSOC. Если сгорел — менять и проц, и мать.",
+          "importance": 10,
+          "tags": ["болячки", "amd", "7800x3d", "am5", "прогар", "vsoc"]
+        }
+      ]
+    },
+    "issues_ssd": {
+      "description": "Типовые болячки: SSD",
+      "facts": [
+        {
+          "text": "Samsung 980 Pro / 990 Pro (Firmware Bug): SSD внезапно переходит в Read Only или умирает. Причина: баг прошивки (3B2QGXA7 и старые 990 Pro). Решение: СРОЧНО обновить прошивку через Samsung Magician пока диск жив!",
+          "importance": 10,
+          "tags": ["болячки", "samsung", "980 pro", "990 pro", "firmware", "read only"]
+        }
+      ]
+    },
+    "issues_handheld": {
+      "description": "Типовые болячки: портативки",
+      "facts": [
+        {
+          "text": "ASUS ROG Ally (SD Card Death): перестаёт читать флешки, виснет проводник. Причина: кардридер над выхлопом горячего воздуха, контроллер перегревается и умирает. Хардварного фикса нет (инженерный просчёт). Увеличь обороты кулеров, не юзай дорогие карты.",
+          "importance": 9,
+          "tags": ["болячки", "rog ally", "sd card", "перегрев", "кардридер"]
+        }
+      ]
+    },
+    "issues_wisdom": {
+      "description": "Типовые болячки: мудрость",
+      "facts": [
+        {
+          "text": "Если принесли 3060 Ti с чёрным экраном — даже не диагностируй, сразу смотри маркировку памяти. Hynix X005 = труп. Владельцам 13900K передай привет и скажи копить на 15-е поколение.",
+          "importance": 10,
+          "tags": ["болячки", "мудрость", "3060 ti", "13900k", "совет"]
+        },
+        {
+          "text": "Перед покупкой б/у железа гугли '[модель] issues' или '[модель] problems'. Узнаешь про типовые болячки до покупки, а не после.",
+          "importance": 9,
+          "tags": ["болячки", "б/у", "покупка", "совет", "гугл"]
+        }
+      ]
+    },
+    "android_boot_modes": {
+      "description": "Android: Режимы загрузки",
+      "facts": [
+        {
+          "text": "Fastboot (Заяц) — низкоуровневый режим, работает ДО загрузки Android. Для прошивки разделов (boot, recovery, system), разблокировки загрузчика. На Xiaomi — картинка зайца в ушанке. Команды: fastboot devices, fastboot flash recovery twrp.img.",
+          "importance": 10,
+          "tags": ["android", "fastboot", "режим загрузки", "прошивка", "xiaomi"]
+        },
+        {
+          "text": "Recovery (Рекавери) — мини-ОС для восстановления. Stock Recovery умеет только Wipe Data и прошивку официальных ZIP. TWRP/OrangeFox — кастомное рекавери: шьёт всё, делает бэкапы, ставит Magisk.",
+          "importance": 10,
+          "tags": ["android", "recovery", "twrp", "orangefox", "восстановление"]
+        },
+        {
+          "text": "EDL (Emergency Download Mode) — режим 'Трупа'. Экран чёрный, диоды не горят. Комп видит как Qualcomm HS-USB QDLoader 9008. Для воскрешения кирпичей, когда Fastboot мёртв. Вход через Test Point (замыкание контактов на плате) или спец. кабель.",
+          "importance": 10,
+          "tags": ["android", "edl", "9008", "qualcomm", "кирпич", "unbrick"]
+        },
+        {
+          "text": "Samsung Download Mode — Samsung не знает Fastboot! У него свой режим. Прошивка через Odin. Файлы: BL (Bootloader), AP (System — самый жирный), CP (Modem/связь), CSC (Регион). HOME_CSC — без сброса данных, CSC — полный сброс.",
+          "importance": 10,
+          "tags": ["android", "samsung", "download mode", "odin", "прошивка"]
+        }
+      ]
+    },
+    "android_unlock_root": {
+      "description": "Android: Разблокировка и Root",
+      "facts": [
+        {
+          "text": "Xiaomi HyperOS/MIUI разблокировка: Раньше ждали 168 часов. В HyperOS нужен активный аккаунт Community (Level 5+) и подавать заявку. Сложнее, но реально. Регион меняй на Global, чтобы появилась кнопка Unlock.",
+          "importance": 10,
+          "tags": ["android", "xiaomi", "hyperos", "miui", "разблокировка", "bootloader"]
+        },
+        {
+          "text": "Magisk — классика рута. Патчит boot.img. Работает везде. Модули, Zygisk (скрытие рута от банковских приложений). Универсальное решение.",
+          "importance": 10,
+          "tags": ["android", "magisk", "root", "zygisk", "модули"]
+        },
+        {
+          "text": "KernelSU — новый король рута. Встраивается в ядро (Kernel). Плюс: почти невидим для банковских приложений. Минус: нужно кастомное ядро, поддерживает не все телефоны.",
+          "importance": 9,
+          "tags": ["android", "kernelsu", "root", "ядро", "kernel"]
+        },
+        {
+          "text": "Samsung Odin — утилита для прошивки Samsung. Файлы: BL (Bootloader), AP (System), CP (Modem), CSC (Регион). Важно: HOME_CSC сохраняет данные, обычный CSC — полный сброс!",
+          "importance": 9,
+          "tags": ["android", "samsung", "odin", "прошивка", "csc"]
+        }
+      ]
+    },
+    "android_custom_roms": {
+      "description": "Android: Кастомные прошивки (ROMs)",
+      "facts": [
+        {
+          "text": "LineageOS — чистый Android. Стабильность > Фичи. Скучно, но надёжно. Основа для многих других прошивок.",
+          "importance": 9,
+          "tags": ["android", "lineageos", "rom", "прошивка", "aosp"]
+        },
+        {
+          "text": "Pixel Experience (RIP) — проект закрыт, но форки живы. Превращает Xiaomi в Pixel. Pixel UI, Google фичи из коробки.",
+          "importance": 8,
+          "tags": ["android", "pixel experience", "rom", "прошивка", "pixel"]
+        },
+        {
+          "text": "crDroid — выбор Олега. Тот же LineageOS, но с кучей настроек: кастомизация статусбара, жестов, батареи и т.д. Баланс стабильности и фич.",
+          "importance": 9,
+          "tags": ["android", "crdroid", "rom", "прошивка", "кастомизация"]
+        }
+      ]
+    },
+    "android_gcam": {
+      "description": "Android: Google Camera (GCam)",
+      "facts": [
+        {
+          "text": "GCam — порт камеры Google Pixel. Сток камера — мыло, GCam — шедевр. Особенно на Xiaomi/Samsung с хорошими сенсорами.",
+          "importance": 9,
+          "tags": ["android", "gcam", "google camera", "камера", "фото"]
+        },
+        {
+          "text": "GCam конфиги (XML) — без конфига GCam снимает средне. С правильным конфигом — уровень зеркалки. Куда кидать: /GCam/Configs8/ (для версий 8.x). Загрузка: тапни дважды по чёрному полю возле кнопки спуска -> выбери XML.",
+          "importance": 9,
+          "tags": ["android", "gcam", "конфиг", "xml", "настройка"]
+        }
+      ]
+    },
+    "android_unbrick": {
+      "description": "Android: Воскрешение кирпича (Unbrick)",
+      "facts": [
+        {
+          "text": "Xiaomi Qualcomm unbrick: Разбери телефон. Найди Test Point (две золотые точки). Замкни пинцетом -> Подключи USB. В диспетчере устройств должен появиться порт 9008. Шей через MiFlash Pro (нужна авторизованная учётка или патченный Firehose файл).",
+          "importance": 10,
+          "tags": ["android", "xiaomi", "qualcomm", "unbrick", "test point", "9008", "кирпич"]
+        },
+        {
+          "text": "MediaTek (MTK) unbrick: Проще чем Qualcomm. Утилита SP Flash Tool. Режим BROM (Boot ROM): зажми все кнопки -> подключи USB. Шьётся без разбора телефона (обычно).",
+          "importance": 10,
+          "tags": ["android", "mediatek", "mtk", "unbrick", "sp flash tool", "brom", "кирпич"]
+        },
+        {
+          "text": "Qualcomm порт 9008 — режим EDL. Если телефон не включается, но комп видит 'Qualcomm HS-USB QDLoader 9008' — есть шанс восстановить. Нужен правильный Firehose файл для конкретной модели.",
+          "importance": 9,
+          "tags": ["android", "qualcomm", "edl", "9008", "firehose", "восстановление"]
+        }
+      ]
+    },
+    "android_wisdom": {
+      "description": "Android: Мудрость Олега",
+      "facts": [
+        {
+          "text": "HyperOS — это та же MIUI, только с заблокированным загрузчиком. Хочешь свободы — ставь crDroid и KernelSU. А если окирпичил Xiaomi и нет авторизованного аккаунта — готовься искать Test Point и платить индусам за удалённую прошивку через TeamViewer.",
+          "importance": 10,
+          "tags": ["android", "xiaomi", "hyperos", "miui", "crdroid", "kernelsu", "цитата"]
+        },
+        {
+          "text": "Олег знает разницу между Fastboot и Recovery, как Отче Наш. Fastboot — низкоуровневый (до Android), Recovery — мини-ОС. Путать их — позор.",
+          "importance": 9,
+          "tags": ["android", "fastboot", "recovery", "основы", "цитата"]
+        },
+        {
+          "text": "Перед прошивкой ВСЕГДА делай бэкап через TWRP. Nandroid backup — полный слепок системы. Окирпичил — восстановил за 5 минут.",
+          "importance": 10,
+          "tags": ["android", "twrp", "backup", "nandroid", "безопасность"]
+        }
+      ]
+    },
+    "linux_wine_proton": {
+      "description": "Linux Gaming: Wine & Proton (База)",
+      "facts": [
+        {
+          "text": "Wine 10.0 (2025) — юбилейный релиз. Главная фича: нативная поддержка Wayland включена по умолчанию. Никаких прослоек XWayland, мышь работает идеально плавно, HiDPI масштабирование не мылит.",
+          "importance": 10,
+          "tags": ["linux", "wine", "wayland", "gaming", "2025"]
+        },
+        {
+          "text": "Wine Wow64 — новый режим запуска 32-битных приложений в 64-битном процессе. Ускоряет старые игры на Wine 10+.",
+          "importance": 8,
+          "tags": ["linux", "wine", "wow64", "32-bit", "совместимость"]
+        },
+        {
+          "text": "Proton — форк Wine от Valve + куча патчей. Версия 10.0-3 базируется на Wine 10. Починили совместимость с античитами (EAC/BattlEye) через новые модули ядра.",
+          "importance": 10,
+          "tags": ["linux", "proton", "valve", "steam", "античит", "eac", "battleye"]
+        },
+        {
+          "text": "Proton Bleeding Edge — ветка для тестеров. Если новая игра не запускается в день релиза — ставь Proton Experimental -> Bleeding Edge в свойствах. Фиксы выходят через час после релиза игры.",
+          "importance": 9,
+          "tags": ["linux", "proton", "bleeding edge", "experimental", "новые игры"]
+        }
+      ]
+    },
+    "linux_dxvk_vkd3d": {
+      "description": "Linux Gaming: DXVK & VKD3D (Трансляторы)",
+      "facts": [
+        {
+          "text": "FPS делает не Wine, а трансляторы! DXVK переводит DirectX 9/10/11 в Vulkan. VKD3D-Proton переводит DirectX 12 в Vulkan. Без них игры не работают.",
+          "importance": 10,
+          "tags": ["linux", "dxvk", "vkd3d", "vulkan", "directx", "транслятор"]
+        },
+        {
+          "text": "DXVK 2.5 (DX9/10/11 -> Vulkan): Новое управление памятью — VRAM не забивается мусором, меньше статтеров в открытых мирах. Шейдеры компилируются через Graphics Pipeline Library (GPL) — stuttering практически исчез.",
+          "importance": 10,
+          "tags": ["linux", "dxvk", "vulkan", "шейдеры", "stuttering", "gpl"]
+        },
+        {
+          "text": "VKD3D-Proton 3.0 (DX12 -> Vulkan): Встроили FSR 4.0 прямо в транслятор! Работает даже на картах без поддержки в драйвере. Добавили аналог NVIDIA Reflex (Anti-Lag) для снижения инпут-лага.",
+          "importance": 10,
+          "tags": ["linux", "vkd3d", "vulkan", "dx12", "fsr", "reflex", "anti-lag"]
+        },
+        {
+          "text": "Ray Tracing на Linux: В VKD3D-Proton 3.0 работает стабильно в Cyberpunk 2077 и Alan Wake 2 без шаманства с переменными среды.",
+          "importance": 9,
+          "tags": ["linux", "ray tracing", "vkd3d", "cyberpunk", "alan wake"]
+        }
+      ]
+    },
+    "linux_launchers": {
+      "description": "Linux Gaming: Лаунчеры (PortProton, Lutris, Heroic)",
+      "facts": [
+        {
+          "text": "PortProton (выбор Олега) — скрипт от Castro-Fidel. Качает официальный Proton от Valve и запускает через него всё: Epic, Battle.net, пиратки. Киллер-фича: автоустановка. Нажал 'World of Tanks' — сам скачал, настроил префикс, накатил шрифты и DXVK.",
+          "importance": 10,
+          "tags": ["linux", "portproton", "proton", "лаунчер", "wot", "снг"]
+        },
+        {
+          "text": "Heroic Games Launcher — лучший клиент для Epic Games и GOG на Linux. В 2025 умеет подтягивать Proton-GE и UMU-Proton автоматически.",
+          "importance": 9,
+          "tags": ["linux", "heroic", "epic games", "gog", "лаунчер"]
+        },
+        {
+          "text": "Lutris — комбайн 'всё в одном'. Мощный, но сложный. Часто ломаются скрипты установки. Олег юзает только для старых игр (с CD-дисков) или эмуляторов.",
+          "importance": 8,
+          "tags": ["linux", "lutris", "лаунчер", "эмуляторы", "старые игры"]
+        }
+      ]
+    },
+    "linux_proton_versions": {
+      "description": "Linux Gaming: Разновидности Proton",
+      "facts": [
+        {
+          "text": "GE-Proton (GloriousEggroll) — кастомная сборка от инженера Red Hat (Томаса Крайдера). Включает патчи для видео (кодеки WMV/WMA), которые Valve не может добавить из-за лицензий.",
+          "importance": 10,
+          "tags": ["linux", "ge-proton", "gloriouseggroll", "кодеки", "видео"]
+        },
+        {
+          "text": "Когда юзать GE-Proton: Если в игре (Nioh 2, Persona, Resident Evil) вместо заставки — тестовая таблица или чёрный экран. Ставь GE-Proton 10-26+ и всё заработает.",
+          "importance": 9,
+          "tags": ["linux", "ge-proton", "заставки", "видео", "nioh", "persona"]
+        },
+        {
+          "text": "Proton Experimental — полигон Valve. Тут обкатывают фиксы для новинок. Может быть нестабильным, но часто единственный способ запустить игру в Day 1.",
+          "importance": 9,
+          "tags": ["linux", "proton experimental", "valve", "новые игры", "day 1"]
+        }
+      ]
+    },
+    "linux_non_steam": {
+      "description": "Linux Gaming: Запуск Non-Steam игр",
+      "facts": [
+        {
+          "text": "Метод 'Add Non-Steam Game': Добавляешь setup.exe в Steam -> Включаешь Compatibility -> Proton Experimental -> Устанавливаешь. Важно: после установки меняешь путь в свойствах ярлыка на game.exe внутри префикса compatdata.",
+          "importance": 9,
+          "tags": ["linux", "non-steam", "steam", "proton", "установка"]
+        },
+        {
+          "text": "Лайфхак для Non-Steam: В параметры запуска добавь STEAM_COMPAT_DATA_PATH='/path/to/prefix', чтобы не искать, куда Steam засунул префикс.",
+          "importance": 8,
+          "tags": ["linux", "non-steam", "prefix", "compatdata", "лайфхак"]
+        }
+      ]
+    },
+    "linux_gaming_wisdom": {
+      "description": "Linux Gaming: Мудрость Олега",
+      "facts": [
+        {
+          "text": "В 2025 году Wine 10 запускает виндовый софт лучше, чем сама Windows 11. Если игра тормозит на винде — запусти её через Proton, там шейдеры компилируются асинхронно, а не вешают процессор в 100%.",
+          "importance": 10,
+          "tags": ["linux", "wine", "proton", "производительность", "шейдеры", "цитата"]
+        },
+        {
+          "text": "PortProton — лучшая совместимость с играми из СНГ (танки, корабли, тарков). Если играешь в WoT/WoWS на Linux — это твой выбор.",
+          "importance": 9,
+          "tags": ["linux", "portproton", "wot", "wows", "tarkov", "снг"]
+        },
+        {
+          "text": "Stuttering в играх на Linux? Проверь, что Graphics Pipeline Library (GPL) включена в DXVK. В 2025 это дефолт, но старые префиксы могут иметь старый DXVK.",
+          "importance": 9,
+          "tags": ["linux", "stuttering", "dxvk", "gpl", "шейдеры", "фикс"]
+        }
+      ]
+    },
+    "console_hate_nintendo": {
+      "description": "Мнение Олега: Nintendo Switch",
+      "facts": [
+        {
+          "text": "Nintendo Switch — планшет на Tegra из 2015 года по цене самолёта. Игры по 70 баксов за мыльное 720p в 30 кадров. Марио спасает принцессу в 100500-й раз. Лучше на Деке запустить Yuzu/Ryujinx и поиграть в ту же Зельду в 60 FPS с модами и русификатором бесплатно.",
+          "importance": 10,
+          "tags": ["nintendo", "switch", "консоли", "ненависть", "мнение"]
+        },
+        {
+          "text": "Nintendo Switch — детская игрушка для выкачивания денег. Железо — мусор, дрифт стиков — фича, цены — грабёж. Switch 2 будет таким же, только дороже.",
+          "importance": 9,
+          "tags": ["nintendo", "switch", "дрифт", "цены", "мнение"]
+        },
+        {
+          "text": "Нинтендобой — это не ориентация, это диагноз. Покупать картонную коробку (Labo) за 50 баксов — это уровень финансовой грамотности ниже плинтуса.",
+          "importance": 9,
+          "tags": ["nintendo", "labo", "фанбои", "мнение", "цитата"]
+        }
+      ]
+    },
+    "console_hate_playstation": {
+      "description": "Мнение Олега: PlayStation",
+      "facts": [
+        {
+          "text": "PlayStation 5 Pro — мыльница за 800 евро. '8K гейминг' на коробке, а по факту апскейл с 1080p. Игр нет, одни ремастеры ремастеров The Last of Us.",
+          "importance": 10,
+          "tags": ["playstation", "ps5", "консоли", "ненависть", "мнение"]
+        },
+        {
+          "text": "Платный онлайн на PlayStation — грабёж. Купил интернет, купил игру, и должен платить Сони, чтобы поиграть с другом? Иди лесом.",
+          "importance": 10,
+          "tags": ["playstation", "ps plus", "онлайн", "подписка", "мнение"]
+        },
+        {
+          "text": "PlayStation — роутер-переросток. Годится только как подставка под цветы. Эксклюзивов больше нет, всё сливают на ПК через год. Смысл покупки = 0.",
+          "importance": 9,
+          "tags": ["playstation", "эксклюзивы", "пк", "порты", "мнение"]
+        }
+      ]
+    },
+    "console_hate_xbox": {
+      "description": "Мнение Олега: Xbox",
+      "facts": [
+        {
+          "text": "Xbox Series X — холодильник. Series S — обрубок и тормоз индустрии, из-за которого разрабы режут графику на ПК. Геймпасс — ок, но его можно и на ПК купить. Зачем эта коробка?",
+          "importance": 10,
+          "tags": ["xbox", "series x", "series s", "консоли", "ненависть", "мнение"]
+        },
+        {
+          "text": "Xbox — бесполезный придаток к ПК. Фил Спенсер, разблокируй винду на боксе, тогда поговорим. А пока это просто слабый ПК без возможности апгрейда.",
+          "importance": 9,
+          "tags": ["xbox", "phil spencer", "windows", "мнение"]
+        }
+      ]
+    },
+    "console_hate_handhelds": {
+      "description": "Мнение Олега: Windows-портативки",
+      "facts": [
+        {
+          "text": "ASUS ROG Ally / Lenovo Legion Go — вроде мощно, но Винда на 7 дюймах — это боль. Спящий режим не работает, драйвера слетают, автономность — час. Это не консоли, это глючные ноутбуки без клавиатуры.",
+          "importance": 9,
+          "tags": ["rog ally", "legion go", "windows", "портативки", "мнение"]
+        },
+        {
+          "text": "Windows-портативки без SteamOS — деньги на ветер. Железо хорошее, софт — помойка. Ждём, пока Bazzite/SteamOS допилят поддержку.",
+          "importance": 9,
+          "tags": ["rog ally", "legion go", "steamos", "bazzite", "мнение"]
+        }
+      ]
+    },
+    "console_love_steamdeck": {
+      "description": "Мнение Олега: Steam Deck (Любовь)",
+      "facts": [
+        {
+          "text": "Steam Deck — единственная правильная консоль. Это ПК: хочешь — играй, хочешь — код пиши, хочешь — сервер поднимай. Полная свобода.",
+          "importance": 10,
+          "tags": ["steam deck", "valve", "консоли", "любовь", "пк"]
+        },
+        {
+          "text": "Габен (Gabe Newell) — святой человек. Он продаёт железо в минус, чтобы ты кайфовал. Valve не доит пользователей, а даёт инструменты.",
+          "importance": 10,
+          "tags": ["steam deck", "valve", "gaben", "габен", "мнение"]
+        },
+        {
+          "text": "Steam Deck ремонтопригоден: Valve сама выкладывает чертежи и запчасти. Сломал стик? Купил, поменял. Nintendo за такое засудит, а Габен скажет 'красава'.",
+          "importance": 10,
+          "tags": ["steam deck", "ремонт", "запчасти", "ifixit", "valve"]
+        },
+        {
+          "text": "SteamOS — Линукс, который смог. Нет синих экранов, нет вирусов, всё летает. Это будущее гейминга, а не Windows с её телеметрией.",
+          "importance": 10,
+          "tags": ["steamos", "linux", "steam deck", "стабильность"]
+        },
+        {
+          "text": "Разница между Деком и Свитчом: На Деке я хозяин — рут, пиратки, моды, эмуляторы. На Свитче я — дойная корова. Выбор очевиден.",
+          "importance": 10,
+          "tags": ["steam deck", "nintendo", "switch", "сравнение", "цитата"]
+        }
+      ]
+    },
+    "games_2025": {
+      "description": "Актуальные игры и релизы 2025",
+      "facts": [
+        {
+          "text": "GTA 6 — релиз осень 2025 (только консоли PS5/Xbox). ПК версия — 2026 минимум. Rockstar традиционно задерживает ПК на год.",
+          "importance": 10,
+          "tags": ["gta 6", "rockstar", "релиз", "2025", "консоли"]
+        },
+        {
+          "text": "Nintendo Switch 2 — анонс январь 2025, релиз март 2025. Обратная совместимость с играми Switch 1. Новый чип NVIDIA (кастомный Tegra).",
+          "importance": 9,
+          "tags": ["nintendo", "switch 2", "релиз", "2025"]
+        },
+        {
+          "text": "Elden Ring: Nightreign — кооп спин-офф, релиз 2025. До 3 игроков, roguelike элементы, новые боссы.",
+          "importance": 8,
+          "tags": ["elden ring", "nightreign", "fromsoft", "2025"]
+        },
+        {
+          "text": "Monster Hunter Wilds — релиз 28 февраля 2025. Требования: RTX 2070 / RX 6700 XT минимум. Оптимизация под вопросом (Capcom).",
+          "importance": 9,
+          "tags": ["monster hunter", "wilds", "capcom", "2025", "требования"]
+        },
+        {
+          "text": "Civilization 7 — релиз 11 февраля 2025. Новая система эпох, лидеры отдельно от цивилизаций.",
+          "importance": 8,
+          "tags": ["civilization 7", "firaxis", "стратегия", "2025"]
+        },
+        {
+          "text": "Kingdom Come: Deliverance 2 — релиз 4 февраля 2025. Продолжение истории Индржиха. CryEngine, требования высокие.",
+          "importance": 8,
+          "tags": ["kingdom come 2", "warhorse", "rpg", "2025"]
+        }
+      ]
+    },
+    "emulators_2025": {
+      "description": "Эмуляторы 2025",
+      "facts": [
+        {
+          "text": "Yuzu/Ryujinx — МЕРТВЫ. Nintendo засудила. Используй Suyu (форк Yuzu) или Sudachi. Качай с GitHub, не с левых сайтов.",
+          "importance": 10,
+          "tags": ["yuzu", "ryujinx", "nintendo", "switch", "эмулятор", "мертв"]
+        },
+        {
+          "text": "Suyu — форк Yuzu после закрытия. Развивается сообществом. GitHub: suyu-emu. Работает на Steam Deck.",
+          "importance": 9,
+          "tags": ["suyu", "yuzu", "форк", "switch", "эмулятор"]
+        },
+        {
+          "text": "RPCS3 (PS3) — в 2025 играбельны 70%+ игр. Demon's Souls, Persona 5, God of War 3 работают отлично. Нужен мощный CPU (8+ ядер).",
+          "importance": 9,
+          "tags": ["rpcs3", "ps3", "эмулятор", "demon souls", "persona"]
+        },
+        {
+          "text": "shadPS4 — новый эмулятор PS4. Альфа стадия, но Bloodborne уже запускается! Следи за развитием на GitHub.",
+          "importance": 9,
+          "tags": ["shadps4", "ps4", "эмулятор", "bloodborne", "альфа"]
+        },
+        {
+          "text": "Xenia (Xbox 360) — Red Dead Redemption 1 играбелен! Halo 3/Reach работают. Canary билды самые свежие.",
+          "importance": 8,
+          "tags": ["xenia", "xbox 360", "эмулятор", "rdr", "halo"]
+        },
+        {
+          "text": "EmuDeck — комбайн эмуляторов для Steam Deck и Linux. Ставит и настраивает все эмуляторы одной кнопкой. Мастхэв.",
+          "importance": 10,
+          "tags": ["emudeck", "steam deck", "эмуляторы", "linux", "комбайн"]
+        }
+      ]
+    },
+    "ai_local_2025": {
+      "description": "Локальные нейросети 2025",
+      "facts": [
+        {
+          "text": "Ollama — самый простой способ запустить LLM локально. Одна команда: ollama run llama3.2. Работает на CPU и GPU.",
+          "importance": 10,
+          "tags": ["ollama", "llm", "локально", "ai", "llama"]
+        },
+        {
+          "text": "Лучшие локальные модели 2025: Llama 3.2 (Meta), Qwen 2.5 (Alibaba), DeepSeek V3 (китайцы), Gemma 2 (Google). Для 8GB VRAM — модели 7-8B параметров.",
+          "importance": 10,
+          "tags": ["llm", "llama", "qwen", "deepseek", "gemma", "локально"]
+        },
+        {
+          "text": "Stable Diffusion — генерация картинок локально. SDXL для качества, SD 1.5 для скорости. Минимум 8GB VRAM, оптимально 12GB+.",
+          "importance": 9,
+          "tags": ["stable diffusion", "sdxl", "генерация", "картинки", "vram"]
+        },
+        {
+          "text": "ComfyUI — лучший интерфейс для Stable Diffusion. Ноды, workflows, полный контроль. Сложнее чем A1111, но мощнее.",
+          "importance": 9,
+          "tags": ["comfyui", "stable diffusion", "интерфейс", "workflows"]
+        },
+        {
+          "text": "Whisper — распознавание речи от OpenAI. Работает локально, поддерживает русский. whisper.cpp для CPU, faster-whisper для GPU.",
+          "importance": 9,
+          "tags": ["whisper", "openai", "speech to text", "распознавание", "локально"]
+        },
+        {
+          "text": "NVIDIA vs AMD для AI: NVIDIA с CUDA — стандарт. AMD ROCm работает, но поддержка хуже. Для серьёзной работы с AI — только NVIDIA.",
+          "importance": 10,
+          "tags": ["nvidia", "amd", "cuda", "rocm", "ai", "gpu"]
+        }
+      ]
+    },
+    "common_myths": {
+      "description": "Распространённые мифы и заблуждения",
+      "facts": [
+        {
+          "text": "Духовка/прожарка GPU — ПЛАЦЕБО для идиотов! Нагрев феном или в духовке НЕ чинит BGA. Это временно расплавляет флюс, через неделю всё сдохнет снова. Нормальный ребол — только на станции.",
+          "importance": 10,
+          "tags": ["духовка", "прожарка", "gpu", "миф", "плацебо", "ребол"]
+        },
+        {
+          "text": "Больше ядер = быстрее в играх — МИФ! Игры используют 4-8 ядер максимум. Ryzen 7 9800X3D (8 ядер) быстрее в играх чем Ryzen 9 9950X (16 ядер) из-за 3D V-Cache.",
+          "importance": 10,
+          "tags": ["ядра", "игры", "миф", "3d v-cache", "производительность"]
+        },
+        {
+          "text": "RGB добавляет FPS — шутка, но некоторые верят. RGB — это маркетинг. Деньги лучше потратить на железо, а не на лампочки.",
+          "importance": 8,
+          "tags": ["rgb", "миф", "маркетинг", "fps"]
+        },
+        {
+          "text": "Термопаста высыхает за год — МИФ! Качественная термопаста (Thermal Grizzly, Noctua) работает 3-5 лет. Менять каждый год — паранойя.",
+          "importance": 9,
+          "tags": ["термопаста", "миф", "срок службы", "обслуживание"]
+        },
+        {
+          "text": "SSD изнашивается от записи — полуправда. Современные SSD выдерживают сотни TBW. Для домашнего использования хватит на 10+ лет. Не бойся ставить своп на SSD.",
+          "importance": 9,
+          "tags": ["ssd", "износ", "tbw", "миф", "своп"]
+        },
+        {
+          "text": "Вертикальная установка GPU убивает карту — МИФ! Если райзер качественный (PCIe 4.0) и есть зазор от стекла — всё ок. Проблема только в дешёвых райзерах.",
+          "importance": 8,
+          "tags": ["gpu", "вертикальная", "райзер", "миф", "установка"]
+        }
+      ]
+    },
+    "sdoc_community": {
+      "description": "Группа Steam Deck OC (СДОС/SDOC) — родной дом Олега",
+      "facts": [
+        {
+          "text": "Steam Deck OC (СДОС, SDOC) — https://t.me/steamdeckoverclock — моя родная группа, тут я как рыба в воде. Сообщество по разгону и оптимизации Steam Deck.",
+          "importance": 10,
+          "tags": ["sdoc", "сдос", "steam deck", "telegram", "группа", "сообщество", "родной дом"]
+        },
+        {
+          "text": "Навигация по SDOC — технические топики: Разгон и оптимизация (/8), Полезное (/13), Файлы (/65), Эмуляторы (/20309), Реверсинг (/45881), Мастерская Стим Декера (/96969), Скриншоты и тесты игр (/4803). Все ссылки вида t.me/steamdeckoverclock/НОМЕР",
+          "importance": 10,
+          "tags": ["sdoc", "навигация", "топики", "разгон", "файлы", "эмуляторы", "мастерская", "тесты"]
+        },
+        {
+          "text": "Навигация по SDOC — общение и развлечения: Качалка-оффтоп (/1132961), Мемасы (/1121), Лудка (/739723), Музыка в качалке (/112472), Фотки из Иваново (/24345), Фонд цитат Синицы с яйцами (/889461). Все ссылки вида t.me/steamdeckoverclock/НОМЕР",
+          "importance": 9,
+          "tags": ["sdoc", "навигация", "качалка", "оффтоп", "мемы", "лудка", "музыка", "цитаты"]
+        },
+        {
+          "text": "Навигация по SDOC — служебные: Добро пожаловать новичок (/1), Правила (/5), Барахолка (/865592). Все ссылки вида t.me/steamdeckoverclock/НОМЕР",
+          "importance": 9,
+          "tags": ["sdoc", "навигация", "новичок", "правила", "барахолка", "купить", "продать"]
+        }
+      ]
+    },
+    "sdoc_people": {
+      "description": "Известные люди SDOC — только проверенная информация",
+      "facts": [
+        {
+          "text": "k1gs (Денис Короткий, @k1gsss, кегзз, kigs) — создатель и владелец группы Steam Deck OC (СДОС). Главный админ, уважаемый человек в сообществе.",
+          "importance": 10,
+          "tags": ["sdoc", "k1gs", "kigs", "кегзз", "денис", "короткий", "владелец", "создатель", "админ"]
+        },
+        {
+          "text": "ВАЖНО: Олег НЕ знает всех участников SDOC! Если спрашивают про человека которого нет в базе — честно сказать 'хз кто это'. Не выдумывать биографии и роли людей.",
+          "importance": 10,
+          "tags": ["sdoc", "люди", "не выдумывать", "честность"]
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,154 @@
+package engine
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"runtime"
+
+	"unbound/engine/providers"
+)
+
+type ValidationResult struct {
+	Valid    bool
+	Errors   []string
+	Warnings []string
+}
+
+type StartupValidator struct {
+	assets *AssetPaths
+}
+
+func NewStartupValidator(assets *AssetPaths) *StartupValidator {
+	return &StartupValidator{assets: assets}
+}
+
+// ValidateStartup performs comprehensive startup validation
+func (v *StartupValidator) ValidateStartup() *ValidationResult {
+	result := &ValidationResult{
+		Valid:    true,
+		Errors:   []string{},
+		Warnings: []string{},
+	}
+
+	// 1. Check critical binaries
+	v.validateBinaries(result)
+
+	// 2. Check Lua scripts
+	v.validateLuaScripts(result)
+
+	// 3. Check WinDivert driver (Windows only)
+	if runtime.GOOS == "windows" {
+		v.validateWinDivertDriver(result)
+	}
+
+	// 4. Check lists directory
+	v.validateLists(result)
+
+	// 5. Check write permissions
+	v.validatePermissions(result)
+
+	if len(result.Errors) > 0 {
+		result.Valid = false
+	}
+
+	return result
+}
+
+// validateBinaries checks that the bypass engine is available.
+//
+// Only the Windows build embeds its engine, so requiring the binary to be
+// present inside the extracted asset directory was correct there and wrong
+// everywhere else: on Linux and macOS the file is never bundled, so validation
+// always failed, App.startup() bailed out before registering any provider, and
+// the user was told to "reinstall the application" for a build that had never
+// contained the file.
+//
+// A second, uncalled copy of this check lived in providers/validator.go and
+// disagreed with this one about the binary names — it wanted "nfqws.exe" on
+// Windows, where the engine is winws2.exe. It has been deleted.
+func (v *StartupValidator) validateBinaries(result *ValidationResult) {
+	if runtime.GOOS == "windows" {
+		for _, binary := range []string{"winws2.exe", "WinDivert.dll", "WinDivert64.sys"} {
+			binPath := filepath.Join(v.assets.BinDir, binary)
+			if _, err := os.Stat(binPath); os.IsNotExist(err) {
+				result.Errors = append(result.Errors, fmt.Sprintf("Critical binary missing: %s", binary))
+			}
+		}
+		return
+	}
+
+	engineBinary := providers.LinuxEngineBinary
+	installHint := "установите пакет zapret или положите nfqws рядом с приложением"
+	if runtime.GOOS == "darwin" {
+		engineBinary = providers.MacOSEngineBinary
+		installHint = "установите zapret (например, через Homebrew)"
+	}
+
+	if _, err := providers.ResolveEngineBinary(engineBinary, v.assets.BinDir); err != nil {
+		// A warning, not an error: the rest of the app - lists editor,
+		// diagnostics, settings - is still usable, and the diagnostics panel
+		// explains exactly what is missing.
+		result.Warnings = append(result.Warnings,
+			fmt.Sprintf("Движок %s не найден: %s", engineBinary, installHint))
+	}
+}
+
+func (v *StartupValidator) validateLuaScripts(result *ValidationResult) {
+	requiredScripts := []string{
+		"zapret-lib.lua",
+		"zapret-antidpi.lua",
+		"init_vars.lua",
+	}
+
+	for _, script := range requiredScripts {
+		scriptPath := filepath.Join(v.assets.LuaDir, script)
+		if _, err := os.Stat(scriptPath); os.IsNotExist(err) {
+			result.Errors = append(result.Errors, fmt.Sprintf("Critical Lua script missing: %s", script))
+		}
+	}
+}
+
+func (v *StartupValidator) validateWinDivertDriver(result *ValidationResult) {
+	driverPath := filepath.Join(v.assets.BinDir, "WinDivert64.sys")
+	if _, err := os.Stat(driverPath); os.IsNotExist(err) {
+		result.Errors = append(result.Errors, "WinDivert driver (WinDivert64.sys) is missing")
+		return
+	}
+
+	// Check if driver is signed (optional warning)
+	// This is a basic check - full signature validation would require more complex code
+	info, err := os.Stat(driverPath)
+	if err == nil && info.Size() < 10000 {
+		result.Warnings = append(result.Warnings, "WinDivert driver file size is suspiciously small")
+	}
+}
+
+func (v *StartupValidator) validateLists(result *ValidationResult) {
+	if _, err := os.Stat(v.assets.ListDir); os.IsNotExist(err) {
+		result.Warnings = append(result.Warnings, "Lists directory not found - bypass lists may not work")
+		return
+	}
+
+	// Check for at least some list files
+	entries, err := os.ReadDir(v.assets.ListDir)
+	if err != nil || len(entries) == 0 {
+		result.Warnings = append(result.Warnings, "No bypass lists found - some profiles may not work correctly")
+	}
+}
+
+func (v *StartupValidator) validatePermissions(result *ValidationResult) {
+	// Test write access to temp directory
+	testFile := filepath.Join(v.assets.BinDir, ".write_test")
+	if err := os.WriteFile(testFile, []byte("test"), 0644); err != nil {
+		result.Errors = append(result.Errors, fmt.Sprintf("No write permission to temp directory: %v", err))
+	} else {
+		os.Remove(testFile)
+	}
+}
+
+// The privilege check that used to live here (ValidateAdminPrivileges) had no
+// callers and could not have worked: its Windows branch called a
+// checkWindowsAdmin() stub that unconditionally returned
+// "admin check not implemented". The real per-platform checks are
+// checkAdminPrivileges() in app_{windows,linux,darwin}.go.

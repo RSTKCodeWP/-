@@ -1,0 +1,208 @@
+{
+  "examples": {
+    "default": {
+      "description": "Default configuration for general use",
+      "servo_pin": "A18",
+      "pwm_id": 6,
+      "servo_angle_open": 90,
+      "servo_angle_close": 0,
+      "close_delay": 10,
+      "rearm_mode": true,
+      "rearm_delay": 2,
+      "repeat_trigger": false,
+      "repeat_interval": 10,
+      "detection_mode": "color",
+      "color_preset": "Yellow",
+      "object_preset": "person",
+      "confidence_threshold": 0.5,
+      "min_area": 500,
+      "motion_sensitivity": 50,
+      "camera_width": 640,
+      "camera_height": 480,
+      "fps_target": 30
+    },
+    
+    "fast_response": {
+      "description": "Quick response with short delays",
+      "servo_pin": "A18",
+      "pwm_id": 6,
+      "servo_angle_open": 90,
+      "servo_angle_close": 0,
+      "close_delay": 3,
+      "rearm_mode": true,
+      "rearm_delay": 1,
+      "repeat_trigger": false,
+      "detection_mode": "color",
+      "color_preset": "Red",
+      "min_area": 300,
+      "camera_width": 640,
+      "camera_height": 480
+    },
+    
+    "person_detector": {
+      "description": "Optimized for person detection",
+      "servo_pin": "A18",
+      "pwm_id": 6,
+      "servo_angle_open": 90,
+      "servo_angle_close": 0,
+      "close_delay": 15,
+      "rearm_mode": true,
+      "rearm_delay": 3,
+      "repeat_trigger": false,
+      "detection_mode": "object",
+      "object_preset": "person",
+      "confidence_threshold": 0.6,
+      "camera_width": 640,
+      "camera_height": 480
+    },
+    
+    "motion_sensor": {
+      "description": "Motion detection mode",
+      "servo_pin": "A18",
+      "pwm_id": 6,
+      "servo_angle_open": 90,
+      "servo_angle_close": 0,
+      "close_delay": 5,
+      "rearm_mode": true,
+      "rearm_delay": 2,
+      "repeat_trigger": false,
+      "detection_mode": "motion",
+      "motion_sensitivity": 40,
+      "camera_width": 640,
+      "camera_height": 480
+    },
+    
+    "continuous_trigger": {
+      "description": "Repeats trigger while object is detected",
+      "servo_pin": "A18",
+      "pwm_id": 6,
+      "servo_angle_open": 90,
+      "servo_angle_close": 0,
+      "close_delay": 5,
+      "rearm_mode": true,
+      "rearm_delay": 2,
+      "repeat_trigger": true,
+      "repeat_interval": 8,
+      "detection_mode": "color",
+      "color_preset": "Yellow",
+      "min_area": 500,
+      "camera_width": 640,
+      "camera_height": 480
+    },
+    
+    "high_performance": {
+      "description": "Lower resolution for maximum FPS",
+      "servo_pin": "A18",
+      "pwm_id": 6,
+      "servo_angle_open": 90,
+      "servo_angle_close": 0,
+      "close_delay": 10,
+      "rearm_mode": true,
+      "rearm_delay": 2,
+      "detection_mode": "color",
+      "color_preset": "Yellow",
+      "min_area": 400,
+      "camera_width": 320,
+      "camera_height": 240,
+      "fps_target": 60
+    },
+    
+    "high_quality": {
+      "description": "Higher resolution for better detection",
+      "servo_pin": "A18",
+      "pwm_id": 6,
+      "servo_angle_open": 90,
+      "servo_angle_close": 0,
+      "close_delay": 10,
+      "rearm_mode": true,
+      "rearm_delay": 2,
+      "detection_mode": "object",
+      "object_preset": "person",
+      "confidence_threshold": 0.7,
+      "camera_width": 1280,
+      "camera_height": 720,
+      "fps_target": 15
+    }
+  },
+  
+  "pwm_pins": {
+    "description": "Available PWM pins on MaixCAM",
+    "pins": [
+      {"pin": "A18", "pwm_id": 6, "note": "Default, recommended"},
+      {"pin": "A19", "pwm_id": 7, "note": "Alternative"},
+      {"pin": "A20", "pwm_id": 8, "note": "Alternative"},
+      {"pin": "A21", "pwm_id": 9, "note": "Alternative"}
+    ],
+    "warning": "Check MaixCAM pinout diagram to verify PWM availability"
+  },
+  
+  "servo_types": {
+    "SG90": {
+      "angle_range": "0-180",
+      "pulse_width": "0.5ms-2.5ms",
+      "frequency": "50Hz",
+      "voltage": "4.8V-6V",
+      "current": "100-250mA",
+      "note": "Standard micro servo, default configuration works"
+    },
+    "MG90S": {
+      "angle_range": "0-180",
+      "pulse_width": "0.5ms-2.5ms",
+      "frequency": "50Hz",
+      "voltage": "4.8V-6V",
+      "current": "150-300mA",
+      "note": "Metal gear version, more torque"
+    },
+    "SG92R": {
+      "angle_range": "0-180",
+      "pulse_width": "0.5ms-2.5ms",
+      "frequency": "50Hz",
+      "voltage": "4.8V-6V",
+      "current": "100-250mA",
+      "note": "Continuous rotation capable"
+    }
+  },
+  
+  "color_calibration_tips": {
+    "lighting": "Ensure consistent lighting conditions",
+    "distance": "Calibrate at the same distance you'll use for detection",
+    "background": "Avoid similar colors in the background",
+    "multiple_samples": "Tap multiple areas of the target color for best results",
+    "lab_space": "LAB color space is more robust than RGB for varying lighting"
+  },
+  
+  "object_detection_tips": {
+    "confidence": "Lower threshold (0.3-0.5) for more detections, higher (0.6-0.8) for accuracy",
+    "distance": "YOLO works best at 1-5 meters distance",
+    "lighting": "Good lighting improves detection significantly",
+    "occlusion": "Partially hidden objects may not be detected",
+    "model": "Default yolov8n.mud supports 80 COCO classes"
+  },
+  
+  "troubleshooting": {
+    "servo_not_moving": [
+      "Check power supply (VBUS 5V must provide enough current)",
+      "Verify pin connection (Signal to A18, GND to GND, Power to VBUS)",
+      "Run servo_test.py to verify hardware",
+      "Try different PWM pin if A18 doesn't work"
+    ],
+    "poor_color_detection": [
+      "Use calibration feature (tap screen in menu)",
+      "Ensure good lighting",
+      "Increase min_area if too many false positives",
+      "Decrease min_area if missing detections"
+    ],
+    "low_fps": [
+      "Reduce camera resolution (320x240 for max speed)",
+      "Use color detection instead of object detection",
+      "Increase min_area to filter small objects",
+      "Disable repeat_trigger if enabled"
+    ],
+    "object_detection_fails": [
+      "Verify model exists at /root/models/yolov8n.mud",
+      "Check if object is in COCO dataset (80 classes)",
+      "Adjust confidence_threshold",
+      "Ensure good lighting and clear view"
+    ]
+  }
+}

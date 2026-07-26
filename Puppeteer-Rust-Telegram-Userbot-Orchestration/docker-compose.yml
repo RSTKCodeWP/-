@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  puppeteer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: puppeteer_bot
+    env_file:
+      - .env
+    environment:
+      # Override database path for container
+      - DATABASE_URL=sqlite:/app/data/puppeteer.db
+      # Enable logging
+      - RUST_LOG=info
+      # Override Ollama URL to use host.docker.internal (macOS/Windows)
+      # For Linux, use: http://172.17.0.1:11434
+      - OLLAMA_URL=http://host.docker.internal:11434
+      # Override Whisper URL if using external service
+      - WHISPER_URL=http://host.docker.internal:9000
+    volumes:
+      # Persist database and TDLib sessions
+      - ./data:/app/data
+      # Persist migrations
+      - ./migrations:/app/migrations:ro
+    extra_hosts:
+      # Allow container to access host services (Ollama, Whisper)
+      - "host.docker.internal:host-gateway"
+    dns:
+      # Use Google DNS for reliability
+      - 8.8.8.8
+      - 8.8.4.4
+    restart: unless-stopped
+    networks:
+      - puppeteer_network
+
+networks:
+  puppeteer_network:
+    driver: bridge

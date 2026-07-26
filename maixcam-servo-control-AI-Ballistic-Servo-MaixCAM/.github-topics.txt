@@ -1,0 +1,103 @@
+# GitHub Topics for Maximum Visibility
+# Add these topics to your repository settings on GitHub
+
+## Core Topics
+maixcam
+maix
+sipeed
+maixpy
+servo-control
+servo-motor
+
+## AI & Computer Vision
+yolov8
+yolo
+object-detection
+color-detection
+motion-detection
+computer-vision
+image-processing
+opencv
+neural-network
+deep-learning
+machine-learning
+ai
+artificial-intelligence
+
+## Edge Computing
+edge-ai
+tinyml
+embedded-ai
+embedded-ml
+edge-computing
+iot-ai
+
+## Hardware & Embedded
+embedded
+embedded-systems
+iot
+internet-of-things
+robotics
+automation
+hardware
+microcontroller
+embedded-linux
+
+## Programming
+python
+python3
+micropython
+real-time
+real-time-processing
+
+## Applications
+smart-home
+home-automation
+security-camera
+motion-sensor
+pet-feeder
+automatic-door
+gesture-control
+wildlife-camera
+
+## Alternatives & Comparisons
+raspberry-pi-alternative
+arduino-alternative
+esp32-cam-alternative
+jetson-nano-alternative
+
+## Community
+maker
+diy
+open-source
+opensource
+hackaday
+maker-project
+
+## Performance
+high-performance
+low-latency
+optimized
+fast
+
+## Features
+touchscreen
+ui
+osd
+configuration
+calibration
+
+## Use Cases
+industrial-automation
+quality-control
+people-counter
+parking-monitor
+color-sorting
+defect-detection
+
+## Additional
+camera
+vision
+sensor
+actuator
+pwm

@@ -1,0 +1,57 @@
+# SearXNG settings for OLEG bot
+# Полностью отключаем bot detection для внутреннего использования
+
+use_default_settings: true
+
+server:
+  # КРИТИЧНО: отключаем лимитер
+  limiter: false
+  image_proxy: false
+  # Секретный ключ
+  secret_key: "oleg-searxng-secret-key-change-me"
+
+search:
+  safe_search: 0
+  autocomplete: "google"
+  default_lang: "ru"
+  formats:
+    - html
+    - json
+
+general:
+  debug: false
+  instance_name: "OLEG SearXNG"
+  enable_metrics: false
+
+outgoing:
+  request_timeout: 10.0
+  verify: true
+
+# КРИТИЧНО: Полностью отключаем redis и bot detection
+redis:
+  url: false
+
+# Отключаем все проверки
+server.limiter: false
+
+# Настройки движков поиска
+engines:
+  - name: google
+    engine: google
+    shortcut: g
+    disabled: false
+  
+  - name: duckduckgo
+    engine: duckduckgo
+    shortcut: ddg
+    disabled: false
+  
+  - name: bing
+    engine: bing
+    shortcut: b
+    disabled: false
+  
+  - name: wikipedia
+    engine: wikipedia
+    shortcut: w
+    disabled: false

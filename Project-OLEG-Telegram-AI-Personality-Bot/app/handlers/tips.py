@@ -1,0 +1,61 @@
+"""Tips command handler for chat owners.
+
+Provides actionable recommendations for improving chat management.
+"""
+
+import logging
+from aiogram import Router
+from aiogram.filters import Command
+from aiogram.types import Message
+
+logger = logging.getLogger(__name__)
+
+router = Router()
+
+# Готовые советы для админов
+TIPS = [
+    "💡 Используй /режим для настройки строгости модерации (light/normal/dictatorship)",
+    "💡 Команда /admin в ЛС открывает полную панель управления чатом",
+    "💡 Включи GIF-патруль для автоматической проверки GIF на NSFW контент",
+    "💡 Настрой антирейд через /admin — он автоматически банит при массовом вступлении",
+    "💡 Используй /warn вместо сразу /ban — система страйков работает автоматически",
+    "💡 Бот может анализировать токсичность сообщений — включи в настройках",
+    "💡 Команда /whois покажет информацию о пользователе и его историю",
+    "💡 Настрой автоответы бота через /owner панель (только для владельца бота)",
+    "💡 Бот умеет пересказывать длинные сообщения — используй /tldr",
+    "💡 Цитаты (/q) сохраняются как стикеры — можно добавить в стикерпак",
+]
+
+
+@router.message(Command("советы", "tips"))
+async def cmd_tips(msg: Message):
+    """Советы для администраторов чата."""
+    # Только в группах
+    if msg.chat.type == "private":
+        await msg.reply(
+            "💡 Эта команда работает только в групповых чатах.\n"
+            "Используй её в чате, которым управляешь."
+        )
+        return
+    
+    user_id = msg.from_user.id
+    
+    # Проверяем права
+    try:
+        member = await msg.chat.get_member(user_id)
+        if member.status not in ("creator", "administrator"):
+            await msg.reply("⛔ Эта команда доступна только администраторам чата.")
+            return
+    except Exception as e:
+        logger.warning(f"Failed to check admin status: {e}")
+        await msg.reply("❌ Не удалось проверить права доступа.")
+        return
+    
+    import random
+    selected_tips = random.sample(TIPS, min(5, len(TIPS)))
+    
+    text = "📋 <b>Советы по управлению чатом:</b>\n\n"
+    text += "\n\n".join(selected_tips)
+    text += "\n\n<i>Используй /admin в ЛС для полной панели управления</i>"
+    
+    await msg.reply(text, parse_mode="HTML")

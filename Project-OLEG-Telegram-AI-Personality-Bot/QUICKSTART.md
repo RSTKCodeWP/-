@@ -1,0 +1,177 @@
+# ⚡ Быстрый старт — Олег 5.0
+
+> Запусти бота за 2 минуты
+
+---
+
+## 🐳 Docker (рекомендуется)
+
+```bash
+# 1. Клонируй
+git clone https://github.com/your-repo/oleg-bot && cd oleg-bot
+
+# 2. Настрой
+cp .env.docker .env
+nano .env  # Добавь TELEGRAM_BOT_TOKEN и OWNER_ID
+
+# 3. Запусти
+docker-compose up -d
+
+# 4. Проверь
+docker-compose logs -f oleg-bot
+```
+
+**Готово!** 🎉
+
+---
+
+## 🐍 Python (для разработки)
+
+```bash
+# 1. Установи зависимости
+pip install -r requirements.txt
+
+# 2. Установи ffmpeg (для голосовых)
+# Windows: choco install ffmpeg
+# Linux: apt install ffmpeg
+# Mac: brew install ffmpeg
+
+# 3. Настрой
+cp .env.example .env
+nano .env
+
+# 4. Миграции
+alembic upgrade head
+
+# 5. Запусти
+python -m app.main
+```
+
+---
+
+## ⚙️ Минимальная конфигурация
+
+```bash
+# .env
+TELEGRAM_BOT_TOKEN=123456:ABC-DEF...  # От @BotFather
+OWNER_ID=123456789                     # Твой Telegram ID
+
+# Ollama (должен быть запущен)
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_BASE_MODEL=deepseek-v3.2:cloud
+OLLAMA_VISION_MODEL=qwen3-vl:235b-cloud
+```
+
+---
+
+## ✅ Проверка
+
+Отправь боту в Telegram:
+```
+/start
+/help
+/ping   # Статус всех подсистем
+```
+
+Проверь мультимодальность:
+- 🖼️ Отправь картинку — бот проанализирует в своём стиле
+- 🎤 Отправь голосовое — бот распознает речь
+- 📹 Отправь кружочек — бот транскрибирует
+
+Проверь игры:
+- `/roulette` — русская рулетка
+- `/coinflip 10 heads` — ставка на монетку
+- `/challenge @user` — вызов на PvP
+
+Админ-панель (только для владельца):
+- `/admin` — в личных сообщениях боту
+
+---
+
+## 📊 Метрики (опционально)
+
+```bash
+# Включи в .env
+METRICS_ENABLED=true
+
+# Проверь
+curl http://localhost:9090/health
+curl http://localhost:9090/metrics
+```
+
+---
+
+## 🔧 Полезные команды
+
+```bash
+# Логи
+docker-compose logs -f oleg-bot
+
+# Перезапуск
+docker-compose restart oleg-bot
+
+# Пересборка после изменений
+docker-compose up -d --build oleg-bot
+
+# Остановка
+docker-compose down
+```
+
+---
+
+## 🧪 Тестирование
+
+```bash
+# Все тесты
+pytest
+
+# Property-based тесты (46 тестов)
+pytest tests/property/ -v
+```
+
+---
+
+## 🐛 Проблемы?
+
+### Бот не запускается
+```bash
+docker-compose logs oleg-bot
+```
+
+### Ollama не отвечает
+```bash
+curl http://localhost:11434/api/tags
+ollama serve  # Если не запущен
+```
+
+### Голосовые не работают
+```bash
+ffmpeg -version  # Должен быть установлен
+```
+
+### Vision возвращает пустой ответ
+Проверь что модель поддерживает изображения:
+```bash
+ollama run qwen3-vl:235b-cloud
+```
+
+### Think теги в ответах
+Проверь что ThinkTagFilter работает:
+```bash
+pytest tests/property/test_think_filter_props.py -v
+```
+
+---
+
+## 📚 Документация
+
+| Документ | Описание |
+|----------|----------|
+| [README.md](README.md) | Полная документация |
+| [INSTALLATION.md](INSTALLATION.md) | Подробная установка |
+| [TESTING.md](TESTING.md) | Руководство по тестам |
+| [CHANGELOG.md](CHANGELOG.md) | История изменений |
+
+---
+
+**Вопросы?** Создай issue в репозитории.

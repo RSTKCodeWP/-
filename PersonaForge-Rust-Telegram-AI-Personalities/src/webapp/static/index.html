@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>PersonaForge</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Navigation -->
+        <nav class="nav">
+            <button class="nav-btn active" data-tab="status">📊</button>
+            <button class="nav-btn" data-tab="personas">🎭</button>
+            <button class="nav-btn" data-tab="chats">💬</button>
+            <button class="nav-btn" data-tab="security">🛡️</button>
+            <button class="nav-btn" data-tab="config">⚙️</button>
+        </nav>
+
+        <!-- Status Tab -->
+        <section id="status" class="tab active">
+            <h2>Статус системы</h2>
+            
+            <!-- Pause Button -->
+            <div class="pause-container">
+                <button id="pause-btn" class="btn btn-pause" onclick="togglePause()">
+                    <span id="pause-icon">⏸️</span>
+                    <span id="pause-text">Пауза</span>
+                </button>
+            </div>
+            
+            <div class="status-grid" id="status-grid">
+                <div class="status-card">
+                    <span class="status-icon" id="ollama-status">⏳</span>
+                    <span>Ollama</span>
+                </div>
+                <div class="status-card">
+                    <span class="status-icon" id="db-status">⏳</span>
+                    <span>База данных</span>
+                </div>
+            </div>
+            
+            <div class="info-card">
+                <h3>Активная персона</h3>
+                <p id="active-persona">—</p>
+            </div>
+
+            <div class="info-card">
+                <h3>Очередь LLM</h3>
+                <div class="queue-stats">
+                    <div><span id="queue-available">0</span>/<span id="queue-max">3</span> слотов</div>
+                    <div>Запросов: <span id="total-requests">0</span></div>
+                    <div>✅ <span id="success-requests">0</span> ❌ <span id="failed-requests">0</span></div>
+                    <div>⏱️ <span id="avg-time">0</span>мс</div>
+                </div>
+            </div>
+
+            <div class="info-card">
+                <h3>Конфигурация</h3>
+                <div class="config-list">
+                    <div>Модель: <span id="model-name">—</span></div>
+                    <div>Температура: <span id="temperature">—</span></div>
+                    <div>Токены: <span id="max-tokens">—</span></div>
+                    <div id="features-list"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Personas Tab -->
+        <section id="personas" class="tab">
+            <h2>Персоны</h2>
+            <button class="btn btn-primary" onclick="showCreatePersona()">+ Создать персону</button>
+            <div id="personas-list" class="list"></div>
+        </section>
+
+        <!-- Chats Tab -->
+        <section id="chats" class="tab">
+            <h2>Чаты</h2>
+            <div id="chats-list" class="list"></div>
+        </section>
+
+        <!-- Security Tab -->
+        <section id="security" class="tab">
+            <h2>🛡️ Безопасность</h2>
+            
+            <div class="info-card">
+                <h3>Защита от Prompt Injection</h3>
+                <div class="config-list">
+                    <div>• Санитизация пользовательского ввода</div>
+                    <div>• Детекция подозрительных паттернов</div>
+                    <div>• Адаптивный rate limiting</div>
+                    <div>• Временные блокировки</div>
+                </div>
+            </div>
+
+            <div class="info-card">
+                <h3>Настройки</h3>
+                <div class="config-list">
+                    <div>Порог страйка: <strong>30</strong> risk score</div>
+                    <div>Страйков до блока: <strong>3</strong></div>
+                    <div>Длительность блока: <strong>5 мин</strong></div>
+                    <div>Окно страйков: <strong>1 час</strong></div>
+                </div>
+            </div>
+
+            <div class="info-card">
+                <h3>Rate Limiting</h3>
+                <div class="config-list">
+                    <div>0 нарушений: <strong>20</strong> msg/min</div>
+                    <div>1-2 нарушения: <strong>15</strong> msg/min</div>
+                    <div>3-5 нарушений: <strong>10</strong> msg/min</div>
+                    <div>6+ нарушений: <strong>3-5</strong> msg/min</div>
+                </div>
+            </div>
+
+            <div class="info-card">
+                <h3>Проверить пользователя</h3>
+                <div class="form-group">
+                    <label>User ID</label>
+                    <input type="number" id="check-user-id" placeholder="123456789">
+                </div>
+                <button class="btn btn-secondary" onclick="checkUserSecurity()">🔍 Проверить</button>
+            </div>
+
+            <div id="security-result" class="info-card hidden">
+                <h3>Результат</h3>
+                <div id="security-result-content"></div>
+                <div class="list-item-actions" style="margin-top: 12px;">
+                    <button class="btn btn-small btn-danger" id="block-user-btn" onclick="blockUserFromCheck()">🔒 Заблокировать</button>
+                    <button class="btn btn-small btn-secondary" id="unblock-user-btn" onclick="unblockUserFromCheck()">🔓 Разблокировать</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Settings Tab -->
+        <section id="config" class="tab">
+            <h2>Конфигурация</h2>
+            <div id="config-form">
+                <div class="info-card">
+                    <h3>🤖 Модели</h3>
+                    <div class="form-group">
+                        <label>Chat модель</label>
+                        <input type="text" id="cfg-chat-model" placeholder="gemma2:2b">
+                    </div>
+                    <div class="form-group">
+                        <label>Embedding модель</label>
+                        <input type="text" id="cfg-embed-model" placeholder="nomic-embed-text">
+                    </div>
+                    <div class="form-group">
+                        <label>Vision модель</label>
+                        <input type="text" id="cfg-vision-model" placeholder="llava:latest">
+                    </div>
+                </div>
+
+                <div class="info-card">
+                    <h3>⚡ Генерация</h3>
+                    <div class="form-group">
+                        <label>Температура (0.0 - 2.0)</label>
+                        <input type="number" id="cfg-temperature" step="0.1" min="0" max="2">
+                    </div>
+                    <div class="form-group">
+                        <label>Макс. токенов</label>
+                        <input type="number" id="cfg-max-tokens" min="100" max="8192">
+                    </div>
+                    <div class="form-group">
+                        <label>Таймаут LLM (сек)</label>
+                        <input type="number" id="cfg-llm-timeout" min="10" max="600">
+                    </div>
+                    <div class="form-group">
+                        <label>Макс. параллельных запросов</label>
+                        <input type="number" id="cfg-max-concurrent" min="1" max="10">
+                    </div>
+                </div>
+
+                <div class="info-card">
+                    <h3>🧠 RAG и память</h3>
+                    <div class="form-group">
+                        <label>Скорость затухания (0.0 - 1.0)</label>
+                        <input type="number" id="cfg-decay-rate" step="0.05" min="0" max="1">
+                    </div>
+                    <div class="form-group">
+                        <label>Порог суммаризации (сообщений)</label>
+                        <input type="number" id="cfg-summary-threshold" min="10" max="200">
+                    </div>
+                </div>
+
+                <div class="info-card">
+                    <h3>🎛️ Функции</h3>
+                    <div class="toggle-row">
+                        <span>👁️ Vision (анализ изображений)</span>
+                        <label class="toggle">
+                            <input type="checkbox" id="cfg-vision-enabled">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    <div class="toggle-row">
+                        <span>🎤 Voice (распознавание речи)</span>
+                        <label class="toggle">
+                            <input type="checkbox" id="cfg-voice-enabled">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    <div class="toggle-row">
+                        <span>🌐 Web Search</span>
+                        <label class="toggle">
+                            <input type="checkbox" id="cfg-web-search">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label>Вероятность случайного ответа (0.0 - 1.0)</label>
+                        <input type="number" id="cfg-random-reply" step="0.01" min="0" max="1">
+                    </div>
+                </div>
+
+                <button class="btn btn-primary" onclick="saveConfig()">💾 Сохранить</button>
+            </div>
+            
+            <h2 style="margin-top: 24px;">📊 Статистика чатов</h2>
+            <div id="stats-list" class="list"></div>
+        </section>
+
+        <!-- Modals -->
+        <div id="modal" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 id="modal-title">Modal</h3>
+                    <button class="close-btn" onclick="closeModal()">×</button>
+                </div>
+                <div id="modal-body"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,39 @@
+# Wails build output
+build/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Go
+*.test
+*.out
+vendor/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/package.json.md5
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Binaries (users must download separately)
+engine/core_bin/linux/nfqws
+engine/core_bin/macos/nfqws
+android/magisk/bin/
+
+# Settings
+settings.json

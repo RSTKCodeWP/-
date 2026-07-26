@@ -1,0 +1,169 @@
+.spi-nor-operations {
+  padding: 1rem;
+}
+
+.spi-nor-operations h3 {
+  margin: 0 0 1rem 0;
+  font-size: 1.1rem;
+  color: var(--text-primary, #e0e0e0);
+}
+
+.spi-nor-operations h4 {
+  margin: 1rem 0 0.5rem 0;
+  font-size: 0.9rem;
+  color: var(--text-secondary, #a0a0a0);
+  border-bottom: 1px solid var(--border-color, #333);
+  padding-bottom: 0.25rem;
+}
+
+/* Chip Details */
+.nor-chip-details {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  padding: 0.75rem;
+  background: var(--bg-secondary, #1a1a1a);
+  border-radius: 6px;
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.detail-row .label {
+  color: var(--text-secondary, #a0a0a0);
+  font-size: 0.85rem;
+}
+
+.detail-row .value {
+  color: var(--text-primary, #e0e0e0);
+  font-weight: 500;
+  font-family: monospace;
+}
+
+/* Protection Section */
+.protection-section {
+  margin-bottom: 1rem;
+}
+
+.protection-status {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  padding: 0.75rem;
+  background: var(--bg-secondary, #1a1a1a);
+  border-radius: 6px;
+}
+
+.status-indicator {
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.status-indicator.protected {
+  color: #f59e0b;
+}
+
+.status-indicator.unprotected {
+  color: #10b981;
+}
+
+.protection-bits {
+  font-size: 0.8rem;
+  color: var(--text-secondary, #a0a0a0);
+  font-family: monospace;
+}
+
+.unlock-btn {
+  width: 100%;
+  padding: 0.5rem;
+  background: var(--bg-tertiary, #2a2a2a);
+  border: 1px solid var(--border-color, #333);
+  border-radius: 4px;
+  color: var(--text-primary, #e0e0e0);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.unlock-btn:hover:not(:disabled) {
+  background: var(--accent-color, #3b82f6);
+  border-color: var(--accent-color, #3b82f6);
+}
+
+.unlock-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Erase Section */
+.erase-section {
+  margin-bottom: 1rem;
+}
+
+.address-input {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.address-input label {
+  color: var(--text-secondary, #a0a0a0);
+  font-size: 0.85rem;
+  min-width: 60px;
+}
+
+.address-input input {
+  flex: 1;
+  padding: 0.5rem;
+  background: var(--bg-secondary, #1a1a1a);
+  border: 1px solid var(--border-color, #333);
+  border-radius: 4px;
+  color: var(--text-primary, #e0e0e0);
+  font-family: monospace;
+}
+
+.address-input input:focus {
+  outline: none;
+  border-color: var(--accent-color, #3b82f6);
+}
+
+.erase-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.erase-buttons button {
+  padding: 0.6rem 1rem;
+  background: var(--bg-tertiary, #2a2a2a);
+  border: 1px solid var(--border-color, #333);
+  border-radius: 4px;
+  color: var(--text-primary, #e0e0e0);
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 0.9rem;
+}
+
+.erase-buttons button:hover:not(:disabled) {
+  background: var(--bg-hover, #333);
+}
+
+.erase-buttons button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.erase-buttons button.danger {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: #ef4444;
+  color: #ef4444;
+}
+
+.erase-buttons button.danger:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.2);
+}
