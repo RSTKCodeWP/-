@@ -1,0 +1,11 @@
+# Give user access to USB serial devices (ELRS TX modules, flight controllers)
+# ESP32-based ELRS devices (RadioMaster Nomad)
+SUBSYSTEM=="tty", ATTRS{idVendor}=="303a", MODE="0660", TAG+="uaccess"
+# Silicon Labs CP210x
+SUBSYSTEM=="tty", ATTRS{idVendor}=="10c4", MODE="0660", TAG+="uaccess"
+# WCH CH340
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", MODE="0660", TAG+="uaccess"
+# FTDI
+SUBSYSTEM=="tty", ATTRS{idVendor}=="0403", MODE="0660", TAG+="uaccess"
+# STM virtual COM ports
+SUBSYSTEM=="tty", ATTRS{idVendor}=="0483", MODE="0660", TAG+="uaccess"

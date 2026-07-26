@@ -1,0 +1,40 @@
+{
+  "version": 3,
+  "configurePresets": [
+    {
+      "name": "linux-debug",
+      "displayName": "Linux Debug",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "installDir": "${sourceDir}/out/install/${presetName}",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
+      "vendor": {
+        "microsoft.com/VisualStudioRemoteSettings/CMake/1.0": {
+          "sourceDir": "$env{HOME}/.vs/$ms{projectDirName}"
+        }
+      }
+    },
+    {
+      "name": "linux-debug-ground-only",
+      "inherits": "linux-debug",
+      "cacheVariables": {
+        "ENABLE_AIR": "OFF"
+      }
+    },
+    {
+      "name": "linux-debug-air-unmanaged",
+      "inherits": "linux-debug",
+      "cacheVariables": {
+        "ENABLE_AIR": "ON",
+        "ENABLE_USB_CAMERAS": "OFF"
+      }
+    }
+  ]
+}

@@ -1,0 +1,176 @@
+/**
+ * @module agent/local-pair/probe
+ * @description Hits the agent's ``/api/pairing/info`` route and parses
+ * the identity + radio/bind state into a `ProbeResult`. This is the
+ * read-only half of the pair flow — it never mutates the agent.
+ * @license GPL-3.0-only
+ */
+
+import { isDemoMode } from "@/lib/utils";
+import type { ProbeResult } from "./types";
+import { PairClientError } from "./errors";
+import { combineSignals, normaliseHost, safeJson, shouldUseProxy } from "./transport";
+
+/** Hit ``/api/pairing/info`` and return the agent identity.
+ * Times out after 8s so a non-responsive host doesn't hang the UI.
+ *
+ * Cross-protocol path: when the GCS is on HTTPS, the request goes
+ * through Mission Control's own `/api/lan-pair/probe` route, which
+ * forwards the HTTP request to the LAN agent server-side. On HTTP
+ * origins the direct fetch is preferred so the pair stays a single
+ * round-trip.
+ */
+export async function probeAgent(
+  rawHost: string,
+  signal?: AbortSignal,
+): Promise<ProbeResult> {
+  const host = normaliseHost(rawHost);
+  if (!host) {
+    throw new PairClientError("enterHostnameError", "Enter a hostname or URL to probe");
+  }
+  // Demo mode never reaches a real agent. Return a representative
+  // probe so the Add-a-Node card renders the bind-state surface.
+  if (isDemoMode()) {
+    return {
+      deviceId: "ados-demo01",
+      name: "Demo Drone",
+      version: "0.0.0-demo",
+      board: "Demo Board",
+      paired: false,
+      radioPaired: true,
+      radioPeerDeviceId: "ados-demo-gs",
+      mdnsHost: "ados-demo01.local",
+      profile: "drone",
+      role: null,
+      hostname: host,
+      bindState: {
+        state: "binding",
+        phase: "key-exchange",
+        active: true,
+        error: null,
+        finishedAt: null,
+        fingerprint: "a1b2c3d4e5f60718",
+      },
+      radio: { state: "connected", rssiDbm: -48, packetsReceived: 12840 },
+    };
+  }
+  let body: Record<string, unknown>;
+  if (shouldUseProxy()) {
+    const resp = await fetch(`/api/lan-pair/probe`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({ host }),
+      signal: combineSignals(signal),
+    });
+    if (!resp.ok) {
+      const parsed = (await safeJson(resp)) as
+        | { error?: string; message?: string }
+        | null;
+      // The proxy reaches the agent from Mission Control's OWN server, not the
+      // browser. `upstream_unreachable` (502) means that server could not reach
+      // the agent. When Mission Control is served remotely (hosted over https,
+      // not localhost) its server is not on the operator's Wi-Fi and can never
+      // reach a LAN agent — surface that instead of a bare "502", because the
+      // agent itself is usually fine and the operator just needs a Mission
+      // Control on the same network (the desktop app) or a cloud code.
+      if (parsed?.error === "upstream_unreachable") {
+        const servedRemotely =
+          typeof window !== "undefined" &&
+          window.location.protocol === "https:" &&
+          !/^(localhost|127\.|\[?::1\]?)/.test(window.location.hostname);
+        throw new PairClientError(
+          "probeFailedStatusError",
+          servedRemotely
+            ? `Mission Control couldn't reach "${host}" from its server. This Mission Control is hosted remotely, so it can't see your local network. To pair an agent on your Wi-Fi, open the ADOS desktop app (or run Mission Control) on the same network — or enable cloud relay on the agent and pair with a 6-character code.`
+            : `Couldn't reach "${host}". Check the agent is powered on and on this network, and that the hostname or IP is correct.`,
+          { status: resp.status, statusText: resp.statusText },
+        );
+      }
+      throw new PairClientError(
+        parsed?.error === "host_not_private"
+          ? "hostNotPrivateError"
+          : "probeFailedStatusError",
+        parsed?.message ?? `Probe failed: ${resp.status} ${resp.statusText}`,
+        { status: resp.status, statusText: resp.statusText },
+      );
+    }
+    body = (await resp.json()) as Record<string, unknown>;
+  } else {
+    const resp = await fetch(`${host}/api/pairing/info`, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+      signal: combineSignals(signal),
+    });
+    if (!resp.ok) {
+      throw new PairClientError(
+        "probeFailedStatusError",
+        `Probe failed: ${resp.status} ${resp.statusText}`,
+        { status: resp.status, statusText: resp.statusText },
+      );
+    }
+    body = (await resp.json()) as Record<string, unknown>;
+  }
+  const deviceId = String(body.device_id ?? "");
+  if (!deviceId) {
+    throw new PairClientError("missingDeviceIdError", "Probe response missing device_id");
+  }
+  const profile = (body.profile as string) || "drone";
+  const role = (body.role as string | undefined) ?? null;
+  const ipv4 =
+    typeof body.ipv4 === "string" && body.ipv4.length > 0
+      ? body.ipv4
+      : undefined;
+  return {
+    deviceId,
+    name: String(body.name ?? "ADOS Agent"),
+    version: String(body.version ?? ""),
+    board: String(body.board ?? "unknown"),
+    paired: Boolean(body.paired),
+    radioPaired: Boolean(body.radio_paired),
+    radioPeerDeviceId:
+      typeof body.radio_peer_device_id === "string"
+      && (body.radio_peer_device_id as string).length > 0
+        ? (body.radio_peer_device_id as string)
+        : null,
+    pairingCode: (body.pairing_code as string | undefined) ?? undefined,
+    ownerId: (body.owner_id as string | undefined) ?? undefined,
+    pairedAt: (body.paired_at as number | undefined) ?? undefined,
+    mdnsHost: String(body.mdns_host ?? ""),
+    profile: profile as ProbeResult["profile"],
+    role: role as ProbeResult["role"],
+    hostname: host,
+    ipv4,
+    bindState:
+      body.bind_state && typeof body.bind_state === "object"
+        ? (() => {
+            const b = body.bind_state as Record<string, unknown>;
+            return {
+              state: (b.state as string | null | undefined) ?? null,
+              phase: (b.phase as string | null | undefined) ?? null,
+              active: Boolean(b.active),
+              error: (b.error as string | null | undefined) ?? null,
+              finishedAt:
+                typeof b.finished_at === "number" ? b.finished_at : null,
+              fingerprint: (b.fingerprint as string | null | undefined) ?? null,
+            };
+          })()
+        : undefined,
+    radio:
+      body.radio && typeof body.radio === "object"
+        ? (() => {
+            const r = body.radio as Record<string, unknown>;
+            return {
+              state: (r.state as string | null | undefined) ?? null,
+              rssiDbm: typeof r.rssi_dbm === "number" ? r.rssi_dbm : null,
+              packetsReceived:
+                typeof r.packets_received === "number"
+                  ? r.packets_received
+                  : null,
+            };
+          })()
+        : undefined,
+  };
+}

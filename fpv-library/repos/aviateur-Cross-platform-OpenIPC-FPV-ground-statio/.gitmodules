@@ -1,0 +1,15 @@
+[submodule "3rd/json"]
+	path = 3rd/json
+	url = https://github.com/nlohmann/json.git
+[submodule "3rd/devourer"]
+	path = 3rd/devourer
+	url = https://github.com/OpenIPC/devourer.git
+[submodule "3rd/mINI"]
+	path = 3rd/mINI
+	url = https://github.com/metayeti/mINI.git
+[submodule "3rd/SDL"]
+	path = 3rd/SDL
+	url = https://github.com/libsdl-org/SDL.git
+[submodule "3rd/vecgui"]
+	path = 3rd/vecgui
+	url = https://github.com/floppyhammer/vecgui.git

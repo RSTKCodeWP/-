@@ -1,0 +1,3 @@
+type = scripted
+command = modmanager enable diy_glasses displayport_osd_shim
+stop-command = modmanager disable diy_glasses displayport_osd_shim

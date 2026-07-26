@@ -1,0 +1,3 @@
+*.sh linguist-language=Shell
+DEPLOY.sh linguist-language=Shell
+*.rs linguist-language=Rust

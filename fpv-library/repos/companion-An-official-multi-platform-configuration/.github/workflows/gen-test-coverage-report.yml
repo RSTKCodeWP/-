@@ -1,0 +1,105 @@
+name: Generate Test Coverage Report
+
+concurrency:
+  group: coverage-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  workflow_dispatch:
+
+jobs:
+  coverage:
+    permissions:
+      contents: read
+      pull-requests: write
+      checks: write
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      # Keep only if you truly need workloads (often you don't for unit tests)
+      - name: Restore workloads
+        run: dotnet workload restore
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build project
+        run: dotnet build Companion.Desktop/Companion.Desktop.csproj --configuration Release --no-restore
+
+      - name: Build tests
+        run: dotnet build Companion.Tests/Companion.Tests.csproj --configuration Release --no-restore
+
+      - name: Run tests with coverage
+        run: dotnet test Companion.Tests/Companion.Tests.csproj --configuration Release --no-build --verbosity normal --logger "trx" --collect:"XPlat Code Coverage"
+
+      - name: Combine Coverage Reports
+        uses: danielpalme/ReportGenerator-GitHub-Action@5.2.4
+        with:
+          reports: "**/*.cobertura.xml"
+          targetdir: "${{ github.workspace }}"
+          reporttypes: "HtmlInline;Cobertura"
+          verbosity: "Info"
+          title: "Code Coverage"
+          tag: "${{ github.run_number }}_${{ github.run_id }}"
+          toolpath: "reportgeneratortool"
+
+      - name: Upload Combined Coverage XML
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: ${{ github.workspace }}/Cobertura.xml
+          retention-days: 1
+
+      - name: Publish Code Coverage Report
+        uses: irongut/CodeCoverageSummary@v1.3.0
+        with:
+          filename: "Cobertura.xml"
+          badge: true
+          fail_below_min: false
+          format: markdown
+          hide_branch_rate: false
+          hide_complexity: false
+          indicators: true
+          output: both
+          thresholds: "10 30"
+
+      - name: Add Coverage PR Comment
+        if: github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          recreate: true
+          path: code-coverage-results.md
+
+      - name: Upload Test Result Files
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: ${{ github.workspace }}/**/TestResults/**/*
+          retention-days: 1
+
+      - name: Publish Test Results
+        if: always()
+        uses: EnricoMi/publish-unit-test-result-action@v2.16.1
+        with:
+          trx_files: "${{ github.workspace }}/**/*.trx"
+
+      - name: Cleanup Disk Space
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          find "${{ github.workspace }}" -type f -name "*.trx" -delete || true
+          find "${{ github.workspace }}" -type f -name "*.cobertura.xml" -delete || true
+          rm -f "${{ github.workspace }}/Cobertura.xml" "${{ github.workspace }}/code-coverage-results.md" || true

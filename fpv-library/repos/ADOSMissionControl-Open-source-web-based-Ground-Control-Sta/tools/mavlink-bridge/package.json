@@ -1,0 +1,33 @@
+{
+  "name": "@altnautica/mavlink-bridge",
+  "version": "0.1.0",
+  "description": "MAVLink UDP/TCP to WebSocket bridge for browser-based ground control stations",
+  "type": "module",
+  "license": "GPL-3.0-only",
+  "main": "dist/index.js",
+  "bin": {
+    "mavlink-bridge": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "start": "tsx src/cli.ts",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.0",
+    "@types/ws": "^8.5.0",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

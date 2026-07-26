@@ -1,0 +1,57 @@
+config BR2_PACKAGE_FPV_STREAMER
+    bool "fpv-streamer - FPV streaming server"
+    select BR2_PACKAGE_FFMPEG
+    select BR2_PACKAGE_JSON_C
+    help
+      FPV Streamer is a lightweight C++ video streaming server designed
+      for ARM-based single board computers used in FPV (First Person View)
+      quadcopter applications.
+
+      Features:
+      - H.264/MJPEG video encoding with hardware acceleration support
+      - WFB (WiFi Broadcast) streaming over UDP with FEC
+      - HTTP configuration interface
+      - Video recording and motion/object detection
+      - Ultra-low latency optimization
+      - Region-based compression (center high quality, edges compressed)
+
+      Target platforms:
+      - Radxa Rock Pi 4b+
+      - Radxa Cubie a5a/a7a
+      - SigmaStar SSC338Q
+      - mstar SSR621Q
+
+      Supported cameras:
+      - CSI cameras (Sony IMX415, MX335)
+      - USB UVC cameras including dual-lens 3D cameras
+
+    config BR2_PACKAGE_FPV_STREAMER_DEBUG
+        bool "Enable debug mode"
+        depends on BR2_PACKAGE_FPV_STREAMER
+        help
+          Enable debug logging and symbols. This increases binary size
+          but provides better debugging capabilities.
+
+    config BR2_PACKAGE_FPV_STREAMER_HARDWARE_ENCODER
+        bool "Enable hardware encoding support"
+        depends on BR2_PACKAGE_FPV_STREAMER
+        default y
+        help
+          Enable hardware video encoding acceleration for supported
+          ARM platforms. Provides better performance and lower CPU usage.
+
+    config BR2_PACKAGE_FPV_STREAMER_OBJECT_DETECTION
+        bool "Enable object detection"
+        depends on BR2_PACKAGE_FPV_STREAMER
+        help
+          Enable motion and object detection capabilities using OpenCV.
+          Requires additional CPU resources but provides intelligent
+          video analysis features.
+
+    config BR2_PACKAGE_FPV_STREAMER_WEB_INTERFACE
+        bool "Enable web interface"
+        depends on BR2_PACKAGE_FPV_STREAMER
+        default y
+        help
+          Enable HTTP web interface for configuration and monitoring.
+          Required for remote management and configuration changes.

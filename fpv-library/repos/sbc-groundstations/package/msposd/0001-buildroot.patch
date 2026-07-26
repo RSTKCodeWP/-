@@ -1,0 +1,90 @@
+diff -ru a/Makefile b/Makefile
+--- a/Makefile	2026-06-21 23:01:41.000000000 +0200
++++ b/Makefile	2026-07-08 21:57:45.043726364 +0200
+@@ -70,3 +70,10 @@
+ 	$(eval LIB = `pkg-config --libs cairo x11 xext` -lXext -lm -lrt)
+ 	$(eval BUILD = $(CC) $(SRCS) -I $(SDK)/include -L $(DRV) $(CFLAGS) $(LIB) -levent_core -O0 -g -o $(OUTPUT))
+ 	$(BUILD)
++
++br-rockchip: version.h
++	$(eval SDK = ./sdk/gk7205v300)
++	$(eval CFLAGS += -D__ROCKCHIP__)
++	$(eval LIB = `pkg-config --libs cairo` -lm -lrt)
++	$(eval BUILD = $(CC) $(SRCS) -I $(SDK)/include -L $(TARGET_LD) $(CFLAGS) $(LIB) -levent_core -O0 -g -o $(OUTPUT) -Wno-incompatible-pointer-types)
++	$(BUILD)
+diff -ru a/msposd.c b/msposd.c
+--- a/msposd.c	2026-06-21 23:01:41.000000000 +0200
++++ b/msposd.c	2026-07-08 22:05:27.923209484 +0200
+@@ -31,6 +31,8 @@
+ //#include "osd/msp_displayport_mux.c"
+ #include "osd/net/network.h"
+ 
++void trace_fragment(bool reset);
++
+ #include "osd.c" //Should be merged
+ 
+ //#include "msp/msp.cpp"
+diff -ru a/osd/util/Render_gs.c b/osd/util/Render_gs.c
+--- a/osd/util/Render_gs.c	2026-06-21 23:01:41.000000000 +0200
++++ b/osd/util/Render_gs.c	2026-07-08 22:05:26.139242289 +0200
+@@ -1,9 +1,11 @@
+ #include "../../bmp/bitmap.h"
++#if defined(_x86)
+ #include <X11/Xatom.h>
+ #include <X11/Xlib.h>
+ #include <X11/Xutil.h>
+ #include <X11/extensions/XShm.h>
+ #include <cairo/cairo-xlib.h>
++#endif
+ #include <cairo/cairo.h>
+ #include <stdio.h>
+ #include <stdlib.h>
+@@ -17,7 +19,9 @@
+ #include <sys/ipc.h>
+ #include <sys/shm.h>
+ 
++#if defined(_x86)
+ #include <X11/keysym.h>
++#endif
+ #include <event2/event.h>
+ #include "simple_ini.h"
+ 
+@@ -84,9 +88,9 @@
+ 
+ extern bool verbose;
+ 
+-#if defined(_x86)
+ void rotate_point(Point original, Point img_center, double angle_degrees, Point *rotated);
+ 
++#if defined(_x86)
+ void handle_key_press(XEvent *event) {
+ 	KeySym keysym = XLookupKeysym(&event->xkey, 0); // Map keycode to keysym
+ 
+diff -ru a/osd.c b/osd.c
+--- a/osd.c	2026-06-21 23:01:41.000000000 +0200
++++ b/osd.c	2026-07-08 21:57:24.758099929 +0200
+@@ -779,9 +779,11 @@
+ 
+ void LineDirect(uint8_t *bmpData, uint32_t width, uint32_t height, int x0, int y0, int x1, int y1,
+ 	uint8_t color, int thickness) {
+-#if defined(_x86) || defined(__ROCKCHIP__)
++#if defined(_x86)
+ 
+ 	drawLineGS(x0, y0, x1, y1, getcolor(color), thickness, false);
++#elif defined(__ROCKCHIP__)
++	// noop
+ #else
+ 	drawLineI4(bmpData, width, height, x0, y0, x1, y1, color, thickness);
+ #endif
+@@ -789,8 +791,10 @@
+ 
+ void LineTranspose(
+ 	uint8_t *bmpData, int posX0, int posY0, int posX1, int posY1, uint8_t color, int thickness) {
+-#if defined(_x86) || defined(__ROCKCHIP__)
++#if defined(_x86)
+ 	drawLineGS(posX0, posY0, posX1, posY1, getcolor(color), thickness, true);
++#elif defined(__ROCKCHIP__)
++	// noop
+ #else
+ 	drawLine(bmpData, posX0, posY0, posX1, posY1, color, thickness);
+ #endif

@@ -1,0 +1,195 @@
+/**
+ * @module api/mcp/activity/stream
+ * @description Server-Sent Events tail of the local MCP server's activity files.
+ * The MCP server (a separate process on the operator's OWN machine) appends one
+ * JSON line per tool call to `~/.ados/mcp/audit.ndjson` (and, when the running
+ * lane is enabled, `~/.ados/mcp/activity.ndjson`). This route streams each new
+ * line to a same-machine Mission Control so the browser can watch the MCP work
+ * live. It is LOCAL-FIRST by construction: it reads a file on the machine the
+ * GCS server runs on — nothing here reaches the network or the cloud. When the
+ * GCS is hosted (a different machine), the file simply does not exist and the
+ * route emits a `waiting` frame; the client also gates on cloud-mode and does
+ * not open the stream there.
+ * @license GPL-3.0-only
+ */
+
+import type { NextRequest } from "next/server";
+import { homedir } from "node:os";
+import { join } from "node:path";
+import { open, stat } from "node:fs/promises";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+const POLL_MS = 500;
+const HEARTBEAT_MS = 15_000;
+const BACKLOG_BYTES = 128 * 1024;
+const BACKLOG_LINES = 100;
+
+/** The single file to tail: prefer the richer running-lifecycle activity.ndjson
+ *  when the MCP writes it, else the completed-only audit.ndjson. Tailing one
+ *  file avoids double-counting a completion that lands in both. */
+async function pickActivityFile(): Promise<string> {
+  const override = process.env.ADOS_MCP_AUDIT_PATH?.trim();
+  const dir = override ? override.replace(/\/audit\.ndjson$/, "") : join(homedir(), ".ados", "mcp");
+  const activity = join(dir, "activity.ndjson");
+  try {
+    await stat(activity);
+    return activity;
+  } catch {
+    return join(dir, "audit.ndjson");
+  }
+}
+
+/** Read up to the last `maxBytes` of a file and return its complete trailing
+ *  lines (newest last), plus the byte offset now consumed. Missing file -> null. */
+async function readTail(
+  path: string,
+  maxBytes: number,
+): Promise<{ lines: string[]; offset: number } | null> {
+  let fh;
+  try {
+    fh = await open(path, "r");
+  } catch {
+    return null;
+  }
+  try {
+    const { size } = await fh.stat();
+    const start = Math.max(0, size - maxBytes);
+    const len = size - start;
+    if (len <= 0) return { lines: [], offset: size };
+    const buf = Buffer.alloc(len);
+    await fh.read(buf, 0, len, start);
+    const text = buf.toString("utf8");
+    // If we started mid-file, drop the first partial line.
+    const all = text.split("\n");
+    const lines = (start > 0 ? all.slice(1) : all).map((l) => l.trim()).filter(Boolean);
+    return { lines, offset: size };
+  } finally {
+    await fh.close();
+  }
+}
+
+/** Read the bytes appended since `offset`; returns complete lines + new offset.
+ *  A shrunk file (rotation/truncation) resets to 0. Missing file -> null. */
+async function readSince(
+  path: string,
+  offset: number,
+  remainder: string,
+): Promise<{ lines: string[]; offset: number; remainder: string } | null> {
+  let size: number;
+  try {
+    ({ size } = await stat(path));
+  } catch {
+    return null;
+  }
+  if (size < offset) offset = 0; // rotated/truncated — re-read from the top
+  if (size === offset) return { lines: [], offset, remainder };
+  const fh = await open(path, "r");
+  try {
+    const len = size - offset;
+    const buf = Buffer.alloc(len);
+    await fh.read(buf, 0, len, offset);
+    const text = remainder + buf.toString("utf8");
+    const parts = text.split("\n");
+    const nextRemainder = parts.pop() ?? "";
+    const lines = parts.map((l) => l.trim()).filter(Boolean);
+    return { lines, offset: size, remainder: nextRemainder };
+  } finally {
+    await fh.close();
+  }
+}
+
+export async function GET(request: NextRequest) {
+  const files = [await pickActivityFile()];
+  const offsets = new Map<string, number>();
+  const remainders = new Map<string, string>();
+  let anySeen = false;
+
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const enc = new TextEncoder();
+      let closed = false;
+      const send = (event: string, data: string) => {
+        if (closed) return;
+        try {
+          controller.enqueue(enc.encode(`event: ${event}\ndata: ${data}\n\n`));
+        } catch {
+          closed = true;
+        }
+      };
+      const comment = () => {
+        if (closed) return;
+        try {
+          controller.enqueue(enc.encode(`: ping\n\n`));
+        } catch {
+          closed = true;
+        }
+      };
+
+      send("channel", JSON.stringify({ channel: "connecting" }));
+
+      // Backlog: seed the newest lines from whatever files exist, ordered by
+      // time so the feed opens already populated.
+      const backlog: { ts: number; line: string }[] = [];
+      for (const path of files) {
+        const tail = await readTail(path, BACKLOG_BYTES);
+        if (tail) {
+          offsets.set(path, tail.offset);
+          for (const line of tail.lines.slice(-BACKLOG_LINES)) {
+            let ts = 0;
+            try {
+              ts = (JSON.parse(line) as { tsUs?: number }).tsUs ?? 0;
+            } catch {
+              /* keep unparseable lines at the front */
+            }
+            backlog.push({ ts, line });
+          }
+        } else {
+          offsets.set(path, 0);
+        }
+        remainders.set(path, "");
+      }
+      backlog.sort((a, b) => a.ts - b.ts);
+      for (const { line } of backlog.slice(-BACKLOG_LINES)) send("activity", line);
+      anySeen = backlog.length > 0 || offsets.size > 0;
+      send("channel", JSON.stringify({ channel: anySeen ? "live" : "waiting" }));
+
+      const poll = setInterval(async () => {
+        for (const path of files) {
+          const res = await readSince(path, offsets.get(path) ?? 0, remainders.get(path) ?? "");
+          if (!res) continue;
+          offsets.set(path, res.offset);
+          remainders.set(path, res.remainder);
+          for (const line of res.lines) {
+            send("activity", line);
+            anySeen = true;
+          }
+        }
+      }, POLL_MS);
+
+      const beat = setInterval(comment, HEARTBEAT_MS);
+
+      const shutdown = () => {
+        closed = true;
+        clearInterval(poll);
+        clearInterval(beat);
+        try {
+          controller.close();
+        } catch {
+          /* already closed */
+        }
+      };
+      request.signal.addEventListener("abort", shutdown);
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
+    },
+  });
+}

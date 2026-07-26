@@ -1,0 +1,45 @@
+/*==========================================================================================
+MIT License
+
+Copyright (c) 2026 https://madflight.com
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+===========================================================================================*/
+
+//Driver for LSM6DSV, LSM6DSV16X gyroscope/accelometer
+
+#pragma once
+
+#include <SPI.h>
+#include "../common/SensorDevice.h"
+
+class LSM6DSV {
+public:
+  const int actual_sample_rate_hz = 1000; //MF_TODO: allow variable sample rate
+  const float acc_scale = 1.0 / 2048.0; //Accel scale +/-16g, 16bit, 2048 LSB/g
+  const float gyr_scale = 0.070; // From datasheet: 70mdps/LSB for FS = ±2000 dps (so, actual FS = ±2294)
+
+  static bool detect(SensorDevice* dev) {
+    return (dev->readReg(0x0F) == 0x70);
+  }
+  int begin(SensorDevice* dev); //returns negative error code, positive warning code, or 0 on success
+  void readraw(int16_t *raw); //read gx,gy,gz,ax,ay,az
+
+  SensorDevice* dev = nullptr;
+};

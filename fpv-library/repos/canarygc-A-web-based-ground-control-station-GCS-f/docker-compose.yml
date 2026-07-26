@@ -1,0 +1,276 @@
+# App config (API keys, MSP), read from the root .env when set and defaulted
+# otherwise. Compose loads the root .env natively, so no file needs to exist;
+# the Integrations page overrides any of it at runtime. DATABASE_PATH is not
+# here: each face sets it with its own default (the dev source tree vs the prod
+# image path) so the shared anchor never clobbers the production location.
+x-app-env: &app-env
+  OPENAIP_API_KEY: ${OPENAIP_API_KEY:-}
+  VITE_ALTITUDE_ANGEL_API_KEY: ${VITE_ALTITUDE_ANGEL_API_KEY:-}
+  MAPTILER_KEY: ${MAPTILER_KEY:-}
+  AI_API_KEY: ${AI_API_KEY:-}
+  AI_BASE_URL: ${AI_BASE_URL:-}
+  AI_MODEL: ${AI_MODEL:-}
+  MAVLINK_SIGNING_KEY: ${MAVLINK_SIGNING_KEY:-}
+  SMTP_HOST: ${SMTP_HOST:-}
+  SMTP_PORT: ${SMTP_PORT:-}
+  SMTP_SECURE: ${SMTP_SECURE:-}
+  SMTP_USER: ${SMTP_USER:-}
+  SMTP_PASS: ${SMTP_PASS:-}
+  MAIL_FROM: ${MAIL_FROM:-}
+  MSP_SERIAL_PATH: ${MSP_SERIAL_PATH:-}
+  MSP_BAUD: ${MSP_BAUD:-115200}
+  MSP_TCP_HOST: ${MSP_TCP_HOST:-}
+  MSP_TCP_PORT: ${MSP_TCP_PORT:-}
+  FC_BOOTLOADER_PATH: ${FC_BOOTLOADER_PATH:-/dev/ttyACM0}
+
+# Shared config for the dev app-server faces. The container name is shared, so
+# only one face runs at a time; each profile supplies its own environment.
+x-app-dev: &app-dev
+  build:
+    context: ./compose/svelte-kit
+    dockerfile: Dockerfile.dev
+  ports:
+    - "${APP_DEV_PORT:-5173}:5173"
+  container_name: canarygc_app
+  volumes:
+    - ./compose/svelte-kit:/app
+    - ./.git:/app/.git:ro
+    - /app/node_modules
+  deploy:
+    resources:
+      limits:
+        memory: 2g
+  restart: always
+
+services:
+  # Development: Vite dev server with hot reload, talks to the SITL container.
+  app-dev:
+    <<: *app-dev
+    profiles: ["development", "development-px4"]
+    environment:
+      <<: *app-env
+      DATABASE_PATH: ${DATABASE_PATH:-./src/data.db}
+      CHOKIDAR_USEPOLLING: "true"
+      NODE_ENV: development
+
+  # Dev server wired to a Betaflight or INAV SITL over MSP for the Firmware tab;
+  # the "msp-sitl" alias resolves to whichever firmware profile is running.
+  app-dev-msp:
+    <<: *app-dev
+    profiles: ["development-betaflight", "development-inav"]
+    environment:
+      <<: *app-env
+      DATABASE_PATH: ${DATABASE_PATH:-./src/data.db}
+      CHOKIDAR_USEPOLLING: "true"
+      NODE_ENV: development
+      MSP_TCP_HOST: msp-sitl
+      MSP_TCP_PORT: "5761"
+      # Blank MAVLink host: this profile has no MAVLink vehicle, only the MSP FC,
+      # so the dashboard link stays idle instead of dialing a missing SITL.
+      MAVLINK_TCP_HOST: ""
+
+  # Production: the published app image, talking to the autopilot over USB serial.
+  app:
+    profiles: ["production"]
+    image: ghcr.io/judahpaul16/canarygc:latest
+    devices:
+      - "/dev/ttyACM0:/dev/ttyACM0"
+    # Host networking so the telemetry DataChannel's ICE candidates carry the
+    # station's real addresses instead of the docker bridge, matching mediamtx.
+    # The app answers on host port 3000.
+    network_mode: host
+    container_name: canarygc_app
+    # Persist the SQLite database (operator account, settings, missions, flight
+    # logs) across image rebuilds and container recreates.
+    volumes:
+      - canarygc_data:/app/src
+    environment:
+      <<: *app-env
+      DATABASE_PATH: ${DATABASE_PATH:-/app/src/data.db}
+      # Inside the data volume, so flight logs survive container recreates.
+      FLIGHT_LOG_PATH: ${FLIGHT_LOG_PATH:-/app/src/flight-logs}
+      NODE_ENV: production
+      MEDIAMTX_API_URL: ${MEDIAMTX_API_URL:-http://localhost:9997}
+    deploy:
+      resources:
+        limits:
+          memory: 700m
+    restart: always
+
+  # Reverse proxy serving the app on port 80, so the station answers at its
+  # hostname with no port. SSE and forwarded-proto handling live in the config.
+  nginx:
+    profiles: ["production"]
+    image: nginx:alpine
+    container_name: canarygc_nginx
+    depends_on:
+      - app
+    ports:
+      - "${HTTP_PORT:-80}:80"
+    # The app lives on the host network, so its upstream name resolves to the
+    # host gateway here.
+    extra_hosts:
+      - "app:host-gateway"
+    volumes:
+      - ./compose/nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    restart: always
+
+  # ArduPilot SITL for local testing (development profile).
+  sitl:
+    profiles: ["development"]
+    image: canarygc-sitl
+    build:
+      context: ./compose/sitl
+      dockerfile: Dockerfile
+    environment:
+      - INSTANCE=0
+      - LAT=33.79105092934356
+      - LON=-84.37130870603511
+      - MARINE_LAT=31.5
+      - MARINE_LON=-79.8
+      - ALT=0
+      - DIR=0
+      - MODEL=${SITL_MODEL:-quad}
+      - SPEEDUP=1
+      - VEHICLE=${SITL_VEHICLE:-ArduCopter}
+    entrypoint: ["/bin/sh", "/entrypoint.sh"]
+    volumes:
+      - ./compose/sitl/entrypoint.sh:/entrypoint.sh:ro
+    tty: true
+    container_name: canarygc_sitl
+    ports:
+      - "${SITL_PORT:-5760}:5760"
+    healthcheck:
+      timeout: 10s
+
+  # Headless PX4 SITL for local testing (development-px4 profile). It streams
+  # MAVLink to the bridge, which the app reaches through the shared "sitl" alias.
+  px4:
+    profiles: ["development-px4"]
+    image: jonasvautherin/px4-gazebo-headless:latest
+    command: ["sitl", "sitl"]
+    container_name: canarygc_px4
+    environment:
+      - PX4_HOME_LAT=33.79105092934356
+      - PX4_HOME_LON=-84.37130870603511
+      - PX4_HOME_ALT=0
+    depends_on:
+      px4-bridge:
+        condition: service_healthy
+    tty: true
+
+  # Serves PX4's UDP GCS stream as the TCP endpoint the app connects to. The
+  # "sitl" network alias means the app talks to it exactly as it does ArduPilot.
+  px4-bridge:
+    profiles: ["development-px4"]
+    build:
+      context: ./compose/px4-bridge
+    command: ["--master=udpin:0.0.0.0:14550", "--out=tcpin:0.0.0.0:5760", "--non-interactive"]
+    container_name: canarygc_px4_bridge
+    networks:
+      default:
+        aliases:
+          - sitl
+    ports:
+      - "${SITL_PORT:-5760}:5760"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; rows=open('/proc/net/tcp').read().splitlines()[1:]; sys.exit(0 if any(r.split()[1].split(':')[1]=='1680' and r.split()[3]=='0A' for r in rows if r.strip()) else 1)"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 5s
+
+  # Betaflight firmware built for the host CPU (SITL). The Firmware tab reaches
+  # it over MSP through the shared "msp-sitl" alias, as it would a real board.
+  # The flight-dynamics sim feeds its sensors and virtual GPS, so it arms and
+  # flies.
+  betaflight-sitl:
+    profiles: ["development-betaflight"]
+    build:
+      context: ./compose/betaflight-sitl
+    command: ["./betaflight_SITL.elf", "betaflight-sim"]
+    container_name: canarygc_betaflight_sitl
+    depends_on:
+      - betaflight-sim
+    networks:
+      default:
+        aliases:
+          - msp-sitl
+    ports:
+      - "${MSP_PORT:-5761}:5761"
+    tty: true
+    restart: always
+
+  betaflight-sim:
+    profiles: ["development-betaflight"]
+    build:
+      context: ./compose/fc-sim
+    environment:
+      - ADAPTER=bf-fdm
+      - BF_HOST=betaflight-sitl
+    container_name: canarygc_betaflight_sim
+    restart: always
+
+  # INAV firmware built for the host CPU (SITL). UART2 carries MSP on 5761, the
+  # same port the Betaflight SITL uses, so the app wiring is identical. The
+  # flight-dynamics sim feeds its sensors and GPS over the RealFlight protocol,
+  # so it arms and flies missions.
+  inav-sitl:
+    profiles: ["development-inav"]
+    build:
+      context: ./compose/inav-sitl
+    command: ["--sim=rf", "--simip=inav-sim", "--chanmap=M01-01,M02-02,M03-03,M04-04"]
+    container_name: canarygc_inav_sitl
+    depends_on:
+      - inav-sim
+    networks:
+      default:
+        aliases:
+          - msp-sitl
+    ports:
+      - "${MSP_PORT:-5761}:5761"
+    tty: true
+    restart: always
+
+  inav-sim:
+    profiles: ["development-inav"]
+    build:
+      context: ./compose/fc-sim
+    environment:
+      - ADAPTER=inav-rf
+    container_name: canarygc_inav_sim
+    restart: always
+
+  # On-board WebRTC camera bridge (production profile).
+  webrtc:
+    profiles: ["production"]
+    image: bluenviron/mediamtx:latest-rpi
+    container_name: canarygc_webrtc
+    environment:
+      - MTX_PATHS_CAM_SOURCE=${WEBRTC_SOURCE:-rpiCamera}
+      - MTX_PATHS_CAM_RUNONDEMAND=${WEBRTC_RUNONDEMAND:-}
+      - MTX_WEBRTCICESERVERS=stun:stun.l.google.com:19302
+      - MTX_READTIMEOUT=10s
+      - MTX_WRITETIMEOUT=10s
+      - MTX_API=yes
+      - MTX_METRICS=yes
+      - MTX_PPROF=yes
+      - MTX_PROTOCOLS=tcp
+      - MTX_RTSPADDRESS=:8554
+      - MTX_RTMPADDRESS=:1935
+      - MTX_HLSADDRESS=:8888
+      - MTX_WEBRTCADDRESS=:8889
+      - MTX_APIADDRESS=:9997
+      - MTX_METRICSADDRESS=:9998
+      - MTX_PPROFFADDRESS=:9999
+      - MTX_READBUFFERCOUNT=512
+    volumes:
+      - /run/udev:/run/udev:ro
+    tmpfs:
+      - /dev/shm:exec
+    network_mode: host
+    privileged: true
+    restart: always
+
+volumes:
+  canarygc_data:

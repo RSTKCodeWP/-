@@ -1,0 +1,127 @@
+/**
+ * @module mock/agent/cameras
+ * @description Demo camera roster so the Cameras management tab renders populated
+ * under `npm run demo` with no hardware — one row per state group (assigned,
+ * discovered, plugin-managed, offline). Mirrors the shape the agent's
+ * `GET /api/video/roster` returns.
+ * @license GPL-3.0-only
+ */
+// Exempt from 300 LOC soft rule: demo fixture data.
+
+import type { RosterCamera } from "@/lib/agent/feature-types";
+
+const MOCK_CAMERA_ROSTER: RosterCamera[] = [
+  {
+    id: "eo",
+    name: "Forward EO",
+    source: "/dev/video0",
+    role: "primary",
+    purpose: ["feed", "detect"],
+    orientation: "forward",
+    enabled: true,
+    owner: "operator",
+    state: "assigned",
+    live: true,
+    device_path: "/dev/video0",
+    width: 1920,
+    height: 1080,
+    fps: 30,
+    codec: "h264",
+    bitrate_kbps: 6000,
+    calibration: "pinhole:fx=1024,fy=1024,cx=960,cy=540",
+    match: { usb: "046d:0825" },
+    fov_deg: 78,
+    mount_pitch_deg: 0,
+  },
+  {
+    id: "belly",
+    name: "Belly cam",
+    source: "/dev/video2",
+    role: null,
+    purpose: ["navigation", "precision-landing"],
+    orientation: "down",
+    enabled: true,
+    owner: "operator",
+    state: "assigned",
+    live: true,
+    device_path: "/dev/video2",
+    width: 640,
+    height: 480,
+    fps: 60,
+    codec: "h264",
+    bitrate_kbps: 2500,
+    calibration: null,
+    match: { usb: "1bcf:2c99" },
+    fov_deg: 120,
+    mount_pitch_deg: -90,
+  },
+  {
+    id: "video4",
+    name: "USB Camera",
+    source: "/dev/video4",
+    role: null,
+    purpose: [],
+    orientation: null,
+    enabled: false,
+    owner: null,
+    state: "discovered_unassigned",
+    live: null,
+    device_path: "/dev/video4",
+    width: 1280,
+    height: 720,
+    fps: null,
+    codec: null,
+    match: { usb: "0c45:6366" },
+    fov_deg: null,
+    mount_pitch_deg: null,
+  },
+  {
+    id: "ir",
+    name: "SIYI ZT30 · IR",
+    source: "rtsp://192.168.144.25:8554/ir",
+    role: "ir",
+    purpose: ["feed", "thermal"],
+    orientation: "gimbal",
+    enabled: true,
+    owner: "com.altnautica.siyi-pod",
+    state: "plugin_owned",
+    live: true,
+    device_path: null,
+    width: 1280,
+    height: 720,
+    fps: 30,
+    codec: "h265",
+    match: null,
+    fov_deg: null,
+    mount_pitch_deg: null,
+  },
+  {
+    id: "rear-thermal",
+    name: "Rear thermal",
+    source: "/dev/video6",
+    role: null,
+    purpose: ["thermal"],
+    orientation: "back",
+    enabled: true,
+    owner: "operator",
+    state: "offline",
+    live: null,
+    device_path: "/dev/video6",
+    width: null,
+    height: null,
+    fps: null,
+    codec: null,
+    match: { usb: "1e4e:0100" },
+    fov_deg: null,
+    mount_pitch_deg: null,
+  },
+];
+
+/** A fresh copy of the demo roster (callers may mutate their copy). */
+export function getMockCameraRoster(): RosterCamera[] {
+  return MOCK_CAMERA_ROSTER.map((c) => ({
+    ...c,
+    purpose: [...c.purpose],
+    match: c.match ? { ...c.match } : c.match,
+  }));
+}

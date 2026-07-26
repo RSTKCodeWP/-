@@ -1,0 +1,25 @@
+{
+  "_comment": "Snapshot of the board ids emitted by the ADOS Drone Agent's scripts/emit_ados_agent_manifest.py for the canonical HAL set under src/ados/hal/boards/. Used by tests/unit/firmware/ados-manifest-fallback.test.ts to assert that EMBEDDED_FALLBACK in src/app/api/ados-manifest/route.ts is a subset of the upstream catalog. Update procedure: from the agent repo run `python3 scripts/emit_ados_agent_manifest.py /tmp/manifest.json` and copy the sorted board ids into the boardIds array below. This fixture lives in the GCS repo (not the agent repo) so the parity test is self-contained.",
+  "boardIds": [
+    "cm4",
+    "cm5",
+    "cubie-a7z",
+    "generic-arm64",
+    "jetson-nano",
+    "jetson-orin-nano",
+    "luckfox-pico-zero",
+    "orange-pi-5",
+    "pi-zero-2w",
+    "radxa-cm3",
+    "rk3506",
+    "rk3566",
+    "rk3576",
+    "rk3588s2",
+    "rock-5c-lite",
+    "rpi4b",
+    "rpi5",
+    "rv1103",
+    "rv1106",
+    "rv1126b"
+  ]
+}

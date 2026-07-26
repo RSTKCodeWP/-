@@ -1,0 +1,10 @@
+D:/DroneAI/nanohawk-agent/build/ci/CMakeFiles/nanohawk_core.dir
+D:/DroneAI/nanohawk-agent/build/ci/CMakeFiles/nanohawk_agent_cli.dir
+D:/DroneAI/nanohawk-agent/build/ci/CMakeFiles/launcher.dir
+D:/DroneAI/nanohawk-agent/build/ci/CMakeFiles/nanohawk_unit_tests.dir
+D:/DroneAI/nanohawk-agent/build/ci/CMakeFiles/nanohawk_transport_tests.dir
+D:/DroneAI/nanohawk-agent/build/ci/CMakeFiles/nanohawk_config_tests.dir
+D:/DroneAI/nanohawk-agent/build/ci/CMakeFiles/nanohawk_device_detection.dir
+D:/DroneAI/nanohawk-agent/build/ci/CMakeFiles/test.dir
+D:/DroneAI/nanohawk-agent/build/ci/CMakeFiles/edit_cache.dir
+D:/DroneAI/nanohawk-agent/build/ci/CMakeFiles/rebuild_cache.dir

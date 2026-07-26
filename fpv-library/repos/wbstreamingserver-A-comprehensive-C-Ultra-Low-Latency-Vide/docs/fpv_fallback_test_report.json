@@ -1,0 +1,19 @@
+{
+  "timestamp": "2025-11-14 00:28:40",
+  "test_results": {
+    "Build Integrity": true,
+    "Sample Images": true,
+    "Fallback Scenarios": true,
+    "Dual Camera Enhancements": true,
+    "Sample Fallback Demo": true
+  },
+  "system_info": {
+    "streamer_binary": "build/fpv-streamer",
+    "sample_directories": {
+      "camera1": "samples/camera1",
+      "camera2": "samples/camera2",
+      "calibration": "samples/calibration"
+    },
+    "total_sample_images": 14
+  }
+}

@@ -1,0 +1,13 @@
+name: "high-power-fpv"
+author: "Your Name"
+description: "Description of high-power-fpv."
+category: "FPV"
+state: OFFICIAL
+sensor: ""  # Set sensor file if needed
+files:
+  wfb.yaml:
+    wireless.txpower: "1"
+    wireless.channel: "161"
+  majestic.yaml:
+    fpv.enabled: "false"
+    system.logLevel: "debug"

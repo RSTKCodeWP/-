@@ -1,0 +1,42 @@
+@font-face {
+  font-family: 'Telegrama';
+  src: url("../fonts/telegrama.otf"); }
+
+body {
+  background: black;
+  font: 14px "Lucida Grande", Helvetica, Arial, sans-serif; }
+
+a {
+  color: #00B7FF; }
+
+img#video {
+  position: fixed;
+  display: block;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%; }
+
+canvas#altitude {
+  /*width: 200px;
+  height: 600px;*/
+  position: fixed;
+  margin-top: -300px;
+  top: 50%;
+  left: 10%; }
+
+canvas#attitude {
+  position: fixed;
+  margin-top: -300px;
+  margin-left: -300px;
+  top: 50%;
+  left: 50%; }
+
+canvas#heading {
+  position: fixed;
+  margin-left: -300px;
+  top: 5%;
+  left: 50%; }
+
+/*# sourceMappingURL=style.css.map */

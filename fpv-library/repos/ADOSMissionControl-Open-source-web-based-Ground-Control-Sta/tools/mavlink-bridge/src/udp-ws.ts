@@ -1,0 +1,215 @@
+// udp-ws.ts — UDP ↔ WebSocket binary relay for MAVLink streams
+// SPDX-License-Identifier: GPL-3.0-only
+
+import { EventEmitter } from 'node:events';
+import dgram from 'node:dgram';
+import { WebSocketServer, WebSocket } from 'ws';
+import type { Bridge, BridgeEvents, PeerEvent } from './types.js';
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+// UDP is connectionless, so "reconnect" maps to rebinding the socket after an
+// error using the same backoff discipline the TCP relay uses.
+const INITIAL_REBIND_MS = 500;
+const MAX_REBIND_MS = 30_000;
+const BACKOFF_FACTOR = 2;
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+export type UdpMode = 'listen' | 'target';
+
+export interface UdpWsBridgeConfig {
+  /** WebSocket port the GCS connects to. */
+  wsPort: number;
+  /**
+   * `listen` (udpin): bind to host:port and learn the remote peer from the
+   * first inbound datagram (MAVProxy semantics, e.g. `--out=udp:HOST:PORT`).
+   * `target` (udpout): send to a fixed host:port from the start.
+   */
+  mode: UdpMode;
+  host: string;
+  port: number;
+}
+
+interface UdpBridgeEvents extends BridgeEvents {
+  'peer-learned': [PeerEvent];
+}
+
+interface Peer {
+  address: string;
+  port: number;
+}
+
+// ---------------------------------------------------------------------------
+// Bridge
+// ---------------------------------------------------------------------------
+
+export class UdpWsBridge extends EventEmitter<UdpBridgeEvents> implements Bridge {
+  private readonly config: UdpWsBridgeConfig;
+  private readonly family: dgram.SocketType;
+  private wss: WebSocketServer | null = null;
+  private socket: dgram.Socket | null = null;
+  private peer: Peer | null = null;
+  private rebindMs = INITIAL_REBIND_MS;
+  private rebindTimer: ReturnType<typeof setTimeout> | null = null;
+  private closed = false;
+
+  constructor(config: UdpWsBridgeConfig) {
+    super();
+    this.config = config;
+    // IPv6 host literals contain a colon; everything else is treated as IPv4.
+    this.family = config.host.includes(':') ? 'udp6' : 'udp4';
+  }
+
+  /** Number of currently connected WebSocket clients. */
+  get wsClientCount(): number {
+    return this.wss ? this.wss.clients.size : 0;
+  }
+
+  /** Start the WebSocket server and bind the UDP socket. */
+  start(): void {
+    const wss = new WebSocketServer({ port: this.config.wsPort });
+    this.wss = wss;
+
+    wss.on('connection', (ws, req) => {
+      const remoteAddress = req.socket.remoteAddress ?? 'unknown';
+      this.emit('ws-client-connected', { remoteAddress });
+
+      ws.binaryType = 'nodebuffer';
+
+      ws.on('message', (msg: Buffer) => {
+        // GCS → drone. In listen mode this only sends once a peer is known.
+        this.sendToPeer(msg);
+      });
+
+      ws.on('close', () => {
+        this.emit('ws-client-disconnected', { remoteAddress });
+      });
+
+      ws.on('error', (err) => {
+        this.emit('error', err);
+      });
+    });
+
+    wss.on('error', (err) => {
+      this.emit('error', err);
+    });
+
+    this.bind();
+  }
+
+  /** Gracefully shut down the UDP socket and WebSocket server. */
+  shutdown(): void {
+    this.closed = true;
+
+    if (this.rebindTimer) {
+      clearTimeout(this.rebindTimer);
+      this.rebindTimer = null;
+    }
+    this.teardownSocket();
+
+    if (this.wss) {
+      for (const client of this.wss.clients) {
+        client.close();
+      }
+      this.wss.close();
+      this.wss = null;
+    }
+  }
+
+  // -----------------------------------------------------------------------
+  // Private helpers
+  // -----------------------------------------------------------------------
+
+  private bind(): void {
+    if (this.closed) return;
+
+    const socket = dgram.createSocket(this.family);
+    this.socket = socket;
+
+    socket.on('message', (msg: Buffer, rinfo: dgram.RemoteInfo) => {
+      if (this.config.mode === 'listen') {
+        // Learn (or update) the remote peer from inbound traffic.
+        if (
+          !this.peer ||
+          this.peer.address !== rinfo.address ||
+          this.peer.port !== rinfo.port
+        ) {
+          this.peer = { address: rinfo.address, port: rinfo.port };
+          this.emit('peer-learned', { host: rinfo.address, port: rinfo.port });
+        }
+      }
+      // drone → GCS: broadcast to every WS client.
+      this.broadcastToWs(msg);
+      this.emit('data', { data: msg });
+    });
+
+    socket.on('listening', () => {
+      this.rebindMs = INITIAL_REBIND_MS; // reset backoff on success
+      this.emit('connected', { host: this.config.host, port: this.config.port });
+    });
+
+    socket.on('error', (err) => {
+      this.emit('error', err);
+      this.teardownSocket();
+      this.scheduleRebind();
+    });
+
+    if (this.config.mode === 'listen') {
+      socket.bind(this.config.port, this.config.host);
+    } else {
+      // target (udpout): the peer is fixed; bind an ephemeral local port so the
+      // peer's replies are received on the same socket.
+      this.peer = { address: this.config.host, port: this.config.port };
+      socket.bind();
+    }
+  }
+
+  private scheduleRebind(): void {
+    if (this.closed) return;
+
+    this.emit('disconnected', { host: this.config.host, port: this.config.port });
+
+    this.rebindTimer = setTimeout(() => {
+      this.rebindTimer = null;
+      this.bind();
+    }, this.rebindMs);
+
+    // Exponential backoff with cap.
+    this.rebindMs = Math.min(this.rebindMs * BACKOFF_FACTOR, MAX_REBIND_MS);
+  }
+
+  private teardownSocket(): void {
+    if (!this.socket) return;
+    try {
+      this.socket.removeAllListeners();
+      this.socket.close();
+    } catch {
+      // Socket may have failed before binding; closing throws. Ignore.
+    }
+    this.socket = null;
+  }
+
+  private sendToPeer(msg: Buffer): void {
+    const socket = this.socket;
+    const peer = this.peer;
+    // No peer learned yet (listen mode before first datagram) → drop silently.
+    if (!socket || !peer) return;
+    socket.send(msg, peer.port, peer.address, (err) => {
+      if (err) this.emit('error', err);
+    });
+  }
+
+  private broadcastToWs(data: Buffer): void {
+    if (!this.wss) return;
+    for (const client of this.wss.clients) {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(data);
+      }
+    }
+  }
+}

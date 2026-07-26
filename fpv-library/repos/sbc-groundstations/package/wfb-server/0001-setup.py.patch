@@ -1,0 +1,15 @@
+--- a/setup.py_orig	2025-10-30 22:04:16.548145489 +0100
++++ b/setup.py	2025-10-30 22:08:02.220452897 +0100
+@@ -16,9 +16,9 @@
+ except ImportError:
+     pass
+ 
+-version = os.environ.get('VERSION')
+-commit = os.environ.get('COMMIT')
+-install_data_files = not bool(os.environ.get('OMIT_DATA_FILES'))
++version = '1.2.3'
++commit = 'a23fc969d50d1f50bdcac46815848105dd0e88c9'
++install_data_files = False
+ 
+ assert version and commit
+ 

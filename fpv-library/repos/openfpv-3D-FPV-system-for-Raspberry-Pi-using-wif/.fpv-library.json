@@ -1,0 +1,8 @@
+{
+  "source": "jholster/openfpv",
+  "upstream_commit": "79a8eb04a693019c8a0a8d8a55ebbcb22e47ee4e",
+  "upstream_updated": "2016-08-28T07:56:28Z",
+  "synced_at": "2026-07-26T23:32:21+00:00",
+  "discovered_via": "search:wifibroadcast fpv:p1",
+  "score": 5.0
+}

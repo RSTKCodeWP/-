@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+
+################################################################################
+# OpenHD
+# 
+# Licensed under the GNU General Public License (GPL) Version 3.
+# 
+# This software is provided "as-is," without warranty of any kind, express or 
+# implied, including but not limited to the warranties of merchantability, 
+# fitness for a particular purpose, and non-infringement. For details, see the 
+# full license in the LICENSE file provided with this source code.
+# 
+# Non-Military Use Only:
+# This software and its associated components are explicitly intended for 
+# civilian and non-military purposes. Use in any military or defense 
+# applications is strictly prohibited unless explicitly and individually 
+# licensed otherwise by the OpenHD Team.
+# 
+# Contributors:
+# A full list of contributors can be found at the OpenHD GitHub repository:
+# https://github.com/OpenHD
+# 
+# © OpenHD, All Rights Reserved.
+################################################################################
+
+# back it up in case the user has written valuable scripting that would be lost otherwise
+if [ -f "/boot/openhd/scripts/custom_unmanaged_camera.sh" ]; then
+    mv /boot/openhd/scripts/custom_unmanaged_camera_old.sh /config/openhd/scripts/custom_unmanaged_camera_old.sh
+fi
+if [ -f "/config/openhd/scripts/custom_unmanaged_camera.sh" ]; then
+    mv /config/openhd/scripts/custom_unmanaged_camera_old.sh /config/openhd/scripts/custom_unmanaged_camera_old.sh
+fi
+if [ "$(uname -m)" == "x86_64" ]; then
+    if ! uname -a | grep -q "azure"; then
+        whiptail --title "OpenHD" --yesno "You are about to install OpenHD to your Computer. Please be aware that we do not allow military usage! Do you want to continue?" 10 50
+        if ! [ $? -eq 0 ]; then
+            echo "Operation cancelled."
+            exit 1
+        else
+            whiptail --title "OpenHD" --yesno "Do you want to remove the old drivers?" 10 50
+            if [ $? -eq 0 ]; then
+                if whiptail --title "Confirmation" --yesno "This action will remove old drivers. Do you want to proceed?" 10 50; then
+                    echo "Removing old drivers"
+                    sudo dkms uninstall -m rtl8812au -v 5.2.20.2 --all || true
+                    sudo dkms remove -m rtl8812au -v 5.2.20.2 --all || true
+                    sudo dkms uninstall -m rtl88x2bu -v 5.13.1 --all || true
+                    sudo dkms remove -m rtl88x2bu -v 5.13.1 --all || true
+                else
+                    echo "No drivers were removed!"
+                fi
+            fi
+        fi
+    fi
+fi

@@ -1,0 +1,22 @@
+CC=gcc
+CFLAGS=-I. -O2
+SRCDIR = jni/
+DEPS = $(addprefix $(SRCDIR), msp/msp.h msp/msp_displayport.h net/network.h net/serial.h)
+OSD_OBJ = $(addprefix $(SRCDIR), osd_sfml_udp.o net/network.o msp/msp.o msp/msp_displayport.o)
+DISPLAYPORT_MUX_OBJ = $(addprefix $(SRCDIR), msp_displayport_mux.o net/serial.o net/network.o msp/msp.o)
+OSD_LIBS=-lcsfml-graphics
+
+%.o: %.c $(DEPS)
+	$(CC) -c -o $@ $< $(CFLAGS)
+
+osd_sfml: $(OSD_OBJ)
+	$(CC) -o $@ $^ $(CFLAGS) $(OSD_LIBS)
+
+msp_displayport_mux: $(DISPLAYPORT_MUX_OBJ)
+	$(CC) -o $@ $^ $(CFLAGS)
+
+clean: 
+	rm -rf *.o
+	rm -rf **/*.o
+	rm -f msp_displayport_mux
+	rm -f osd_sfml

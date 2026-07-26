@@ -1,0 +1,8 @@
+{
+  "source": "svpcom/rtl8812au",
+  "upstream_commit": "be10cbbbd9b6b5325554a06a0132985a6b890175",
+  "upstream_updated": "2026-02-07T09:44:52Z",
+  "synced_at": "2026-07-26T23:32:15+00:00",
+  "discovered_via": "search:wfb-ng:p1",
+  "score": 5.5
+}

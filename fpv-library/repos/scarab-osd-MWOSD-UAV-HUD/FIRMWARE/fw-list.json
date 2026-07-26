@@ -1,0 +1,257 @@
+[
+                                                              
+{
+  "name": "Betaflight",
+  "url" : "https://github.com/ShikOfTheRa/scarab-osd/releases/download/1.7.2.0/minim.betaflight.hex",
+  "version": "1.7.2",
+  "board": "Default minim"                
+},
+{
+  "name": "Cleanflight",
+  "url" : "https://github.com/ShikOfTheRa/scarab-osd/releases/download/1.7.2.0/minim.cleanflight.hex",
+  "version": "1.7.2",
+  "board": "Default minim"                
+},
+{
+  "name": "iNAV",
+  "url" : "https://github.com/ShikOfTheRa/scarab-osd/releases/download/1.7.2.0/minim.inav.hex",
+  "version": "1.7.2",
+  "board": "Default minim"                
+},
+{
+  "name": "APM mavlink",
+  "url" : "https://github.com/ShikOfTheRa/scarab-osd/releases/download/1.7.2.0/minim.mavlink.hex",
+  "version": "1.7.2",
+  "board": "Default minim"                
+},
+{
+  "name": "PIXHAWK PX4",
+  "url" : "https://github.com/ShikOfTheRa/scarab-osd/releases/download/1.7.2.0/minim.px4.hex",
+  "version": "1.7.2",
+  "board": "Default minim"                
+},
+{
+  "name": "MultiWii",
+  "url" : "https://github.com/ShikOfTheRa/scarab-osd/releases/download/1.7.2.0/minim.multiwii.hex",
+  "version": "1.7.2",
+  "board": "Default minim"                
+},
+{
+  "name": "KISS",
+  "url" : "https://github.com/ShikOfTheRa/scarab-osd/releases/download/1.7.2.0/minim.kiss.hex",
+  "version": "1.7.2",
+  "board": "Default minim"                
+},
+{
+  "name": "Dronin",
+  "url" : "https://github.com/ShikOfTheRa/scarab-osd/releases/download/1.7.2.0/minim.dronin.hex",
+  "version": "1.7.2",
+  "board": "Default minim"                
+},
+{
+  "name": "Librepilot",
+  "url" : "https://github.com/ShikOfTheRa/scarab-osd/releases/download/1.7.2.0/minim.librepilot.hex",
+  "version": "1.7.2",
+  "board": "Default minim"                
+},
+{
+  "name": "Raceflight",
+  "url" : "https://github.com/ShikOfTheRa/scarab-osd/releases/download/1.7.2.0/minim.raceflight.hex",
+  "version": "1.7.2",
+  "board": "Default minim"                
+},
+{
+  "name": "Fixedwing iNAV ",
+  "url" : "https://github.com/ShikOfTheRa/scarab-osd/releases/download/1.7.2.0/minim.inav.aero.hex",
+  "version": "1.7.2",
+  "board": "Default minim"                
+},
+{
+  "name": "Fixedwing APM mavlink",
+  "url" : "https://github.com/ShikOfTheRa/scarab-osd/releases/download/1.7.2.0/minim.mavlink.aero.hex",
+  "version": "1.7.2",
+  "board": "Default minim"                
+},
+{
+  "name": "Fixedwing PIXHAWK PX4",
+  "url" : "https://github.com/ShikOfTheRa/scarab-osd/releases/download/1.7.2.0/minim.px4.aero.hex",
+  "version": "1.7.2",
+  "board": "Default minim"                
+},
+{
+  "name": "Fixedwing PatrikE BF",
+  "url" : "https://github.com/ShikOfTheRa/scarab-osd/releases/download/1.7.2.0/minim.baseflight.aero.hex",
+  "version": "1.7.2",
+  "board": "Default minim"                
+},
+{
+  "name": "Standard GPS OSD - UBLOX",
+  "url" : "https://github.com/ShikOfTheRa/scarab-osd/releases/download/1.7.2.0/minim.gpsosd_ublox.hex",
+  "version": "1.7.2",
+  "board": "Default minim"                
+},
+{
+  "name": "Basic OSD - no GPS",
+  "url" : "https://github.com/ShikOfTheRa/scarab-osd/releases/download/1.7.2.0/minim.nocontroller.hex",
+  "version": "1.7.2",
+  "board": "Default minim"                
+},
+
+
+
+
+{
+  "name": "Betaflight",
+  "url" : "https://github.com/ShikOfTheRa/scarab-osd/releases/download/1.7.2.0/aeromax.betaflight.hex",
+  "version": "1.7.2",
+  "board": "VirtualPilot AeroMax"                
+},
+{
+  "name": "Cleanflight",
+  "url" : "https://github.com/ShikOfTheRa/scarab-osd/releases/download/1.7.2.0/aeromax.cleanflight.hex",
+  "version": "1.7.2",
+  "board": "VirtualPilot AeroMax"                
+},
+{
+  "name": "iNAV",
+  "url" : "https://github.com/ShikOfTheRa/scarab-osd/releases/download/1.7.2.0/aeromax.inav.hex",
+  "version": "1.7.2",
+  "board": "VirtualPilot AeroMax"                
+},
+{
+  "name": "APM mavlink",
+  "url" : "https://github.com/ShikOfTheRa/scarab-osd/releases/download/1.7.2.0/aeromax.mavlink.hex",
+  "version": "1.7.2",
+  "board": "VirtualPilot AeroMax"                
+},
+{
+  "name": "PIXHAWK PX4",
+  "url" : "https://github.com/ShikOfTheRa/scarab-osd/releases/download/1.7.2.0/aeromax.px4.hex",
+  "version": "1.7.2",
+  "board": "VirtualPilot AeroMax"                
+},
+{
+  "name": "Fixedwing iNAV ",
+  "url" : "https://github.com/ShikOfTheRa/scarab-osd/releases/download/1.7.2.0/aeromax.inav.aero.hex",
+  "version": "1.7.2",
+  "board": "VirtualPilot AeroMax"                
+},
+{
+  "name": "Fixedwing APM mavlink",
+  "url" : "https://github.com/ShikOfTheRa/scarab-osd/releases/download/1.7.2.0/aeromax.mavlink.aero.hex",
+  "version": "1.7.2",
+  "board": "VirtualPilot AeroMax"                
+},
+{
+  "name": "Fixedwing PIXHAWK PX4",
+  "url" : "https://github.com/ShikOfTheRa/scarab-osd/releases/download/1.7.2.0/aeromax.px4.aero.hex",
+  "version": "1.7.2",
+  "board": "VirtualPilot AeroMax"                
+},
+{
+  "name": "Fixedwing PatrikE BF",
+  "url" : "https://github.com/ShikOfTheRa/scarab-osd/releases/download/1.7.2.0/aeromax.baseflight.aero.hex",
+  "version": "1.7.2",
+  "board": "VirtualPilot AeroMax"                
+},
+{
+  "name": "Standard GPS OSD - UBLOX",
+  "url" : "https://github.com/ShikOfTheRa/scarab-osd/releases/download/1.7.2.0/minim.gpsosd_ublox.hex",
+  "version": "1.7.2",
+  "board": "VirtualPilot AeroMax"                
+},
+
+
+
+{
+  "name": "Betaflight",
+  "url" : "https://github.com/ShikOfTheRa/scarab-osd/releases/download/1.7.2.0/andromeda.betaflight.hex",
+  "version": "1.7.2",
+  "board": "Andromeda"                
+},
+{
+  "name": "iNAV",
+  "url" : "https://github.com/ShikOfTheRa/scarab-osd/releases/download/1.7.2.0/andromeda.inav.hex",
+  "version": "1.7.2",
+  "board": "Andromeda"                
+},
+{
+  "name": "APM mavlink",
+  "url" : "https://github.com/ShikOfTheRa/scarab-osd/releases/download/1.7.2.0/andromeda.mavlink.hex",
+  "version": "1.7.2",
+  "board": "Andromeda"                
+},
+{
+  "name": "PIXHAWK PX4",
+  "url" : "https://github.com/ShikOfTheRa/scarab-osd/releases/download/1.7.2.0/andromeda.px4.hex",
+  "version": "1.7.2",
+  "board": "Andromeda"                
+},
+{
+  "name": "Fixedwing iNAV ",
+  "url" : "https://github.com/ShikOfTheRa/scarab-osd/releases/download/1.7.2.0/andromeda.inav.aero.hex",
+  "version": "1.7.2",
+  "board": "Andromeda"                
+},
+{
+  "name": "Fixedwing APM PIXHAWK",
+  "url" : "https://github.com/ShikOfTheRa/scarab-osd/releases/download/1.7.2.0/andromeda.mavlink.aero.hex",
+  "version": "1.7.2",
+  "board": "Andromeda"                
+},
+{
+  "name": "Fixedwing PIXHAWK PX4",
+  "url" : "https://github.com/ShikOfTheRa/scarab-osd/releases/download/1.7.2.0/andromeda.px4.aero.hex",
+  "version": "1.7.2",
+  "board": "Andromeda"                
+},
+
+
+
+
+{
+  "name": "Naza",
+  "url" : "https://raw.githubusercontent.com/ShikOfTheRa/scarab-osd/master/FIRMWARE/1.7.1/minim.naza.hex",
+  "version": "1.7.1",
+  "board": "Default minim"                
+},
+{
+  "name": "Naza",
+  "url" : "https://raw.githubusercontent.com/ShikOfTheRa/scarab-osd/master/FIRMWARE/1.7.1/minim.naza.hex",
+  "version": "1.7.1",
+  "board": "VirtualPilot AeroMax"                
+},
+
+
+  
+{
+  "name": "DEBUG",
+  "url" : "https://github.com/ShikOfTheRa/scarab-osd/releases/download/1.7.2.0/DEBUG.hex",
+  "version": "1.7.2",
+  "board": "Utilities"                
+},
+{
+  "name": "Clear EEprom",
+  "url" : "https://github.com/ShikOfTheRa/scarab-osd/releases/download/1.7.2.0/EEPROM.CLEAR.hex",
+  "version": "1.7.2",
+  "board": "Utilities"                
+},
+{
+   "name": "Bold font installer",
+   "url" : "https://github.com/ShikOfTheRa/scarab-osd/releases/download/1.7.2.0/FONT.BOLD.hex",
+   "version": "1.7.2",
+   "board": "Utilities"                
+},
+{
+  "name": "Default font installer",
+  "url" : "https://github.com/ShikOfTheRa/scarab-osd/releases/download/1.7.2.0/FONT.DEFAULT.hex",
+  "version": "1.7.2",
+  "board": "Utilities"                
+},
+{
+  "name": "Large font installer",
+  "url" : "https://github.com/ShikOfTheRa/scarab-osd/releases/download/1.7.2.0/FONT.LARGE.hex",
+  "version": "1.7.2",
+  "board": "Utilities"                
+}  
+]

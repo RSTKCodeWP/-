@@ -1,0 +1,30 @@
+node_modules
+
+# Output
+.output
+.vercel
+/.svelte-kit
+/src/lib/paraglide
+/build
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.env.*
+!.env.example
+!.env.test
+
+# Vite
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
+/.svelte-kit.old
+
+# Playwright
+/test-results
+/playwright-report
+
+# Ground-station flight recordings (black box)
+flight-logs/

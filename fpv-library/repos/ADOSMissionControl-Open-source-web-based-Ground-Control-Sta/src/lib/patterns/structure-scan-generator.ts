@@ -1,0 +1,196 @@
+/**
+ * @module structure-scan-generator
+ * @description Generates a multi-layer structure/facade scan pattern.
+ * The drone orbits a structure at multiple altitude layers with the camera
+ * pointed inward, creating a complete 3D capture of the structure.
+ *
+ * Used for building inspection, cell tower inspection, bridge inspection, etc.
+ *
+ * Pure function: config in → waypoint array out.
+ * @license GPL-3.0-only
+ */
+
+import type { PatternResult, PatternStats } from "./types";
+import {
+  haversineDistance,
+  offsetPoint,
+  polygonCentroid,
+} from "@/lib/drawing/geo-utils";
+
+export interface StructureScanConfig {
+  /** Structure boundary polygon vertices [lat, lon] */
+  structurePolygon: [number, number][];
+  /** Bottom altitude of scan (meters AGL) */
+  bottomAlt: number;
+  /** Top altitude of scan (meters AGL) */
+  topAlt: number;
+  /** Vertical spacing between scan layers (meters) */
+  layerSpacing: number;
+  /** Horizontal distance from structure boundary to fly (meters) */
+  scanDistance: number;
+  /** Gimbal pitch angle pointing inward (degrees, negative = down) */
+  gimbalPitch: number;
+  /** Points per orbit layer (more = smoother circle) */
+  pointsPerLayer: number;
+  /** Camera trigger distance along orbit path (meters, 0 = disabled) */
+  cameraTriggerDistance: number;
+  /** Flight speed (m/s) */
+  speed: number;
+  /** Scan direction: bottom-up or top-down */
+  direction: "bottom-up" | "top-down";
+}
+
+/**
+ * Generate a multi-layer structure scan pattern.
+ *
+ * Algorithm:
+ * 1. Compute the centroid of the structure polygon
+ * 2. For each altitude layer (from bottom to top or vice versa):
+ *    a. Generate orbit points at scanDistance from centroid
+ *    b. Each point has ROI set to structure centroid (camera looks inward)
+ *    c. Insert camera trigger if configured
+ * 3. Connect layers with transit waypoints
+ */
+export function generateStructureScan(config: StructureScanConfig): PatternResult {
+  const {
+    structurePolygon,
+    bottomAlt,
+    topAlt,
+    layerSpacing,
+    scanDistance,
+    gimbalPitch,
+    pointsPerLayer,
+    cameraTriggerDistance,
+    speed,
+    direction,
+  } = config;
+
+  if (structurePolygon.length < 3) {
+    return {
+      waypoints: [],
+      stats: { totalDistance: 0, estimatedTime: 0, photoCount: 0, coveredArea: 0, transectCount: 0 },
+    };
+  }
+
+  const waypoints: PatternResult["waypoints"] = [];
+
+  // Compute centroid
+  const center = polygonCentroid(structurePolygon);
+
+  // Compute average radius from centroid to boundary + scan distance
+  let avgRadius = 0;
+  for (const vertex of structurePolygon) {
+    avgRadius += haversineDistance(center[0], center[1], vertex[0], vertex[1]);
+  }
+  avgRadius = avgRadius / structurePolygon.length + scanDistance;
+
+  // Generate altitude layers
+  const numLayers = Math.max(1, Math.ceil((topAlt - bottomAlt) / layerSpacing) + 1);
+  const altitudes: number[] = [];
+  for (let i = 0; i < numLayers; i++) {
+    const alt = bottomAlt + i * layerSpacing;
+    if (alt <= topAlt) altitudes.push(alt);
+  }
+  // Ensure top altitude is included
+  if (altitudes[altitudes.length - 1] !== topAlt) {
+    altitudes.push(topAlt);
+  }
+
+  if (direction === "top-down") altitudes.reverse();
+
+  // Set ROI at structure centroid (first waypoint)
+  waypoints.push({
+    lat: center[0],
+    lon: center[1],
+    alt: (bottomAlt + topAlt) / 2,
+    speed: 0,
+    command: "ROI",
+  });
+
+  // Generate orbit for each layer
+  for (let layerIdx = 0; layerIdx < altitudes.length; layerIdx++) {
+    const alt = altitudes[layerIdx];
+
+    // Enable camera trigger at start of each layer
+    if (cameraTriggerDistance > 0 && layerIdx === 0) {
+      waypoints.push({
+        lat: center[0],
+        lon: center[1],
+        alt,
+        speed: 0,
+        command: "DO_SET_CAM_TRIGG",
+        param1: cameraTriggerDistance,
+      });
+    }
+
+    // Generate orbit points for this layer
+    // Alternate direction for efficiency (clockwise on even layers, CCW on odd)
+    const clockwise = layerIdx % 2 === 0;
+
+    for (let i = 0; i < pointsPerLayer; i++) {
+      const rawAngle = (360 / pointsPerLayer) * i;
+      const angle = clockwise ? rawAngle : 360 - rawAngle;
+      const pt = offsetPoint(center[0], center[1], angle, avgRadius);
+
+      waypoints.push({
+        lat: pt[0],
+        lon: pt[1],
+        alt,
+        speed,
+        command: "WAYPOINT",
+        // gimbalPitch stored in param2 for DO_MOUNT_CONTROL compatibility
+        param2: gimbalPitch,
+      });
+    }
+  }
+
+  // Disable camera trigger at end
+  if (cameraTriggerDistance > 0) {
+    waypoints.push({
+      lat: center[0],
+      lon: center[1],
+      alt: altitudes[altitudes.length - 1],
+      speed: 0,
+      command: "DO_SET_CAM_TRIGG",
+      param1: 0, // disable
+    });
+  }
+
+  const stats = computeStats(waypoints, speed, cameraTriggerDistance, avgRadius, altitudes.length);
+
+  return {
+    waypoints,
+    stats,
+  };
+}
+
+// ── Helpers ───────────────────────────────────────────────────
+
+function computeStats(
+  waypoints: PatternResult["waypoints"],
+  speed: number,
+  triggerDistance: number,
+  orbitRadius: number,
+  layerCount: number,
+): PatternStats {
+  let totalDistance = 0;
+  for (let i = 1; i < waypoints.length; i++) {
+    totalDistance += haversineDistance(
+      waypoints[i - 1].lat,
+      waypoints[i - 1].lon,
+      waypoints[i].lat,
+      waypoints[i].lon,
+    );
+  }
+
+  const circumference = 2 * Math.PI * orbitRadius;
+  const coveredArea = circumference * layerCount; // Approximate linear coverage area
+
+  return {
+    totalDistance,
+    estimatedTime: speed > 0 ? totalDistance / speed : 0,
+    photoCount: triggerDistance > 0 ? Math.ceil(totalDistance / triggerDistance) : 0,
+    coveredArea,
+    transectCount: layerCount,
+  };
+}

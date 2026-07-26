@@ -1,0 +1,40 @@
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./acl.conf:/mosquitto/config/acl.conf:ro
+      - ./passwd:/mosquitto/config/passwd:ro
+      - mosquitto-data:/mosquitto/data
+      - mosquitto-log:/mosquitto/log
+    # First-time deploy: see README.md for how to generate the passwd file.
+    # OSS quick start:
+    #   docker exec -it mosquitto mosquitto_passwd -c /mosquitto/config/passwd ados
+    #   docker exec -it mosquitto mosquitto_passwd /mosquitto/config/passwd <device_id>
+
+  bridge:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - mosquitto
+    env_file:
+      - .env
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel run
+    depends_on:
+      - mosquitto
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+
+volumes:
+  mosquitto-data:
+  mosquitto-log:

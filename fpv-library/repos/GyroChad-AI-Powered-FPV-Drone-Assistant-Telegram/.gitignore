@@ -1,0 +1,37 @@
+# Rust
+target/
+**/target/
+**/*.rs.bk
+*.pdb
+Cargo.lock
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Media & Temp Files
+temp_media/
+raw_audio/
+raw_texts/
+*.bbl
+*.BBL
+*.csv
+
+# Qdrant
+qdrant_storage/
+.qdrant/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db

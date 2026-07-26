@@ -1,0 +1,265 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
+import { Select } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Download, Star, X, HardDrive, Upload, Image, Trash2, RotateCcw, Archive, FolderInput } from "lucide-react";
+import type { FlightRecord } from "@/lib/types";
+import { exportFlightRecordsAsCsv } from "@/lib/csv-export";
+import { CloudSyncBadge } from "./CloudSyncBadge";
+import { LogBrowser } from "./dataflash/LogBrowser";
+import { ImportLogModal } from "../history/import/ImportLogModal";
+import { MediaUploader } from "./media/MediaUploader";
+import { ComplianceAlertBell } from "./ComplianceAlertBell";
+import { exportBackup } from "@/lib/backup/exporter";
+import { importBackup } from "@/lib/backup/importer";
+
+export type DatePreset = "all" | "today" | "7d" | "30d" | "month";
+
+interface HistoryToolbarProps {
+  search: string;
+  dateFrom: string;
+  dateTo: string;
+  datePreset: DatePreset;
+  status: string;
+  droneFilter: string;
+  sort: string;
+  favoritesOnly: boolean;
+  droneNames: { value: string; label: string }[];
+  records: FlightRecord[];
+  onSearchChange: (v: string) => void;
+  onDateFromChange: (v: string) => void;
+  onDateToChange: (v: string) => void;
+  onDatePresetChange: (v: DatePreset) => void;
+  onStatusChange: (v: string) => void;
+  onDroneFilterChange: (v: string) => void;
+  onSortChange: (v: string) => void;
+  onFavoritesOnlyChange: (v: boolean) => void;
+  showTrash: boolean;
+  onShowTrashChange: (v: boolean) => void;
+  onEmptyTrash: () => void;
+  trashCount: number;
+  onReset: () => void;
+}
+
+export function HistoryToolbar({
+  search,
+  dateFrom,
+  dateTo,
+  datePreset,
+  status,
+  droneFilter,
+  sort,
+  favoritesOnly,
+  droneNames,
+  records,
+  onSearchChange,
+  onDateFromChange,
+  onDateToChange,
+  onDatePresetChange,
+  onStatusChange,
+  onDroneFilterChange,
+  onSortChange,
+  onFavoritesOnlyChange,
+  showTrash,
+  onShowTrashChange,
+  onEmptyTrash,
+  trashCount,
+  onReset,
+}: HistoryToolbarProps) {
+  const t = useTranslations("history");
+  const [logBrowserOpen, setLogBrowserOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [mediaOpen, setMediaOpen] = useState(false);
+
+  const STATUS_OPTIONS = useMemo(() => [
+    { value: "all", label: t("allStatuses") },
+    { value: "in_progress", label: t("inProgress") },
+    { value: "completed", label: t("completed") },
+    { value: "aborted", label: t("aborted") },
+    { value: "emergency", label: t("emergency") },
+  ], [t]);
+
+  const SORT_OPTIONS = useMemo(() => [
+    { value: "date-desc", label: t("newestFirst") },
+    { value: "date-asc", label: t("oldestFirst") },
+    { value: "duration-desc", label: t("longest") },
+    { value: "distance-desc", label: t("farthest") },
+  ], [t]);
+
+
+  const PRESET_OPTIONS = useMemo(() => [
+    { value: "all", label: t("presetAll") },
+    { value: "today", label: t("presetToday") },
+    { value: "7d", label: t("preset7d") },
+    { value: "30d", label: t("preset30d") },
+    { value: "month", label: t("presetMonth") },
+  ], [t]);
+
+  const allDroneOptions = [{ value: "all", label: t("allDrones") }, ...droneNames];
+
+  return (
+    <div className="flex items-end gap-3 px-4 py-3 border-b border-border-default flex-wrap shrink-0">
+      <Input
+        label={t("search")}
+        type="text"
+        value={search}
+        onChange={(e) => onSearchChange(e.target.value)}
+        placeholder={t("searchPlaceholder")}
+        className="w-[220px]"
+        data-history-search=""
+      />
+      <Select
+        label={t("datePresetLabel")}
+        options={PRESET_OPTIONS}
+        value={datePreset}
+        onChange={(v) => onDatePresetChange(v as DatePreset)}
+      />
+      <Input
+        label={t("from")}
+        type="date"
+        value={dateFrom}
+        onChange={(e) => onDateFromChange(e.target.value)}
+        className="w-[130px]"
+      />
+      <Input
+        label={t("to")}
+        type="date"
+        value={dateTo}
+        onChange={(e) => onDateToChange(e.target.value)}
+        className="w-[130px]"
+      />
+      <Select
+        label={t("statusLabel")}
+        options={STATUS_OPTIONS}
+        value={status}
+        onChange={onStatusChange}
+      />
+      <Select
+        label={t("droneLabel")}
+        options={allDroneOptions}
+        value={droneFilter}
+        onChange={onDroneFilterChange}
+      />
+      <Select
+        label={t("sortLabel")}
+        options={SORT_OPTIONS}
+        value={sort}
+        onChange={onSortChange}
+      />
+      <Button
+        variant={favoritesOnly ? "primary" : "secondary"}
+        size="md"
+        icon={<Star size={14} />}
+        onClick={() => onFavoritesOnlyChange(!favoritesOnly)}
+        title={t("favoritesOnly")}
+      >
+        {t("favoritesOnly")}
+      </Button>
+      <Button
+        variant="secondary"
+        size="md"
+        icon={<Download size={14} />}
+        onClick={() => exportFlightRecordsAsCsv(records)}
+      >
+        {t("exportBtn")}
+      </Button>
+      <Button
+        variant={showTrash ? "primary" : "ghost"}
+        size="md"
+        icon={<Trash2 size={14} />}
+        onClick={() => onShowTrashChange(!showTrash)}
+        title={`Trash (${trashCount})`}
+      >
+        Trash{trashCount > 0 ? ` (${trashCount})` : ""}
+      </Button>
+      {showTrash && trashCount > 0 && (
+        <Button
+          variant="ghost"
+          size="md"
+          icon={<RotateCcw size={14} />}
+          onClick={onEmptyTrash}
+          title="Empty trash"
+        >
+          Empty
+        </Button>
+      )}
+      <Button
+        variant="ghost"
+        size="md"
+        icon={<X size={14} />}
+        onClick={onReset}
+      >
+        {t("reset")}
+      </Button>
+      <Button
+        variant="secondary"
+        size="md"
+        icon={<HardDrive size={14} />}
+        onClick={() => setLogBrowserOpen(true)}
+        title={t("onboardLogs")}
+      >
+        {t("onboardLogs")}
+      </Button>
+      <Button
+        variant="secondary"
+        size="md"
+        icon={<Upload size={14} />}
+        onClick={() => setImportOpen(true)}
+        title="Import logs"
+      >
+        Import
+      </Button>
+      <Button
+        variant="ghost"
+        size="md"
+        icon={<Image size={14} />}
+        onClick={() => setMediaOpen(true)}
+        title="Import media"
+      >
+        Media
+      </Button>
+      <Button
+        variant="ghost"
+        size="md"
+        icon={<Archive size={14} />}
+        onClick={() => void exportBackup()}
+        title="Export full backup (ZIP)"
+      >
+        Backup
+      </Button>
+      <Button
+        variant="ghost"
+        size="md"
+        icon={<FolderInput size={14} />}
+        onClick={() => {
+          const input = document.createElement("input");
+          input.type = "file";
+          input.accept = ".zip";
+          input.onchange = async () => {
+            if (!input.files?.[0]) return;
+            const result = await importBackup(input.files[0]);
+            if (result.errors.length > 0) {
+              window.alert(`Restore completed with errors:\n${result.errors.join("\n")}`);
+            } else {
+              window.alert(`Restored ${result.storesRestored} stores, ${result.recordsMerged} records merged.`);
+            }
+            window.location.reload();
+          };
+          input.click();
+        }}
+        title="Restore from backup (ZIP)"
+      >
+        Restore
+      </Button>
+      <ComplianceAlertBell />
+      <CloudSyncBadge />
+
+      <LogBrowser open={logBrowserOpen} onClose={() => setLogBrowserOpen(false)} />
+      <ImportLogModal open={importOpen} onClose={() => setImportOpen(false)} />
+      <MediaUploader open={mediaOpen} onClose={() => setMediaOpen(false)} />
+    </div>
+  );
+}

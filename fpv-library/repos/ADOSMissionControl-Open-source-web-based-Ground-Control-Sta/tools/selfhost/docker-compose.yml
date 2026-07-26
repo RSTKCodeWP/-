@@ -1,0 +1,118 @@
+# Self-host the full Mission Control cloud stack on one host.
+#
+# Brings up: a self-hosted Convex backend + dashboard, the Mission Control
+# web GCS, the MQTT broker + bridge, and the video relay.
+#
+# Quick start:
+#   1. cp .env.example .env   and edit the values
+#   2. docker compose up -d convex-backend
+#   3. Push Convex functions out-of-band (from a dev machine with the repo):
+#        npx convex deploy --url http://<host>:3210 --admin-key <admin-key>
+#   4. Generate + set the auth keys on the backend (see ../../scripts/generate-auth-keys.mjs):
+#        node ../../scripts/generate-auth-keys.mjs
+#        npx convex env set JWT_PRIVATE_KEY "$JWT_PRIVATE_KEY" --url http://<host>:3210 --admin-key <admin-key>
+#        npx convex env set JWKS "$JWKS"                       --url http://<host>:3210 --admin-key <admin-key>
+#        npx convex env set SITE_URL "http://<host>:4000"      --url http://<host>:3210 --admin-key <admin-key>
+#   5. docker compose up -d
+#
+# Port wiring (critical):
+#   - GCS browser client  -> Convex CLIENT-API origin  :3210  (NEXT_PUBLIC_CONVEX_URL)
+#   - agent + MQTT bridge -> Convex SITE / HTTP-actions :3211  (CONVEX_URL, server.self_hosted.url, pairing.convex_url)
+#   - Convex dashboard UI  :6791
+#   - Mission Control web  :4000
+#
+# The single-image, push-functions-on-boot build is a future goal; for now
+# functions are deployed out-of-band per step 3.
+
+services:
+  convex-backend:
+    image: ghcr.io/get-convex/convex-backend:latest
+    restart: unless-stopped
+    ports:
+      - "3210:3210" # client API (browser / NEXT_PUBLIC_CONVEX_URL)
+      - "3211:3211" # site / HTTP actions (agent heartbeat + MQTT bridge)
+    environment:
+      - INSTANCE_NAME=${CONVEX_INSTANCE_NAME}
+      - INSTANCE_SECRET=${CONVEX_INSTANCE_SECRET}
+      - CONVEX_CLOUD_ORIGIN=${CONVEX_CLOUD_ORIGIN}
+      - CONVEX_SITE_ORIGIN=${CONVEX_SITE_ORIGIN}
+    volumes:
+      - convex-data:/convex/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3210/version"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  convex-dashboard:
+    image: ghcr.io/get-convex/convex-dashboard:latest
+    restart: unless-stopped
+    depends_on:
+      - convex-backend
+    ports:
+      - "6791:6791"
+    environment:
+      - NEXT_PUBLIC_DEPLOYMENT_URL=${CONVEX_CLOUD_ORIGIN}
+
+  mission-control:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_CONVEX_URL: ${NEXT_PUBLIC_CONVEX_URL}
+    restart: unless-stopped
+    depends_on:
+      - convex-backend
+    ports:
+      - "4000:4000"
+    environment:
+      - NEXT_PUBLIC_CONVEX_URL=${NEXT_PUBLIC_CONVEX_URL}
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ../mqtt-bridge/deploy/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ../mqtt-bridge/deploy/acl.conf:/mosquitto/config/acl.conf:ro
+      - ./passwd:/mosquitto/config/passwd:ro
+      - mosquitto-data:/mosquitto/data
+      - mosquitto-log:/mosquitto/log
+    # First run: generate the password file before starting the bridge.
+    #   docker compose up -d mosquitto
+    #   docker exec -it selfhost-mosquitto-1 mosquitto_passwd -c /mosquitto/config/passwd ados
+
+  mqtt-bridge:
+    build:
+      context: ../mqtt-bridge
+      dockerfile: deploy/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - mosquitto
+      - convex-backend
+    environment:
+      - MQTT_BROKER_URL=mqtt://mosquitto:1883
+      - MQTT_USERNAME=${MQTT_USERNAME:-ados}
+      - MQTT_PASSWORD=${MQTT_PASSWORD}
+      # Convex SITE origin. The bridge POSTs to ${CONVEX_URL}/agent/status.
+      - CONVEX_URL=${CONVEX_URL}
+
+  video-relay:
+    build:
+      context: ../video-relay
+      dockerfile: deploy/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      - RTSP_URL_PATTERN=${RTSP_URL_PATTERN:-rtsp://host.docker.internal:8554/{deviceId}}
+      - PORT=3001
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  convex-data:
+  mosquitto-data:
+  mosquitto-log:

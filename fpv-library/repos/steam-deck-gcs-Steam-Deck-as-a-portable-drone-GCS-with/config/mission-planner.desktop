@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Mission Planner
+Comment=Mission Planner Ground Control Station
+GenericName=Ground Control Station
+Exec=bash -c '. $HOME/.nix-profile/etc/profile.d/nix.sh && systemd-inhibit --what=idle --who="Mission Planner" --why="GCS active" mono $HOME/.local/share/mission-planner/MissionPlanner.exe'
+Icon=$HOME/.local/share/mission-planner/mpdesktop150.png
+Type=Application
+StartupNotify=false
+Categories=Utility;
+Keywords=ardupilot;mission;planner;uav;drone

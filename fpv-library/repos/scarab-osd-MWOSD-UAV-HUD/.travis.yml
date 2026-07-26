@@ -1,0 +1,42 @@
+# dist: precise
+language: python
+python:
+- '3.6'
+sudo: false
+cache:
+  directories:
+  - "~/.platformio"
+env:
+- PLATFORMIO_CI_SRC=MW_OSD/
+install:
+- pip install --upgrade platformio
+script:
+- platformio run
+- cd ./
+- mkdir dist
+- find . -name "*.hex"
+- ls -l ./.pio/build/
+- ls -l ./.pio/build/ | grep ^d | tr -s ' ' | cut -d ' ' -f 9 >> filenames.txt;
+- while read envname; do echo $envname; cp ./.pio/build/$envname/firmware.hex ./dist/$envname.hex; done < filenames.txt;
+- ls -l dist/
+
+deploy:
+  provider: releases 
+  api_key: $GITHUB_TOKEN  
+  file_glob: true
+  file: ./dist/*.hex
+  skip_cleanup: true
+  overwrite: true
+  on:
+    repo: ShikOfTheRa/scarab-osd
+#   branch: master
+    tags: true
+
+
+## How to generate deploy section
+# install git
+# install gem
+# sudo gem install travis
+# cd into repo
+# $ travis setup releases --force
+# follow prompts..

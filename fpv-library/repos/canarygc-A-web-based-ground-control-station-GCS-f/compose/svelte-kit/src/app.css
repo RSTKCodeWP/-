@@ -1,0 +1,386 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* A three-step corner scale plus pill and circle, assigned by hierarchy: shells
+   nest surfaces nest controls, each step down roughly matching the padding
+   between them so concentric corners stay parallel. Tailwind equivalents:
+   control = rounded-lg, surface = rounded-2xl, shell = rounded-3xl. */
+:root {
+  --radius-control: 0.5rem;
+  --radius-surface: 1rem;
+  --radius-shell: 1.5rem;
+
+  --primaryColor: #ffffff;
+  --secondaryColor: #e7e9ef;
+  --tertiaryColor: #d7d7d7;
+  --fontColor: #000000;
+  color-scheme: light;
+}
+
+html.dark {
+  --primaryColor: #1c1c1e;
+  --secondaryColor: #121212;
+  --tertiaryColor: #2d2d2d;
+  --fontColor: #ffffff;
+  color-scheme: dark;
+}
+
+/* Modals and mission cards sit above the panels, so in dark mode they take the
+   lighter tertiary shade as their surface for separation from the background. */
+html.dark .elevated-surface {
+  --secondaryColor: var(--tertiaryColor);
+}
+
+.elevated-surface {
+  pointer-events: auto;
+}
+
+body {
+  transition:
+    background-color 0.2s ease-in-out,
+    color 0.2s ease-in-out;
+}
+
+/* The airspace-and-hazards modal renders its stacked sections, coordinates, and
+   LAANC quick actions as injected HTML, so its styling is global and uses
+   neutral colors that read on the modal's own background. */
+.airspace-modal {
+  font-size: 0.9rem;
+  line-height: 1.45;
+  text-align: left;
+}
+.airspace-modal .am-note {
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
+.airspace-modal .am-icons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.45rem;
+}
+.airspace-modal .am-icon {
+  width: 44px;
+  height: 44px;
+  padding: 3px;
+  border: 2px solid transparent;
+  border-radius: var(--radius-control);
+  background: rgb(from var(--tertiaryColor) r g b / 0.5);
+  cursor: pointer;
+}
+.airspace-modal .am-icon:hover {
+  border-color: rgb(from var(--fontColor) r g b / 0.35);
+}
+.airspace-modal .am-icon.am-icon-active {
+  border-color: #4e94f7;
+}
+.airspace-modal .am-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.airspace-modal .am-section {
+  background: rgb(from var(--tertiaryColor) r g b / 0.3);
+  border: 1px solid rgb(from var(--fontColor) r g b / 0.1);
+  border-left: 3px solid #f5c518;
+  border-radius: var(--radius-control);
+  padding: 0.6rem 0.8rem;
+  margin-bottom: 0.55rem;
+}
+.airspace-modal .am-section strong {
+  display: block;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.airspace-modal .am-section em {
+  display: block;
+  margin-top: 0.35rem;
+  padding-top: 0.35rem;
+  border-top: 1px dashed rgb(from var(--fontColor) r g b / 0.12);
+  font-style: normal;
+  opacity: 0.7;
+  font-size: 0.8rem;
+}
+.airspace-modal .am-coords {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid rgba(127, 127, 127, 0.35);
+  font-family: ui-monospace, monospace;
+}
+.airspace-modal .am-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.6rem;
+  border-radius: var(--radius-control);
+  background: rgba(127, 127, 127, 0.25);
+  color: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.airspace-modal .am-copy:hover {
+  background: rgba(127, 127, 127, 0.4);
+}
+.airspace-modal .am-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+.airspace-modal .am-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.8rem;
+  border-radius: var(--radius-control);
+  background: #f5c518;
+  color: #1c1c1e !important;
+  font-weight: 600;
+  font-size: 0.82rem;
+}
+.airspace-modal .am-action:hover {
+  background: #ffd23f;
+  color: #1c1c1e !important;
+}
+
+a {
+  text-decoration: none !important;
+  color: #3182ce;
+}
+a:hover {
+  color: #8abcf8;
+}
+
+main {
+    font-family: 'Roboto', sans-serif;
+    height: 100vh;
+}
+
+* {
+  transition:
+    all 0.1s ease,
+    color 0s ease,
+    background-color 0.1s ease,
+    opacity 0.5s ease,
+    height 0s ease !important;
+  /* A neutral translucent gray reads against both the dark app chrome and the
+     light popups, so one thumb color works everywhere. */
+  --sb-thumb-color: rgba(136, 136, 136, 0.55);
+  --sb-thumb-hover: rgba(136, 136, 136, 0.85);
+  --sb-size: 8px;
+}
+
+::-webkit-scrollbar {
+  width: var(--sb-size);
+  height: var(--sb-size);
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--sb-thumb-color);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--sb-thumb-hover);
+}
+
+@supports not selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--sb-thumb-color) transparent;
+  }
+}
+
+html {
+  overflow: hidden;
+}
+
+iframe {
+  border-radius: var(--radius-surface);
+}
+
+.leaflet-control-attribution {
+  display: inline-flex;
+  width: 100% !important;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5em !important;
+  margin: 10px !important;
+  border-radius: var(--radius-control);
+}
+.leaflet-control-attribution a {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.leaflet-control-attribution a:hover {
+  color: #3182ce;
+}
+
+.tooltip {
+  color: #fff;
+  background-color: #3290e7;
+}
+
+/* Instant styled tooltips for map chrome and dock buttons; renders in place,
+   so it survives fullscreen where portaled tooltips would land behind the
+   fullscreen element. Default sits above; data-tip-pos="left" hangs off the
+   left edge for controls against the right side of a window or panel. */
+[data-tip] {
+  position: relative;
+}
+
+[data-tip]::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%);
+  padding: 0.25rem 0.6rem;
+  border-radius: var(--radius-control);
+  background-color: #3290e7;
+  color: #ffffff;
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.15s ease 0.12s, visibility 0.15s ease 0.12s;
+  pointer-events: none;
+  z-index: 60;
+}
+
+[data-tip]:hover::after,
+[data-tip]:focus-visible::after {
+  opacity: 1;
+  visibility: visible;
+}
+
+[data-tip][data-tip-pos='left']::after {
+  left: auto;
+  right: calc(100% + 8px);
+  bottom: auto;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+[data-tip][data-tip-pos='right']::after {
+  left: calc(100% + 8px);
+  bottom: auto;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+/* Below the control and hanging inward from its right edge; for controls
+   whose upward or sideways tooltip would leave a clipping container or slip
+   under page chrome. */
+[data-tip][data-tip-pos='below']::after {
+  top: calc(100% + 8px);
+  bottom: auto;
+  left: auto;
+  right: 0;
+  transform: none;
+}
+
+/* Below the control and hanging inward from its left edge; for controls near a
+   clipping container's left edge (the live-feed view toggle), so the tooltip
+   extends rightward into view instead of off the edge. */
+[data-tip][data-tip-pos='below-right']::after {
+  top: calc(100% + 8px);
+  bottom: auto;
+  left: 0;
+  right: auto;
+  transform: none;
+}
+
+.dashboard {
+  opacity: 0;
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.2);
+  background-color: rgb(from var(--secondaryColor) r g b / 0.85) !important;
+}
+
+.desktop-nav, .mobile-nav {
+  box-shadow: -5px 0 20px rgba(0, 0, 0, 0.2);
+}
+
+@media (max-width: 990px) {
+  .dashboard-container {
+    height: 100% !important;
+    min-height: 100% !important;
+  }
+}
+
+@media (min-width: 3000px) {
+  .desktop-nav {
+    margin-left: 24vw !important;
+  }
+  .dashboard {
+    margin-right: 24vw !important;
+  }
+}
+
+@media (min-width: 2760px) {
+  @media (max-width: 3000px) {
+    .desktop-nav {
+      margin-left: 22vw !important;
+    }
+    .dashboard {
+      margin-right: 22vw !important;
+    }
+  }
+}
+
+@media (min-width: 2420px) {
+  @media (max-width: 2760px) {
+    .desktop-nav {
+      margin-left: 20vw !important;
+    }
+    .dashboard {
+      margin-right: 20vw !important;
+    }
+  }
+}
+
+@media (min-width: 2080px) {
+  @media (max-width: 2420px) {
+    .desktop-nav {
+      margin-left: 15vw !important;
+    }
+    .dashboard {
+      margin-right: 15vw !important;
+    }
+  }
+}
+
+@media (min-width: 1820px) {
+  @media (max-width: 2080px) {
+    .desktop-nav {
+      margin-left: 10vw !important;
+    }
+    .dashboard {
+      margin-right: 10vw !important;
+    }
+  }
+}
+
+@media (min-width: 1620px) {
+  @media (max-width: 1820px) {
+    .desktop-nav {
+      margin-left: 5vw !important;
+    }
+    .dashboard {
+      margin-right: 5vw !important;
+    }
+  }
+}

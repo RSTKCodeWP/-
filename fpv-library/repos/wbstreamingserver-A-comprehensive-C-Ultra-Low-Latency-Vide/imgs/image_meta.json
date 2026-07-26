@@ -1,0 +1,137 @@
+[
+  {
+    "query": "A side view FPV camera perspective showing ground details for stereo testing",
+    "image_info": {
+      "url": "https://www.getfpv.com/learn/wp-content/uploads/2018/01/lumenier-special-edition-runcam-cm-1200-pro-main.jpg",
+      "img_format": "JPEG",
+      "mode": "RGB",
+      "file_size": 52004,
+      "width": 1000,
+      "height": 1000,
+      "total_pixels": 1000000,
+      "basic_score": 0.9221720183530216,
+      "file_name": "fpv_side_view_4.jpg"
+    },
+    "llm_score": null
+  },
+  {
+    "query": "A side view FPV camera perspective showing ground details for stereo testing",
+    "image_info": {
+      "url": "https://oscarliang.com/wp-content/uploads/2024/04/runcam-night-eagle-3-fpv-camera-low-light.jpg",
+      "img_format": "JPEG",
+      "mode": "RGB",
+      "file_size": 100267,
+      "width": 1400,
+      "height": 933,
+      "total_pixels": 1306200,
+      "basic_score": 0.9140597928464209,
+      "file_name": "fpv_side_view_2.jpg"
+    },
+    "llm_score": null
+  },
+  {
+    "query": "A side view FPV camera perspective showing ground details for stereo testing",
+    "image_info": {
+      "url": "https://oscarliang.com/wp-content/uploads/2025/01/DJI-O4-Air-Unit-Lite-camera.jpg",
+      "img_format": "JPEG",
+      "mode": "RGB",
+      "file_size": 90029,
+      "width": 1400,
+      "height": 933,
+      "total_pixels": 1306200,
+      "basic_score": 0.913089718131877,
+      "file_name": "fpv_side_view_6.jpg"
+    },
+    "llm_score": null
+  },
+  {
+    "query": "A test pattern with grid lines and color bars for camera calibration",
+    "image_info": {
+      "url": "https://img-va.myshopline.com/image/store/1640253952114/zhutu-03.jpeg?w=1200&h=1200&q=80",
+      "img_format": "JPEG",
+      "mode": "RGB",
+      "file_size": 129870,
+      "width": 1200,
+      "height": 1200,
+      "total_pixels": 1440000,
+      "basic_score": 0.881157726597683,
+      "file_name": "calibration_pattern_8.jpeg"
+    },
+    "llm_score": null
+  },
+  {
+    "query": "A test pattern with grid lines and color bars for camera calibration",
+    "image_info": {
+      "url": "https://cdn.printnetwork.com/production/assets/5d64701657a10d5de7f653b6/imageLocker/608080b42b01e809ed3c88fa/608080b42b01e809ed3c88fa/Photomodeler_Targets_featured_.png",
+      "img_format": "PNG",
+      "mode": "P",
+      "file_size": 11205,
+      "width": 1376,
+      "height": 1250,
+      "total_pixels": 1720000,
+      "basic_score": 0.7910947939303343,
+      "file_name": "calibration_pattern_7.png"
+    },
+    "llm_score": null
+  },
+  {
+    "query": "A test pattern with grid lines and color bars for camera calibration",
+    "image_info": {
+      "url": "https://cdn.printnetwork.com/production/assets/5d64701657a10d5de7f653b6/imageLocker/product/60816472cd015209f32302cb/21_Calibration_Board_Small_min_1699464794599.png",
+      "img_format": "PNG",
+      "mode": "P",
+      "file_size": 324786,
+      "width": 1680,
+      "height": 1120,
+      "total_pixels": 1881600,
+      "basic_score": 0.7815228595033314,
+      "file_name": "calibration_pattern_3.png"
+    },
+    "llm_score": null
+  },
+  {
+    "query": "A high-resolution FPV-style aerial view with grass field and sky for camera fallback testing",
+    "image_info": {
+      "url": "https://as2.ftcdn.net/jpg/02/73/17/67/1000_F_273176775_DNaZ2OksmdK43MucZveQ9bYX3Z2fskRv.jpg",
+      "img_format": "JPEG",
+      "mode": "RGB",
+      "file_size": 461351,
+      "width": 1000,
+      "height": 666,
+      "total_pixels": 666000,
+      "basic_score": 0.9275854278092766,
+      "file_name": "fpv_main_view_9.jpg"
+    },
+    "llm_score": null
+  },
+  {
+    "query": "A high-resolution FPV-style aerial view with grass field and sky for camera fallback testing",
+    "image_info": {
+      "url": "https://static.vecteezy.com/system/resources/thumbnails/048/660/359/large/fpv-drone-and-low-fast-flight-at-sunset-quickly-flies-over-a-field-of-dry-grass-in-the-caucasus-mountains-blue-clear-sky-high-quality-4k-footage-caucasus-at-the-foot-of-elbrus-mountain-in-autumn-video.jpg",
+      "img_format": "JPEG",
+      "mode": "RGB",
+      "file_size": 42389,
+      "width": 800,
+      "height": 450,
+      "total_pixels": 360000,
+      "basic_score": 0.8069797571498597,
+      "file_name": "fpv_main_view_8.jpg"
+    },
+    "llm_score": null
+  },
+  {
+    "query": "A high-resolution FPV-style aerial view with grass field and sky for camera fallback testing",
+    "image_info": {
+      "url": "https://t4.ftcdn.net/jpg/02/73/98/85/360_F_273988543_g83Fi22TTP4WuE7KL9JOxyASpS3B9egg.jpg",
+      "img_format": "JPEG",
+      "mode": "RGB",
+      "file_size": 46194,
+      "width": 540,
+      "height": 360,
+      "total_pixels": 194400,
+      "basic_score": 0.7479865492969227,
+      "file_name": "fpv_main_view_5.jpg"
+    },
+    "llm_score": null
+  }
+]

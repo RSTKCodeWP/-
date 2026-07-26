@@ -1,0 +1,108 @@
+menu "DroneBridge for ESP32 Configuration"
+
+    choice
+        prompt "ESP32 board type"
+        default DB_GENERIC_BOARD
+        help
+            Select the DroneBridge ESP32 board type.
+            Depending on the chosen option the UART pins will be pre-configured (official boards) or not (generic boards)
+        config DB_GENERIC_BOARD
+            bool "Generic ESP32 board (no pre-configuration)"
+            help
+                For all types of ESP32 boards. UART pins must be set in the web interface.
+                If in doubt choose this option.
+        config DB_OFFICIAL_BOARD_1_X
+            bool "Official DroneBridge for ESP32 HWv1.x ESP32-C3 board"
+            help
+                The correct UART pins are set as defaults. No need to configure them manually.
+                Choose this if you have the official DroneBridge for ESP32 HWv1.x board with an ESP32-C3.
+        config DB_OFFICIAL_BOARD_1_X_C6
+            bool "Official DroneBridge for ESP32 HWv1.x ESP32-C6 board"
+            select DB_HAS_RF_SWITCH
+            help
+                The correct UART pins are set as defaults. No need to configure them manually.
+                Choose this if you have the official DroneBridge for ESP32 HWv1.x board with an ESP32-C6.
+                Enables RF switch via GPIO 13 and antenna selection on GPIO 14
+    endchoice
+
+    config DB_HAS_RF_SWITCH
+        bool "Enable support for an external antenna/RF switch"
+        default n
+        depends on !DB_OFFICIAL_BOARD_1_X
+        help
+            Enable this option to allow the use of an external antenna switch (need to configure GPIO).
+            The UI will then allow you to choose between antennas. At the moment only two antennas are supported.
+            Beware that for some boards the antenna switch sometimes must be activated first by setting a GPIO.
+            Do that in code. Enabling of the switch is done automatically for the official HW 1.x based on the ESP32C6.
+
+    config DB_RF_SWITCH_GPIO
+        int "Define pin to use for switching between external and internal antenna"
+        depends on DB_HAS_RF_SWITCH
+        default 14 if DB_OFFICIAL_BOARD_1_X_C6
+        default 0
+        help
+            This GPIOs high/low state is used to indicate to the RF switch what antenna to choose.
+            Official HW v1.x ESP32-C6 boards use GPIO 14.
+            Set to 0 equals not configured.
+
+    choice
+        prompt "Serial interface for data."
+        default DB_SERIAL_OPTION_UART
+        help
+            Select serial interface.
+            USB/JTAG on the official HWv1.x boards for DroneBridge for ESP32 is connected to the USB-C port. 
+            By using this port a ground station can connect to the ESP32 without the use of an UART-to-USB adapter.
+            Intended for use on ground station ESP32 units directly connected to a GCS computer via USB.
+            Requires ESP_CONSOLE_SECONDARY_NONE set to yes.
+            WARNING: No logging available via USB port when USB/JTAG option is selected. Use debugging UART0 as specified by console settings for logging and diagnostics.
+        config DB_SERIAL_OPTION_UART
+            bool "UART"
+            help
+                Use the UART specified in the web interface for serial communication.
+        config DB_SERIAL_OPTION_JTAG
+            bool "USB/JTAG"
+			depends on ESP_CONSOLE_SECONDARY_NONE
+            help
+                Use the JTAG interface for serial communication. 
+                This interface is attached to the USB port of the official DroneBridge for ESP32 PCB in HW v1.x versions.
+                A ground control station can connect to the USB port directly without having to use a FTDI in between.
+                Not intended for connecting to a UAV etc. Use native UART instead.
+                WARNING: No logging available via USB port.
+    endchoice
+
+    choice WEB_DEPLOY_MODE
+        prompt "Website deploy mode"
+        default WEB_DEPLOY_SF
+        help
+            Select website deploy mode.
+            You can deploy website to host, and ESP32 will retrieve them in a semihost way (JTAG is needed).
+            You can deploy website to SD card or SPI flash, and ESP32 will retrieve them via SDIO/SPI interface.
+            Detailed operation steps are listed in the example README file.
+        config WEB_DEPLOY_SEMIHOST
+            bool "Deploy website to host (JTAG is needed)"
+            help
+                Deploy website to host.
+                It is recommended to choose this mode during developing.
+        config WEB_DEPLOY_SF
+            bool "Deploy website to SPI Nor Flash"
+            help
+                Deploy website to SPI Nor Flash.
+                Choose this in production mode or if the size of website is small (less than 2MB).
+    endchoice
+
+    if WEB_DEPLOY_SEMIHOST
+        config HOST_PATH_TO_MOUNT
+            string "Host path to mount (e.g. absolute path to web dist directory)"
+            default "PATH-TO-WEB-DIST_DIR"
+            help
+                When using semihost in ESP32, you should specify the host path which will be mounted to VFS.
+                Note that only absolute path is acceptable.
+    endif
+
+    config WEB_MOUNT_POINT
+        string "Website mount point in VFS"
+        default "/www"
+        help
+            Specify the mount point in VFS.
+
+endmenu

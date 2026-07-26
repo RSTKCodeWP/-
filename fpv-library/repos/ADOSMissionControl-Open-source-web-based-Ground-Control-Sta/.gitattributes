@@ -1,0 +1,3 @@
+# Bundled parameter-metadata snapshots are generated, compressed data files.
+# Mark them generated + binary so they stay out of PR diffs and language stats.
+public/param-metadata/*.json.gz -diff -text linguist-generated

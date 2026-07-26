@@ -1,0 +1,33 @@
+#!/bin/bash
+# Launch MAVProxy with joystick support for Steam Deck GCS
+# Usage: mavproxy-gcs [serial_port] [baud_rate]
+#   mavproxy-gcs                          # defaults: /dev/ttyACM0 @ 460800
+#   mavproxy-gcs /dev/ttyUSB0             # custom port, default baud
+#   mavproxy-gcs /dev/ttyUSB0 115200      # custom port and baud
+
+. "$HOME/.nix-profile/etc/profile.d/nix.sh"
+source "$HOME/.local/share/mavproxy-venv/bin/activate"
+
+PORT="/dev/ttyACM0"
+BAUD="460800"
+if [ "$#" -gt 0 ]; then
+    PORT="$1"
+    shift
+fi
+if [ "$#" -gt 0 ]; then
+    BAUD="$1"
+    shift
+fi
+
+echo "=== Steam Deck MAVProxy GCS ==="
+echo "Port: $PORT  Baud: $BAUD"
+echo "Joystick config: ~/.mavproxy/joysticks/steam-deck.yml"
+echo ""
+
+exec systemd-inhibit --what=idle --who="MAVProxy" --why="GCS active" \
+    mavproxy.py \
+    --master="$PORT" \
+    --baudrate="$BAUD" \
+    --load-module joystick \
+    --aircraft=SteamDeckGCS \
+    "$@"

@@ -1,0 +1,115 @@
+/**
+ * @module mixer-store
+ * @description Zustand store for the iNav motor and servo mixer tables.
+ * Manages up to 16 motor rules and 32 servo rules: read from FC, edit locally, write back.
+ * @license GPL-3.0-only
+ */
+
+import { create } from 'zustand'
+import type { DroneProtocol } from '@/lib/protocol/types'
+import type { MotorMixerRule, INavServoMixerRule } from '@/lib/protocol/msp/msp-decoders-inav'
+import { formatErrorMessage } from '@/lib/utils'
+
+export const MOTOR_MIXER_MAX = 16
+export const SERVO_MIXER_MAX = 32
+
+interface MixerState {
+  motorRules: MotorMixerRule[]
+  servoRules: INavServoMixerRule[]
+  loading: boolean
+  error: string | null
+  dirty: boolean
+
+  setMotorRule: (idx: number, partial: Partial<MotorMixerRule>) => void
+  removeMotorRule: (idx: number) => void
+  addMotorRule: (rule: MotorMixerRule) => void
+  setServoRule: (idx: number, partial: Partial<INavServoMixerRule>) => void
+  removeServoRule: (idx: number) => void
+  addServoRule: (rule: INavServoMixerRule) => void
+  loadFromFc: (protocol: DroneProtocol) => Promise<void>
+  uploadToFc: (protocol: DroneProtocol) => Promise<void>
+  clear: () => void
+}
+
+export const useMixerStore = create<MixerState>((set, get) => ({
+  motorRules: [],
+  servoRules: [],
+  loading: false,
+  error: null,
+  dirty: false,
+
+  setMotorRule(idx, partial) {
+    const motorRules = [...get().motorRules]
+    if (idx < 0 || idx >= motorRules.length) return
+    motorRules[idx] = { ...motorRules[idx], ...partial }
+    set({ motorRules, dirty: true })
+  },
+
+  removeMotorRule(idx) {
+    const motorRules = get().motorRules.filter((_, i) => i !== idx)
+    set({ motorRules, dirty: true })
+  },
+
+  addMotorRule(rule) {
+    const motorRules = get().motorRules
+    if (motorRules.length >= MOTOR_MIXER_MAX) return
+    set({ motorRules: [...motorRules, rule], dirty: true })
+  },
+
+  setServoRule(idx, partial) {
+    const servoRules = [...get().servoRules]
+    if (idx < 0 || idx >= servoRules.length) return
+    servoRules[idx] = { ...servoRules[idx], ...partial }
+    set({ servoRules, dirty: true })
+  },
+
+  removeServoRule(idx) {
+    const servoRules = get().servoRules.filter((_, i) => i !== idx)
+    set({ servoRules, dirty: true })
+  },
+
+  addServoRule(rule) {
+    const servoRules = get().servoRules
+    if (servoRules.length >= SERVO_MIXER_MAX) return
+    set({ servoRules: [...servoRules, rule], dirty: true })
+  },
+
+  async loadFromFc(protocol) {
+    if (get().loading) return
+    if (!protocol.downloadMotorMixer || !protocol.downloadServoMixer) {
+      set({ error: 'Mixer tables not supported by this firmware' })
+      return
+    }
+    set({ loading: true, error: null })
+    try {
+      const [motorRules, servoRules] = await Promise.all([
+        protocol.downloadMotorMixer(),
+        protocol.downloadServoMixer(),
+      ])
+      set({ motorRules, servoRules, loading: false, dirty: false })
+    } catch (err) {
+      set({ loading: false, error: formatErrorMessage(err) })
+    }
+  },
+
+  async uploadToFc(protocol) {
+    if (get().loading) return
+    if (!protocol.uploadMotorMixer || !protocol.uploadServoMixer) {
+      set({ error: 'Mixer tables not supported by this firmware' })
+      return
+    }
+    set({ loading: true, error: null })
+    try {
+      const { motorRules, servoRules } = get()
+      await protocol.uploadMotorMixer(motorRules)
+      await protocol.uploadServoMixer(servoRules)
+      set({ loading: false, dirty: false })
+    } catch (err) {
+      set({ loading: false, error: formatErrorMessage(err) })
+    }
+  },
+
+  clear() {
+    set({ motorRules: [], servoRules: [], loading: false, error: null, dirty: false })
+  },
+}))

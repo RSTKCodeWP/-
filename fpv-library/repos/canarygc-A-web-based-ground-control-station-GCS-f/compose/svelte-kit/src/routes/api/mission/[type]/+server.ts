@@ -1,0 +1,114 @@
+import type { RequestHandler } from '@sveltejs/kit';
+import { db } from "$lib/server/db";
+
+export const POST: RequestHandler = async (event): Promise<Response> => {
+    switch (event.params.type) {
+        case 'save':
+            try {
+                const title = event.request.headers.get('title');
+                const actions = event.request.headers.get('actions');
+                await db.execute({sql: "INSERT INTO mission (id, title, actions, isLoaded) VALUES (?, ?, ?, ?)", args: [Math.random().toString(36).replace('0.', ''), title, actions, false]});
+                return new Response("Success", {
+                    status: 200,
+                    headers: {
+                        "content-type": "application/json"
+                    }
+                });
+            } catch (err) {
+                console.error(err);
+                return new Response(`Error: ${(err as Error).stack}`, { status: 500 });
+            }
+        case 'load':
+            try {
+                const title = event.request.headers.get('title');
+                await db.execute({sql: "UPDATE mission SET isLoaded = true WHERE title = ?", args: [title]});
+
+                return new Response(JSON.stringify({}), {
+                    status: 200,
+                    headers: {
+                        "content-type": "application/json"
+                    }
+                });
+
+            } catch (err) {
+                console.error(err);
+                return new Response(`Error: ${(err as Error).stack}`, { status: 500 });
+            }
+        case 'unload':
+            try {
+                await db.execute({sql: "UPDATE mission SET isLoaded = false", args: []});
+
+                return new Response(JSON.stringify({}), {
+                    status: 200,
+                    headers: {
+                        "content-type": "application/json"
+                    }
+                });
+            } catch (err) {
+                console.error(err);
+                return new Response(`Error: ${(err as Error).stack}`, { status: 500 });
+            }
+        case 'checkExists':
+            try {
+                const title = event.request.headers.get('title');
+                const result = await db.execute({sql: "SELECT * FROM mission WHERE title = ?", args: [title]});
+
+                return new Response(JSON.stringify(result.rows.length > 0 ? result.rows : {}), {
+                    status: 200,
+                    headers: {
+                        "content-type": "application/json"
+                    }
+                });
+            } catch (err) {
+                console.error(err);
+                return new Response(`Error: ${(err as Error).stack}`, { status: 500 });
+            }
+        case 'update':
+            try {
+                const title = event.request.headers.get('title');
+                const actions = event.request.headers.get('actions');
+                await db.execute({sql: "UPDATE mission SET actions = ? WHERE title = ?", args: [actions, title]});
+
+                return new Response(JSON.stringify({}), {
+                    status: 200,
+                    headers: {
+                        "content-type": "application/json"
+                    }
+                });
+            } catch (err) {
+                console.error(err);
+                return new Response(`Error: ${(err as Error).stack}`, { status: 500 });
+            }
+        case 'list':
+            try {
+                const result = await db.execute("SELECT * FROM mission");
+
+                return new Response(JSON.stringify(result.rows.length > 0 ? result.rows : {}), {
+                    status: 200,
+                    headers: {
+                        "content-type": "application/json"
+                    }
+                });
+            } catch (err) {
+                console.error(err);
+                return new Response(`Error: ${(err as Error).stack}`, { status: 500 });
+            }
+        case 'delete':
+            try {
+                const title = event.request.headers.get('title');
+                await db.execute({sql: "DELETE FROM mission WHERE title = ?", args: [title]});
+
+                return new Response(JSON.stringify({}), {
+                    status: 200,
+                    headers: {
+                        "content-type": "application/json"
+                    }
+                });
+            } catch (err) {
+                console.error(err);
+                return new Response(`Error: ${(err as Error).stack}`, { status: 500 });
+            }
+        default:
+            return new Response(`Invalid request type: ${event.params.type}`, { status: 400 });
+    }
+};

@@ -1,0 +1,412 @@
+/**
+ * Flight lifecycle — turn arm/disarm transitions into FlightRecord rows.
+ *
+ * The drone-manager bridge calls {@link notifyArmed} from inside its
+ * heartbeat handler. We track per-drone armed state here (independent of
+ * `drone-store`, which is single-drone) and on each transition we:
+ *
+ *  - disarmed → armed: start a recorder slot, create a draft FlightRecord
+ *    with `status: "in_progress"`, persist it to IDB, store the draft id.
+ *  - armed → disarmed: stop the recorder, walk frames once to compute
+ *    stats (distance, max alt, max speed, battery delta, downsampled path),
+ *    update the draft to `completed`, persist.
+ *
+ * Pure module — no React, no Zustand subscription. Importing it has no
+ * side effects beyond defining the per-drone state map.
+ *
+ * This file owns the state-machine core. Helpers live in the
+ * flight-lifecycle/ folder: `geo` (haversine, id), `stats` (flight-stat
+ * derivation), `snapshots` (preflight + geofence capture).
+ *
+ * @module flight-lifecycle
+ * @license GPL-3.0-only
+ */
+
+import {
+  startRecordingFor,
+  stopRecordingFor,
+  isRecordingFor,
+  loadRecordingFrames,
+  type TelemetryFrame,
+} from "./telemetry-recorder";
+import { useHistoryStore } from "@/stores/history-store";
+import { useSettingsStore } from "@/stores/settings-store";
+import { useOperatorProfileStore } from "@/stores/operator-profile-store";
+import { useAircraftRegistryStore } from "@/stores/aircraft-registry-store";
+import { useLoadoutStore } from "@/stores/loadout-store";
+import { useBatteryRegistryStore } from "@/stores/battery-registry-store";
+import { useEquipmentRegistryStore } from "@/stores/equipment-registry-store";
+import { analyzeFlight } from "./flight-analysis/analyzer";
+import { detectPhases } from "./flight-analysis/phase-detector";
+import { computeAdherence } from "./flight-analysis/mission-adherence";
+import { detectGeofenceBreaches } from "./flight-analysis/geofence-forensics";
+import { estimateWind } from "./flight-analysis/wind-estimator";
+import { useMissionStore } from "@/stores/mission-store";
+import { computeSunMoon } from "./environment/sun-moon";
+import { getWeatherSnapshot } from "./environment/weather-provider";
+import { reverseGeocode, haversineKmLocal } from "./geocoding/reverse";
+import type { FlightRecord, LoadoutSnapshot } from "./types";
+import { cryptoRandomId } from "./flight-lifecycle/geo";
+import { computeFlightStats } from "./flight-lifecycle/stats";
+import {
+  capturePreflightSnapshot,
+  captureGeofenceSnapshot,
+} from "./flight-lifecycle/snapshots";
+
+// Re-export for external consumers (typed FlightStats shape).
+export { computeFlightStats } from "./flight-lifecycle/stats";
+export type { FlightStats } from "./flight-lifecycle/stats";
+
+// ── Per-drone lifecycle state ────────────────────────────────
+
+interface DroneLifecycleState {
+  armed: boolean;
+  draftRecordId?: string;
+  recordingId?: string;
+}
+
+export interface ArmSnapshot {
+  /** Last-known position (lat, lon) for takeoff / landing coords. Optional. */
+  lat?: number;
+  lon?: number;
+}
+
+const _state = new Map<string, DroneLifecycleState>();
+
+// ── Public API ───────────────────────────────────────────────
+
+/**
+ * Notify the lifecycle that {@link droneId}'s armed flag is currently {@link armed}.
+ * Compares against the previous value and triggers an arm/disarm transition only
+ * on change. Safe to call on every heartbeat.
+ *
+ * Call site: {@link bridgeTelemetry} inside `protocol.onHeartbeat`.
+ */
+export function notifyArmed(
+  droneId: string,
+  droneName: string,
+  armed: boolean,
+  snapshot: ArmSnapshot = {},
+): void {
+  const prev = _state.get(droneId)?.armed ?? false;
+  if (prev === armed) return;
+
+  if (armed) {
+    handleArm(droneId, droneName, snapshot);
+  } else {
+    // Fire-and-forget — disarm finalization is async (loads frames from IDB).
+    void handleDisarm(droneId);
+  }
+}
+
+/** Test/teardown helper. Forgets a drone's lifecycle state. */
+export function clearLifecycleState(droneId: string): void {
+  _state.delete(droneId);
+}
+
+// ── Arm / disarm handlers ────────────────────────────────────
+
+function handleArm(droneId: string, droneName: string, snapshot: ArmSnapshot): void {
+  const startTime = Date.now();
+
+  // Optionally start a recorder slot.
+  const settings = useSettingsStore.getState();
+  let recordingId: string | undefined;
+  if (settings.autoRecordOnArm && !isRecordingFor(droneId)) {
+    try {
+      recordingId = startRecordingFor(droneId, droneName);
+    } catch (err) {
+      console.warn("[flight-lifecycle] startRecordingFor failed", err);
+    }
+  }
+
+  // Freeze pilot + aircraft snapshots into the new record so future
+  // compliance exports keep working even if the operator edits these
+  // fields later.
+  const profile = useOperatorProfileStore.getState().profile;
+  const aircraft = useAircraftRegistryStore.getState().getOrCreate(droneId, droneName);
+
+  // Freeze the user's pre-flight loadout selection.
+  const loadout: LoadoutSnapshot | undefined = useLoadoutStore.getState().get(droneId);
+
+  // Freeze the pre-flight checklist + prearm bitmask snapshot.
+  const preflight = capturePreflightSnapshot(droneId);
+
+  // Sun / moon snapshot at arm time, iff we have a position fix.
+  // Disarm will retry with landing coords when arm had no lock.
+  const sunMoon =
+    snapshot.lat !== undefined && snapshot.lon !== undefined
+      ? computeSunMoon(snapshot.lat, snapshot.lon, startTime)
+      : undefined;
+
+  // Freeze the active mission's id + name + waypoint snapshot so the
+  // disarm-time adherence calc has something to compare against, even
+  // if the user clears the mission mid-flight or the app crashes.
+  const activeMission = useMissionStore.getState().activeMission;
+  const missionId = activeMission?.id;
+  const missionName = activeMission?.name;
+  const missionWaypoints = activeMission?.waypoints?.map((w) => ({
+    lat: w.lat,
+    lon: w.lon,
+    alt: w.alt,
+  }));
+
+  // Freeze the geofence snapshot at arm time so disarm forensics can
+  // detect breaches even if the user edits the fence after the flight
+  // ends.
+  const geofenceSnapshot = captureGeofenceSnapshot();
+
+  const draft: FlightRecord = {
+    id: cryptoRandomId(),
+    droneId,
+    droneName,
+    date: startTime,
+    startTime,
+    endTime: startTime,
+    duration: 0,
+    distance: 0,
+    maxAlt: 0,
+    maxSpeed: 0,
+    batteryUsed: 0,
+    waypointCount: 0,
+    status: "in_progress",
+    takeoffLat: snapshot.lat,
+    takeoffLon: snapshot.lon,
+    recordingId,
+    hasTelemetry: false,
+    updatedAt: startTime,
+    pilotFirstName: profile.pilotFirstName,
+    pilotLastName: profile.pilotLastName,
+    pilotLicenseNumber: profile.pilotLicenseNumber,
+    pilotLicenseIssuer: profile.pilotLicenseIssuer,
+    aircraftRegistration: aircraft.registrationNumber,
+    aircraftSerial: aircraft.serialNumber,
+    aircraftMtomKg: aircraft.mtomKg,
+    loadout,
+    preflight,
+    sunMoon,
+    missionId,
+    missionName,
+    missionWaypoints,
+    geofenceSnapshot,
+  };
+
+  const history = useHistoryStore.getState();
+  history.addRecord(draft);
+  void history.persistToIDB();
+
+  _state.set(droneId, { armed: true, draftRecordId: draft.id, recordingId });
+
+  // Non-blocking METAR fetch. Fires async from the nearest
+  // aviationweather.gov station within 300 km. Resolves (or doesn't) on
+  // its own schedule and patches the record; never awaits here, never
+  // blocks the arm path, and never throws.
+  if (snapshot.lat !== undefined && snapshot.lon !== undefined) {
+    const draftId = draft.id;
+    void getWeatherSnapshot(snapshot.lat, snapshot.lon, startTime).then((weather) => {
+      if (!weather) return;
+      const store = useHistoryStore.getState();
+      // Only patch if the record still exists (user may have deleted it).
+      if (!store.records.some((r) => r.id === draftId)) return;
+      store.updateRecord(draftId, { weatherSnapshot: weather });
+      void store.persistToIDB();
+    });
+
+    // Non-blocking reverse geocode for a human-readable takeoff place
+    // name. Throttled 1 req/s, IDB-cached indefinitely.
+    const draftId15 = draft.id;
+    const armLat = snapshot.lat;
+    const armLon = snapshot.lon;
+    void reverseGeocode(armLat, armLon).then((place) => {
+      if (!place) return;
+      const store = useHistoryStore.getState();
+      if (!store.records.some((r) => r.id === draftId15)) return;
+      store.updateRecord(draftId15, {
+        takeoffPlaceName: place.placeName,
+        country: place.country,
+        region: place.region,
+        locality: place.locality,
+      });
+      void store.persistToIDB();
+    });
+  }
+}
+
+async function handleDisarm(droneId: string): Promise<void> {
+  const lc = _state.get(droneId);
+  if (!lc) return;
+  _state.set(droneId, { ...lc, armed: false });
+
+  if (!lc.draftRecordId) return;
+
+  // Stop the recorder slot, if any.
+  let frames: TelemetryFrame[] = [];
+  if (lc.recordingId && isRecordingFor(droneId)) {
+    try {
+      const recording = await stopRecordingFor(droneId);
+      if (recording) {
+        frames = await loadRecordingFrames(recording.id);
+      }
+    } catch (err) {
+      console.warn("[flight-lifecycle] stopRecordingFor failed", err);
+    }
+  }
+
+  const stats = computeFlightStats(frames);
+  const analysis = frames.length > 0 ? analyzeFlight(frames) : { events: [], flags: [], health: {} };
+  const phases = frames.length > 0 ? detectPhases(frames) : [];
+  // Compute mission adherence using the path we just derived and the
+  // waypoint snapshot we froze on arm.
+  const draftRowEarly = useHistoryStore.getState().records.find((r) => r.id === lc.draftRecordId);
+  const adherence =
+    draftRowEarly?.missionWaypoints && stats.path.length >= 2
+      ? computeAdherence(stats.path, draftRowEarly.missionWaypoints) ?? undefined
+      : undefined;
+  // Geofence breach detection against the snapshot frozen on arm.
+  const geofenceBreaches =
+    draftRowEarly?.geofenceSnapshot && stats.path.length >= 2
+      ? detectGeofenceBreaches(stats.path, draftRowEarly.geofenceSnapshot, stats.maxAlt)
+      : undefined;
+  // Wind estimation from VFR_HUD airspeed vs groundspeed.
+  const windEstimate = frames.length > 0 ? estimateWind(frames) : undefined;
+  const endTime = Date.now();
+  const history = useHistoryStore.getState();
+  // Roll up aircraft usage stats.
+  const draftRow = history.records.find((r) => r.id === lc.draftRecordId);
+  const flightSeconds = draftRow ? Math.max(0, Math.round((endTime - draftRow.startTime) / 1000)) : 0;
+  if (flightSeconds > 0) {
+    useAircraftRegistryStore.getState().recordFlight(droneId, flightSeconds);
+
+    // Roll usage stats into the loadout's batteries + equipment.
+    const loadout = draftRow?.loadout;
+    if (loadout) {
+      const batteryStore = useBatteryRegistryStore.getState();
+      for (const batteryId of loadout.batteryIds ?? []) {
+        batteryStore.recordCycle(batteryId);
+      }
+      const equipmentStore = useEquipmentRegistryStore.getState();
+      const equipmentIds = [
+        loadout.propSetId,
+        loadout.motorSetId,
+        loadout.escSetId,
+        loadout.cameraId,
+        loadout.gimbalId,
+        loadout.payloadId,
+        loadout.frameId,
+        loadout.rcTxId,
+      ].filter((id): id is string => typeof id === "string" && id.length > 0);
+      for (const equipmentId of equipmentIds) {
+        equipmentStore.recordFlight(equipmentId, flightSeconds);
+      }
+    }
+  }
+  // Sun/moon retry: if arm didn't have a position lock, compute now from
+  // landing coords (which are from the same flight site within the
+  // typical flight's flight-duration, so the answer is still accurate).
+  let sunMoonPatch = draftRow?.sunMoon;
+  if (
+    !sunMoonPatch &&
+    stats.landingLat !== undefined &&
+    stats.landingLon !== undefined &&
+    draftRow
+  ) {
+    sunMoonPatch = computeSunMoon(stats.landingLat, stats.landingLon, draftRow.startTime);
+  }
+
+  // Weather retry: if the arm-time async fetch didn't land (network was
+  // down or the drone had no GPS fix at arm), fire one more attempt from
+  // the landing coords. Non-blocking — we don't wait for it.
+  if (
+    !draftRow?.weatherSnapshot &&
+    stats.landingLat !== undefined &&
+    stats.landingLon !== undefined &&
+    draftRow
+  ) {
+    const draftId = draftRow.id;
+    const flightStartTime = draftRow.startTime;
+    void getWeatherSnapshot(stats.landingLat, stats.landingLon, flightStartTime).then(
+      (weather) => {
+        if (!weather) return;
+        const store = useHistoryStore.getState();
+        if (!store.records.some((r) => r.id === draftId)) return;
+        store.updateRecord(draftId, { weatherSnapshot: weather });
+        void store.persistToIDB();
+      },
+    );
+  }
+
+  // Geocode retry: if arm-time geocode didn't land, retry with landing coords.
+  if (
+    !draftRow?.takeoffPlaceName &&
+    stats.landingLat !== undefined &&
+    stats.landingLon !== undefined &&
+    draftRow
+  ) {
+    const draftId = draftRow.id;
+    const latP = stats.landingLat;
+    const lonP = stats.landingLon;
+    void reverseGeocode(latP, lonP).then((place) => {
+      if (!place) return;
+      const store = useHistoryStore.getState();
+      if (!store.records.some((r) => r.id === draftId)) return;
+      store.updateRecord(draftId, {
+        takeoffPlaceName: place.placeName,
+        country: place.country,
+        region: place.region,
+        locality: place.locality,
+      });
+      void store.persistToIDB();
+    });
+  }
+
+  // Landing-place check: if landing is >5 km from takeoff, the user flew
+  // to a distinctly different location — capture a second place name for
+  // the landing spot.
+  if (
+    draftRow?.takeoffLat !== undefined &&
+    draftRow?.takeoffLon !== undefined &&
+    stats.landingLat !== undefined &&
+    stats.landingLon !== undefined &&
+    draftRow &&
+    haversineKmLocal(draftRow.takeoffLat, draftRow.takeoffLon, stats.landingLat, stats.landingLon) > 5
+  ) {
+    const draftId = draftRow.id;
+    const latL = stats.landingLat;
+    const lonL = stats.landingLon;
+    void reverseGeocode(latL, lonL).then((place) => {
+      if (!place) return;
+      const store = useHistoryStore.getState();
+      if (!store.records.some((r) => r.id === draftId)) return;
+      store.updateRecord(draftId, { landingPlaceName: place.placeName });
+      void store.persistToIDB();
+    });
+  }
+
+  history.updateRecord(lc.draftRecordId, {
+    endTime,
+    duration: Math.max(0, Math.round((endTime - (history.records.find((r) => r.id === lc.draftRecordId)?.startTime ?? endTime)) / 1000)),
+    distance: stats.distance,
+    maxAlt: stats.maxAlt,
+    maxSpeed: stats.maxSpeed,
+    avgSpeed: stats.avgSpeed,
+    batteryStartV: stats.batteryStartV,
+    batteryEndV: stats.batteryEndV,
+    batteryUsed: stats.batteryUsed,
+    path: stats.path,
+    landingLat: stats.landingLat,
+    landingLon: stats.landingLon,
+    status: "completed",
+    hasTelemetry: frames.length > 0,
+    events: analysis.events,
+    flags: analysis.flags,
+    health: analysis.health,
+    sunMoon: sunMoonPatch,
+    phases: phases.length > 0 ? phases : undefined,
+    adherence,
+    geofenceBreaches: geofenceBreaches && geofenceBreaches.length > 0 ? geofenceBreaches : undefined,
+    windEstimate,
+  });
+  void history.persistToIDB();
+
+  _state.delete(droneId);
+}

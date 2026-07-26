@@ -1,0 +1,8 @@
+{
+  "source": "coroiu/mavlink-node-fpv-server",
+  "upstream_commit": "ecd6001813780bad63489260bd0f36ee3e498987",
+  "upstream_updated": "2017-04-20T16:29:15Z",
+  "synced_at": "2026-07-26T23:32:46+00:00",
+  "discovered_via": "search:mavlink fpv:p1",
+  "score": 4.5
+}

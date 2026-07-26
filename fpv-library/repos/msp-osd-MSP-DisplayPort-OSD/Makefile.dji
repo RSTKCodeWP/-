@@ -1,0 +1,84 @@
+CC=armv7a-linux-androideabi19-clang
+CFLAGS=-I. -O2
+LIB_SHIMS = libshims/libduml_hal.so
+
+.PHONY: repo
+
+%.o: %.c $(DEPS)
+	$(CC) -c -o $@ $< $(CFLAGS)
+
+#this doesn't work by default
+#an extra duss_result_t(frame_pop_handler)
+#is generated that the compiler doesn't like
+libshims/%.c: %.h
+	stubgen -g -e .c -l -N -t libshims -p "../" -n $<
+
+libshims/lib%.so: libshims/%.c
+	$(CC) -Wno-c2x-extensions -O2 -shared -Wl,-soname,libduml_hal.so -o $@ $< $(CFLAGS)
+
+libshims: $(LIB_SHIMS)
+
+all: jni/*
+	ndk-build
+
+install: all
+	install -d ipk/goggle/build/data/opt/fonts/
+	install fonts/*.png ipk/goggle/build/data/opt/fonts/
+	install -d ipk/goggle/build/data/opt/mspdictionaries/
+	install dictionaries/*.bin ipk/goggle/build/data/opt/mspdictionaries/
+	install -d ipk/goggle/build/data/opt/etc/preload.d/
+	install libs/armeabi-v7a/libdisplayport_osd_shim.so ipk/goggle/build/data/opt/etc/preload.d/
+	install -d ipk/airunit/build/data/opt/bin/
+	install libs/armeabi-v7a/msp_displayport_mux ipk/airunit/build/data/opt/bin/
+	install -d ipk/airunit/build/data/opt/mspdictionaries/
+	install dictionaries/*.bin ipk/airunit/build/data/opt/mspdictionaries/
+	install -d ipk/airunit/build/data/opt/etc/package-config/msp-osd/
+	install config/airunit/* ipk/airunit/build/data/opt/etc/package-config/msp-osd/
+	install -d ipk/goggle/build/data/opt/etc/package-config/msp-osd/
+	install config/goggles/* ipk/goggle/build/data/opt/etc/package-config/msp-osd/
+
+goggle_ipk: install
+	$(eval PKG_NAME := $(shell cat ./ipk/goggle/control/control | grep Package | cut -d" " -f2))
+	$(eval ARCH := $(shell cat ./ipk/goggle/control/control | grep Architecture | cut -d" " -f2))
+	$(eval VERSION :=$(shell cat ./ipk/goggle/control/control | grep Version | cut -d" " -f2))
+	$(eval IPK_NAME := "${PKG_NAME}_${VERSION}_${ARCH}.ipk")
+	cp -r ipk/goggle/data ipk/goggle/build/
+	echo "2.0" > ipk/goggle/build/debian-binary
+	cp -r ipk/goggle/control ipk/goggle/build/
+	cd ipk/goggle/build/control && tar czvf ../control.tar.gz .
+	cd ipk/goggle/build/data && tar czvf ../data.tar.gz .
+	cd ipk/goggle/build && tar czvf "../../${IPK_NAME}" ./control.tar.gz ./data.tar.gz ./debian-binary
+
+airunit_ipk: install
+	$(eval PKG_NAME := $(shell cat ./ipk/airunit/control/control | grep Package | cut -d" " -f2))
+	$(eval ARCH := $(shell cat ./ipk/airunit/control/control | grep Architecture | cut -d" " -f2))
+	$(eval VERSION :=$(shell cat ./ipk/airunit/control/control | grep Version | cut -d" " -f2))
+	$(eval IPK_NAME := "${PKG_NAME}_${VERSION}_${ARCH}.ipk")
+	mkdir -p ipk/airunit/build
+	echo "2.0" > ipk/airunit/build/debian-binary
+	cp -r ipk/airunit/data ipk/airunit/build/
+	cp -r ipk/airunit/control ipk/airunit/build/
+	cd ipk/airunit/build/control && tar czvf ../control.tar.gz .
+	cd ipk/airunit/build/data && tar czvf ../data.tar.gz .
+	cd ipk/airunit/build && tar czvf "../../${IPK_NAME}" ./control.tar.gz ./data.tar.gz ./debian-binary
+
+ipk: install goggle_ipk airunit_ipk
+
+repo: ipk
+	mkdir -p repo
+	cp ipk/*.ipk repo/
+	../opkg-utils-0.5.0/opkg-make-index ./repo/ > repo/Packages
+	http-server -p 8042 ./repo/
+
+clean:
+	rm -rf **/*.o
+	rm -rf *.o
+	rm -rf repo
+	rm -rf libshims/*.so
+	rm -rf msp_displayport_mux
+	rm -rf osd_dji
+	rm -rf ipk/goggle/build
+	rm -rf ipk/airunit/build
+	rm -rf ipk/*.ipk
+	rm -rf obj
+	rm -rf libs

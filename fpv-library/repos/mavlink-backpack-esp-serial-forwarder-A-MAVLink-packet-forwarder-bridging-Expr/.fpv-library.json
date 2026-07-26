@@ -1,0 +1,8 @@
+{
+  "source": "BartlomiejZalas/mavlink-backpack-esp-serial-forwarder",
+  "upstream_commit": "859d892d2af646ede0a50acc5784d81788cb494a",
+  "upstream_updated": "2025-09-07T13:26:23Z",
+  "synced_at": "2026-07-26T23:33:03+00:00",
+  "discovered_via": "search:expresslrs mavlink:p1",
+  "score": 7.8
+}

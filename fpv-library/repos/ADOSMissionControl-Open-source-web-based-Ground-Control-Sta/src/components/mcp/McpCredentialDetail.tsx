@@ -1,0 +1,156 @@
+/**
+ * @module components/mcp/McpCredentialDetail
+ * @description The credential detail drawer: a per-token policy view with a
+ * "what this token can do" reach preview. The preview is a CLIENT-SIDE
+ * CAPABILITY CHECK (Rule 44) — it resolves the token's scopes against the
+ * committed tools catalog via mcp-scope-model, it is never a live call. Reach is
+ * shown for a LAN (agent-mode) connection with flight enforcement off; a
+ * fleet-mode connection additionally hides agent-only tools.
+ * @license GPL-3.0-only
+ */
+
+"use client";
+
+import { useMemo } from "react";
+import { useTranslations } from "next-intl";
+import { Check, X } from "lucide-react";
+import catalog from "@/data/mcp/tools-catalog.json";
+import { Modal } from "@/components/ui/modal";
+import { formatDate } from "@/lib/utils";
+import { timeAgo } from "@/lib/plan-library";
+import { useMcpTabStore } from "@/stores/mcp-tab-store";
+import { SAFETY_CLASSES, safetyClassBadge } from "./mcp-shared";
+import {
+  summarizeCredentialReach,
+  type BlockReason,
+  type ScopeToolDescriptor,
+} from "./mcp-scope-model";
+import type { McpTokenRow } from "./McpConsole";
+
+const CATALOG_TOOLS: ScopeToolDescriptor[] = (
+  catalog.tools as Array<{
+    name: string;
+    scope: string;
+    safetyClass: string;
+    agentModeOnly?: boolean;
+    affectsFlight?: boolean;
+  }>
+).map((ttool) => ({
+  name: ttool.name,
+  scope: ttool.scope,
+  safetyClass: ttool.safetyClass,
+  agentModeOnly: ttool.agentModeOnly,
+  affectsFlight: ttool.affectsFlight,
+}));
+
+const BLOCK_REASONS: BlockReason[] = [
+  "scope",
+  "flight_disabled",
+  "agent_mode_only",
+  "node_not_allowed",
+];
+
+export function McpCredentialDetail({ rows }: { rows: McpTokenRow[] }) {
+  const t = useTranslations("mcp");
+  const selectedId = useMcpTabStore((s) => s.selectedCredentialId);
+  const selectCredential = useMcpTabStore((s) => s.selectCredential);
+
+  const row = rows.find((r) => r.tokenId === selectedId) ?? null;
+
+  const reach = useMemo(
+    () =>
+      row
+        ? summarizeCredentialReach({ scopes: row.scopes, allowedNodes: row.allowedNodes }, CATALOG_TOOLS, {
+            flightEnforced: false,
+            fleetMode: false,
+          })
+        : null,
+    [row],
+  );
+
+  const revoked = row?.revokedAt != null;
+
+  return (
+    <Modal
+      open={row != null}
+      onClose={() => selectCredential(null)}
+      title={row?.label ?? ""}
+      size="lg"
+    >
+      {row && reach ? (
+        <div className="flex flex-col gap-5">
+          {/* Scope groups */}
+          <section className="flex flex-col gap-2">
+            <h3 className="font-mono text-xs uppercase tracking-wide text-text-tertiary">
+              {t("credentialDetail.scopeGroups")}
+            </h3>
+            <div className="flex flex-wrap gap-2">
+              {SAFETY_CLASSES.map((group) => {
+                const held = row.scopes.includes(group);
+                return (
+                  <span
+                    key={group}
+                    className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium ${
+                      held ? safetyClassBadge(group) : "bg-bg-tertiary text-text-tertiary line-through"
+                    }`}
+                  >
+                    {held ? <Check size={11} /> : <X size={11} />}
+                    {group}
+                  </span>
+                );
+              })}
+            </div>
+          </section>
+
+          {/* Reach preview */}
+          <section className="flex flex-col gap-2">
+            <h3 className="font-mono text-xs uppercase tracking-wide text-text-tertiary">
+              {t("credentialDetail.reachTitle")}
+            </h3>
+            {revoked ? (
+              <p className="text-xs text-status-warning">{t("credentialDetail.revokedNote")}</p>
+            ) : null}
+            <div className="flex flex-col gap-1 rounded-lg border border-border-default bg-bg-secondary p-3">
+              <p className="flex items-center gap-1.5 text-sm text-text-primary">
+                <Check size={14} className="text-status-success" />
+                {t("credentialDetail.callable", { callable: reach.callable, total: reach.total })}
+              </p>
+              {BLOCK_REASONS.filter((r) => reach.byReason[r] > 0).map((r) => (
+                <p key={r} className="flex items-center gap-1.5 text-xs text-text-tertiary">
+                  <X size={12} className="text-status-error" />
+                  {t("credentialDetail.blocked", {
+                    count: reach.byReason[r],
+                    reason: t(`credentialDetail.reason.${r}`),
+                  })}
+                </p>
+              ))}
+            </div>
+            <p className="text-[11px] text-text-tertiary">{t("credentialDetail.capabilityNote")}</p>
+          </section>
+
+          {/* Metadata */}
+          <section className="flex flex-col gap-1.5 text-xs text-text-secondary">
+            <div className="flex justify-between gap-4">
+              <span className="text-text-tertiary">{t("credentialDetail.allowedNodes")}</span>
+              <span className="text-right">
+                {row.allowedNodes.length > 0
+                  ? row.allowedNodes.join(", ")
+                  : t("credentialDetail.allNodes")}
+              </span>
+            </div>
+            <div className="flex justify-between gap-4">
+              <span className="text-text-tertiary">{t("credentialDetail.expires")}</span>
+              <span>
+                {row.expiresAt != null ? formatDate(row.expiresAt) : t("credentialDetail.never")}
+              </span>
+            </div>
+            <div className="flex justify-between gap-4">
+              <span className="text-text-tertiary">{t("credentialDetail.lastUsedLabel")}</span>
+              <span>{row.lastUsedAt != null ? timeAgo(row.lastUsedAt) : t("neverUsed")}</span>
+            </div>
+          </section>
+        </div>
+      ) : null}
+    </Modal>
+  );
+}

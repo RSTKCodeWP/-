@@ -1,0 +1,78 @@
+name: Build standalone executables
+
+# Builds self-contained, single-file executables of the HackRF multi-band
+# monitor for Windows and macOS and uploads them as downloadable artifacts.
+# Each bundles the HackRF SDK tools (hackrf_info/hackrf_sweep + native libs) so
+# the target machine needs nothing installed.
+
+on:
+  push:
+    branches: ["**"]
+  workflow_dispatch:
+  release:
+    types: [published]
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Python deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+
+      - name: Fetch vendored HackRF binaries (hackrf_*.exe + DLLs)
+        run: python bootstrap_vendor.py
+
+      - name: Build standalone .exe
+        run: >
+          pyinstaller --noconfirm --onefile --name hackrf-monitor-windows
+          --add-data "vendor/bin;hackrf_tools"
+          --exclude-module matplotlib --exclude-module tkinter
+          --exclude-module PyQt5 --exclude-module PySide6 --exclude-module IPython
+          monitor_app.py
+
+      - name: Smoke test (boots without a device, then exits)
+        shell: pwsh
+        run: |
+          $p = Start-Process -PassThru -FilePath dist/hackrf-monitor-windows.exe
+          Start-Sleep -Seconds 6
+          if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force; Write-Host "launched OK" }
+          else { Write-Host "exited early (no device is expected in CI)" }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hackrf-monitor-windows
+          path: dist/hackrf-monitor-windows.exe
+          if-no-files-found: error
+
+  macos:
+    runs-on: macos-14   # Apple Silicon
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install HackRF tools + Python deps
+        run: |
+          brew install hackrf
+          python -m venv .venv
+          .venv/bin/pip install --upgrade pip
+          .venv/bin/pip install -r requirements.txt pyinstaller
+
+      - name: Build standalone executable
+        run: bash packaging/build_macos.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hackrf-monitor-macos
+          path: dist/hackrf-monitor-macos
+          if-no-files-found: error

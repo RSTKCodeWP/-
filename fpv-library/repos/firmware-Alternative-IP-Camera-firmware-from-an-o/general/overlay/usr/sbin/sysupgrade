@@ -1,0 +1,722 @@
+#!/bin/sh
+# OpenIPC.org | 2025
+scr_version=1.0.55
+
+args="$@"
+LOCK_FILE=/tmp/sysupgrade.lock
+# Seconds the rootfs verify-mount may take before it is treated as unmountable.
+mount_wait=${mount_wait:-45}
+# Route to firmware or builder manifest. A stock OpenIPC/firmware build
+# stamps BUILD_PLATFORM=${soc}_${variant} with variant in {lite,ultimate,
+# neo}. Anything else — a per-device override (${soc}_${variant}_${device},
+# two or more underscores) or a non-stock variant (${soc}_fpv etc.) — is
+# built by OpenIPC/builder. Pre-1.0.51 cameras lack BUILD_PLATFORM; fall
+# back to BUILD_OPTION (variant) alone.
+_plat=$(grep '^BUILD_PLATFORM=' /etc/os-release 2>/dev/null | cut -d= -f2)
+case "$_plat" in
+	*_*_*)                            _manifest_repo=builder  ;;
+	*_lite|*_ultimate|*_neo)          _manifest_repo=firmware ;;
+	?*)                               _manifest_repo=builder  ;;
+	*)
+		_osr=$(grep '^BUILD_OPTION=' /etc/os-release 2>/dev/null | cut -d= -f2)
+		case "${_osr:-lite}" in
+			lite|ultimate|neo) _manifest_repo=firmware ;;
+			*)                 _manifest_repo=builder  ;;
+		esac
+		;;
+esac
+MANIFEST_URL=${MANIFEST_URL:-https://openipc.github.io/${_manifest_repo}/manifest.flat}
+MANIFEST_CACHE=/tmp/manifest.flat
+unset _osr _plat _manifest_repo
+
+echo_c() {
+	# 31 red, 32 green, 33 yellow, 34 blue, 35 magenta, 36 cyan, 37 white, 38 grey
+	[ -z "$HASERLVER" ] && t="\e[1;$1m$2\e[0m" || t="$2"
+	echo -e "$t"
+}
+
+die() {
+	echo_c 31 "$1 Aborting."
+	reboot_system
+	exit 1
+}
+
+check_soc() {
+	# Validate the downloaded image's stamped SoC ($1 = kernel-header ksoc or
+	# rootfs hostname) against the BUILD identity $model, NOT the chip's
+	# self-report. One published image (e.g. hi3516cv6xx) legitimately serves
+	# dies that report a different id (hi3516cv610/608) via fw_printenv/ipcinfo.
+	[ "1" = "$skip_soc" ] && echo "Skip SoC validation" && return 0
+	[ "$1" = "$model" ] && echo "SoC OK" && return 0
+	die "Wrong SoC! (image '$1' != build '$model')"
+}
+
+compare_versions() {
+	[ "1" = "$skip_ver" ] && echo "Skip version checking" && return 1
+	[ "$1" = "$2" ] && echo_c 32 "Same version, nothing to update" && return 0
+	echo_c 32 "New version, going to update" && return 1
+}
+
+do_update_kernel() {
+	local x=$1
+	if [ -z "$x" ]; then
+		[ "$vendor" = "rockchip" ] && x="/tmp/zboot.img.$model" || x="/tmp/uImage.$model"
+	fi
+	echo_c 33 "\nKernel"
+	echo "Update kernel from $x"
+	[ ! -f "$x" ] && die "File $x not found"
+	if [ "1" != "$skip_soc" ]; then
+		# A FIT image (DTB magic d00dfeed, e.g. the cv6xx kernel) carries
+		# neither a uImage SoC name at offset 32 nor a uImage timestamp at
+		# offset 8: the legacy probes would misfire (ksoc garbage -> false
+		# "Wrong SoC!"; identical bogus values -> false "Same version", kernel
+		# silently skipped). For a FIT, rely on the rootfs hostname SoC check
+		# and always reflash.
+		if [ "$(xxd -p -l 4 "$x" 2>/dev/null)" = "d00dfeed" ]; then
+			echo "FIT kernel detected, skipping uImage SoC/version probe"
+		else
+			local ksoc=$(od -j 32 -N 32 -S 1 -A n "$x" | cut -d- -f3)
+			if [ "$vendor" != "ingenic" ] && [ "$vendor" != "rockchip" ]; then
+				check_soc "$ksoc"
+			fi
+			compare_versions "$kernel_version" "$(get_kernel_version "$x")" && return 0
+		fi
+	fi
+	set_progress flashcp -v "$x" "$kernel_device"
+	echo_c 32 "Kernel updated to $(get_kernel_version "$kernel_device")"
+}
+
+# mount, bounded, read-only. The verify-mount does not always fail on a rootfs the
+# running kernel cannot read — it can block. Nothing is printed between the mount
+# and the flash write, so an unbounded mount that wedges is indistinguishable from
+# a dead tool: the upgrade stops with no error, taking any GUI driving it down too.
+#
+# Best-effort, not a guarantee: timeout sends TERM and then waits to reap, so a
+# mount stuck in uninterruptible sleep still outlives it. It bounds the realistic
+# failures — a slow loop/probe, or a decompressor the kernel lacks — which is what
+# strands upgrades in practice.
+#
+# -t squashfs skips kernel fs autoprobing of what may be a garbage file; the error
+# text is returned rather than discarded, so the caller can print it.
+mount_rootfs() {
+	if command -v timeout >/dev/null 2>&1; then
+		timeout "$mount_wait" mount -t squashfs -o ro "$1" "$2" 2>&1
+	else
+		mount -t squashfs -o ro "$1" "$2" 2>&1
+	fi
+}
+
+# Whether a kernel flashed in this same run validates the SoC with no mount, and
+# so can stand in for the rootfs hostname check. do_update_kernel probes the SoC
+# out of a legacy uImage header and hands it to check_soc — but a FIT image (magic
+# d00dfeed) carries no such field, and check_soc is skipped outright for ingenic
+# and rockchip. In those cases a kernel in the run proves nothing about the SoC.
+# $1 = "kernel_follows" when the caller flashes a kernel unconditionally right
+# after verifying (do_update_firmware's split path, where update_kernel is unset
+# on a plain `sysupgrade -r`).
+soc_guarded_by_kernel() {
+	local k=
+	if [ "kernel_follows" = "$1" ]; then
+		k="/tmp/uImage.$model"
+	elif [ "1" = "$update_kernel" ]; then
+		k="$kernel_file"
+		[ -z "$k" ] && k="/tmp/uImage.$model"
+	else
+		return 1
+	fi
+	[ -f "$k" ] || return 1
+	# Mirrors do_update_kernel's own skips.
+	[ "$vendor" = "ingenic" ] && return 1
+	[ "$vendor" = "rockchip" ] && return 1
+	[ "$(xxd -p -l 4 "$k" 2>/dev/null)" = "d00dfeed" ] && return 1
+	return 0
+}
+
+# Read the candidate rootfs's SoC stamp and version by loop-mounting it.
+#
+# This is a PRE-FLIGHT CHECK ONLY: the image is written with flashcp, which writes
+# the partition raw and never needs the mount. So it must run BEFORE anything is
+# written to flash, and it must not reject an image that would have flashed fine.
+verify_rootfs() {
+	local x=$1
+	[ -z "$x" ] && x="/tmp/rootfs.squashfs.$model"
+	echo_c 33 "\nVerify"
+	echo "Verifying rootfs from $x"
+	[ ! -f "$x" ] && die "File $x not found"
+
+	local y=/tmp/rootfs
+	local loop=
+	local err=
+	rootfs_version=
+
+	if mkdir -p "$y" && loop=$(losetup -f) && err=$(losetup "$loop" "$x" 2>&1) \
+		&& err=$(mount_rootfs "$loop" "$y"); then
+		rootfs_version=$(get_system_version "$y")
+		check_soc "$(head -1 $y/etc/hostname | cut -d- -f2)"
+		compare_versions "$system_version" "$rootfs_version" && exit_update=1
+		umount "$y"
+	else
+		# Unmountable is not a defect in the image. It usually means the RUNNING
+		# kernel lacks the squashfs decompressor the NEW image uses (commonly XZ) —
+		# a property of the kernel being replaced, and irrelevant the moment the new
+		# one boots. flashcp writes the partition raw and never needs the mount, so
+		# aborting here rejects an image that would have flashed fine.
+		echo_c 33 "\nCannot mount $x to verify it."
+		[ -n "$err" ] && echo_c 33 "  $err"
+		echo_c 33 "The running kernel may lack its squashfs decompressor; the image itself may be fine."
+
+		# The rootfs hostname is one of two SoC witnesses. The other is the uImage
+		# header of a kernel flashed in this same run, which check_soc reads with no
+		# mount — but that witness does not always exist (FIT kernels carry no SoC
+		# field; check_soc is skipped for ingenic/rockchip), so it cannot simply be
+		# assumed. With no witness at all, a downloaded artifact is still pinned to
+		# $model by the name it must have to be found (rootfs.squashfs.$model, md5
+		# verified), while a hand-picked --rootfs= file is pinned by nothing — and
+		# writing an unverified rootfs for a foreign SoC bricks the device. That is
+		# the case worth refusing, and refusing costs nothing here: no flash yet.
+		if [ "1" = "$skip_soc" ]; then
+			echo_c 33 "Skipping the rootfs version/SoC pre-check (SoC validation disabled)."
+		elif soc_guarded_by_kernel "$2"; then
+			echo_c 33 "Skipping the rootfs version/SoC pre-check; the SoC is validated from the kernel image header instead."
+		elif [ "1" = "$remote_update" ]; then
+			echo_c 33 "Skipping the rootfs version/SoC pre-check; the image is pinned to '$model' by its artifact name."
+		else
+			losetup -d "$loop" 2>/dev/null
+			rm -rf "$y"
+			die "Cannot verify the SoC of an unmountable rootfs, and no kernel in this run carries a SoC to check it against. Flash the matching kernel in the same run, or pass --force_soc."
+		fi
+	fi
+
+	[ -n "$loop" ] && losetup -d "$loop" 2>/dev/null
+	rm -rf "$y"
+	return 0
+}
+
+do_update_rootfs() {
+	local x=$1
+	[ -z "$x" ] && x="/tmp/rootfs.squashfs.$model"
+	echo_c 33 "\nRootFS"
+	echo "Update rootfs from $x"
+	[ ! -f "$x" ] && die "File $x not found"
+	[ "1" = "$exit_update" ] && return 0
+	set_progress flashcp -v "$x" "$(get_device "rootfs")"
+	echo_c 32 "RootFS updated to ${rootfs_version:-unknown}"
+}
+
+do_update_firmware() {
+	# A combined image bundles the FIT kernel (DTB magic d00dfeed) and the
+	# rootfs squashfs in one blob — the rootfs packed right after the FIT at a
+	# 64K-aligned offset (see the cv6xx board post-image.sh).
+	#
+	# Prefer the traditional NON-overlapping split: slice the blob at the FIT
+	# boundary and write the FIT to the kernel partition and the rootfs to the
+	# rootfs partition (each flashcp stays within its own partition and U-Boot
+	# reads them from those fixed offsets). Only when the flash has no separate
+	# kernel/rootfs partitions — a pure combined layout — fall back to a single
+	# whole-blob write to the "firmware" partition (which on cv6xx overlaps
+	# kernel+rootfs and is meant for whole-image programming).
+	local x=/tmp/firmware.bin.$model
+	echo_c 33 "\nFirmware (combined image)"
+	echo "Update firmware from $x"
+	[ ! -f "$x" ] && die "File $x not found"
+
+	if [ "$(get_device "kernel")" != "/dev/" ] && [ "$(get_device "rootfs")" != "/dev/" ]; then
+		# Split at the FIT totalsize (header bytes 4-7, big-endian), rounded up
+		# to the 64K erase block, then hand each slice to the split flow.
+		local hex=$(xxd -p -l 4 -s 4 "$x" 2>/dev/null)
+		local fitsz=$((0x${hex:-0}))
+		[ "$fitsz" -gt 0 ] || die "Not a FIT combined image: $x"
+		local blocks=$(((fitsz + 65535) / 65536))
+		echo "Split combined image: FIT ${fitsz}B -> kernel, remainder -> rootfs"
+		dd if="$x" bs=65536 count="$blocks" of=/tmp/uImage.$model 2>/dev/null
+		dd if="$x" bs=65536 skip="$blocks" of=/tmp/rootfs.squashfs.$model 2>/dev/null
+		# kernel_follows: the kernel is flashed unconditionally on the next line,
+		# whether or not update_kernel is set (a plain `sysupgrade -r` reaches here
+		# with it unset). Tell verify_rootfs so it weighs the same SoC evidence as
+		# --url/--channel do, instead of refusing with advice that is a no-op here.
+		verify_rootfs "/tmp/rootfs.squashfs.$model" kernel_follows
+		do_update_kernel "/tmp/uImage.$model"
+		do_update_rootfs "/tmp/rootfs.squashfs.$model"
+		return 0
+	fi
+
+	local fw_dev=$(get_device "firmware")
+	[ "$fw_dev" = "/dev/" ] && die "No kernel/rootfs or firmware partition to flash"
+	echo "Combined partition $fw_dev"
+	set_progress flashcp -v "$x" "$fw_dev" || die "flashcp to $fw_dev failed"
+	echo_c 32 "Firmware updated"
+}
+
+do_wipe_overlay() {
+	echo_c 33 "\nOverlayFS"
+	echo "Erase overlay partition"
+	[ "$flash_type" = "nand" ] || jffs2="-j"
+	set_progress flash_eraseall $jffs2 "$(get_device "rootfs_data")"
+}
+
+fetch_manifest() {
+	[ "$(curl -o /dev/null -s -k -w '%{http_code}\n' "$MANIFEST_URL")" = "000" ] \
+		&& die "Check your network!"
+	curl --connect-timeout 30 -s -k -m 60 -L "$MANIFEST_URL" -o "$MANIFEST_CACHE" \
+		|| die "Cannot fetch manifest $MANIFEST_URL"
+}
+
+# resolve_channel <nightly|latest>  -> echoes a build_id
+resolve_channel() {
+	awk -v c="$1" '$1=="@channel" && $2==c { print $3; exit }' "$MANIFEST_CACHE"
+}
+
+# resolve_url <build_id> <platform> <flash>  -> echoes a URL
+resolve_url() {
+	awk -v b="$1" -v p="$2" -v f="$3" \
+		'$1==b && $2==p && $3==f { print $NF; exit }' "$MANIFEST_CACHE"
+}
+
+# Rewrite $model from a retired/shared SoC id to the canonical model an
+# OpenIPC image is actually published under, so the download name, manifest
+# key, extracted artifact names and SoC check all reference an image that
+# exists. Two sources, in order: (1) the manifest's @alias records (chip ->
+# model) when a manifest has been fetched — authoritative, extended by
+# defconfig BR2_OPENIPC_SOC_ALIASES; (2) a tiny static net for the known
+# retired SoCs so offline / SD-card / --archive migrations resolve with no
+# network at all. Idempotent and a no-op for canonical models.
+resolve_model_alias() {
+	local m=""
+	[ -s "$MANIFEST_CACHE" ] && m=$(awk -v c="$model" \
+		'$1=="@alias" && $2==c { print $3; exit }' "$MANIFEST_CACHE")
+	[ -z "$m" ] && case "$model" in
+		xm550)      m=xm530 ;;
+		gk7205v210) m=gk7205v200 ;;
+	esac
+	[ -n "$m" ] && [ "$m" != "$model" ] && {
+		echo_c 36 "SoC alias: $model -> $m (shared platform)"
+		model="$m"
+	}
+	return 0
+}
+
+download_firmware() {
+	[ "$flash_type" = "nand" ] && echo_c 31 "\nNote: the updater uses the NOR package for updating NAND"
+	echo_c 33 "\nFirmware"
+	osr=$(get_system_build)
+	build="$model-nor-$osr"
+	if [ -n "$archive" ]; then
+		[ ! -f "$archive" ] && die "File $archive not found"
+		gzip -d "$archive" -c | tar xf - -C /tmp && echo_c 32 "Local archive unpacked" || die "Cannot extract $archive"
+	else
+		case "$osr" in lite|ultimate|neo) repo=firmware ;; esac
+		if [ -n "$channel" ] || [ -n "$build_id" ]; then
+			fetch_manifest
+			resolve_model_alias
+			[ -n "$channel" ] && build_id=$(resolve_channel "$channel")
+			[ -z "$build_id" ] && die "Unknown channel/build"
+			# Rewrite only the leading SoC token of BUILD_PLATFORM to the
+			# canonical $model (preserving any rich _variant_device suffix used
+			# by builder); fall back to ${model}_${osr} for pre-1.0.51 images.
+			platform=$(grep '^BUILD_PLATFORM=' /etc/os-release 2>/dev/null | cut -d= -f2)
+			if [ -n "$platform" ]; then platform="${model}_${platform#*_}"; else platform="${model}_${osr}"; fi
+			url=$(resolve_url "$build_id" "$platform" "nor")
+			[ -z "$url" ] && die "No artifact for $platform in $build_id"
+			echo "Resolved $build_id for $platform"
+		fi
+		[ -z "$url" ] && url=$(fw_printenv -n upgrade || echo "https://github.com/OpenIPC/${repo:-builder}/releases/download/latest/openipc.$build.tgz")
+		echo "Download from $url"
+		[ "$(curl -o /dev/null -s -k -w '%{http_code}\n' "$url")" = "000" ] && die "Check your network!"
+		# Show a transfer bar so the (silent, up-to-2-min) download doesn't look
+		# stuck — over /ws/upgrade this also gives the WebUI something to stream
+		# (issue #120). `-s` (silent_update) opts back out for a quiet console run.
+		[ "1" = "$silent_update" ] && dl_meter=-s || dl_meter=-#
+		curl --connect-timeout 30 $dl_meter -k -m 120 -L "$url" -o - | gzip -d | tar xf - -C /tmp && echo_c 32 "Received and unpacked" || die "Cannot retrieve $url"
+	fi
+	if [ "1" != "$skip_md5" ]; then
+		(cd /tmp && md5sum -s -c *.md5sum) || die "Wrong checksum!"
+	fi
+	# Combined image (FIT kernel + rootfs packed in one blob, e.g. cv6xx):
+	# flashed as a unit by do_update_firmware instead of the split path.
+	[ -f "/tmp/firmware.bin.$model" ] && image_combined=1
+}
+
+free_resources() {
+	echo_c 37 "\nStop services, sync files, free up memory"
+	# --web: majestic freed its own video pipeline and is streaming this log
+	# over /ws/upgrade; keep it alive until just before the flash (see below).
+	if [ "1" != "$web_update" ]; then
+		killall -q -3 majestic
+		sleep 1
+	fi
+	/etc/init.d/S99rc.local stop
+	/etc/init.d/S60crond stop
+	/etc/init.d/S49ntpd stop
+	/etc/init.d/S02klogd stop
+	/etc/init.d/S01syslogd stop
+	sleep 1
+
+	sync
+	echo 3 > /proc/sys/vm/drop_caches
+	echo_c 34 "\nUptime:"
+	uptime
+	echo_c 34 "\nMemory:"
+	free -h
+	echo_c 34 "\nProcesses:"
+	ps | grep -v '\['
+}
+
+set_progress() {
+	if [ "1" = "$silent_update" ]; then
+		busybox "$@" | awk '{print NR, $1}'
+	else
+		busybox "$@"
+	fi
+}
+
+sync_time() {
+	echo_c 37 "\nSynchronizing time"
+	# Bound the sync: with no reachable NTP server `ntpd -q` can block for
+	# minutes and strand the upgrade at this step (WebUI issue #120). Everything
+	# after this fetches over `curl -k`, so an unsynced clock is not fatal.
+	if command -v timeout >/dev/null 2>&1; then
+		timeout 30 ntpd -Nnq
+	else
+		ntpd -Nnq
+	fi
+	echo_c 33 "$(date)"
+}
+
+self_update() {
+	if echo "$args" | grep -E "\-(k|r|w|url|channel|build)" >/dev/null 2>&1; then
+		sync_time
+		# The WebUI flow must not re-exec a freshly downloaded sysupgrade: a
+		# pre-patch master copy would reject --web. Time is synced; carry on.
+		[ "1" = "$web_update" ] && return
+		echo -e "\nChecking for sysupgrade update..."
+		curl -s -k -L -o /tmp/sysupgrade "https://raw.githubusercontent.com/OpenIPC/firmware/master/general/overlay/usr/sbin/sysupgrade"
+		if [ -f /tmp/sysupgrade ] && grep -q "#!/bin/sh" /tmp/sysupgrade; then
+			dstv=$(grep scr_version /tmp/sysupgrade | head -1 | cut -f 2 -d '=')
+			if ! [ "$scr_version" = "$dstv" ]; then
+				echo "A new version is available, trying to activate updated script..."
+				chmod +x /tmp/sysupgrade
+				echo -e "Done. Restarting...\n"
+				exec /tmp/sysupgrade $args
+				exit 1
+			else
+				echo "Same version. No update required."
+			fi
+		else
+			echo -e "\nVersion checking failed, proceeding with the installed version."
+		fi
+	else
+		echo -e "\nOffline operations."
+	fi
+}
+
+check_sdcard() {
+	echo_c 33 "\nUnmounting SD card"
+	stoplist="autoupdate-kernel.img autoupdate-rootfs.img autoupdate-uboot.img"
+	while [ -n "$(mount | grep /mnt/mmc)" ]; do
+		local d=$(mount | grep /mnt/mmc | tail -1 | awk '{print $3}')
+		echo_c 34 "$d"
+		local f
+		for f in $stoplist; do
+			echo "- checking for $d/$f"
+			if [ -f "$d/$f" ]; then
+				echo_c 31 "\nCannot upgrade! Recovery file $d/$f found on the mounted SD card!"
+				echo_c 37 "Please remove the card from the slot and restart sysupgrade."
+				exit 1
+			fi
+		done
+		umount $d
+	done
+}
+
+create_lock() {
+	if [ -f $LOCK_FILE ]; then
+		echo_c 31 "\nAnother sysupgrade process is already running!"
+		exit 1
+	fi
+	touch $LOCK_FILE
+}
+
+get_device() {
+	echo -n "/dev/$(grep "\"$1\"" /proc/mtd | cut -d: -f1)"
+}
+
+get_kernel_version() {
+	# A FIT image (DTB magic d00dfeed) has no uImage timestamp at offset 8;
+	# the legacy read would print a bogus 1970 date. Used for display and, on
+	# split-layout boards, the kernel compare — keep it honest for both.
+	[ -e "$1" ] || { echo "n/a"; return; }
+	[ "$(xxd -p -l 4 "$1" 2>/dev/null)" = "d00dfeed" ] && { echo "n/a (FIT)"; return; }
+	local ts=$(xxd -l 4 -s 8 -p "$1" 2>/dev/null | xargs)
+	[ -n "$ts" ] || { echo "n/a"; return; }
+	# Display the epoch via `-d @SECONDS`. A bare positional `@SECONDS` is
+	# treated by busybox as a clock-SET request ("date: can't set date") and
+	# yields nothing, which would make compare_versions see two empty strings
+	# and wrongly skip the kernel update.
+	date -d @$((0x$ts)) "+%H:%M:%S %Y-%m-%d"
+}
+
+get_system_info() {
+	vendor=$(ipcinfo -v)
+	# Upgrade identity is the BUILD platform, not the chip. BUILD_PLATFORM is
+	# ${soc}_${variant}[_${device}]; the SoC model is its leading token (no
+	# SOC_MODEL contains '_'). This decouples one published image (e.g. the
+	# single cv6xx build) from the per-die id a camera reports via
+	# fw_printenv/ipcinfo. soc is kept for display and as the pre-1.0.51
+	# fallback; fw_printenv is no longer fatal (it returns nothing when the
+	# U-Boot env partition is empty/unwritten) as long as BUILD_PLATFORM is set.
+	model=$(grep '^BUILD_PLATFORM=' /etc/os-release 2>/dev/null | cut -d= -f2 | cut -d_ -f1)
+	soc=$(fw_printenv -n soc 2>/dev/null)
+	[ -z "$model" ] && model="$soc"
+	[ -z "$model" ] && die "Cannot determine SoC: no BUILD_PLATFORM and no U-Boot 'soc'"
+	resolve_model_alias
+	kernel_device=$(get_device "kernel")
+	[ "$kernel_device" = "/dev/" ] && kernel_device=$(get_device "firmware")
+	kernel_version=$(get_kernel_version "$kernel_device")
+	system_version=$(get_system_version "")
+	flash_type=$(ipcinfo -F)
+}
+
+get_system_version() {
+	grep "GITHUB_VERSION" "$1/etc/os-release" | head -1 | cut -d= -f2 | sed 's/"//g'
+}
+
+get_system_build() {
+	grep "BUILD_OPTION" "/etc/os-release" | head -1 | cut -d= -f2
+}
+
+print_sysinfo() {
+	get_system_info
+	echo_c 33 "OpenIPC System Updater v$scr_version"
+	echo_c 36 "\nVendor\t$vendor\nSoC\t$soc\nModel\t$model\nKernel\t$kernel_version\nRootFS\t$system_version"
+}
+
+print_usage() {
+	echo "
+Usage: $0 [options]
+Where:
+  -k                    Update kernel from online repository.
+  -r                    Update rootfs from online repository.
+      --url=[URL]       Custom URL to update from (.tgz format).
+      --archive=[FILE]  Custom archive to update from (.tgz format).
+      --kernel=[FILE]   Update kernel from file (uImage format).
+      --rootfs=[FILE]   Update rootfs from file (squashfs format).
+      --channel=[NAME]  Update from a named channel via the manifest
+                        (nightly | latest). Default URL would be used
+                        otherwise.
+      --build=[ID]      Update to a specific dated build via the manifest,
+                        e.g. nightly-20260520-b9d5883.
+      --list-builds[=N] List the last N (default 20) builds available for
+                        this platform; mark the running build with '*'.
+  -f, --force_all       Do not validate anything.
+  -n, --wipe_overlay    Wipe overlay partition.
+  -x, --no_reboot       Do not reboot after updating.
+  -z, --no_update       Do not update self.
+      --web             Invoked by the WebUI: keep majestic alive to stream
+                        progress over /ws/upgrade, stop it only before flashing.
+  -h, --help            Display this help and exit.
+
+Manifest URL: \$MANIFEST_URL (default: $MANIFEST_URL)
+"
+}
+
+reboot_system() {
+	if [ "1" = "$skip_reboot" ]; then
+		echo_c 33 "\nYou asked me not to reboot, so I won't."
+		echo_c 31 "Although a reboot is required to apply the changes."
+		echo_c 37 "Please reboot the camera manually whenever possible."
+		rm $LOCK_FILE
+		exit 1
+	else
+		echo_c 37 "\nUnconditional reboot"
+		busybox reboot -d 1 -f
+	fi
+}
+
+for i in "$@"; do
+	case $i in
+		-h | --help)
+			print_sysinfo
+			print_usage
+			exit 0
+			;;
+
+		-k)
+			update_kernel=1
+			remote_update=1
+			shift
+			;;
+
+		--kernel=*)
+			update_kernel=1
+			kernel_file="${i#*=}"
+			[ "$kernel_file" != ${kernel_file#/mnt/mmc} ] && skip_unmount=1
+			shift
+			;;
+
+		-r)
+			update_rootfs=1
+			remote_update=1
+			shift
+			;;
+
+		--rootfs=*)
+			update_rootfs=1
+			rootfs_file="${i#*=}"
+			[ "$rootfs_file" != ${rootfs_file#/mnt/mmc} ] && skip_unmount=1
+			shift
+			;;
+
+		--url=*)
+			update_kernel=1
+			update_rootfs=1
+			remote_update=1
+			url="${i#*=}"
+			shift
+			;;
+
+		--channel=*)
+			update_kernel=1
+			update_rootfs=1
+			remote_update=1
+			channel="${i#*=}"
+			shift
+			;;
+
+		--build=*)
+			update_kernel=1
+			update_rootfs=1
+			remote_update=1
+			build_id="${i#*=}"
+			shift
+			;;
+
+		--list-builds*)
+			list_n="${i#--list-builds=}"
+			[ "$list_n" = "--list-builds" ] && list_n=20
+			list_only=1
+			shift
+			;;
+
+		--archive=*)
+			update_kernel=1
+			update_rootfs=1
+			remote_update=1
+			skip_selfupdate=1
+			archive="${i#*=}"
+			shift
+			;;
+
+		-f | --force_all | --force_md5 | --force_soc | --force_ver)
+			skip_md5=1
+			skip_soc=1
+			skip_ver=1
+			shift
+			;;
+
+		-n | --wipe_overlay)
+			clear_overlay=1
+			shift
+			;;
+
+		-x | --no_reboot)
+			skip_reboot=1
+			shift
+			;;
+
+		-z | --no_update)
+			skip_selfupdate=1
+			shift
+			;;
+
+		-s)
+			silent_update=1
+			shift
+			;;
+
+		--web)
+			# Invoked by majestic's /ws/upgrade: majestic has already freed its
+			# own video pipeline and is streaming this log over the WebSocket, so
+			# don't kill it up front — stop it only just before the flash.
+			web_update=1
+			shift
+			;;
+
+		*)
+			print_sysinfo
+			echo_c 37 "\nUnknown option: $1"
+			print_usage
+			exit 1
+			;;
+	esac
+done
+
+print_sysinfo
+
+if [ "1" = "$list_only" ]; then
+	fetch_manifest
+	resolve_model_alias
+	osr=$(get_system_build)
+	platform=$(grep '^BUILD_PLATFORM=' /etc/os-release 2>/dev/null | cut -d= -f2)
+	if [ -n "$platform" ]; then platform="${model}_${platform#*_}"; else platform="${model}_${osr}"; fi
+	here=$(grep '^BUILD_ID=' /etc/os-release | cut -d= -f2)
+	builds=$(awk -v p="$platform" '$2==p && $3=="nor" { print $1 }' "$MANIFEST_CACHE" \
+		| head -n "${list_n:-20}")
+	if [ -z "$builds" ]; then
+		echo_c 33 "\nNo builds available for $platform yet."
+		echo "Manifest: $MANIFEST_URL"
+		exit 0
+	fi
+	echo_c 33 "\nAvailable builds for $platform (newest first):"
+	echo "$builds" | awk -v h="$here" '{ printf "  %s %s\n", ($1==h?"*":" "), $1 }'
+	exit 0
+fi
+
+[ "1" != "$clear_overlay" ] &&
+[ "1" != "$update_kernel" ] &&
+[ "1" != "$update_rootfs" ] &&
+	echo_c 37 "\nTry '$(basename "$0") --help' for options." &&
+	exit 0
+
+[ "1" != "$skip_selfupdate" ] && self_update
+
+create_lock
+free_resources
+
+[ "1" != "$skip_unmount" ] && check_sdcard
+[ "1" = "$remote_update" ] && download_firmware
+
+# Past this point we erase flash. A controlling-TTY death (SSH session drop,
+# stray Ctrl-C, etc.) must not kill flashcp mid-write — that leaves the rootfs
+# partition partially erased and unbootable. SIG_IGN is inherited across
+# fork+exec, so this also shields the busybox flashcp child. See issue #2024.
+trap '' HUP INT TERM PIPE
+echo_c 37 "\nProtected: flashing continues even if this terminal disconnects."
+
+# --web: stop majestic now (the web server that streamed progress until here).
+# The browser switches to "rebooting" when its /ws/upgrade socket closes; this
+# detached sysupgrade keeps flashing (setsid + the trap above) and reboots.
+if [ "1" = "$web_update" ]; then
+	echo_c 37 "Stopping web server before flashing"
+	killall -q -3 majestic
+	sleep 1
+fi
+
+if [ "1" = "$image_combined" ]; then
+	# One blob covers both kernel and rootfs; any of -k/-r/--url/--channel
+	# maps to a single combined write.
+	{ [ "1" = "$update_kernel" ] || [ "1" = "$update_rootfs" ]; } && do_update_firmware
+else
+	# Verify the rootfs BEFORE the first write. The kernel is flashed first, and
+	# this check used to live inside do_update_rootfs — so a rootfs that failed
+	# verification was only ever discovered once the kernel had already been
+	# committed, leaving a half-upgraded device: new kernel, old rootfs, and no
+	# way back except a manual flash. Checking first means a failure costs nothing.
+	[ "1" = "$update_rootfs" ] && verify_rootfs "$rootfs_file"
+	[ "1" = "$update_kernel" ] && do_update_kernel "$kernel_file"
+	[ "1" = "$update_rootfs" ] && do_update_rootfs "$rootfs_file"
+fi
+[ "1" = "$clear_overlay" ] && do_wipe_overlay
+
+reboot_system
+
+exit 0

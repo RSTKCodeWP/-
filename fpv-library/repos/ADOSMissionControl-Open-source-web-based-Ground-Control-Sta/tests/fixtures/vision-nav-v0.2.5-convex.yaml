@@ -1,0 +1,233 @@
+agent:
+  contains_vendor_binary: true
+  contributes:
+    drivers: []
+    services: []
+  entrypoint: altnautica_vision_nav.plugin:VisionNavPlugin
+  isolation: subprocess
+  mavlink_components:
+  - component_id: 198
+    component_kind: peripheral
+    sub_id: 1
+  - component_id: 197
+    component_kind: vio
+    sub_id: 1
+  per_drone_config: true
+  permissions:
+  - id: hardware.usb.uvc
+    required: true
+  - id: hardware.camera.csi
+    required: true
+  - id: hardware.uart
+    required: true
+  - id: hardware.i2c
+    required: true
+  - id: sensor.camera.register
+    required: true
+  - id: sensor.depth.register
+    required: true
+  - id: telemetry.extend
+    required: true
+  - id: event.publish
+    required: true
+  - id: event.subscribe
+    required: true
+  - id: mavlink.read
+    required: true
+  - id: mavlink.write
+    required: true
+  - id: mavlink.component.peripheral
+    required: true
+  - id: mavlink.component.vio
+    required: true
+  - id: estimator.pose.inject
+    required: true
+  - id: process.spawn
+    required: true
+  resources:
+    max_cpu_percent: 80
+    max_pids: 24
+    max_ram_mb: 512
+  subprocess_spawn:
+  - ados_openvins_shim
+  - ados_vins_fusion_shim
+  target_profiles:
+  - drone
+  test_fixtures: {}
+  vendor_attribution:
+  - license: GPL-3.0-only
+    name: OpenVINS
+    notice: VIO mode vio_openvins uses the OpenVINS estimator from the Robot Perception
+      and Navigation Group at the University of Delaware.
+    source_url: https://github.com/rpng/open_vins
+    upstream_version: v2.7
+  - license: GPL-3.0-only
+    name: VINS-Fusion
+    notice: VIO mode vio_vins_fusion uses the VINS-Fusion estimator from the HKUST
+      Aerial Robotics Group.
+    source_url: https://github.com/HKUST-Aerial-Robotics/VINS-Fusion
+    upstream_version: be55a937a57436548ddfb1bd324bc1e9a9e828e0
+author: Altnautica
+compatibility:
+  ados_version: '>=0.13.0'
+  gcs_version: '>=0.12.0'
+  supported_boards:
+  - cm4
+  - cm5
+  - rk3582
+  - rk3588s2
+  - rk3576
+  - rpi5
+  - pi-zero-2w
+description: GPS-denied navigation. Optical flow (downward camera) and visual-inertial
+  odometry (forward or downward camera). Supports ArduPilot, PX4, and iNav 7.0+ on
+  USB UVC or CSI cameras.
+description_long: "What problem it solves. GPS fails indoors, under bridges, in urban\
+  \ canyons, and under jamming. Without a position estimate the flight controller\
+  \ reverts to attitude-only flight, which cannot hold position. ADOS Vision Navigation\
+  \ feeds the FC a position estimate derived from a camera plus the IMU so position\
+  \ hold, loiter, and mission flight keep working when GPS is gone or unreliable.\n\
+  \nThe pipeline. Each frame from the camera is timestamp-aligned with IMU samples\
+  \ on the companion computer. The active estimator turns the frame plus IMU stream\
+  \ into a six-DoF pose (x, y, z, roll, pitch, yaw) at 30 Hz. The pose is reprojected\
+  \ into the FC's body frame and emitted over MAVLink as VISION_POSITION_ESTIMATE\
+  \ for VIO modes or OPTICAL_FLOW_RAD for optical-flow modes. The FC's EKF fuses it\
+  \ with the IMU, barometer, and (when present) magnetometer in the same lanes it\
+  \ uses for GPS.\n\nOptical flow modes \u2014 how they work. A downward-facing camera\
+  \ tracks pixel motion of ground features frame-to-frame using a Lucas-Kanade tracker.\
+  \ Multiplied by the camera's height above ground (read from a rangefinder, or estimated\
+  \ from the barometer when no rangefinder is present), that pixel motion becomes\
+  \ a horizontal velocity. The FC integrates that velocity to hold position. Optical\
+  \ flow only sees horizontal motion, so it relies on the barometer for altitude.\
+  \ Best below 8 m AGL with a textured ground (grass, gravel, carpet). Uniform shiny\
+  \ floors do not track.\n\nVIO modes \u2014 how they work. A forward (or downward)\
+  \ camera tracks visual features in three dimensions over time. The IMU provides\
+  \ high-rate angular rate and linear acceleration; the visual tracker corrects IMU\
+  \ drift over long timescales. OpenVINS runs an MSCKF (multi-state-constraint Kalman\
+  \ filter): it carries a sliding window of camera poses and triangulates feature\
+  \ observations between them \u2014 fast, low-memory, no map. VINS-Fusion runs an\
+  \ optimization-based VIO: it solves a windowed bundle-adjustment problem with loop\
+  \ closure, so revisiting a known area corrects accumulated drift. OpenVINS is the\
+  \ better choice for short straight-line flights; VINS-Fusion is the better choice\
+  \ for long loops or repeated coverage of the same area.\n\nHybrid mode and the cross-check.\
+  \ Both estimators run in parallel. Every 100 ms the plugin compares the two pose\
+  \ outputs and computes a disagreement metric (translation delta plus rotation delta\
+  \ over the last second). If one estimator's disagreement grows past the configured\
+  \ ceiling, it is demoted; the surviving estimator's output goes to the FC. Hybrid\
+  \ uses about 1.5x the CPU of a single VIO mode but tolerates a single-estimator\
+  \ failure without changing the FC's flight state.\n\nThe fallback ladder \u2014\
+  \ what it checks. Every 250 ms the active estimator publishes its feature count\
+  \ and drift estimate. If features drop below the floor (default 30 for optical flow,\
+  \ 50 for VIO) or drift growth exceeds the ceiling (default 0.5 m/s for optical flow,\
+  \ 1 m/s for VIO), the plugin steps down: VIO \u2192 optical flow \u2192 barometer-only\
+  \ hover hold \u2192 land. Each transition is announced over MAVLink STATUSTEXT so\
+  \ the GCS warns the operator and the dataflash log captures it.\n\nFirmware support\
+  \ and what gets emitted. ArduPilot Copter/Plane/Rover 4.5+, PX4 1.14+, iNav 7.0+.\
+  \ Auto-detected on boot. The plugin claims MAVLink component 198 (peripheral, OPTICAL_FLOW_RAD)\
+  \ and 197 (VIO, VISION_POSITION_ESTIMATE) and only emits on each component when\
+  \ its mode is active. EKF source-set bits are tuned per firmware so the FC accepts\
+  \ the vision estimate as a primary position source. No FC-side code changes are\
+  \ needed; the plugin uses standard MAVLink components.\n\nHardware. USB UVC global-shutter\
+  \ cameras are preferred for VIO: a global shutter avoids the rolling-shutter wobble\
+  \ that breaks feature triangulation. Rolling-shutter and CSI-V4L2 cameras work for\
+  \ optical flow modes where only horizontal motion matters. VIO modes also need a\
+  \ Kalibr-compatible IMU-camera calibration file at /etc/ados/vision-nav/calib/.\
+  \ The bundled vendor binaries (OpenVINS and VINS-Fusion shims) ship signed alongside\
+  \ the rest of the archive and run as subprocesses under the agent's sandbox. Optical-flow\
+  \ paths are pure Python and need no vendor code.\n\nCalibration \u2014 what the\
+  \ wizard measures. Run once per drone; takes about ten minutes. Open Settings \u2192\
+  \ Vision Nav \u2192 Calibrate. The wizard captures camera intrinsics (focal length,\
+  \ principal point, distortion) by tracking an AprilGrid pattern shown on the GCS\
+  \ screen; IMU-camera time offset (the microsecond delta between when the camera\
+  \ shutter fires and when the IMU sample at that instant is timestamped); and the\
+  \ rigid IMU-camera transform (where the camera sits in the body frame). The result\
+  \ writes a Kalibr-compatible YAML file the VIO backends consume.\n\nIn-flight telemetry\
+  \ to watch. The plugin publishes navigation.estimator_state, navigation.feature_count,\
+  \ navigation.drift_m, navigation.sync_offset_ms, and navigation.mode over the agent's\
+  \ telemetry bus. The Mission Control Vision Nav panel renders sparklines for each.\
+  \ Watch the feature count first \u2014 sudden drops mean the camera lost the scene\
+  \ (sun glare, motion blur, low-texture ground). Watch drift second \u2014 gradual\
+  \ growth means the estimator needs a re-init."
+documentation_url: https://docs.altnautica.com/drone-agent/vision-nav-overview
+extra: {}
+features:
+- Optical flow with or without rangefinder (Lucas-Kanade tracker)
+- Monocular VIO via OpenVINS or VINS-Fusion
+- 'Hybrid mode: optical flow and VIO running side by side'
+- Auto-detect ArduPilot, PX4, or iNav and emit appropriate MAVLink
+- Per-mode pre-arm checks with degradation fallback ladder
+- 'Live telemetry: feature count, drift, sync offset, mode state'
+gcs:
+  contributes:
+    notifications:
+    - id: vision-nav-degraded
+      severity: warning
+      title: Vision navigation degraded
+    overlays: []
+    panels:
+    - icon: compass
+      id: vision-nav-tab
+      order: 60
+      slot: drone.detail.tab
+      title: Vision Nav
+    smart_functions: []
+  entrypoint: gcs/plugin.bundle.js
+  isolation: iframe
+  locales:
+  - en
+  permissions:
+  - id: ui.slot.drone-detail-tab
+    required: true
+  - id: ui.slot.video-overlay
+    required: true
+  - id: ui.slot.notification-channel
+    required: true
+  - id: telemetry.subscribe
+    required: true
+  - id: command.send
+    required: true
+hardware_requirements:
+  boards:
+  - cm4
+  - cm5
+  - rk3582
+  - rk3588s2
+  - rk3576
+  - rpi5
+  - pi-zero-2w
+  cameras: USB UVC global-shutter or rolling-shutter, or CSI via V4L2
+  fc_firmware: ArduPilot 4.5+, PX4 1.14+, iNav 7.0+
+  optional:
+  - Rangefinder (TF-Luna, Garmin LIDAR-Lite, ST VL53L1X) for optical flow modes
+homepage: https://github.com/altnautica/ADOSExtensions/tree/main/extensions/vision-nav
+id: com.altnautica.vision-nav
+license: GPL-3.0-or-later
+name: ADOS Vision Navigation
+required_fc_parameters:
+  ardupilot:
+  - note: Select vision pose source for the active EKF lane
+    param: EKF_SOURCE_SET
+  inav:
+  - param: opflow_hardware
+    value: MAVLINK
+  - param: nav_use_optflow_for_poshold
+    value: 'ON'
+  px4:
+  - note: Set VISION_POS and VISION_HEADING bits
+    param: EKF2_AID_MASK
+resource_impact:
+  cpu_percent_peak: 80.0
+  pids: 24
+  ram_mb: 512.0
+  startup_time_seconds: 5.0
+risk: high
+schema_version: 2
+screenshots: []
+telemetry_fields:
+- navigation.rangefinder_type
+- navigation.estimator_state
+- navigation.feature_count
+- navigation.drift_m
+- navigation.sync_offset_ms
+- navigation.mode
+version: 0.2.5

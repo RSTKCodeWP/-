@@ -1,0 +1,5 @@
+#!/bin/bash
+# Launch Mission Planner with Nix mono and screen-sleep inhibit
+. "$HOME/.nix-profile/etc/profile.d/nix.sh"
+exec systemd-inhibit --what=idle --who="Mission Planner" --why="GCS active" \
+    mono "$HOME/.local/share/mission-planner/MissionPlanner.exe" "$@"

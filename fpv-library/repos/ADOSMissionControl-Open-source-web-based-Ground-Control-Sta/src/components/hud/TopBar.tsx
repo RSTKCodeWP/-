@@ -1,0 +1,42 @@
+"use client";
+
+// HUD top bar. Reads live telemetry via useHudTopBarData (memoized
+// against telemetry-store _version). Wrapped in React.memo so parent
+// re-renders do not cascade through the always-visible HUD chrome.
+
+import { memo } from "react";
+import { useDroneStore } from "@/stores/drone-store";
+import { useHudTopBarData } from "@/hooks/use-hud-topbar-data";
+
+function fmt(n: number | undefined | null, digits = 0): string {
+  if (n === undefined || n === null || !Number.isFinite(n)) return "--";
+  return n.toFixed(digits);
+}
+
+function TopBarInner() {
+  const { radio, vfr, battery, gps } = useHudTopBarData();
+  const mode = useDroneStore((s) => s.flightMode);
+
+  const rssi = radio ? fmt(radio.rssi, 0) : "--";
+  const batteryPct = battery ? fmt(battery.remaining, 0) : "--";
+  const altitudeM = vfr ? fmt(vfr.alt, 0) : "--";
+  const speedMs = vfr ? fmt(vfr.groundspeed, 1) : "--";
+  const gpsSats = gps ? fmt(gps.satellites, 0) : "--";
+
+  return (
+    <div className="absolute top-0 left-0 right-0 h-10 px-4 flex items-center justify-between bg-black/40 backdrop-blur-sm text-xs font-mono uppercase tracking-wide text-white/90 pointer-events-none">
+      <div className="flex items-center gap-4">
+        <span>MODE {mode}</span>
+        <span>RSSI {rssi}</span>
+        <span>SATS {gpsSats}</span>
+      </div>
+      <div className="flex items-center gap-4">
+        <span>ALT {altitudeM} m</span>
+        <span>SPD {speedMs} m/s</span>
+        <span>BAT {batteryPct}%</span>
+      </div>
+    </div>
+  );
+}
+
+export const TopBar = memo(TopBarInner);

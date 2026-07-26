@@ -1,0 +1,1444 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2024-2025 VueOSD — https://github.com/wkumik/Digital-FPV-OSD-Tool
+import sys
+"""
+video_processor.py  –  Render OSD + SRT overlay onto video.
+
+Architecture (fast path):
+──────────────────────────────────────────────────────────────────
+Python renders ONLY the OSD overlay frames (~10 fps) → pipe to FFmpeg.
+FFmpeg reads the OSD pipe + source video file simultaneously, composites
+them natively in C using the 'overlay' filter, and encodes with NVENC.
+Python NEVER touches a single raw video frame.
+
+  Python:  1671 OSD frames × ~1ms = ~1.7s  (runs in background thread)
+  FFmpeg:  decode + overlay + NVENC encode  (runs concurrently)
+  Total:   max(1.7s, ffmpeg_time)           (overlapped)
+
+vs old approach (Python in video frame loop):
+  Python + encode: 7.5s per 5s of 1080p60
+  New approach:    ~1.2s per 5s with NVENC, ~4s CPU-only
+
+GPU encoder priority (auto-detected at startup):
+  NVIDIA:  h264_nvenc / hevc_nvenc
+  AMD:     h264_amf   / hevc_amf
+  Intel:   h264_qsv   / hevc_qsv
+  Linux:   h264_vaapi / hevc_vaapi
+  macOS:   h264_videotoolbox
+"""
+
+import subprocess
+import shutil
+import os
+import json
+import threading
+import time
+import tempfile
+from dataclasses import dataclass, replace as _dc_replace
+from typing import Optional, Callable
+
+try:
+    from PIL import Image
+    PIL_OK = True
+except ImportError:
+    PIL_OK = False
+
+from pathlib import Path
+from subprocess_utils import _hidden_popen, _hidden_run
+from osd_renderer import OsdRenderer, OsdRenderConfig, _draw_srt_bar
+from osd_parser   import parse_osd, GRID_COLS, GRID_ROWS
+from srt_parser   import parse_srt
+from widgets      import TelemetryFrame
+from font_loader  import load_font
+
+
+@dataclass
+class ColorTransConfig:
+    """Color correction parameters — reverse camera color matrix + grading."""
+    enabled: bool = False
+    # Reverse ColorTrans
+    reverse_enabled: bool = True
+    yoff_strength: float = 0.25      # 0.0–1.0
+    black_lift: float = 0.020        # 0.0–0.1
+    # Grading
+    brightness: float = 0.0          # -1.0–1.0
+    contrast: float = 1.0            # 0.0–3.0
+    gamma: float = 1.0               # 0.1–3.0
+    lift: float = -0.15              # -1.0–1.0
+    gain: float = 1.75               # 0.0–5.0
+    hue: float = 0.0                 # -180–180 degrees
+    saturation: float = -22.5        # -100–100 (mpv-style)
+    r_mult: float = 1.0              # 0.0–4.0
+    g_mult: float = 1.0
+    b_mult: float = 1.0
+    # Custom GLSL shader (optional, path or empty)
+    glsl_shader: str = ""
+
+
+# ── 3D LUT generation ────────────────────────────────────────────────────────
+
+import numpy as np
+import hashlib
+
+# Precomputed BT.709 inverse color matrix rows (from HLSL shader)
+_INV_ROW0 = np.array([1.17866031,  0.17460893,  0.01571472])
+_INV_ROW1 = np.array([-0.11147506, 1.55408099, -0.07362197])
+_INV_ROW2 = np.array([0.03243649,  0.11275820,  1.22378927])
+
+_lut_cache_hash: Optional[str] = None
+_lut_cache_path: Optional[str] = None
+
+
+def _colortrans_hash(cc: ColorTransConfig) -> str:
+    """Hash config values to detect when LUT needs regeneration."""
+    vals = (cc.reverse_enabled, cc.yoff_strength, cc.black_lift,
+            cc.brightness, cc.contrast, cc.gamma, cc.lift, cc.gain,
+            cc.hue, cc.saturation, cc.r_mult, cc.g_mult, cc.b_mult)
+    return hashlib.md5(repr(vals).encode()).hexdigest()
+
+
+def generate_colortrans_lut(cc: ColorTransConfig, path: str) -> str:
+    """Generate a 65^3 .cube 3D LUT file from ColorTransConfig. Returns path."""
+    global _lut_cache_hash, _lut_cache_path
+    h = _colortrans_hash(cc)
+    if h == _lut_cache_hash and _lut_cache_path and os.path.exists(_lut_cache_path):
+        # If the caller wants the file at a different path, copy it there
+        if os.path.normpath(_lut_cache_path) != os.path.normpath(path):
+            import shutil
+            os.makedirs(os.path.dirname(path), exist_ok=True) if os.path.dirname(path) else None
+            shutil.copy2(_lut_cache_path, path)
+        return path
+
+    N = 33
+    lin = np.linspace(0.0, 1.0, N, dtype=np.float32)
+    # Create Nx Nx N x 3 grid
+    B, G, R = np.meshgrid(lin, lin, lin, indexing='ij')
+    rgb = np.stack([R, G, B], axis=-1).reshape(-1, 3)
+
+    # Stage 1: Reverse ColorTrans
+    if cc.reverse_enabled:
+        yoff = (200.0 / 1023.0) * cc.yoff_strength
+        rgb = rgb - yoff
+        out = np.empty_like(rgb)
+        out[:, 0] = rgb @ _INV_ROW0
+        out[:, 1] = rgb @ _INV_ROW1
+        out[:, 2] = rgb @ _INV_ROW2
+        rgb = out + cc.black_lift
+
+    # Stage 2: Grading
+    rgb = np.clip(rgb, 0.0, 1.0)
+
+    # Gamma
+    g = np.clip(cc.gamma, 0.1, 5.0)
+    if abs(g - 1.0) > 1e-6:
+        rgb = np.power(rgb, g)
+
+    # Brightness (-1..1 additive)
+    if abs(cc.brightness) > 1e-6:
+        rgb = rgb + cc.brightness
+
+    # Contrast (multiply around 0.5)
+    if abs(cc.contrast - 1.0) > 1e-6:
+        rgb = (rgb - 0.5) * cc.contrast + 0.5
+
+    # Lift (additive, matching HLSL)
+    lv = np.clip(cc.lift, -1.0, 1.0)
+    if abs(lv) > 1e-6:
+        rgb = rgb + lv
+
+    # Gain (multiplicative)
+    kv = np.clip(cc.gain, 0.0, 10.0)
+    if abs(kv - 1.0) > 1e-6:
+        rgb = rgb * kv
+
+    # RGB multipliers
+    mult = np.clip([cc.r_mult, cc.g_mult, cc.b_mult], 0.0, 4.0).astype(np.float32)
+    if not np.allclose(mult, 1.0):
+        rgb = rgb * mult[np.newaxis, :]
+
+    # Hue rotation (degrees)
+    if abs(cc.hue) > 0.1:
+        angle = np.radians(cc.hue)
+        cos_a, sin_a = np.cos(angle), np.sin(angle)
+        # Rotate in YIQ-like space
+        mat = np.array([
+            [0.2126 + 0.7874 * cos_a + 0.2126 * sin_a,
+             0.7152 - 0.7152 * cos_a + 0.7152 * sin_a,
+             0.0722 - 0.0722 * cos_a - 0.9278 * sin_a],
+            [0.2126 - 0.2126 * cos_a - 0.5251 * sin_a,
+             0.7152 + 0.2848 * cos_a + 0.1403 * sin_a,
+             0.0722 - 0.0722 * cos_a + 0.3848 * sin_a],
+            [0.2126 - 0.2126 * cos_a + 0.3722 * sin_a,
+             0.7152 - 0.7152 * cos_a - 0.5765 * sin_a,
+             0.0722 + 0.9278 * cos_a + 0.2043 * sin_a],
+        ], dtype=np.float32)
+        rgb = rgb @ mat.T
+
+    # Saturation (mpv-style: -100..+100 → 0..2 multiplier)
+    sat = 1.0 + cc.saturation / 100.0
+    sat = np.clip(sat, 0.0, 3.0)
+    if abs(sat - 1.0) > 1e-4:
+        luma = rgb @ np.array([0.2126, 0.7152, 0.0722], dtype=np.float32)
+        rgb = luma[:, np.newaxis] + sat * (rgb - luma[:, np.newaxis])
+
+    rgb = np.clip(rgb, 0.0, 1.0)
+
+    # Write .cube file — batch string join for speed (~200ms for 33^3)
+    with open(path, 'wb') as f:
+        f.write(f"# VueOSD ColorTrans LUT\nLUT_3D_SIZE {N}\n".encode())
+        lines = [f"{r:.6f} {g:.6f} {b:.6f}" for r, g, b in rgb]
+        f.write(("\n".join(lines) + "\n").encode())
+
+    _lut_cache_hash = h
+    _lut_cache_path = path
+    return path
+
+
+# ── libplacebo detection ──────────────────────────────────────────────────────
+
+_libplacebo_cache: Optional[bool] = None
+
+
+def detect_libplacebo(ffmpeg_path: str) -> bool:
+    """Check if FFmpeg was built with libplacebo filter support. Cached."""
+    global _libplacebo_cache
+    if _libplacebo_cache is not None:
+        return _libplacebo_cache
+    try:
+        _, out, _ = _run_with_hard_timeout(
+            [ffmpeg_path, "-filters", "-hide_banner"], timeout_s=8)
+        _libplacebo_cache = "libplacebo" in out.decode("utf-8", errors="replace")
+    except Exception:
+        _libplacebo_cache = False
+    return _libplacebo_cache
+
+
+def _build_color_vf(cc: ColorTransConfig, ffmpeg_path: str, tmp_dir: str) -> str:
+    """Build video filter string for color correction. Returns '' if nothing to apply."""
+    parts = []
+
+    def _esc(p):
+        """Escape a file path for FFmpeg filter graph syntax."""
+        return p.replace("\\", "/").replace(":", "\\:")
+
+    # GLSL shader via libplacebo (applied first)
+    if cc.glsl_shader and os.path.isfile(cc.glsl_shader):
+        if detect_libplacebo(ffmpeg_path):
+            parts.append(f"libplacebo=custom_shader_path='{_esc(cc.glsl_shader)}'")
+
+    # Built-in LUT
+    if cc.enabled:
+        lut_path = os.path.join(tmp_dir, "colortrans.cube")
+        generate_colortrans_lut(cc, lut_path)
+        parts.append(f"lut3d=file='{_esc(lut_path)}'")
+
+    return ",".join(parts)
+
+
+@dataclass
+class ProcessingConfig:
+    input_video:  str
+    output_video: str
+    osd_file:     Optional[str]  = None
+    srt_file:     Optional[str]  = None
+    codec:        str   = "libx264"
+    crf:          int   = 23
+    preset:       str   = "medium"
+    font_folder:  Optional[str]  = None
+    prefer_hd:    bool  = True
+    scale:        float = 1.0
+    offset_x:     int   = 0
+    offset_y:     int   = 0
+    show_srt_bar:  bool  = True
+    srt_opacity:   float = 0.6   # SRT bar background opacity
+    srt_scale:     float = 1.0   # SRT bar size multiplier (0.75–2.0)
+    use_hw:        bool  = False
+    bitrate_mbps:  float = None   # if set, use -b:v instead of -crf
+    trim_start:    float = 0.0    # seconds, 0 = beginning
+    trim_end:      float = 0.0    # seconds, 0 = end of file
+    upscale_target: str  = ""     # "" = no upscale | "1440p" | "2.7k" | "4k"
+    osd_data:      object = None  # pre-parsed OsdFile (e.g. P1 embedded OSD)
+    osd_offset_ms: int   = 0     # Manual OSD sync offset (ms); positive = OSD forward
+    srt_enabled_fields: Optional[set] = None  # SRT field keys to show; None = all
+    hide_regions: list = None  # List of (r0,c0,r1,c1) OSD grid rects to blank
+    color_config: Optional[ColorTransConfig] = None  # Color correction settings
+    transparent_export: bool = False  # Chroma-key export (OSD on magenta, .mp4)
+    target_aspect: str = ""           # "" = source | "16:9" | "4:3" | "21:9" | "1:1" | "9:16"
+    widgets:      list = None         # List of widgets.Widget instances to overlay
+    show_osd_grid: bool = True        # When False, MSP glyph grid is suppressed
+                                      # (widgets + SRT bar still render).
+    firmware:     str  = "INAV"       # FC type for OSD glyph decoding
+
+
+# ── GPU encoder detection ─────────────────────────────────────────────────────
+
+_HW_CANDIDATES = [
+    ("h264_nvenc",         "hevc_nvenc",        "NVIDIA NVENC"),
+    ("h264_amf",           "hevc_amf",          "AMD AMF"),
+    ("h264_qsv",           "hevc_qsv",          "Intel QSV"),
+    ("h264_vaapi",         "hevc_vaapi",         "VAAPI"),
+    ("h264_videotoolbox",  "hevc_videotoolbox",  "Apple VideoToolbox"),
+    ("h264_v4l2m2m",       "hevc_v4l2m2m",       "V4L2 M2M"),
+]
+
+_hw_probe_cache: Optional[dict] = None   # None = not yet probed; {} = probed, no GPU
+
+
+def _run_with_hard_timeout(cmd, timeout_s=5):
+    """Run a subprocess with a hard kill after timeout_s seconds.
+    Returns (returncode, stdout_bytes, stderr_bytes) or raises TimeoutError."""
+    import subprocess as _sp
+    kwargs = {}
+    if sys.platform == "win32":
+        si = _sp.STARTUPINFO()
+        si.dwFlags |= _sp.STARTF_USESHOWWINDOW
+        si.wShowWindow = _sp.SW_HIDE
+        kwargs["startupinfo"] = si
+        kwargs["creationflags"] = 0x08000000  # CREATE_NO_WINDOW
+    proc = _sp.Popen(cmd, stdout=_sp.PIPE, stderr=_sp.PIPE, **kwargs)
+    try:
+        out, err = proc.communicate(timeout=timeout_s)
+        return proc.returncode, out, err
+    except _sp.TimeoutExpired:
+        proc.kill()
+        proc.communicate()   # drain pipes after kill
+        raise TimeoutError(f"process timed out after {timeout_s}s")
+
+
+# Phrases in ffmpeg stderr that definitively mean "no GPU device present".
+# Any other non-zero exit might be a driver/init hiccup — we treat it as
+# "available" so we don't wrongly hide the GPU option from the user.
+_NO_DEVICE_PHRASES = [
+    "no nvenc capable device",
+    "no capable device",
+    "no encode device",
+    "nvenc_err_no_encode_device",
+    "nvenc_err_unsupported_device",
+    "mfx_err",
+    "mfx session",
+    "no opencl",
+    "no vaapi",
+    "device type cuda not found",
+    "cannot load nvcuda.dll",
+    "cannot load libnvcuvid",
+    "cannot load libcuda",
+    "cuda_error_no_device",
+]
+
+
+def detect_hw_encoder(ffmpeg: str) -> Optional[dict]:
+    """
+    Detect a working hardware encoder via a short test encode.
+
+    Key design decisions:
+      • 20 s timeout — NVENC must initialise the CUDA context on first call,
+        which on Windows with a cold driver can take 10-15 s.
+      • Fixed pixel-format flags — NVENC wants -pix_fmt as an encoder output
+        flag, not a -vf filter.  Using -vf format= before the encoder can
+        cause spurious failures on some driver versions.
+      • Stderr inspection — if the encode fails we check stderr for definitive
+        "no device" phrases.  Any other failure (driver hiccup, wrong pix fmt
+        in a specific build) is treated as "available" so we don't silently
+        hide a working GPU from the user.
+
+    Returns {"name", "h264", "h265", "vaapi"} or None.
+    Caches result — detection only runs once per session.
+    """
+    global _hw_probe_cache
+    if _hw_probe_cache is not None:
+        return _hw_probe_cache if _hw_probe_cache else None
+
+    # Step 1: which encoders are compiled into this ffmpeg build (fast, no GPU)
+    try:
+        _, out, _ = _run_with_hard_timeout(
+            [ffmpeg, "-encoders", "-hide_banner"], timeout_s=8)
+        compiled = set(out.decode("utf-8", errors="replace").split())
+    except Exception:
+        compiled = set()
+
+    for h264, h265, name in _HW_CANDIDATES:
+        if h264 not in compiled:
+            continue  # encoder not built in — skip without any subprocess
+
+        # Step 2: test encode — 1 frame, null output, correct pix_fmt per encoder
+        # NVENC minimum frame size is 145x145. Use 256x256 @ 30fps to satisfy
+        # all encoder constraints (NVENC, AMF, QSV all accept this).
+        if "vaapi" in h264:
+            cmd = [ffmpeg, "-y",
+                   "-vaapi_device", "/dev/dri/renderD128",
+                   "-f", "lavfi", "-i", "color=black:size=256x256:rate=30",
+                   "-frames:v", "1",
+                   "-vf", "format=nv12,hwupload",
+                   "-c:v", h264, "-f", "null", "-"]
+        elif "amf" in h264:
+            # AMF requires nv12 input; yuv420p causes an init failure on some drivers
+            cmd = [ffmpeg, "-y",
+                   "-f", "lavfi", "-i", "color=black:size=256x256:rate=30",
+                   "-frames:v", "1",
+                   "-c:v", h264, "-pix_fmt", "nv12",
+                   "-f", "null", "-"]
+        else:
+            cmd = [ffmpeg, "-y",
+                   "-f", "lavfi", "-i", "color=black:size=256x256:rate=30",
+                   "-frames:v", "1",
+                   "-c:v", h264, "-pix_fmt", "yuv420p",
+                   "-f", "null", "-"]
+
+        try:
+            rc, _, err = _run_with_hard_timeout(cmd, timeout_s=20)
+        except TimeoutError:
+            # Timed out — CUDA/driver failed to initialise even in 20 s.
+            # This is a genuine "no working GPU" signal.
+            continue
+        except Exception:
+            continue
+
+        if rc == 0:
+            _hw_probe_cache = {"name": name, "h264": h264,
+                               "h265": h265, "vaapi": "vaapi" in h264}
+            return _hw_probe_cache
+
+        # Non-zero exit — inspect stderr
+        err_lo = err.decode("utf-8", errors="replace").lower()
+
+        if any(phrase in err_lo for phrase in _NO_DEVICE_PHRASES):
+            # Definitively no device of this type — try the next candidate
+            continue
+
+        # Unknown failure (wrong pix-fmt, minor driver issue, etc.).
+        # The encoder IS compiled in and didn't say "no device", so report it
+        # as available — the user's actual encode will likely work fine.
+        _hw_probe_cache = {"name": name, "h264": h264,
+                           "h265": h265, "vaapi": "vaapi" in h264}
+        return _hw_probe_cache
+
+    _hw_probe_cache = {}  # definitive miss — cache so we never probe again
+    return None
+
+
+def find_ffmpeg() -> Optional[str]:
+    ffmpeg = shutil.which("ffmpeg")
+    if ffmpeg:
+        return ffmpeg
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    for name in ["ffmpeg.exe", "ffmpeg"]:
+        candidate = os.path.join(script_dir, name)
+        if os.path.isfile(candidate):
+            return candidate
+    return None
+
+
+def _find_ffprobe() -> Optional[str]:
+    """Return ffprobe path from PATH or alongside ffmpeg, or None if not found."""
+    ffprobe = shutil.which("ffprobe")
+    if not ffprobe:
+        ff = find_ffmpeg()
+        if ff:
+            candidate = ff.replace("ffmpeg", "ffprobe")
+            if os.path.exists(candidate):
+                ffprobe = candidate
+    return ffprobe
+
+
+def get_video_info(video_path: str) -> dict:
+    ffprobe = _find_ffprobe()
+    if not ffprobe:
+        return {"error": "ffprobe not found"}
+    cmd = [ffprobe, "-v", "quiet", "-print_format", "json",
+           "-show_streams", "-show_format", video_path]
+    try:
+        result = _hidden_run(cmd, capture_output=True, text=True, timeout=30)
+        data   = json.loads(result.stdout)
+        info   = {}
+        for stream in data.get("streams", []):
+            if stream.get("codec_type") == "video":
+                info["width"]    = stream.get("width", 0)
+                info["height"]   = stream.get("height", 0)
+                info["codec"]    = stream.get("codec_name", "unknown")
+                # Prefer avg_frame_rate (frames/duration — the true rate for
+                # VFR sources like Ruby onboard recordings) over r_frame_rate,
+                # which reports the nominal/maximum rate. Equal for CFR files.
+                info["fps"] = 30.0
+                for rate_key in ("avg_frame_rate", "r_frame_rate"):
+                    try:
+                        num, den = stream.get(rate_key, "").split("/")
+                        num, den = int(num), int(den)
+                        if num > 0 and den > 0:
+                            info["fps"] = round(num / den, 3)
+                            break
+                    except (ValueError, AttributeError):
+                        pass
+                info["duration"] = float(data.get("format", {}).get("duration", 0))
+                info["size_mb"]  = round(
+                    int(data.get("format", {}).get("size", 0)) / 1_048_576, 1)
+        return info
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def get_frame_pts(video_path: str, trim_start: float = 0.0) -> list:
+    """Return per-frame PTS list (seconds relative to trim_start) via ffprobe.
+
+    Scans packet metadata first — demux only, no decoding, so it runs at I/O
+    speed even for high-bitrate sources (a frame-level scan decodes every
+    frame and can take minutes on a 33 Mbps HEVC recording). Packet order is
+    decode order, so the timestamps are sorted into presentation order. Falls
+    back to the frame-level scan when packets lack usable timestamps.
+    Returns an empty list on any error; caller must fall back to i/fps.
+    """
+    ffprobe = _find_ffprobe()
+    if not ffprobe:
+        return []
+
+    def _scan(entries: str) -> list:
+        cmd = [ffprobe, "-v", "error", "-select_streams", "v:0",
+               "-show_entries", entries, "-of", "csv=p=0", video_path]
+        result = _hidden_run(cmd, capture_output=True, text=True, timeout=60)
+        vals = []
+        for line in result.stdout.splitlines():
+            try:
+                vals.append(float(line.strip()))
+            except ValueError:
+                pass   # "N/A" and blank lines
+        return vals
+
+    try:
+        pts = _scan("packet=pts_time")
+        if len(pts) < 10:
+            pts = _scan("frame=best_effort_timestamp_time")
+        pts.sort()
+        return [t - trim_start for t in pts if t >= trim_start]
+    except Exception:
+        return []
+
+
+class _ProgressHeartbeat:
+    """Background ticker that nudges the progress bar during a slow blocking
+    phase (ffprobe, ffmpeg startup, first composite). Asymptotically approaches
+    `cap_pct` so it never overshoots whatever phase comes next.
+
+    Usage:
+        hb = _ProgressHeartbeat(progress_callback, start=5, cap=9, message="Reading frame timestamps…")
+        hb.start()
+        try:
+            slow_blocking_work()
+        finally:
+            hb.stop()
+    """
+    def __init__(self, callback, start: int, cap: int, message: str,
+                 interval: float = 0.25):
+        self._cb = callback
+        self._start = float(start)
+        self._cap = float(cap)
+        self._msg = message
+        self._interval = interval
+        self._stop = threading.Event()
+        self._thread: threading.Thread | None = None
+
+    def start(self):
+        if self._cb is None or self._cap <= self._start:
+            return self
+        def _run():
+            t0 = time.time()
+            # Reach ~63% of (cap-start) after `tau` seconds, asymptote at cap.
+            tau = 6.0
+            while not self._stop.is_set():
+                elapsed = time.time() - t0
+                import math as _math
+                frac = 1.0 - _math.exp(-elapsed / tau)
+                pct = self._start + (self._cap - self._start) * frac
+                try:
+                    self._cb(int(round(pct)), self._msg)
+                except Exception:
+                    pass
+                if self._stop.wait(self._interval):
+                    break
+        self._thread = threading.Thread(target=_run, daemon=True)
+        self._thread.start()
+        return self
+
+    def stop(self):
+        self._stop.set()
+        if self._thread is not None:
+            self._thread.join(timeout=0.5)
+
+
+_STDERR_CAP = 32 * 1024   # keep last 32 KB of ffmpeg stderr
+
+# OSD updates at ~10fps; video runs at 60fps so most consecutive frames share the
+# same OSD state.  32 entries catches all hot OSD/SRT combinations without
+# accumulating GB of RAM on long videos.
+_CACHE_MAX = 32
+
+def _drain(pipe, store: list):
+    """Drain a pipe to a list[0] string, capped to avoid unbounded RAM use."""
+    chunks = []
+    total  = 0
+    try:
+        for chunk in iter(lambda: pipe.read(4096), b""):
+            chunks.append(chunk)
+            total += len(chunk)
+            # Drop oldest chunks once we exceed the cap
+            while total > _STDERR_CAP and chunks:
+                dropped = chunks.pop(0)
+                total  -= len(dropped)
+    except Exception:
+        pass
+    store[0] = b"".join(chunks).decode("utf-8", errors="replace")
+
+
+def _read_exactly(pipe, n: int) -> Optional[bytes]:
+    buf = bytearray()
+    while len(buf) < n:
+        chunk = pipe.read(n - len(buf))
+        if not chunk:
+            return None
+        buf += chunk
+    return bytes(buf)
+
+
+# ── Encoder quality helpers ───────────────────────────────────────────────────
+
+def _build_quality_args(
+    encoder: str, config: ProcessingConfig, use_vaapi: bool
+) -> "tuple[list, list, list]":
+    """Return (quality_args, preset_args, pix_fmt_args) for the given encoder.
+
+    pix_fmt_args: for hardware encoders the filter_complex format= node already
+    delivers the correct pixel format — passing -pix_fmt after -c:v confuses
+    NVENC on Linux ("Operation not permitted") and AMF on Windows.  Only VAAPI
+    needs special handling (hwupload path).  CPU encoders need -pix_fmt yuv420p.
+    """
+    use_nvenc = "nvenc" in encoder
+    use_amf   = "amf"   in encoder
+
+    # ── Software (CPU) encoders ───────────────────────────────────────────────
+    if encoder in ("libx264", "libx265"):
+        if config.bitrate_mbps:
+            quality_args = ["-b:v",     f"{config.bitrate_mbps}M",
+                            "-maxrate", f"{config.bitrate_mbps * 1.5:.1f}M",
+                            "-bufsize", f"{config.bitrate_mbps * 2:.1f}M"]
+        else:
+            quality_args = ["-crf", str(config.crf)]
+        return quality_args, ["-preset", config.preset], ["-pix_fmt", "yuv420p"]
+
+    # ── Hardware (GPU) encoders ───────────────────────────────────────────────
+    if use_nvenc:
+        if config.bitrate_mbps:
+            quality_args = ["-rc:v", "vbr",
+                            "-b:v",     f"{config.bitrate_mbps}M",
+                            "-maxrate", f"{config.bitrate_mbps * 1.5:.1f}M",
+                            "-bufsize", f"{config.bitrate_mbps * 2:.1f}M"]
+        else:
+            nvenc_cq = min(51, config.crf + 9)
+            quality_args = ["-rc:v", "vbr", "-cq", str(nvenc_cq),
+                            "-maxrate", "50M", "-bufsize", "100M"]
+    elif "vaapi" in encoder:
+        if config.bitrate_mbps:
+            quality_args = ["-rc_mode", "VBR", "-b:v", f"{config.bitrate_mbps}M"]
+        else:
+            quality_args = ["-rc_mode", "VBR", "-qp", str(config.crf)]
+    elif use_amf:
+        if config.bitrate_mbps:
+            quality_args = ["-rc", "vbr_latency", "-b:v", f"{config.bitrate_mbps}M"]
+        else:
+            quality_args = ["-rc", "cqp",
+                            "-qp_i", str(config.crf), "-qp_p", str(config.crf)]
+    elif "qsv" in encoder:
+        if config.bitrate_mbps:
+            quality_args = ["-b:v", f"{config.bitrate_mbps}M"]
+        else:
+            quality_args = ["-global_quality", str(config.crf)]
+    else:
+        # Generic hardware fallback (videotoolbox, v4l2m2m, etc.)
+        if config.bitrate_mbps:
+            quality_args = ["-b:v", f"{config.bitrate_mbps}M"]
+        else:
+            quality_args = ["-cq", str(config.crf)]
+
+    preset_args = (["-preset", "p6"]     if use_nvenc        else
+                   ["-preset", "medium"] if "qsv" in encoder else [])
+
+    if use_vaapi:
+        pix_fmt_args = ["-pix_fmt", "nv12"]
+    elif use_nvenc or use_amf:
+        pix_fmt_args = []
+    else:
+        pix_fmt_args = ["-pix_fmt", "yuv420p"]
+
+    return quality_args, preset_args, pix_fmt_args
+
+
+# ── Main entry point ──────────────────────────────────────────────────────────
+
+def process_video(
+    config: ProcessingConfig,
+    progress_callback: Optional[Callable[[int, str], None]] = None,
+) -> bool:
+    ffmpeg = find_ffmpeg()
+    if not ffmpeg:
+        raise FileNotFoundError("FFmpeg not found!\nGet from https://www.gyan.dev/ffmpeg/builds/")
+    if not PIL_OK:
+        raise RuntimeError("Pillow is required: pip install Pillow")
+
+    # ── Load data ─────────────────────────────────────────────────────────────
+    osd_data = srt_data = font = None
+
+    # Accept pre-parsed OSD data directly (e.g. P1 embedded OSD — no .osd file)
+    if config.osd_data is not None:
+        osd_data = config.osd_data
+    elif config.osd_file and os.path.isfile(config.osd_file):
+        try:    osd_data = parse_osd(config.osd_file)
+        except Exception as e:
+            if progress_callback: progress_callback(0, f"⚠ OSD: {e}")
+
+    if config.srt_file and os.path.isfile(config.srt_file):
+        try:    srt_data = parse_srt(config.srt_file)
+        except Exception as e:
+            if progress_callback: progress_callback(0, f"⚠ SRT: {e}")
+
+    if config.font_folder and os.path.isdir(config.font_folder):
+        try:    font = load_font(Path(config.font_folder), prefer_hd=config.prefer_hd)
+        except Exception as e:
+            if progress_callback: progress_callback(0, f"⚠ Font: {e}")
+
+    if osd_data is None and srt_data is None:
+        return _reencode_only(ffmpeg, config, progress_callback)
+
+    # ── Video info ─────────────────────────────────────────────────────────────
+    info = get_video_info(config.input_video)
+    if "error" in info or not info.get("width"):
+        raise RuntimeError(f"Cannot read video: {info.get('error','unknown')}")
+
+    width    = info["width"]
+    height   = info["height"]
+    fps      = info["fps"]
+    duration = info["duration"]
+
+    # ── Resolve encoder ────────────────────────────────────────────────────────
+    hw_info   = detect_hw_encoder(ffmpeg) if config.use_hw else None
+    use_vaapi = hw_info and hw_info.get("vaapi", False)
+
+    if hw_info and config.use_hw:
+        codec_map = {"libx264": hw_info["h264"], "libx265": hw_info["h265"]}
+        encoder   = codec_map.get(config.codec, hw_info["h264"])
+        enc_label = f"{hw_info['name']} ({encoder})"
+    else:
+        encoder   = config.codec
+        enc_label = f"CPU ({encoder})"
+
+    quality_args, preset_args, pix_fmt_args = _build_quality_args(encoder, config, use_vaapi)
+
+    # ── Choose pipeline ────────────────────────────────────────────────────────
+
+    # Chroma-key export: OSD frames flattened onto a solid magenta background,
+    # encoded as H.264 .mp4. The user keys the magenta out in their NLE.
+    # Avoids the VP9 yuva420p chroma-subsampling halo entirely.
+    if config.transparent_export:
+        if osd_data is None and srt_data is None:
+            raise RuntimeError("Chroma key export requires OSD data or SRT data — nothing to render.")
+        return _chroma_key_pipeline(
+            ffmpeg, config, osd_data, srt_data, font,
+            width, height, fps, duration, progress_callback)
+
+    # Fast path: OSD overlay pipe — Python handles ONLY the OSD frames,
+    # FFmpeg handles all video frame I/O natively in C.
+    if font and osd_data:
+        return _overlay_pipeline(
+            ffmpeg, config, osd_data, srt_data, font,
+            width, height, fps, duration,
+            encoder, enc_label, quality_args, preset_args, pix_fmt_args,
+            use_vaapi, hw_info, progress_callback)
+
+    # Fallback: SRT-only (no OSD font) — just burn SRT bar via Python
+    return _srt_only_pipeline(
+        ffmpeg, config, srt_data,
+        width, height, fps, duration,
+        encoder, enc_label, quality_args, preset_args, pix_fmt_args,
+        progress_callback)
+
+
+# ── Upscale target → filter string ───────────────────────────────────────────
+_UPSCALE_HEIGHTS = {"1440p": 1440, "2.7k": 1512, "4k": 2160}
+
+# Aspect-ratio presets accepted by `target_aspect`. The string is parsed as
+# "W:H"; the helper below pads (never crops) the source to that aspect.
+_ASPECT_RATIOS = {
+    "16:9": (16, 9),
+    "4:3":  (4,  3),
+    "21:9": (21, 9),
+    "1:1":  (1,  1),
+    "9:16": (9, 16),
+}
+
+
+def compute_canvas_dims(src_w: int, src_h: int, target_aspect: str) -> tuple[int, int, int, int]:
+    """Return (canvas_w, canvas_h, src_x, src_y) where the source video is
+    pillarboxed/letterboxed inside a canvas with the requested aspect ratio.
+
+    Returns the source dims unchanged when target_aspect is empty/unknown or
+    already matches the source. Output dims are forced even (codec-friendly).
+    """
+    if not target_aspect or target_aspect not in _ASPECT_RATIOS:
+        return src_w, src_h, 0, 0
+    aw, ah = _ASPECT_RATIOS[target_aspect]
+    src_ratio    = src_w / src_h
+    target_ratio = aw / ah
+    if abs(src_ratio - target_ratio) < 1e-3:
+        return src_w, src_h, 0, 0
+    if src_ratio < target_ratio:
+        # Source is taller than target → pillarbox (widen the canvas)
+        canvas_h = src_h
+        canvas_w = round(src_h * target_ratio)
+    else:
+        # Source is wider than target → letterbox (heighten the canvas)
+        canvas_w = src_w
+        canvas_h = round(src_w / target_ratio)
+    canvas_w = (canvas_w // 2) * 2
+    canvas_h = (canvas_h // 2) * 2
+    src_x = (canvas_w - src_w) // 2
+    src_y = (canvas_h - src_h) // 2
+    return canvas_w, canvas_h, src_x, src_y
+
+
+def _upscale_filter(target: str, fc_fmt, use_vaapi: bool, color_vf: str = "",
+                    pad: tuple[int, int, int, int] | None = None) -> str:
+    """Build the filter_complex string for overlay + optional upscale.
+
+    color_vf: optional color correction filter(s) applied to [0:v] BEFORE overlay.
+    """
+    h = _UPSCALE_HEIGHTS.get((target or "").lower())
+    # Build the [0:v] chain: optional colour correction → optional aspect pad
+    chain_parts = []
+    if color_vf:
+        chain_parts.append(color_vf)
+    if pad and pad[0] > 0 and pad[1] > 0 and (pad[2] > 0 or pad[3] > 0):
+        canvas_w, canvas_h, src_x, src_y = pad
+        # setsar=1 normalises the SAR so the overlay coordinates align with px.
+        chain_parts.append(
+            f"pad={canvas_w}:{canvas_h}:{src_x}:{src_y}:black,setsar=1"
+        )
+    if chain_parts:
+        src = f"[0:v]{','.join(chain_parts)}[cc];[cc]"
+    else:
+        src = "[0:v]"
+    if use_vaapi:
+        if h:
+            return f"{src}[1:v]overlay=shortest=1,scale=-2:{h}:flags=lanczos,hwupload[v]"
+        return f"{src}[1:v]overlay=shortest=1,hwupload[v]"
+    if h:
+        return f"{src}[1:v]overlay=shortest=1,scale=-2:{h}:flags=lanczos,format={fc_fmt}[v]"
+    return f"{src}[1:v]overlay=shortest=1,format={fc_fmt}[v]"
+
+
+# ── Fast pipeline: OSD overlay ─────────────────────────────────────────────────
+
+def _overlay_pipeline(
+    ffmpeg, config, osd_data, srt_data, font,
+    width, height, fps, duration,
+    encoder, enc_label, quality_args, preset_args, pix_fmt_args,
+    use_vaapi, hw_info, progress_callback,
+):
+    """
+    Python renders OSD frames (~10fps) → pipe to FFmpeg as a second input.
+    FFmpeg overlays the OSD stream onto the source video and encodes.
+    Python never reads or writes a single raw video frame.
+    """
+    total_frames = max(1, int(duration * fps))
+
+    # ── Aspect-ratio canvas (letter/pillarbox) ────────────────────────────────
+    src_w, src_h = width, height
+    canvas_w, canvas_h, src_x, src_y = compute_canvas_dims(
+        src_w, src_h, config.target_aspect)
+    aspect_pad = (canvas_w, canvas_h, src_x, src_y) if (canvas_w != src_w or canvas_h != src_h) else None
+    # The OSD pipe MUST be at canvas dims so glyphs can sit in the bars.
+    width, height = canvas_w, canvas_h
+
+    render_cfg = OsdRenderConfig(
+        offset_x    = config.offset_x,
+        offset_y    = config.offset_y,
+        scale       = config.scale,
+        show_srt_bar= config.show_srt_bar,
+        srt_opacity = config.srt_opacity,
+        srt_scale   = config.srt_scale,
+        hide_regions = list(config.hide_regions or []),
+        source_w    = src_w,
+        source_h    = src_h,
+        widgets     = list(config.widgets or []),
+    )
+    gcols = osd_data.grid_cols if osd_data else GRID_COLS
+    grows = osd_data.grid_rows if osd_data else GRID_ROWS
+    renderer = OsdRenderer(width, height, font, render_cfg,
+                           grid_cols=gcols, grid_rows=grows)
+
+    # Trim window — default to full video
+    _t_start = config.trim_start if config.trim_start > 0.01 else 0.0
+    _t_end   = config.trim_end   if config.trim_end   > 0.01 else duration
+    _t_dur   = max(0.001, _t_end - _t_start)
+    _trim_ss = ["-ss", f"{_t_start:.3f}"] if _t_start > 0.01 else []
+    _trim_t  = ["-t",  f"{_t_dur:.3f}"]   if _t_dur  < duration - 0.01 else []
+
+    # OSD availability check — warn if no OSD frames overlap the trim window
+    t_start_ms = int(_t_start * 1000)
+    t_end_ms   = int(_t_end   * 1000)
+    osd_in_window = [fr for fr in osd_data.frames
+                     if t_start_ms <= fr.time_ms <= t_end_ms + 500]
+    osd_trimmed_warning = ""
+    if not osd_in_window:
+        osd_trimmed_warning = "No OSD elements in trim window — rendered without OSD overlay"
+        if progress_callback:
+            progress_callback(0, f"⚠ {osd_trimmed_warning}")
+
+    # How many output frames we will write to the pipe (= trimmed video frame count)
+    n_out_frames = max(1, int(_t_dur * fps))
+
+    if progress_callback:
+        progress_callback(3, f"{width}x{height} @ {fps}fps · {n_out_frames} frames · {enc_label}")
+
+    # ── PTS extraction (fast metadata-only ffprobe) ───────────────────────────
+    # Fetch actual presentation timestamps so OSD stays locked after video gaps
+    # (dropped packets → frozen frames in CFR output → i/fps drifts away).
+    _hb = _ProgressHeartbeat(progress_callback, start=4, cap=7,
+                             message=f"Reading frame timestamps…  [{enc_label}]").start()
+    try:
+        pts_list = get_frame_pts(config.input_video, _t_start)
+    finally:
+        _hb.stop()
+    use_pts  = len(pts_list) >= n_out_frames
+
+    # Heartbeat for ffmpeg subprocess startup
+    _hb = _ProgressHeartbeat(progress_callback, start=7, cap=9,
+                             message=f"Starting encoder…  [{enc_label}]").start()
+
+    if use_pts:
+        # Check for gaps: any consecutive PTS jump > 2.5 × normal frame interval
+        _frame_interval = 1.0 / fps
+        _has_gaps = any(
+            pts_list[j] - pts_list[j - 1] > 2.5 * _frame_interval
+            for j in range(1, min(len(pts_list), n_out_frames))
+        )
+        if _has_gaps and progress_callback:
+            progress_callback(5, "⚠ Video gaps detected — using PTS-accurate OSD sync")
+    else:
+        if pts_list and progress_callback:
+            # Got some PTSs but not enough — unusual; fall back gracefully
+            progress_callback(5, "⚠ PTS list shorter than frame count — falling back to i/fps")
+
+    # OSD pipe runs at the SAME fps as the video.
+    # Each pipe frame is looked up by its absolute timestamp so OSD timing is exact
+    # regardless of the OSD file's variable internal frame rate.
+    # faststart moves moov atom to front for instant web playback
+    movflags = ["-movflags", "+faststart"] if not use_vaapi else []
+
+    # Pixel format for the filter_complex output — must match what the encoder accepts:
+    #   NVENC (NVIDIA) → nv12  (its native format; yuv420p causes "Operation not permitted" on Linux)
+    #   AMF   (AMD)    → nv12  (yuv420p causes init failure on Windows)
+    #   VAAPI          → handled separately with hwupload (no format= node)
+    #   CPU / QSV      → yuv420p
+    use_nvenc = "nvenc" in encoder
+    use_amf   = "amf"   in encoder
+    if use_vaapi:
+        _fc_fmt = None   # VAAPI path uses hwupload, no format= node needed
+    elif use_nvenc or use_amf:
+        _fc_fmt = "nv12"
+    else:
+        _fc_fmt = "yuv420p"
+
+    # Color correction filter (applied to source video before overlay)
+    _color_vf = ""
+    _color_tmp = None
+    cc = config.color_config
+    if cc and (cc.enabled or (cc.glsl_shader and os.path.isfile(cc.glsl_shader))):
+        _color_tmp = tempfile.mkdtemp(prefix="vueosd_cc_")
+        _color_vf = _build_color_vf(cc, ffmpeg, _color_tmp)
+
+    ffmpeg_cmd = (
+        [ffmpeg, "-y"]
+        + (["-vaapi_device", "/dev/dri/renderD128"] if use_vaapi else [])
+        # Input 0: source video (with optional fast seek)
+        + _trim_ss + ["-i", config.input_video] + _trim_t
+        # Input 1: OSD overlay pipe — rgba frames at video fps
+        + ["-f", "rawvideo", "-pix_fmt", "rgba",
+           "-s", f"{width}x{height}",
+           "-r", str(fps),
+           "-i", "pipe:0"]
+        # High-quality RGBA→YUV colour conversion
+        + ["-sws_flags", "lanczos+accurate_rnd+full_chroma_int"]
+        # Overlay filter: OSD on top of source, optional upscale, then encode
+        + ["-filter_complex",
+           (_upscale_filter(config.upscale_target, _fc_fmt, use_vaapi, _color_vf, aspect_pad))]
+        + ["-map", "[v]",
+           "-map", "0:a:0?",
+           "-c:v", encoder]
+        + quality_args + preset_args + pix_fmt_args
+        + movflags
+        + ["-c:a", "copy", config.output_video]
+    )
+
+    ffmpeg_proc = _hidden_popen(
+        ffmpeg_cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=0)
+    ffmpeg_stderr = [""]
+
+    # Drain FFmpeg stderr in background (prevents pipe deadlock, capped)
+    _overlay_stderr_store = [""]
+    threading.Thread(target=_drain, args=(ffmpeg_proc.stderr, _overlay_stderr_store),
+                     daemon=True).start()
+    ffmpeg_stderr = _overlay_stderr_store
+
+    # ── OSD render loop ───────────────────────────────────────────────────────
+    # For each output video frame i, compute its absolute timestamp, look up
+    # the correct OSD frame by time, composite once and write to pipe.
+    # Cache composited frames by (osd_frame_index, srt_text) so that repeated
+    # OSD frames (which are the vast majority) cost only a dict lookup + write.
+    # This guarantees frame-perfect sync: pipe frame i always matches video frame i.
+
+    # Frame cache: (osd_index, srt_text) → composited bytes  (see module-level _CACHE_MAX)
+    _frame_cache: dict = {}
+    report_every = max(1, n_out_frames // 100)
+
+    # ffmpeg has launched; the encoder-startup heartbeat can stop now —
+    # the per-frame loop will take over the bar.
+    _hb.stop()
+
+    try:
+        if not osd_in_window:
+            # No OSD data in trim window — single blank frame, FFmpeg pads
+            ffmpeg_proc.stdin.write(bytes(renderer.composite(None, "")))
+            if progress_callback:
+                progress_callback(50, f"No OSD in trim window — blank overlay  [{enc_label}]")
+        else:
+            has_widgets = bool(render_cfg.widgets)
+            # Smoothed widgets render a different value every frame, so their
+            # output can't be cached by OSD-frame index alone. Only fold the
+            # per-frame timestamp into the cache key when smoothing is actually
+            # active; otherwise the SRT/OSD-index dedup cache keeps working.
+            any_smoothing = any(
+                w.type not in ("digital", "map")
+                and float(w.style.get("smoothness", 0.0)) > 0.0
+                for w in render_cfg.widgets
+            )
+            for i in range(n_out_frames):
+                # Absolute timestamp of this video frame in the OSD file's timebase.
+                # use_pts: real PTS from ffprobe (handles gaps/dropped packets).
+                # Fallback: i/fps (constant-rate assumption, current legacy behaviour).
+                t_sec    = pts_list[i] if use_pts else i / fps
+                abs_t_ms = int((_t_start + t_sec) * 1000 + config.osd_offset_ms)
+
+                raw_osd_frame = osd_data.frame_at_time(abs_t_ms)
+                osd_frame = raw_osd_frame if config.show_osd_grid else None
+
+                td = srt_data.get_data_at_time(abs_t_ms) if srt_data else None
+                srt_text = ""
+                if td and config.show_srt_bar:
+                    srt_text = td.status_line(config.srt_enabled_fields)
+
+                tframe = TelemetryFrame(td, raw_osd_frame, firmware=config.firmware,
+                                        osd_font=font, srt_file=srt_data,
+                                        osd_file=osd_data, osd_time_ms=abs_t_ms) \
+                    if has_widgets else None
+
+                # Cache key includes both SRT identity and OSD frame index so
+                # widgets can't reuse stale renders across changing telemetry.
+                if has_widgets:
+                    osd_key = raw_osd_frame.index if raw_osd_frame else -1
+                    widget_key = (id(td) if td is not None else 0, osd_key,
+                                  abs_t_ms if any_smoothing else 0)
+                else:
+                    widget_key = 0
+                cache_key  = (osd_frame.index if osd_frame else -1, srt_text, widget_key)
+                if cache_key not in _frame_cache:
+                    if len(_frame_cache) >= _CACHE_MAX:
+                        # Drop the oldest entry (insertion-order dict, Python 3.7+)
+                        del _frame_cache[next(iter(_frame_cache))]
+                    _frame_cache[cache_key] = bytes(
+                        renderer.composite(osd_frame, srt_text, telemetry=tframe))
+
+                ffmpeg_proc.stdin.write(_frame_cache[cache_key])
+
+                if progress_callback and (i % report_every == 0 or i == n_out_frames - 1):
+                    pct = min(10 + int((i + 1) / n_out_frames * 80), 90)
+                    progress_callback(pct,
+                        f"Frame {i+1}/{n_out_frames}  ({abs_t_ms/1000:.1f}s)  [{enc_label}]")
+
+    except (BrokenPipeError, OSError) as exc:
+            # BrokenPipeError  — POSIX broken pipe (errno 32)
+            # OSError(errno=22) — Windows EINVAL raised when writing to a pipe
+            #                     whose read end (FFmpeg) has already closed.
+            # Both mean FFmpeg exited early — fall through to returncode check.
+            import errno as _errno
+            if not isinstance(exc, BrokenPipeError) and getattr(exc, 'errno', None) != _errno.EINVAL:
+                raise   # genuine unexpected OS error — re-raise
+    finally:
+        try:
+            ffmpeg_proc.stdin.close()
+        except Exception:
+            pass
+
+    # Wait for FFmpeg to finish encoding (it may still be processing video)
+    if progress_callback:
+        progress_callback(92, f"Encoding…  [{enc_label}]")
+
+    ffmpeg_proc.wait()
+
+    if ffmpeg_proc.returncode not in (0, None):
+        err = ffmpeg_stderr[0]
+        if hw_info and config.use_hw:
+            # Widen the GPU-failure check to include AMF and generic HW terms
+            hw_phrases = ["nvenc", "amf", "vaapi", "qsv", "cuda",
+                          "no capable", "no device", "hwaccel", "d3d11",
+                          "cannot load libcuda", "cannot load nvcuda"]
+            if any(x in err.lower() for x in hw_phrases):
+                # ── Auto-fallback to CPU encoding ────────────────────────
+                if progress_callback:
+                    progress_callback(5, f"⚠ {hw_info['name']} failed — retrying with CPU…")
+                cpu_codec = "libx264" if "264" in config.codec or "264" in encoder else "libx265"
+                return process_video(
+                    _dc_replace(config, use_hw=False, codec=cpu_codec),
+                    progress_callback)
+        raise RuntimeError(f"Encode failed (exit {ffmpeg_proc.returncode}):\n{err[-2000:]}")
+
+    if progress_callback:
+        progress_callback(100, f"✓ Done  [{enc_label}]")
+
+    return osd_trimmed_warning or True
+
+
+# ── Chroma key export (OSD on solid magenta, H.264 .mp4) ──────────────────────
+
+# Bright magenta — never appears in stock OSD glyphs/SRT bar, so the user's
+# NLE chroma keyer can pull a clean key without spilling onto OSD content.
+_CHROMA_KEY_RGB = (255, 0, 255)
+
+
+def _chroma_key_pipeline(
+    ffmpeg, config, osd_data, srt_data, font,
+    width, height, fps, duration, progress_callback,
+):
+    """
+    Render OSD+SRT frames flattened onto a solid magenta background, encoded
+    as standard H.264 .mp4. The user keys the magenta out in their NLE
+    (Premiere Ultra Key, DaVinci 3D Keyer, etc.). This sidesteps VP9 alpha's
+    yuva420p chroma-subsampling halos entirely and produces visibly cleaner
+    glyph edges than any straight-alpha approach.
+    """
+    # Force .mp4 extension
+    out_path = config.output_video
+    base, _ext = os.path.splitext(out_path)
+    if _ext.lower() != ".mp4":
+        out_path = base + ".mp4"
+        config.output_video = out_path
+
+    enc_label = "Chroma key (magenta)"
+
+    # Aspect-ratio canvas — entire canvas becomes magenta, so the "bars" key
+    # out the same way as the rest of the background. The OSD positions itself
+    # against the source area inside.
+    src_w, src_h = width, height
+    canvas_w, canvas_h, _src_x, _src_y = compute_canvas_dims(
+        src_w, src_h, config.target_aspect)
+    width, height = canvas_w, canvas_h
+
+    render_cfg = OsdRenderConfig(
+        offset_x    = config.offset_x,
+        offset_y    = config.offset_y,
+        scale       = config.scale,
+        show_srt_bar= config.show_srt_bar,
+        srt_opacity = config.srt_opacity,
+        srt_scale   = config.srt_scale,
+        hide_regions = list(config.hide_regions or []),
+        source_w    = src_w,
+        source_h    = src_h,
+        widgets     = list(config.widgets or []),
+    )
+    gcols = osd_data.grid_cols if osd_data else GRID_COLS
+    grows = osd_data.grid_rows if osd_data else GRID_ROWS
+    renderer = OsdRenderer(width, height, font, render_cfg,
+                           grid_cols=gcols, grid_rows=grows)
+
+    # Pre-built solid magenta background buffer (RGB only — alpha dropped at write time)
+    bg_rgb = np.empty((height, width, 3), dtype=np.uint8)
+    bg_rgb[..., 0] = _CHROMA_KEY_RGB[0]
+    bg_rgb[..., 1] = _CHROMA_KEY_RGB[1]
+    bg_rgb[..., 2] = _CHROMA_KEY_RGB[2]
+    # Reused output buffer — flattened RGB (no alpha plane sent to ffmpeg)
+    out_rgb = np.empty_like(bg_rgb)
+
+    def _flatten(rgba: np.ndarray) -> bytes:
+        """Composite the renderer's RGBA buffer over the magenta background."""
+        a = rgba[:, :, 3:4].astype(np.float32) / 255.0
+        src = rgba[:, :, :3].astype(np.float32)
+        np.copyto(out_rgb,
+                  (src * a + bg_rgb.astype(np.float32) * (1.0 - a)).astype(np.uint8))
+        return bytes(out_rgb)
+
+    # Trim window
+    _t_start = config.trim_start if config.trim_start > 0.01 else 0.0
+    _t_end   = config.trim_end   if config.trim_end   > 0.01 else duration
+    _t_dur   = max(0.001, _t_end - _t_start)
+
+    n_out_frames = max(1, int(_t_dur * fps))
+
+    # OSD availability check
+    osd_in_window = []
+    if osd_data:
+        t_start_ms = int(_t_start * 1000)
+        t_end_ms   = int(_t_end   * 1000)
+        osd_in_window = [fr for fr in osd_data.frames
+                         if t_start_ms <= fr.time_ms <= t_end_ms + 500]
+
+    osd_trimmed_warning = ""
+    if osd_data and not osd_in_window:
+        osd_trimmed_warning = "No OSD elements in trim window — rendered onto plain key colour"
+        if progress_callback:
+            progress_callback(0, f"⚠ {osd_trimmed_warning}")
+
+    if progress_callback:
+        progress_callback(3, f"{width}×{height} @ {fps}fps · {n_out_frames} frames · {enc_label}")
+
+    _hb = _ProgressHeartbeat(progress_callback, start=4, cap=7,
+                             message=f"Reading frame timestamps…  [{enc_label}]").start()
+    try:
+        pts_list = get_frame_pts(config.input_video, _t_start)
+    finally:
+        _hb.stop()
+    use_pts  = len(pts_list) >= n_out_frames
+
+    _hb = _ProgressHeartbeat(progress_callback, start=7, cap=9,
+                             message=f"Starting encoder…  [{enc_label}]").start()
+
+    # FFmpeg command: rawvideo RGB24 input → H.264 .mp4 (CRF 18)
+    ffmpeg_cmd = [
+        ffmpeg, "-y",
+        "-f", "rawvideo", "-pix_fmt", "rgb24",
+        "-s", f"{width}x{height}",
+        "-r", str(fps),
+        "-i", "pipe:0",
+        "-c:v", "libx264",
+        "-pix_fmt", "yuv420p",
+        "-preset", "medium", "-crf", "18",
+        "-movflags", "+faststart",
+        "-an",
+        config.output_video,
+    ]
+
+    ffmpeg_proc = _hidden_popen(
+        ffmpeg_cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=0)
+
+    ffmpeg_stderr = [""]
+    threading.Thread(target=_drain, args=(ffmpeg_proc.stderr, ffmpeg_stderr),
+                     daemon=True).start()
+
+    _frame_cache: dict = {}
+    report_every = max(1, n_out_frames // 100)
+
+    _hb.stop()
+
+    try:
+        if osd_data and not osd_in_window and not srt_data:
+            # Nothing to render — single solid magenta frame
+            ffmpeg_proc.stdin.write(_flatten(renderer.composite(None, "")))
+        else:
+            has_widgets = bool(render_cfg.widgets)
+            # Smoothed widgets render a different value every frame, so their
+            # output can't be cached by OSD-frame index alone. Only fold the
+            # per-frame timestamp into the cache key when smoothing is actually
+            # active; otherwise the SRT/OSD-index dedup cache keeps working.
+            any_smoothing = any(
+                w.type not in ("digital", "map")
+                and float(w.style.get("smoothness", 0.0)) > 0.0
+                for w in render_cfg.widgets
+            )
+            for i in range(n_out_frames):
+                t_sec    = pts_list[i] if use_pts else i / fps
+                abs_t_ms = int((_t_start + t_sec) * 1000 + config.osd_offset_ms)
+
+                raw_osd_frame = None
+                if osd_data and osd_in_window:
+                    raw_osd_frame = osd_data.frame_at_time(abs_t_ms)
+                osd_frame = raw_osd_frame if config.show_osd_grid else None
+
+                td = srt_data.get_data_at_time(abs_t_ms) if srt_data else None
+                srt_text = ""
+                if td and config.show_srt_bar:
+                    srt_text = td.status_line(config.srt_enabled_fields)
+
+                tframe = TelemetryFrame(td, raw_osd_frame, firmware=config.firmware,
+                                        osd_font=font, srt_file=srt_data,
+                                        osd_file=osd_data, osd_time_ms=abs_t_ms) \
+                    if has_widgets else None
+
+                if has_widgets:
+                    osd_key = raw_osd_frame.index if raw_osd_frame else -1
+                    widget_key = (id(td) if td is not None else 0, osd_key,
+                                  abs_t_ms if any_smoothing else 0)
+                else:
+                    widget_key = 0
+                cache_key  = (osd_frame.index if osd_frame else -1, srt_text, widget_key)
+                if cache_key not in _frame_cache:
+                    if len(_frame_cache) >= _CACHE_MAX:
+                        del _frame_cache[next(iter(_frame_cache))]
+                    _frame_cache[cache_key] = _flatten(
+                        renderer.composite(osd_frame, srt_text, telemetry=tframe))
+
+                ffmpeg_proc.stdin.write(_frame_cache[cache_key])
+
+                if progress_callback and (i % report_every == 0 or i == n_out_frames - 1):
+                    pct = min(10 + int((i + 1) / n_out_frames * 80), 90)
+                    progress_callback(pct,
+                        f"Frame {i+1}/{n_out_frames}  ({abs_t_ms/1000:.1f}s)  [{enc_label}]")
+
+    except (BrokenPipeError, OSError) as exc:
+        import errno as _errno
+        if not isinstance(exc, BrokenPipeError) and getattr(exc, 'errno', None) != _errno.EINVAL:
+            raise
+    finally:
+        try:
+            ffmpeg_proc.stdin.close()
+        except Exception:
+            pass
+
+    if progress_callback:
+        progress_callback(92, f"Encoding…  [{enc_label}]")
+
+    ffmpeg_proc.wait()
+
+    if ffmpeg_proc.returncode not in (0, None):
+        err = ffmpeg_stderr[0]
+        raise RuntimeError(f"Chroma key encode failed (exit {ffmpeg_proc.returncode}):\n{err[-2000:]}")
+
+    if progress_callback:
+        progress_callback(100, f"✓ Done  [{enc_label}]")
+
+    return osd_trimmed_warning or True
+
+
+# ── Fallback pipeline: SRT-only (no font loaded) ──────────────────────────────
+
+def _srt_only_pipeline(
+    ffmpeg, config, srt_data,
+    width, height, fps, duration,
+    encoder, enc_label, quality_args, preset_args, pix_fmt_args,
+    progress_callback,
+):
+    """SRT text bar rendered in Python, piped through the old frame-by-frame path."""
+    total_frames = max(1, int(duration * fps))
+    frame_bytes  = width * height * 4
+
+    _t_start = config.trim_start if config.trim_start > 0.01 else 0.0
+    _t_end   = config.trim_end   if config.trim_end   > 0.01 else duration
+    _t_dur   = _t_end - _t_start
+    _trim_ss = ["-ss", f"{_t_start:.3f}"] if _t_start > 0.01 else []
+    _trim_t  = ["-t",  f"{_t_dur:.3f}"]   if _t_dur  < duration - 0.01 else []
+
+    if progress_callback:
+        progress_callback(5, f"{width}×{height} @ {fps}fps · SRT only · {enc_label}")
+
+    # Color correction for SRT-only pipeline (applied during decode)
+    _srt_color_vf = ""
+    _srt_color_tmp = None
+    cc = config.color_config
+    if cc and (cc.enabled or (cc.glsl_shader and os.path.isfile(cc.glsl_shader))):
+        _srt_color_tmp = tempfile.mkdtemp(prefix="vueosd_cc_")
+        _srt_color_vf = _build_color_vf(cc, ffmpeg, _srt_color_tmp)
+    _srt_vf_args = ["-vf", _srt_color_vf] if _srt_color_vf else []
+
+    decode_cmd = ([ffmpeg, "-y"]
+                  + _trim_ss + ["-i", config.input_video] + _trim_t
+                  + _srt_vf_args
+                  + ["-f", "rawvideo", "-pix_fmt", "rgba", "pipe:1"])
+    srt_movflags = ["-movflags", "+faststart"]
+    encode_cmd = ([ffmpeg, "-y",
+                   "-f", "rawvideo", "-pix_fmt", "rgba",
+                   "-s", f"{width}x{height}", "-r", str(fps), "-i", "pipe:0"]
+                  + ["-sws_flags", "lanczos+accurate_rnd+full_chroma_int"]
+                  + _trim_ss + ["-i", config.input_video] + _trim_t
+                  + ["-map", "0:v:0", "-map", "1:a:0?",
+                     "-c:v", encoder]
+                  + quality_args + preset_args + pix_fmt_args
+                  + srt_movflags
+                  + ["-c:a", "copy", config.output_video])
+
+    dec_proc = _hidden_popen(decode_cmd, stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE, bufsize=0)
+    enc_proc = _hidden_popen(encode_cmd, stdin=subprocess.PIPE,
+                                stderr=subprocess.PIPE, bufsize=0)
+    enc_stderr = [""]
+    threading.Thread(target=_drain, args=(dec_proc.stderr, [""]), daemon=True).start()
+    threading.Thread(target=_drain, args=(enc_proc.stderr, enc_stderr), daemon=True).start()
+
+    frame_idx    = 0
+    t_offset_ms  = int(_t_start * 1000)   # SRT timestamps are absolute
+    total_trimmed = max(1, int(_t_dur * fps))
+    report_every = max(1, total_trimmed // 200)
+    try:
+        while True:
+            raw = _read_exactly(dec_proc.stdout, frame_bytes)
+            if raw is None: break
+            # Offset frame time by trim_start so SRT lookup uses absolute timestamp
+            t_ms = t_offset_ms + int(frame_idx / fps * 1000)
+            srt_text = ""
+            if srt_data and config.show_srt_bar:
+                td = srt_data.get_data_at_time(t_ms)
+                if td: srt_text = td.status_line(config.srt_enabled_fields)
+            if srt_text:
+                img = Image.frombuffer("RGBA", (width, height), raw, "raw", "RGBA", 0, 1)
+                out = img.copy()
+                _draw_srt_bar(out, srt_text, opacity=config.srt_opacity, scale=config.srt_scale)
+                enc_proc.stdin.write(out.tobytes())
+            else:
+                enc_proc.stdin.write(raw)
+            frame_idx += 1
+            if progress_callback and frame_idx % report_every == 0:
+                pct = min(5 + int(frame_idx / total_trimmed * 93), 98)
+                progress_callback(pct, f"Frame {frame_idx}/{total_trimmed}  [{enc_label}]")
+    except BrokenPipeError:
+        pass
+    finally:
+        try: enc_proc.stdin.close()
+        except Exception: pass
+
+    dec_proc.wait(); enc_proc.wait()
+
+    if enc_proc.returncode not in (0, None):
+        err = enc_stderr[0]
+        if isinstance(err, bytes): err = err.decode("utf-8", errors="replace")
+        raise RuntimeError(f"Encode failed:\n{err[-2000:]}")
+
+    if progress_callback:
+        progress_callback(100, f"✓ Done  [{enc_label}]")
+    return True
+
+
+def _reencode_only(ffmpeg, config, progress_callback):
+    if progress_callback:
+        progress_callback(5, "Re-encoding…")
+    _t_start = config.trim_start if config.trim_start > 0.01 else 0.0
+    _t_end   = config.trim_end   if config.trim_end   > 0.01 else 0.0
+    _trim_ss = ["-ss", f"{_t_start:.3f}"] if _t_start > 0.01 else []
+    _trim_to = ["-to", f"{_t_end:.3f}"]   if _t_end   > 0.01 else []
+    # Color correction for re-encode-only pipeline
+    _re_color_vf_args = []
+    cc = config.color_config
+    if cc and (cc.enabled or (cc.glsl_shader and os.path.isfile(cc.glsl_shader))):
+        _re_tmp = tempfile.mkdtemp(prefix="vueosd_cc_")
+        _re_color_vf = _build_color_vf(cc, ffmpeg, _re_tmp)
+        if _re_color_vf:
+            _re_color_vf_args = ["-vf", _re_color_vf]
+    cmd = ([ffmpeg, "-y"] + _trim_ss + ["-i", config.input_video] + _trim_to
+           + ["-sws_flags", "lanczos+accurate_rnd+full_chroma_int"]
+           + _re_color_vf_args
+           + ["-c:v", config.codec, "-crf", str(config.crf),
+              "-preset", config.preset,
+              "-movflags", "+faststart",
+              "-c:a", "copy", config.output_video])
+    stderr_store = [""]
+    proc = _hidden_popen(cmd, stderr=subprocess.PIPE, bufsize=0)
+    threading.Thread(target=_drain, args=(proc.stderr, stderr_store), daemon=True).start()
+    proc.wait()
+    if proc.returncode != 0:
+        err = stderr_store[0]
+        if isinstance(err, bytes): err = err.decode("utf-8", errors="replace")
+        raise RuntimeError(f"FFmpeg failed:\n{err[-1000:]}")
+    if progress_callback:
+        progress_callback(100, "Done!")
+    return True

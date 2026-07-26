@@ -1,0 +1,7 @@
+# per-run flash/dump artifacts
+ardupilot dumps/
+*.pyc
+__pycache__/
+.DS_Store
+# firmware blobs are drone-specific; don't commit them
+data/firmware/*.apj

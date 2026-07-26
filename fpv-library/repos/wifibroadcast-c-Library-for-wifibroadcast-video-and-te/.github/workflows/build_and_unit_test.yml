@@ -1,0 +1,36 @@
+name: X86 build and run unit test
+
+on: [push]
+
+env:
+  BUILD_TYPE: Release
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        run: |
+          sudo ./install_dep.sh
+      - name: Build
+        run: |
+          ./build_cmake.sh
+      - name: Test generate keys
+        run: |
+          ./build/wfb_keygen
+      - name: Unit test 1
+        run: |
+          cd build
+          sudo ./unit_test
+      - name: Unit test 2
+        run: |
+          cd build
+          ./test_queue
+      - name: Unit test 3
+        run: |
+          cd build
+          sudo ./test_dummy_link
+

@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Aviateur
+Comment=OpenIPC FPV Ground Station
+Exec=aviateur
+Icon=aviateur
+Terminal=false
+Type=Application
+Categories=Utility;

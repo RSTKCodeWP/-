@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "NanohawkMission",
+  "type": "object",
+  "required": [
+    "mission_name",
+    "requires_operator_authorize",
+    "max_altitude_m",
+    "actions"
+  ],
+  "properties": {
+    "mission_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "requires_operator_authorize": {
+      "type": "boolean"
+    },
+    "max_altitude_m": {
+      "type": "number",
+      "minimum": 0.2,
+      "maximum": 3.0
+    },
+    "actions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["type"],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["takeoff", "move_body", "hover", "land"]
+          },
+          "altitude_m": {
+            "type": "number"
+          },
+          "forward_m": {
+            "type": "number"
+          },
+          "right_m": {
+            "type": "number"
+          },
+          "yaw_deg": {
+            "type": "number"
+          },
+          "duration_s": {
+            "type": "number"
+          }
+        }
+      }
+    }
+  }
+}
+

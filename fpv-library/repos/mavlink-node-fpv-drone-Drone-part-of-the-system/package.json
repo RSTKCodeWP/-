@@ -1,0 +1,12 @@
+{
+  "name": "mavlink-node-fpv-drone",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "start": "node ./app.js"
+  },
+  "dependencies": {
+    "mavlink": "^1.0.1",
+    "serialport": "^4.0.7"
+  }
+}

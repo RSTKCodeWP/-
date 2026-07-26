@@ -1,0 +1,41 @@
+#See also: https://github.com/bblanchon/ArduinoJson/blob/7.x/.github/workflows/ci.yml
+
+#name: PlatformIO CI
+
+on: [push, pull_request]
+
+jobs:
+  build:
+
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up cache for pip
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.platformio/.cache
+          key: ${{ runner.os }}-pio
+
+      - name: Set up Python 3.x
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install PlatformIO Core
+        run: pip install --upgrade platformio
+
+      - name: Build 10.Quadcopter
+        run: pio ci --project-conf=".github/ci/ci_platformio.ini" --lib="." --exclude="examples" --lib="examples/10.Quadcopter/madflight_config.h" "examples/10.Quadcopter/main.cpp"
+#Note: add -v for verbose: pio ci -v ...
+
+      - name: PlatformIO prune
+        if: ${{ always() }}
+        run: pio system prune -f

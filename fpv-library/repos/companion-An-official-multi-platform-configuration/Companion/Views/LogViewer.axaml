@@ -1,0 +1,46 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:Companion.ViewModels"
+             mc:Ignorable="d"
+             d:DesignHeight="80"
+             x:Class="Companion.Views.LogViewer"
+             x:DataType="vm:LogViewerViewModel">
+    <Border Background="{DynamicResource CardBackground}" CornerRadius="8" Padding="0" Margin="0">
+        <Grid>
+            <ScrollViewer x:Name="LogScrollViewer"
+                          Margin="8"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled"
+                          ScrollChanged="OnScrollChanged">
+                <ItemsControl x:Name="LogItemsControl"
+                              ItemsSource="{Binding LogMessages}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Spacing="2" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Padding="2,0">
+                                <TextBlock Text="{Binding}"
+                                           TextWrapping="Wrap"
+                                           FontSize="12" />
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+
+            <Button x:Name="JumpToLatestButton"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Bottom"
+                    Margin="0,0,20,20"
+                    Padding="12,6"
+                    Command="{Binding JumpToLatestCommand}"
+                    Content="{Binding JumpToLatestText}"
+                    IsVisible="{Binding ShowJumpToLatest}" />
+        </Grid>
+    </Border>
+</UserControl>

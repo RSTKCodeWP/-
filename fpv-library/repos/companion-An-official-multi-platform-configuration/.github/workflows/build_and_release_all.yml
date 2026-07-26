@@ -1,0 +1,524 @@
+name: App Build and Release
+
+concurrency:
+  group: build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  actions: read
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_branch:
+        description: 'Branch to build'
+        default: 'dev'
+        required: true
+  push:
+    tags:
+      - 'release-v*'
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+        arch: [x64, arm64]
+
+    steps:
+      - name: Free Disk Space (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          df -h
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL || true
+          docker system prune -af || true
+          sudo apt clean
+          df -h
+
+      - name: Free Disk Space (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          df -h
+          sudo rm -rf /usr/local/lib/android /opt/hostedtoolcache /usr/local/share/powershell /usr/local/share/chromium /opt/CodeQL || true
+          brew cleanup || true
+          brew autoremove || true
+          df -h
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # If manually triggered, use the input branch; otherwise use the tag ref
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.target_branch || github.ref_name }}
+          fetch-depth: 0
+
+      - name: Ensure full git history
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git rev-parse --is-shallow-repository | grep -q true; then
+            git fetch --prune --unshallow --tags
+          else
+            git fetch --prune --tags
+          fi
+
+      - name: Derive Release Version
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF:-}" == refs/tags/release-v* ]]; then
+            RELEASE_VERSION="${GITHUB_REF#refs/tags/release-v}"
+          elif [[ "${GITHUB_REF:-}" == refs/tags/v* ]]; then
+            RELEASE_VERSION="${GITHUB_REF#refs/tags/v}"
+          else
+            RELEASE_VERSION="0.0.0-dev+$(git rev-parse --short HEAD)"
+          fi
+          echo "RELEASE_VERSION=$RELEASE_VERSION" >> "$GITHUB_ENV"
+          echo "RELEASE_VERSION_WITH_V=v$RELEASE_VERSION" >> "$GITHUB_ENV"
+
+      - name: Setup .NET (8.x)
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore Companion.Desktop/Companion.Desktop.csproj
+
+      - name: Clean build directories
+        shell: bash
+        run: |
+          rm -rf ./Companion.Desktop/bin ./Companion.Desktop/obj || true
+
+      - name: Build project
+        run: dotnet build Companion.Desktop/Companion.Desktop.csproj --configuration Release
+
+      - name: Run Tests
+        if: matrix.os == 'ubuntu-latest' && matrix.arch == 'x64'
+        run: dotnet test Companion.Tests/Companion.Tests.csproj --configuration Release --logger "trx;LogFileName=test-results.trx"
+
+      - name: Publish Project
+        shell: bash
+        run: |
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            dotnet publish Companion.Desktop/Companion.Desktop.csproj \
+              -c Release -r win-${{ matrix.arch }} --self-contained true \
+              -p:PublishSingleFile=false -p:PublishReadyToRun=true -p:IncludeNativeLibrariesForSelfExtract=true
+          elif [[ "${{ runner.os }}" == "macOS" ]]; then
+            dotnet publish Companion.Desktop/Companion.Desktop.csproj \
+              -c Release -r osx-${{ matrix.arch }} --self-contained true \
+              -p:PublishSingleFile=false -p:PublishReadyToRun=true -p:UseAppHost=true
+          else
+            dotnet publish Companion.Desktop/Companion.Desktop.csproj \
+              -c Release -r linux-${{ matrix.arch }} --self-contained true \
+              -p:PublishSingleFile=true
+          fi
+
+      - name: Normalize VERSION in publish output
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            PUBLISH_DIR="./Companion.Desktop/bin/Release/net8.0/win-${{ matrix.arch }}/publish"
+          elif [[ "${{ runner.os }}" == "macOS" ]]; then
+            PUBLISH_DIR="./Companion.Desktop/bin/Release/net8.0/osx-${{ matrix.arch }}/publish"
+          else
+            PUBLISH_DIR="./Companion.Desktop/bin/Release/net8.0/linux-${{ matrix.arch }}/publish"
+          fi
+
+          if [[ -d "$PUBLISH_DIR" ]]; then
+            echo "${RELEASE_VERSION_WITH_V}" > "${PUBLISH_DIR}/VERSION"
+            echo "Wrote ${RELEASE_VERSION_WITH_V} to ${PUBLISH_DIR}/VERSION"
+          fi
+
+      - name: Rename Linux desktop binary
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          set -euo pipefail
+          PUBLISH_DIR="./Companion.Desktop/bin/Release/net8.0/linux-${{ matrix.arch }}/publish"
+          if [[ -f "${PUBLISH_DIR}/Companion.Desktop" ]]; then
+            mv "${PUBLISH_DIR}/Companion.Desktop" "${PUBLISH_DIR}/Companion.DesktopApp"
+            echo "Renamed Linux apphost to Companion.DesktopApp"
+          fi
+
+      # ----- macOS: bundle .app + sign + dmg -----
+      - name: Decode signing certificate
+        if: matrix.os == 'macos-latest'
+        shell: bash
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${APPLE_CERTIFICATE:-}" ]]; then
+            echo "No APPLE_CERTIFICATE; skipping signing setup."
+            exit 0
+          fi
+          echo "$APPLE_CERTIFICATE" | base64 --decode > macos_signing_cert.p12
+
+      - name: Create and manage custom keychain
+        if: matrix.os == 'macos-latest'
+        shell: bash
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          MY_KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${APPLE_CERTIFICATE:-}" ]]; then
+            echo "No APPLE_CERTIFICATE; skipping keychain setup."
+            exit 0
+          fi
+
+          KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
+
+          security create-keychain -p "$MY_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$MY_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          security import macos_signing_cert.p12 \
+            -k "$KEYCHAIN_PATH" \
+            -P "$APPLE_CERTIFICATE_PASSWORD" \
+            -T /usr/bin/codesign \
+            -T /usr/bin/security
+
+          # Let codesign access the key without UI prompts
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$MY_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          # Ensure codesign searches this keychain
+          security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain-db
+          security default-keychain -d user -s "$KEYCHAIN_PATH"
+
+          echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> $GITHUB_ENV
+
+      - name: Verify codesigning identity is present
+        if: matrix.os == 'macos-latest'
+        shell: bash
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          CODESIGN_IDENTITY: ${{ secrets.MACOS_CODESIGN_IDENTITY }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${APPLE_CERTIFICATE:-}" ]]; then
+            echo "No APPLE_CERTIFICATE; skipping identity verification."
+            exit 0
+          fi
+
+          if [[ -z "${KEYCHAIN_PATH:-}" ]]; then
+            echo "ERROR: KEYCHAIN_PATH not set. Keychain setup likely did not run."
+            exit 1
+          fi
+
+          echo "Searching identities in: $KEYCHAIN_PATH"
+          security find-identity -v -p codesigning "$KEYCHAIN_PATH" || true
+
+          if [[ -z "${CODESIGN_IDENTITY:-}" ]]; then
+            echo "ERROR: MACOS_CODESIGN_IDENTITY is empty"
+            exit 1
+          fi
+
+          if ! security find-identity -v -p codesigning "$KEYCHAIN_PATH" | grep -Fq "$CODESIGN_IDENTITY"; then
+            echo "ERROR: Identity not found in keychain: $CODESIGN_IDENTITY"
+            exit 1
+          fi
+
+      - name: Package (and sign) macOS App
+        if: matrix.os == 'macos-latest'
+        shell: bash
+        env:
+          CODESIGN_IDENTITY: ${{ secrets.MACOS_CODESIGN_IDENTITY }} # "Developer ID Application: Mike Carr (EQKLR945TW)"
+        run: |
+          set -euo pipefail
+
+          APP_NAME="Companion"
+
+          # NOTE: project paths changed — icons now live under Companion.Desktop
+          ICON_SRC="./Companion/Assets/Icons/OpenIPC.icns"
+          ENTITLEMENTS_PATH="./Companion.Desktop/Entitlements.plist"
+
+          PUBLISH_DIR="./Companion.Desktop/bin/Release/net8.0/osx-${{ matrix.arch }}/publish"
+          APP_DIR="${APP_NAME}.app"
+          DMG_NAME="Companion-macos-${{ matrix.arch }}.dmg"
+
+          echo "Publish dir:"
+          ls -la "$PUBLISH_DIR"
+
+          rm -rf "$APP_DIR"
+          mkdir -p "${APP_DIR}/Contents/MacOS" "${APP_DIR}/Contents/Resources"
+          # Copy the full publish output into the bundle instead of relying on
+          # single-file extraction at app startup.
+          ditto "$PUBLISH_DIR" "${APP_DIR}/Contents/MacOS"
+          [[ -f "$ICON_SRC" ]] && cp "$ICON_SRC" "${APP_DIR}/Contents/Resources/OpenIPC.icns" || true
+
+          if [[ -f "${APP_DIR}/Contents/MacOS/Companion.Desktop" ]]; then
+            chmod +x "${APP_DIR}/Contents/MacOS/Companion.Desktop"
+          fi
+
+          cat > "${APP_DIR}/Contents/Info.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CFBundleName</key><string>${APP_NAME}</string>
+            <key>CFBundleDisplayName</key><string>${APP_NAME}</string>
+            <key>CFBundleExecutable</key><string>Companion.Desktop</string>
+            <key>CFBundleIdentifier</key><string>org.openipc.Companion</string>
+            <key>CFBundleVersion</key><string>${{ env.RELEASE_VERSION }}</string>
+            <key>CFBundleShortVersionString</key><string>${{ env.RELEASE_VERSION }}</string>
+            <key>CFBundlePackageType</key><string>APPL</string>
+            <key>LSMinimumSystemVersion</key><string>13.0</string>
+            <key>CFBundleIconFile</key><string>OpenIPC.icns</string>
+          </dict>
+          </plist>
+          EOF
+
+          # Ensure runtime version check reads the tagged release version.
+          echo "${RELEASE_VERSION_WITH_V}" > "${APP_DIR}/Contents/MacOS/VERSION"
+
+          # Sign only if everything required is present
+          if [[ -n "${CODESIGN_IDENTITY:-}" && -n "${KEYCHAIN_PATH:-}" ]]; then
+            echo "Signing app with identity: $CODESIGN_IDENTITY"
+            codesign --keychain "$KEYCHAIN_PATH" \
+                     --deep --force --verify --verbose \
+                     --entitlements "$ENTITLEMENTS_PATH" \
+                     --options runtime \
+                     --timestamp \
+                     --sign "${CODESIGN_IDENTITY}" "${APP_DIR}"
+            codesign --verify --verbose=4 "${APP_DIR}"
+            spctl --assess --type execute --verbose "${APP_DIR}" || true
+          else
+            echo "Signing skipped (missing CODESIGN_IDENTITY or KEYCHAIN_PATH)"
+          fi
+
+          rm -f "${DMG_NAME}"
+          mkdir -p dmg_build
+          rm -rf "dmg_build/${APP_DIR}"
+          # Preserve bundle metadata and signatures when staging the signed app for the DMG.
+          ditto "${APP_DIR}" "dmg_build/${APP_DIR}"
+          codesign --verify --deep --strict --verbose=4 "dmg_build/${APP_DIR}"
+          ln -s /Applications dmg_build/Applications
+          hdiutil create -volname "Companion" -srcfolder dmg_build -ov -format UDZO -fs HFS+ -size 500m "${DMG_NAME}"
+          rm -rf dmg_build
+
+          MOUNT_DIR="$(mktemp -d)"
+          DEVICE_NAME=""
+          cleanup_mount() {
+            if [[ -n "${DEVICE_NAME}" ]]; then
+              hdiutil detach "${DEVICE_NAME}" || true
+            fi
+            rmdir "${MOUNT_DIR}" 2>/dev/null || true
+          }
+          trap cleanup_mount EXIT
+
+          ATTACH_OUTPUT="$(hdiutil attach -readonly -nobrowse -mountpoint "${MOUNT_DIR}" "${DMG_NAME}")"
+          DEVICE_NAME="$(echo "${ATTACH_OUTPUT}" | awk '/Apple_HFS/ {print $1; exit}')"
+          if [[ -z "${DEVICE_NAME}" ]]; then
+            echo "ERROR: Failed to determine mounted DMG device."
+            exit 1
+          fi
+
+          codesign --verify --deep --strict --verbose=4 "${MOUNT_DIR}/${APP_DIR}"
+          spctl --assess --type execute --verbose=4 "${MOUNT_DIR}/${APP_DIR}" || true
+
+      - name: Notarize and staple macOS DMG
+        if: matrix.os == 'macos-latest'
+        shell: bash
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+
+          DMG_NAME="Companion-macos-${{ matrix.arch }}.dmg"
+
+          if [[ -z "${APPLE_ID:-}" || -z "${APPLE_APP_SPECIFIC_PASSWORD:-}" || -z "${APPLE_TEAM_ID:-}" ]]; then
+            if [[ "${GITHUB_REF:-}" == refs/tags/release-v* ]]; then
+              echo "ERROR: Missing notarization secrets for tagged release."
+              echo "Required: APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID"
+              exit 1
+            fi
+
+            echo "No notarization credentials configured; skipping notarization."
+            exit 0
+          fi
+
+          SUBMISSION_OUTPUT="$(xcrun notarytool submit "${DMG_NAME}" \
+            --apple-id "${APPLE_ID}" \
+            --password "${APPLE_APP_SPECIFIC_PASSWORD}" \
+            --team-id "${APPLE_TEAM_ID}" \
+            --wait \
+            --output-format json)"
+
+          echo "${SUBMISSION_OUTPUT}"
+
+          SUBMISSION_ID="$(echo "${SUBMISSION_OUTPUT}" | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')"
+          SUBMISSION_STATUS="$(echo "${SUBMISSION_OUTPUT}" | python3 -c 'import json,sys; print(json.load(sys.stdin)["status"])')"
+
+          if [[ "${SUBMISSION_STATUS}" != "Accepted" ]]; then
+            echo "Notarization failed with status: ${SUBMISSION_STATUS}"
+            xcrun notarytool log "${SUBMISSION_ID}" \
+              --apple-id "${APPLE_ID}" \
+              --password "${APPLE_APP_SPECIFIC_PASSWORD}" \
+              --team-id "${APPLE_TEAM_ID}" || true
+            exit 1
+          fi
+
+          xcrun stapler staple "${DMG_NAME}"
+          xcrun stapler validate "${DMG_NAME}"
+          spctl --assess --type open --verbose=4 "${DMG_NAME}" || true
+
+      # ----- Linux packaging -----
+      - name: Linux - zip publish folder
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          OUTDIR="Companion-linux-${{ matrix.arch }}"
+          SRC="./Companion.Desktop/bin/Release/net8.0/linux-${{ matrix.arch }}/publish"
+          mkdir -p "$OUTDIR"
+          cp -R "$SRC/"* "$OUTDIR/"
+          zip -r "${OUTDIR}.zip" "$OUTDIR"
+          ls -la
+
+      # ----- Windows icon (optional) -----
+      - name: Windows - set icon
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $PublishDir = "./Companion.Desktop/bin/Release/net8.0/win-${{ matrix.arch }}/publish"
+          # NOTE: icons now live under Companion.Desktop
+          $Icon = "./Companion/Assets/Icons/OpenIPC.ico"
+          choco install rcedit -y
+          if (Test-Path "$PublishDir/Companion.Desktop.exe") {
+            rcedit "$PublishDir/Companion.Desktop.exe" --set-icon "$Icon"
+          }
+
+      # ----- Upload artifacts -----
+      - name: Upload macOS Artifact
+        if: matrix.os == 'macos-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          # Name without extension keeps folders sane when downloaded
+          name: Companion-macos-${{ matrix.arch }}
+          path: Companion-macos-${{ matrix.arch }}.dmg
+          compression-level: 9
+
+      - name: Upload Windows Artifact
+        if: matrix.os == 'windows-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Companion-windows-${{ matrix.arch }}
+          path: ./Companion.Desktop/bin/Release/net8.0/win-${{ matrix.arch }}/publish/**
+
+      - name: Upload Linux Artifact
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Companion-linux-${{ matrix.arch }}
+          path: ./Companion.Desktop/bin/Release/net8.0/linux-${{ matrix.arch }}/publish/**
+          compression-level: 0
+
+  release:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Read Version from tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION=${GITHUB_REF#refs/tags/}
+          VERSION=${VERSION#release-v}
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+
+      - name: List Downloaded Files
+        run: ls -R ./artifacts
+
+      - name: Prepare Release Assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release_files
+
+          # Re-zip Windows folders to a single file per arch
+          for arch in x64 arm64; do
+            if [ -d "./artifacts/Companion-windows-${arch}" ]; then
+              (cd "./artifacts/Companion-windows-${arch}" && zip -r "../../release_files/Companion-windows-${arch}.zip" .)
+            fi
+          done
+
+          # Re-zip Linux folders to a single file per arch
+          for arch in x64 arm64; do
+            if [ -d "./artifacts/Companion-linux-${arch}" ]; then
+              (cd "./artifacts/Companion-linux-${arch}" && zip -r "../../release_files/Companion-linux-${arch}.zip" .)
+            fi
+          done
+
+          # Copy macOS DMGs (also inside artifact folders)
+          find ./artifacts -type f -name "Companion-macos-*.dmg" -exec cp {} ./release_files/ \;
+
+          ls -la ./release_files
+
+      - name: Create GitHub Release and Upload Assets
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          draft: true
+          generate_release_notes: true
+          body: |
+            ## Companion (OpenIPC Multiplatform Configurator)
+
+            ### Downloads
+            * **Windows**: `Companion-windows-x64.zip` / `Companion-windows-arm64.zip`
+            * **macOS**: `Companion-macos-x64.dmg` / `Companion-macos-arm64.dmg`
+            * **Linux**: `Companion-linux-x64.zip` / `Companion-linux-arm64.zip`
+
+            ### Install
+            * **Windows**: unzip and run `Companion.Desktop.exe`.
+            * **macOS**: open `.dmg` and drag **Companion.app** to Applications.
+            * **Linux**: unzip and run `./Companion.DesktopApp` (chmod +x if needed).
+          files: |
+            ./release_files/Companion-windows-*.zip
+            ./release_files/Companion-linux-*.zip
+            ./release_files/Companion-macos-*.dmg
+
+      - name: Generate latest.json from release body
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          RELEASE_BODY="$(gh release view "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" --json body --jq .body)"
+
+          jq -n \
+            --arg version "${VERSION}" \
+            --arg notes "${RELEASE_BODY}" \
+            --arg url "https://github.com/${GITHUB_REPOSITORY}/releases/tag/${GITHUB_REF_NAME}" \
+            '{
+              version: $version,
+              release_notes: $notes,
+              download_url: $url
+            }' > ./release_files/latest.json
+
+      - name: Upload latest.json to release
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release upload "${GITHUB_REF_NAME}" ./release_files/latest.json --repo "${GITHUB_REPOSITORY}" --clobber

@@ -1,0 +1,167 @@
+/**
+ * PIC arbiter REST + WebSocket actions. Lifted out of `peripherals-store.ts`
+ * so the slice file stays under the file-size budget.
+ *
+ * @license GPL-3.0-only
+ */
+
+import { errorMessage } from "./error-handler";
+import type { GroundStationState } from "./state";
+import type { GroundStationApi, PicEvent } from "@/lib/api/ground-station-api";
+
+type Setter = (
+  partial:
+    | Partial<GroundStationState>
+    | ((s: GroundStationState) => Partial<GroundStationState>),
+) => void;
+
+type Getter = () => GroundStationState;
+
+export async function loadPic(
+  api: GroundStationApi,
+  set: Setter,
+  get: Getter,
+): Promise<void> {
+  set({ pic: { ...get().pic, loading: true, error: null } });
+  try {
+    const s = await api.getPicState();
+    set({
+      pic: {
+        state: s.state,
+        claimed_by: s.claimed_by,
+        claim_counter: s.claim_counter,
+        primary_gamepad_id: s.primary_gamepad_id,
+        loading: false,
+        error: null,
+      },
+    });
+  } catch (err) {
+    const { message } = errorMessage(err);
+    set({ pic: { ...get().pic, loading: false, error: message } });
+  }
+}
+
+export async function claimPic(
+  api: GroundStationApi,
+  clientId: string,
+  opts: { confirmToken?: string; force?: boolean } | undefined,
+  set: Setter,
+  get: Getter,
+): Promise<boolean> {
+  set({ pic: { ...get().pic, loading: true, error: null } });
+  try {
+    const res = await api.claimPic(clientId, opts?.confirmToken, opts?.force);
+    set({
+      pic: {
+        ...get().pic,
+        loading: false,
+        claimed_by: res.claimed_by,
+        claim_counter: res.claim_counter,
+        state: res.claimed ? "claimed" : get().pic.state,
+        error: null,
+      },
+    });
+    return res.claimed;
+  } catch (err) {
+    const { message } = errorMessage(err);
+    set({ pic: { ...get().pic, loading: false, error: message } });
+    return false;
+  }
+}
+
+export async function releasePic(
+  api: GroundStationApi,
+  clientId: string,
+  set: Setter,
+  get: Getter,
+): Promise<boolean> {
+  set({ pic: { ...get().pic, loading: true, error: null } });
+  try {
+    const res = await api.releasePic(clientId);
+    set({
+      pic: {
+        ...get().pic,
+        loading: false,
+        claimed_by: res.claimed_by,
+        state: res.released ? "idle" : get().pic.state,
+        error: null,
+      },
+    });
+    return res.released;
+  } catch (err) {
+    const { message } = errorMessage(err);
+    set({ pic: { ...get().pic, loading: false, error: message } });
+    return false;
+  }
+}
+
+export function pollPicHeartbeat(
+  api: GroundStationApi,
+  clientId: string,
+  set: Setter,
+  get: Getter,
+): () => void {
+  let stopped = false;
+  const tick = async () => {
+    if (stopped) return;
+    try {
+      const res = await api.heartbeatPic(clientId);
+      if (!res.ok && res.orphaned) {
+        const current = get().pic;
+        set({
+          pic: {
+            ...current,
+            state: "idle",
+            claimed_by: null,
+            error: null,
+          },
+        });
+      }
+    } catch {
+      // Network glitches are expected during uplink failover. Swallow
+      // and let the next tick try again.
+    }
+  };
+  void tick();
+  const handle = setInterval(tick, 10_000);
+  return () => {
+    stopped = true;
+    clearInterval(handle);
+  };
+}
+
+export function subscribePicWs(
+  api: GroundStationApi,
+  set: Setter,
+  get: Getter,
+): () => void {
+  return api.subscribePicEvents((event: PicEvent) => {
+    const current = get().pic;
+    if (event.type === "state" || event.type === "claimed" || event.type === "released") {
+      set({
+        pic: {
+          ...current,
+          state: (event as { state?: string }).state ?? current.state,
+          claimed_by:
+            (event as { claimed_by?: string | null }).claimed_by !== undefined
+              ? ((event as { claimed_by: string | null }).claimed_by)
+              : current.claimed_by,
+          claim_counter:
+            (event as { claim_counter?: number }).claim_counter ?? current.claim_counter,
+          primary_gamepad_id:
+            (event as { primary_gamepad_id?: string | null }).primary_gamepad_id !== undefined
+              ? ((event as { primary_gamepad_id: string | null }).primary_gamepad_id)
+              : current.primary_gamepad_id,
+        },
+      });
+    } else if (event.type === "gamepad_changed") {
+      set({
+        pic: {
+          ...current,
+          primary_gamepad_id:
+            (event as { primary_gamepad_id?: string | null }).primary_gamepad_id ?? null,
+        },
+      });
+    }
+  });
+}

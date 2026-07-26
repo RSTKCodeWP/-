@@ -1,0 +1,109 @@
+{
+  "version": 1,
+  "models": [
+    {
+      "id": "person_v1",
+      "name": "Person Detector",
+      "description": "Detect people for Follow Me, SAR, and security",
+      "license": "Apache-2.0",
+      "classes": ["person"],
+      "variants": [
+        { "variant": "nano", "input_size": "320x320", "min_tops": 0.8, "formats": {} },
+        { "variant": "small", "input_size": "640x640", "min_tops": 2.0, "formats": {} }
+      ]
+    },
+    {
+      "id": "depth_midas_v3",
+      "name": "Depth Estimator",
+      "description": "Monocular depth estimation for obstacle avoidance",
+      "license": "MIT",
+      "classes": [],
+      "variants": [
+        { "variant": "small", "input_size": "256x256", "min_tops": 0.8, "formats": {} }
+      ]
+    },
+    {
+      "id": "landing_pad_v1",
+      "name": "Landing Pad Detector",
+      "description": "Detect AprilTag and H-markers for precision landing",
+      "license": "Apache-2.0",
+      "classes": ["apriltag", "h_marker", "circle"],
+      "variants": [
+        { "variant": "nano", "input_size": "320x320", "min_tops": 0.8, "formats": {} }
+      ]
+    },
+    {
+      "id": "vehicle_v1",
+      "name": "Vehicle Detector",
+      "description": "Detect vehicles for security and traffic monitoring",
+      "license": "Apache-2.0",
+      "classes": ["car", "truck", "bus", "motorcycle"],
+      "variants": [
+        { "variant": "nano", "input_size": "320x320", "min_tops": 0.8, "formats": {} }
+      ]
+    },
+    {
+      "id": "crop_health_v1",
+      "name": "Crop Health Detector",
+      "description": "Detect crop health, weeds, and bare soil for agriculture",
+      "license": "Apache-2.0",
+      "classes": ["crop", "weed", "bare_soil"],
+      "variants": [
+        { "variant": "nano", "input_size": "640x640", "min_tops": 0.8, "formats": {} }
+      ]
+    },
+    {
+      "id": "defect_v1",
+      "name": "Defect Detector",
+      "description": "Detect cracks, corrosion, and spalling for inspection",
+      "license": "Apache-2.0",
+      "classes": ["crack", "corrosion", "spalling"],
+      "variants": [
+        { "variant": "small", "input_size": "640x640", "min_tops": 2.0, "formats": {} }
+      ]
+    },
+    {
+      "id": "thermal_person_v1",
+      "name": "Thermal Person Detector",
+      "description": "Detect people in thermal imagery for SAR and night ops",
+      "license": "Apache-2.0",
+      "classes": ["person_thermal"],
+      "variants": [
+        { "variant": "nano", "input_size": "320x320", "min_tops": 0.8, "formats": {} }
+      ]
+    },
+    {
+      "id": "gesture_v1",
+      "name": "Gesture Recognizer",
+      "description": "Recognize hand gestures for drone control",
+      "license": "Apache-2.0",
+      "classes": ["palm_up", "palm_down", "fist", "peace", "thumbs_up", "wave", "stop"],
+      "variants": [
+        { "variant": "nano", "input_size": "256x256", "min_tops": 0.8, "formats": {} }
+      ]
+    },
+    {
+      "id": "coco_yolov8n_v1",
+      "name": "COCO Object Detector (YOLOv8n)",
+      "description": "Generic 80-class COCO detector (person, vehicles, common objects) for Follow Me and general detection",
+      "license": "AGPL-3.0",
+      "classes": ["person", "bicycle", "car", "motorcycle", "bus", "truck", "boat", "backpack", "bottle", "chair", "and 70 more COCO classes"],
+      "variants": [
+        { "variant": "cpu_int8_320", "input_size": "320x320", "min_tops": 0, "runtime": "onnx", "board_match": ["rpi4b", "generic-arm64"], "filename": "coco_yolov8n_320_int8.onnx", "size_bytes": 0, "sha256": "", "url": "https://github.com/altnautica/ADOSExtensions/releases/download/vision-models-v1/coco_yolov8n_320_int8.onnx" },
+        { "variant": "int8", "input_size": "640x640", "min_tops": 1.0, "runtime": "rknn", "board_match": "rk3588", "filename": "coco_yolov8n_640_int8.rknn", "size_bytes": 5242880, "sha256": "9714918d7be60bc903adda871197f3f830c8fbdf60e8358fd5206eea3473167e", "url": "https://github.com/altnautica/ADOSExtensions/releases/download/vision-models-v1/coco_yolov8n_640_int8.rknn" },
+        { "variant": "fp16", "input_size": "640x640", "min_tops": 2.0, "runtime": "rknn", "board_match": "rk3588", "filename": "coco_yolov8n_640_fp16.rknn", "size_bytes": 8704000, "sha256": "2da05d61f396d368566f7920b5cded2693c3a296457897bd3eebf69988a097c6", "url": "https://github.com/altnautica/ADOSExtensions/releases/download/vision-models-v1/coco_yolov8n_640_fp16.rknn" }
+      ]
+    },
+    {
+      "id": "reid_osnet_v1",
+      "name": "Person Re-ID (OSNet x0.5)",
+      "description": "Appearance embedding that keeps a tracked subject's identity across an occlusion or a distractor crossing",
+      "license": "MIT",
+      "classes": [],
+      "variants": [
+        { "variant": "int8", "input_size": "128x256", "min_tops": 0.8, "runtime": "rknn", "board_match": "rk3588", "filename": "osnet_x0_5_reid_int8.rknn", "size_bytes": 3145728, "sha256": "31c7101c503d514019c91d7df436526d28a4a04b071adbd8c87882aaa4f4a637", "url": "https://github.com/altnautica/ADOSExtensions/releases/download/vision-models-v1/osnet_x0_5_reid_int8.rknn" },
+        { "variant": "fp16", "input_size": "128x256", "min_tops": 1.5, "runtime": "rknn", "board_match": "rk3588", "filename": "osnet_x0_5_reid_fp16.rknn", "size_bytes": 3774873, "sha256": "a29f23f2659525965fbb3306fa170db0141d524a266479bc9acfe1ec21084784", "url": "https://github.com/altnautica/ADOSExtensions/releases/download/vision-models-v1/osnet_x0_5_reid_fp16.rknn" }
+      ]
+    }
+  ]
+}

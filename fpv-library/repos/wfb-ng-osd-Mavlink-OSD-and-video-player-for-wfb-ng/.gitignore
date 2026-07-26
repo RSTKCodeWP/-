@@ -1,0 +1,8 @@
+*.o
+*.a
+osd.gst
+osd.rockchip
+osd.rpi3
+docker/src/
+dist/
+deb_dist/

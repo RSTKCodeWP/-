@@ -1,0 +1,9 @@
+#!/bin/bash
+# Run after SteamOS updates to restore system-level GCS config.
+# Everything in /home persists (Nix, Flatpak, MP files) but symlinks into /etc do not.
+echo "Restoring GCS udev rules..."
+sudo ln -sf "$HOME/.config/udev-rules/99-serial-gcs.rules" /etc/udev/rules.d/99-serial-gcs.rules
+sudo udevadm control --reload-rules
+sudo udevadm trigger
+echo "Done. Nix, Mission Planner, and QGroundControl should still be working."
+echo "If mono is missing, run: . ~/.nix-profile/etc/profile.d/nix.sh && mono --version"

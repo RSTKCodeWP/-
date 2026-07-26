@@ -1,0 +1,90 @@
+# MAVProxy joystick definition for Steam Deck (presents as Xbox 360 pad)
+# Mode 2 layout (most common for drones):
+#   Left stick:  Throttle (Y) / Yaw (X)
+#   Right stick: Pitch (Y) / Roll (X)
+#
+# Xbox 360 axis mapping on Steam Deck:
+#   Axis 0: Left stick X
+#   Axis 1: Left stick Y
+#   Axis 2: Left trigger
+#   Axis 3: Right stick X
+#   Axis 4: Right stick Y
+#   Axis 5: Right trigger
+#
+# Xbox 360 button mapping on Steam Deck:
+#   0: A    1: B    2: X    3: Y
+#   4: LB   5: RB   6: Back  7: Start
+#   8: Guide 9: L3  10: R3
+
+description: >
+  Steam Deck built-in controls (presents as Xbox 360 pad).
+  Mode 2 layout: left stick = throttle/yaw, right stick = pitch/roll.
+  A/B/X/Y buttons map to flight modes on channel 5.
+  LB = arm (ch7), RB = disarm (ch7 low).
+  D-pad hat = channel 6 (aux).
+match:
+  - 'Microsoft X-Box 360 pad*'
+
+controls:
+  # Channel 1: Roll (right stick X)
+  - channel: 1
+    type: axis
+    id: 3
+
+  # Channel 2: Pitch (right stick Y, inverted)
+  - channel: 2
+    type: axis
+    id: 4
+    invert: true
+
+  # Channel 3: Throttle (left stick Y, inverted)
+  - channel: 3
+    type: axis
+    id: 1
+    invert: true
+
+  # Channel 4: Yaw (left stick X)
+  - channel: 4
+    type: axis
+    id: 0
+
+  # Channel 5: Flight mode (A/B/X/Y buttons)
+  # Map to 4 flight modes - adjust PWM values to match your FC setup
+  # Default: A=Stabilize, B=Loiter, X=Guided, Y=RTL
+  - channel: 5
+    type: multibutton
+    buttons:
+      - id: 0
+        value: 1100
+      - id: 1
+        value: 1300
+      - id: 2
+        value: 1500
+      - id: 3
+        value: 1700
+
+  # Channel 6: D-pad X axis (aux toggle)
+  - channel: 6
+    type: hat
+    id: 0
+    axis: x
+
+  # Channel 7: Arm/Disarm (LB=arm high, RB=disarm low)
+  - channel: 7
+    type: button
+    id: 4
+    outlow: 1000
+    outhigh: 2000
+  - channel: 8
+    type: button
+    id: 5
+    outlow: 1000
+    outhigh: 2000
+
+  # Channel 9-10: Triggers (analog, useful for gimbal tilt or camera)
+  - channel: 9
+    type: axis
+    id: 2
+  - channel: 10
+    type: axis
+    id: 5

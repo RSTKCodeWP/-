@@ -1,0 +1,195 @@
+/**
+ * @module BfReceiverPanel
+ * @description Betaflight receiver page: live RC channel bars plus the receiver
+ * config over MSP (serial-RX provider, stick min/mid/max, RSSI checks) and the
+ * RC channel map. Writes echo the raw MSP_RX_CONFIG payload with the edited
+ * leading fields patched, so version-dependent trailing bytes round-trip.
+ * @license GPL-3.0-only
+ */
+
+"use client";
+
+import { useCallback, useState } from "react";
+import { Radio, Upload } from "lucide-react";
+import { PanelHeader } from "../shared/PanelHeader";
+import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
+import { useDroneManager } from "@/stores/drone-manager";
+import { useArmedLock } from "@/hooks/use-armed-lock";
+import { useTelemetryStore } from "@/stores/telemetry-store";
+import { RcChannelBar } from "../receiver/RcChannelBar";
+import type { BfRxConfig } from "@/lib/protocol/types";
+import { BF_SERIALRX_PROVIDERS, RX_MAP_CHANNELS } from "./bf-rx-constants";
+
+const PROVIDER_OPTIONS = BF_SERIALRX_PROVIDERS.map((label, i) => ({ value: String(i), label }));
+const ONOFF_OPTIONS = [{ value: "0", label: "OFF" }, { value: "1", label: "ON" }];
+const USB_HID_OPTIONS = [{ value: "0", label: "Default (CDC)" }, { value: "1", label: "Composite (CDC + HID)" }];
+const snapshot = (cfg: BfRxConfig, map: number[]) => JSON.stringify({ c: { ...cfg, raw: Array.from(cfg.raw) }, m: map });
+
+/** A labelled U16 number input. */
+function NumField({ label, value, disabled, onChange }: { label: string; value: number; disabled: boolean; onChange: (v: number) => void }) {
+  return (
+    <label className="flex flex-col gap-1">
+      <span className="text-[10px] text-text-tertiary font-mono">{label}</span>
+      <input
+        type="number" min={0} max={2500} value={value} disabled={disabled}
+        onChange={(e) => onChange(parseInt(e.target.value) || 0)}
+        className="bg-bg-tertiary border border-border-default px-2 py-1 text-xs font-mono text-text-primary focus:outline-none focus:border-accent-primary disabled:opacity-50"
+      />
+    </label>
+  );
+}
+
+export function BfReceiverPanel() {
+  const getSelectedProtocol = useDroneManager((s) => s.getSelectedProtocol);
+  const connected = !!getSelectedProtocol();
+  const { isArmed, lockMessage } = useArmedLock();
+  const rcBuffer = useTelemetryStore((s) => s.rc);
+  const channels = rcBuffer.latest()?.channels ?? [];
+
+  const [cfg, setCfg] = useState<BfRxConfig | null>(null);
+  const [rxMap, setRxMap] = useState<number[]>([]);
+  const [baseline, setBaseline] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [hasLoaded, setHasLoaded] = useState(false);
+
+  const read = useCallback(async () => {
+    const p = getSelectedProtocol();
+    if (!p?.getRxConfig || !p.getRxMap) {
+      setError("Receiver config is not available on this connection");
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const [c, m] = await Promise.all([p.getRxConfig(), p.getRxMap()]);
+      setCfg(c);
+      setRxMap(m);
+      setBaseline(snapshot(c, m));
+      setHasLoaded(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
+    }
+  }, [getSelectedProtocol]);
+
+  const write = useCallback(async () => {
+    const p = getSelectedProtocol();
+    if (!p?.setRxConfig || !p.setRxMap || !cfg) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const r1 = await p.setRxConfig(cfg);
+      const r2 = await p.setRxMap(rxMap);
+      if (r1.success && r2.success) setBaseline(snapshot(cfg, rxMap));
+      else setError(r1.message || r2.message);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
+    }
+  }, [getSelectedProtocol, cfg, rxMap]);
+
+  const updateCfg = (patch: Partial<BfRxConfig>) => setCfg((prev) => (prev ? { ...prev, ...patch } : prev));
+  const dirty = hasLoaded && cfg !== null && snapshot(cfg, rxMap) !== baseline;
+  const disabled = loading || isArmed;
+
+  return (
+    <div className="flex-1 overflow-y-auto p-6 space-y-5">
+      <PanelHeader
+        title="Receiver"
+        subtitle="Betaflight RC input, receiver config, and channel map"
+        icon={<Radio size={16} />}
+        loading={loading}
+        loadProgress={null}
+        hasLoaded={hasLoaded}
+        onRead={read}
+        connected={connected}
+        error={error}
+      >
+        {hasLoaded && (
+          <Button
+            variant="primary" size="sm" icon={<Upload size={12} />} loading={loading}
+            disabled={!connected || !dirty || disabled}
+            title={isArmed ? lockMessage : undefined}
+            onClick={write}
+          >
+            Write to FC
+          </Button>
+        )}
+      </PanelHeader>
+
+      {/* Live channels */}
+      <div className="space-y-1">
+        <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wide">Live channels</h3>
+        {channels.length === 0 ? (
+          <p className="text-[11px] text-text-tertiary">No RC data — arm the transmitter and connect.</p>
+        ) : (
+          channels.slice(0, 18).map((v, i) => (
+            <RcChannelBar key={i} index={i} value={v} min={cfg?.rxMinUsec ?? 1000} max={cfg?.rxMaxUsec ?? 2000} trim={cfg?.midrc ?? 1500} dz={0} />
+          ))
+        )}
+      </div>
+
+      {hasLoaded && cfg && (
+        <>
+          <div className="space-y-2">
+            <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wide">Configuration</h3>
+            <div className="w-56">
+              <span className="text-[10px] text-text-tertiary font-mono">Serial RX provider</span>
+              <Select options={PROVIDER_OPTIONS} value={String(cfg.serialrxProvider)} onChange={(v) => updateCfg({ serialrxProvider: parseInt(v) })} disabled={disabled} searchable />
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-w-2xl">
+              <NumField label="Stick min (µs)" value={cfg.rxMinUsec} disabled={disabled} onChange={(v) => updateCfg({ rxMinUsec: v })} />
+              <NumField label="Stick mid (µs)" value={cfg.midrc} disabled={disabled} onChange={(v) => updateCfg({ midrc: v })} />
+              <NumField label="Stick max (µs)" value={cfg.rxMaxUsec} disabled={disabled} onChange={(v) => updateCfg({ rxMaxUsec: v })} />
+              <NumField label="Min check (µs)" value={cfg.mincheck} disabled={disabled} onChange={(v) => updateCfg({ mincheck: v })} />
+              <NumField label="Max check (µs)" value={cfg.maxcheck} disabled={disabled} onChange={(v) => updateCfg({ maxcheck: v })} />
+              <NumField label="Spektrum sat bind" value={cfg.spektrumSatBind} disabled={disabled} onChange={(v) => updateCfg({ spektrumSatBind: v })} />
+              <NumField label="FPV cam angle (°)" value={cfg.fpvCamAngle} disabled={disabled} onChange={(v) => updateCfg({ fpvCamAngle: v })} />
+              <NumField label="Air-mode threshold (%)" value={cfg.airModeThresholdPct} disabled={disabled} onChange={(v) => updateCfg({ airModeThresholdPct: v })} />
+            </div>
+            <div className="w-56">
+              <span className="text-[10px] text-text-tertiary font-mono">USB HID type</span>
+              <Select options={USB_HID_OPTIONS} value={String(cfg.usbCdcHidType)} onChange={(v) => updateCfg({ usbCdcHidType: parseInt(v) })} disabled={disabled} />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wide">RC Smoothing</h3>
+            <div className="w-56">
+              <span className="text-[10px] text-text-tertiary font-mono">RC smoothing</span>
+              <Select options={ONOFF_OPTIONS} value={String(cfg.rcSmoothing)} onChange={(v) => updateCfg({ rcSmoothing: parseInt(v) })} disabled={disabled} />
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-w-2xl">
+              <NumField label="Setpoint cutoff (Hz, 0=auto)" value={cfg.rcSmoothingSetpointCutoff} disabled={disabled} onChange={(v) => updateCfg({ rcSmoothingSetpointCutoff: v })} />
+              <NumField label="Throttle cutoff (Hz, 0=auto)" value={cfg.rcSmoothingThrottleCutoff} disabled={disabled} onChange={(v) => updateCfg({ rcSmoothingThrottleCutoff: v })} />
+              <NumField label="Auto factor RPY" value={cfg.rcSmoothingAutoFactorRpy} disabled={disabled} onChange={(v) => updateCfg({ rcSmoothingAutoFactorRpy: v })} />
+              <NumField label="Auto factor throttle" value={cfg.rcSmoothingAutoFactorThrottle} disabled={disabled} onChange={(v) => updateCfg({ rcSmoothingAutoFactorThrottle: v })} />
+            </div>
+          </div>
+
+          {rxMap.length > 0 && (
+            <div className="space-y-2">
+              <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wide">Channel map</h3>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 max-w-2xl">
+                {rxMap.map((ch, i) => (
+                  <label key={i} className="flex flex-col gap-1">
+                    <span className="text-[10px] text-text-tertiary font-mono">{RX_MAP_CHANNELS[i] ?? `Ch ${i}`}</span>
+                    <input
+                      type="number" min={0} max={rxMap.length - 1} value={ch} disabled={disabled}
+                      onChange={(e) => setRxMap((prev) => prev.map((x, idx) => (idx === i ? (parseInt(e.target.value) || 0) : x)))}
+                      className="bg-bg-tertiary border border-border-default px-2 py-1 text-xs font-mono text-text-primary focus:outline-none focus:border-accent-primary disabled:opacity-50"
+                    />
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}

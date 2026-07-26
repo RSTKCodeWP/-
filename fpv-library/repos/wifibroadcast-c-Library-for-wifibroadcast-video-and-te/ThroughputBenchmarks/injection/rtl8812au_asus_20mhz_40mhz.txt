@@ -1,0 +1,186 @@
+----------------------------------------- 20Mhz -------------------------------------------------------------
+[2023-07-25 22:33:52.140] [main] [info] First run:
+[2023-07-25 22:33:52.140] [main] [debug] MCS 0 PASSED: 550-532-6.13mBit/s FAILED 600-561-6.47mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 1 PASSED: 1050-1015-11.70mBit/s FAILED 1100-1024-11.80mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 2 PASSED: 1450-1401-16.15mBit/s FAILED 1500-1444-16.64mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 3 PASSED: 1850-1788-20.61mBit/s FAILED 1900-1811-20.87mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 4 PASSED: 2500-2418-27.86mBit/s FAILED 2550-2448-28.21mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 5 PASSED: 3050-2897-33.38mBit/s FAILED 3100-2983-34.37mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 6 PASSED: 3400-3267-37.64mBit/s FAILED 3450-3278-37.76mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 7 PASSED: 3550-3433-39.56mBit/s FAILED 3600-3482-40.11mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 8 PASSED: 1050-1015-11.70mBit/s FAILED 1100-1027-11.84mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 9 PASSED: 1850-1789-20.61mBit/s FAILED 1900-1825-21.03mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 10 PASSED: 2550-2466-28.41mBit/s FAILED 2600-2485-28.63mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 11 PASSED: 3100-2998-34.54mBit/s FAILED 3150-3023-34.83mBit/s
+[2023-07-25 22:33:52.140] [main] [info] Second run:
+[2023-07-25 22:33:52.140] [main] [debug] MCS 0 PASSED: 550-532-6.13mBit/s FAILED 600-559-6.45mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 1 PASSED: 1050-1015-11.70mBit/s FAILED 1100-1027-11.84mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 2 PASSED: 1050-1015-11.70mBit/s FAILED 1100-961-11.08mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 3 PASSED: 1850-1789-20.62mBit/s FAILED 1900-1797-20.71mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 4 PASSED: 2550-2466-28.41mBit/s FAILED 2600-2485-28.63mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 5 PASSED: 0-0-0 Bit/s FAILED 2550-2465-28.40mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 6 PASSED: 3000-2900-33.42mBit/s FAILED 3050-2936-33.83mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 7 PASSED: 3650-3528-40.65mBit/s FAILED 3700-3562-41.04mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 8 PASSED: 1050-1015-11.70mBit/s FAILED 1100-1027-11.84mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 9 PASSED: 1850-1789-20.61mBit/s FAILED 1900-1827-21.05mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 10 PASSED: 2200-2128-24.52mBit/s FAILED 2250-2124-24.47mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 11 PASSED: 2400-2321-26.74mBit/s FAILED 2450-2360-27.19mBit/s
+[2023-07-25 22:33:52.140] [main] [info] Third run:
+[2023-07-25 22:33:52.140] [main] [debug] MCS 0 PASSED: 550-531-6.13mBit/s FAILED 600-561-6.47mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 1 PASSED: 1050-1015-11.70mBit/s FAILED 1100-1027-11.84mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 2 PASSED: 1450-1385-15.96mBit/s FAILED 1500-1418-16.35mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 3 PASSED: 1800-1740-20.05mBit/s FAILED 1850-1785-20.57mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 4 PASSED: 1900-1831-21.10mBit/s FAILED 1950-1880-21.67mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 5 PASSED: 2550-2465-28.41mBit/s FAILED 2600-2515-28.98mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 6 PASSED: 0-0-0 Bit/s FAILED 2550-2466-28.42mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 7 PASSED: 2800-2708-31.20mBit/s FAILED 2850-2750-31.68mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 8 PASSED: 1050-1001-11.54mBit/s FAILED 1100-1011-11.65mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 9 PASSED: 1100-1064-12.26mBit/s FAILED 1150-1112-12.82mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 10 PASSED: 2500-2417-27.85mBit/s FAILED 2550-2466-28.41mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 11 PASSED: 2750-2659-30.64mBit/s FAILED 2800-2708-31.20mBit/s
+[2023-07-25 22:33:52.140] [main] [info] ---------------------------
+[2023-07-25 22:33:52.140] [main] [info] First run:
+[2023-07-25 22:33:52.140] [main] [debug] MCS 0 PASSED 6.13mBit/s--6.50mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 1 PASSED 11.70mBit/s--13.00mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 2 PASSED 16.15mBit/s--19.50mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 3 PASSED 20.61mBit/s--26.00mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 4 PASSED 27.86mBit/s--39.00mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 5 PASSED 33.38mBit/s--52.00mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 6 PASSED 37.64mBit/s--58.50mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 7 PASSED 39.56mBit/s--65.00mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 8 PASSED 11.70mBit/s--13.00mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 9 PASSED 20.61mBit/s--26.00mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 10 PASSED 28.41mBit/s--39.00mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 11 PASSED 34.54mBit/s--52.00mBit/s
+[2023-07-25 22:33:52.140] [main] [info] Second run:
+[2023-07-25 22:33:52.140] [main] [debug] MCS 0 PASSED 6.13mBit/s--6.50mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 1 PASSED 11.70mBit/s--13.00mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 2 PASSED 11.70mBit/s--19.50mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 3 PASSED 20.62mBit/s--26.00mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 4 PASSED 28.41mBit/s--39.00mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 5 PASSED 0 Bit/s--52.00mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 6 PASSED 33.42mBit/s--58.50mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 7 PASSED 40.65mBit/s--65.00mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 8 PASSED 11.70mBit/s--13.00mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 9 PASSED 20.61mBit/s--26.00mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 10 PASSED 24.52mBit/s--39.00mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 11 PASSED 26.74mBit/s--52.00mBit/s
+[2023-07-25 22:33:52.140] [main] [info] Third run:
+[2023-07-25 22:33:52.140] [main] [debug] MCS 0 PASSED 6.13mBit/s--6.50mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 1 PASSED 11.70mBit/s--13.00mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 2 PASSED 15.96mBit/s--19.50mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 3 PASSED 20.05mBit/s--26.00mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 4 PASSED 21.10mBit/s--39.00mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 5 PASSED 28.41mBit/s--52.00mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 6 PASSED 0 Bit/s--58.50mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 7 PASSED 31.20mBit/s--65.00mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 8 PASSED 11.54mBit/s--13.00mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 9 PASSED 12.26mBit/s--26.00mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 10 PASSED 27.85mBit/s--39.00mBit/s
+[2023-07-25 22:33:52.140] [main] [debug] MCS 11 PASSED 30.64mBit/s--52.00mBit/s
+[2023-07-25 22:33:52.140] [main] [info] MCS 0 possible 6.13mBit/s--6.13mBit/s--6.13mBit/s
+[2023-07-25 22:33:52.140] [main] [info] MCS 1 possible 11.70mBit/s--11.70mBit/s--11.70mBit/s
+[2023-07-25 22:33:52.140] [main] [info] MCS 2 possible 16.15mBit/s--11.70mBit/s--15.96mBit/s
+[2023-07-25 22:33:52.140] [main] [info] MCS 3 possible 20.61mBit/s--20.62mBit/s--20.05mBit/s
+[2023-07-25 22:33:52.140] [main] [info] MCS 4 possible 27.86mBit/s--28.41mBit/s--21.10mBit/s
+[2023-07-25 22:33:52.140] [main] [info] MCS 5 possible 33.38mBit/s--0 Bit/s--28.41mBit/s
+[2023-07-25 22:33:52.140] [main] [info] MCS 6 possible 37.64mBit/s--33.42mBit/s--0 Bit/s
+[2023-07-25 22:33:52.140] [main] [info] MCS 7 possible 39.56mBit/s--40.65mBit/s--31.20mBit/s
+[2023-07-25 22:33:52.140] [main] [info] MCS 8 possible 11.70mBit/s--11.70mBit/s--11.54mBit/s
+[2023-07-25 22:33:52.140] [main] [info] MCS 9 possible 20.61mBit/s--20.61mBit/s--12.26mBit/s
+[2023-07-25 22:33:52.140] [main] [info] MCS 10 possible 28.41mBit/s--24.52mBit/s--27.85mBit/s
+[2023-07-25 22:33:52.140] [main] [info] MCS 11 possible 34.54mBit/s--26.74mBit/s--30.64mBit/s
+
+----------------------------------------- 40Mhz -------------------------------------------------------------
+[2023-07-25 21:50:23.324] [main] [info] First run:
+[2023-07-25 21:50:23.324] [main] [debug] MCS 0 PASSED: 1050-1015-11.70mBit/s FAILED 1100-1061-12.23mBit/s
+[2023-07-25 21:50:23.324] [main] [debug] MCS 1 PASSED: 1950-1857-21.40mBit/s FAILED 2000-1861-21.45mBit/s
+[2023-07-25 21:50:23.324] [main] [debug] MCS 2 PASSED: 2650-2548-29.36mBit/s FAILED 2700-2557-29.47mBit/s
+[2023-07-25 21:50:23.324] [main] [debug] MCS 3 PASSED: 3200-3094-35.64mBit/s FAILED 3250-3138-36.15mBit/s
+[2023-07-25 21:50:23.324] [main] [debug] MCS 4 PASSED: 3350-3201-36.88mBit/s FAILED 3400-3287-37.87mBit/s
+[2023-07-25 21:50:23.324] [main] [debug] MCS 5 PASSED: 4050-3915-45.11mBit/s FAILED 4100-3964-45.67mBit/s
+[2023-07-25 21:50:23.324] [main] [debug] MCS 6 PASSED: 4400-4255-49.02mBit/s FAILED 4450-4304-49.58mBit/s
+[2023-07-25 21:50:23.324] [main] [debug] MCS 7 PASSED: 4800-4641-53.47mBit/s FAILED 4850-4677-53.88mBit/s
+[2023-07-25 21:50:23.324] [main] [debug] MCS 8 PASSED: 1950-1886-21.73mBit/s FAILED 2000-1897-21.86mBit/s
+[2023-07-25 21:50:23.324] [main] [debug] MCS 9 PASSED: 2750-2659-30.64mBit/s FAILED 2800-2708-31.20mBit/s
+[2023-07-25 21:50:23.324] [main] [debug] MCS 10 PASSED: 3350-3240-37.33mBit/s FAILED 3400-3288-37.88mBit/s
+[2023-07-25 21:50:23.324] [main] [debug] MCS 11 PASSED: 4600-4448-51.25mBit/s FAILED 4650-4497-51.81mBit/s
+[2023-07-25 21:50:23.324] [main] [info] Second run:
+[2023-07-25 21:50:23.324] [main] [debug] MCS 0 PASSED: 1050-1015-11.70mBit/s FAILED 1100-1061-12.23mBit/s
+[2023-07-25 21:50:23.324] [main] [debug] MCS 1 PASSED: 1850-1789-20.62mBit/s FAILED 1900-1838-21.18mBit/s
+[2023-07-25 21:50:23.324] [main] [debug] MCS 2 PASSED: 2550-2466-28.41mBit/s FAILED 2600-2514-28.97mBit/s
+[2023-07-25 21:50:23.324] [main] [debug] MCS 3 PASSED: 3200-3094-35.65mBit/s FAILED 3250-3118-35.92mBit/s
+[2023-07-25 21:50:23.324] [main] [debug] MCS 4 PASSED: 3850-3722-42.89mBit/s FAILED 3900-3771-43.45mBit/s
+[2023-07-25 21:50:23.324] [main] [debug] MCS 5 PASSED: 4150-4012-46.23mBit/s FAILED 4200-4060-46.78mBit/s
+[2023-07-25 21:50:23.324] [main] [debug] MCS 6 PASSED: 5050-4883-56.26mBit/s FAILED 5100-4932-56.82mBit/s
+[2023-07-25 21:50:23.324] [main] [debug] MCS 7 PASSED: 5350-5172-59.59mBit/s FAILED 5400-5174-59.61mBit/s
+[2023-07-25 21:50:23.324] [main] [debug] MCS 8 PASSED: 1150-1112-12.82mBit/s FAILED 1200-1150-13.25mBit/s
+[2023-07-25 21:50:23.324] [main] [debug] MCS 9 PASSED: 1550-1499-17.27mBit/s FAILED 1600-1548-17.84mBit/s
+[2023-07-25 21:50:23.324] [main] [debug] MCS 10 PASSED: 2500-2418-27.86mBit/s FAILED 2550-2466-28.41mBit/s
+[2023-07-25 21:50:23.324] [main] [debug] MCS 11 PASSED: 4700-4545-52.36mBit/s FAILED 4750-4514-52.01mBit/s
+[2023-07-25 21:50:23.324] [main] [info] Third run:
+[2023-07-25 21:50:23.324] [main] [debug] MCS 0 PASSED: 1050-1015-11.70mBit/s FAILED 1100-1062-12.24mBit/s
+[2023-07-25 21:50:23.324] [main] [debug] MCS 1 PASSED: 1900-1837-21.17mBit/s FAILED 1950-1878-21.65mBit/s
+[2023-07-25 21:50:23.324] [main] [debug] MCS 2 PASSED: 2600-2514-28.97mBit/s FAILED 2650-2562-29.52mBit/s
+[2023-07-25 21:50:23.324] [main] [debug] MCS 3 PASSED: 3000-2901-33.43mBit/s FAILED 3050-2949-33.98mBit/s
+[2023-07-25 21:50:23.324] [main] [debug] MCS 4 PASSED: 3850-3722-42.88mBit/s FAILED 3900-3770-43.44mBit/s
+[2023-07-25 21:50:23.324] [main] [debug] MCS 5 PASSED: 3900-3771-43.45mBit/s FAILED 3950-3821-44.02mBit/s
+[2023-07-25 21:50:23.324] [main] [debug] MCS 6 PASSED: 4350-4173-48.08mBit/s FAILED 4400-4252-48.99mBit/s
+[2023-07-25 21:50:23.324] [main] [debug] MCS 7 PASSED: 0-0-0 Bit/s FAILED 4350-4205-48.45mBit/s
+[2023-07-25 21:50:23.324] [main] [debug] MCS 8 PASSED: 1500-1450-16.71mBit/s FAILED 1550-1498-17.26mBit/s
+[2023-07-25 21:50:23.324] [main] [debug] MCS 9 PASSED: 3200-3093-35.63mBit/s FAILED 3250-3120-35.94mBit/s
+[2023-07-25 21:50:23.324] [main] [debug] MCS 10 PASSED: 3800-3672-42.31mBit/s FAILED 3850-3660-42.16mBit/s
+[2023-07-25 21:50:23.324] [main] [debug] MCS 11 PASSED: 3850-3722-42.88mBit/s FAILED 3900-3750-43.21mBit/s
+[2023-07-25 21:50:23.324] [main] [info] ---------------------------
+[2023-07-25 21:50:23.324] [main] [info] First run:
+[2023-07-25 21:50:23.324] [main] [debug] MCS 0 PASSED 11.70mBit/s--13.50mBit/s
+[2023-07-25 21:50:23.325] [main] [debug] MCS 1 PASSED 21.40mBit/s--27.00mBit/s
+[2023-07-25 21:50:23.325] [main] [debug] MCS 2 PASSED 29.36mBit/s--40.50mBit/s
+[2023-07-25 21:50:23.325] [main] [debug] MCS 3 PASSED 35.64mBit/s--54.00mBit/s
+[2023-07-25 21:50:23.325] [main] [debug] MCS 4 PASSED 36.88mBit/s--81.00mBit/s
+[2023-07-25 21:50:23.325] [main] [debug] MCS 5 PASSED 45.11mBit/s--108.00mBit/s
+[2023-07-25 21:50:23.325] [main] [debug] MCS 6 PASSED 49.02mBit/s--121.50mBit/s
+[2023-07-25 21:50:23.325] [main] [debug] MCS 7 PASSED 53.47mBit/s--135.00mBit/s
+[2023-07-25 21:50:23.325] [main] [debug] MCS 8 PASSED 21.73mBit/s--27.00mBit/s
+[2023-07-25 21:50:23.325] [main] [debug] MCS 9 PASSED 30.64mBit/s--54.00mBit/s
+[2023-07-25 21:50:23.325] [main] [debug] MCS 10 PASSED 37.33mBit/s--81.00mBit/s
+[2023-07-25 21:50:23.325] [main] [debug] MCS 11 PASSED 51.25mBit/s--108.00mBit/s
+[2023-07-25 21:50:23.325] [main] [info] Second run:
+[2023-07-25 21:50:23.325] [main] [debug] MCS 0 PASSED 11.70mBit/s--13.50mBit/s
+[2023-07-25 21:50:23.325] [main] [debug] MCS 1 PASSED 20.62mBit/s--27.00mBit/s
+[2023-07-25 21:50:23.325] [main] [debug] MCS 2 PASSED 28.41mBit/s--40.50mBit/s
+[2023-07-25 21:50:23.325] [main] [debug] MCS 3 PASSED 35.65mBit/s--54.00mBit/s
+[2023-07-25 21:50:23.325] [main] [debug] MCS 4 PASSED 42.89mBit/s--81.00mBit/s
+[2023-07-25 21:50:23.325] [main] [debug] MCS 5 PASSED 46.23mBit/s--108.00mBit/s
+[2023-07-25 21:50:23.325] [main] [debug] MCS 6 PASSED 56.26mBit/s--121.50mBit/s
+[2023-07-25 21:50:23.325] [main] [debug] MCS 7 PASSED 59.59mBit/s--135.00mBit/s
+[2023-07-25 21:50:23.325] [main] [debug] MCS 8 PASSED 12.82mBit/s--27.00mBit/s
+[2023-07-25 21:50:23.325] [main] [debug] MCS 9 PASSED 17.27mBit/s--54.00mBit/s
+[2023-07-25 21:50:23.325] [main] [debug] MCS 10 PASSED 27.86mBit/s--81.00mBit/s
+[2023-07-25 21:50:23.325] [main] [debug] MCS 11 PASSED 52.36mBit/s--108.00mBit/s
+[2023-07-25 21:50:23.325] [main] [info] Third run:
+[2023-07-25 21:50:23.325] [main] [debug] MCS 0 PASSED 11.70mBit/s--13.50mBit/s
+[2023-07-25 21:50:23.325] [main] [debug] MCS 1 PASSED 21.17mBit/s--27.00mBit/s
+[2023-07-25 21:50:23.325] [main] [debug] MCS 2 PASSED 28.97mBit/s--40.50mBit/s
+[2023-07-25 21:50:23.325] [main] [debug] MCS 3 PASSED 33.43mBit/s--54.00mBit/s
+[2023-07-25 21:50:23.325] [main] [debug] MCS 4 PASSED 42.88mBit/s--81.00mBit/s
+[2023-07-25 21:50:23.325] [main] [debug] MCS 5 PASSED 43.45mBit/s--108.00mBit/s
+[2023-07-25 21:50:23.325] [main] [debug] MCS 6 PASSED 48.08mBit/s--121.50mBit/s
+[2023-07-25 21:50:23.325] [main] [debug] MCS 7 PASSED 0 Bit/s--135.00mBit/s
+[2023-07-25 21:50:23.325] [main] [debug] MCS 8 PASSED 16.71mBit/s--27.00mBit/s
+[2023-07-25 21:50:23.325] [main] [debug] MCS 9 PASSED 35.63mBit/s--54.00mBit/s
+[2023-07-25 21:50:23.325] [main] [debug] MCS 10 PASSED 42.31mBit/s--81.00mBit/s
+[2023-07-25 21:50:23.325] [main] [debug] MCS 11 PASSED 42.88mBit/s--108.00mBit/s
+[2023-07-25 21:50:23.325] [main] [info] MCS 0 possible 11.70mBit/s--11.70mBit/s--11.70mBit/s
+[2023-07-25 21:50:23.325] [main] [info] MCS 1 possible 21.40mBit/s--20.62mBit/s--21.17mBit/s
+[2023-07-25 21:50:23.325] [main] [info] MCS 2 possible 29.36mBit/s--28.41mBit/s--28.97mBit/s
+[2023-07-25 21:50:23.325] [main] [info] MCS 3 possible 35.64mBit/s--35.65mBit/s--33.43mBit/s
+[2023-07-25 21:50:23.325] [main] [info] MCS 4 possible 36.88mBit/s--42.89mBit/s--42.88mBit/s
+[2023-07-25 21:50:23.325] [main] [info] MCS 5 possible 45.11mBit/s--46.23mBit/s--43.45mBit/s
+[2023-07-25 21:50:23.325] [main] [info] MCS 6 possible 49.02mBit/s--56.26mBit/s--48.08mBit/s
+[2023-07-25 21:50:23.325] [main] [info] MCS 7 possible 53.47mBit/s--59.59mBit/s--0 Bit/s
+[2023-07-25 21:50:23.326] [main] [info] MCS 8 possible 21.73mBit/s--12.82mBit/s--16.71mBit/s
+[2023-07-25 21:50:23.326] [main] [info] MCS 9 possible 30.64mBit/s--17.27mBit/s--35.63mBit/s
+[2023-07-25 21:50:23.326] [main] [info] MCS 10 possible 37.33mBit/s--27.86mBit/s--42.31mBit/s
+[2023-07-25 21:50:23.326] [main] [info] MCS 11 possible 51.25mBit/s--52.36mBit/s--42.88mBit/s
+

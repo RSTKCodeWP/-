@@ -20,6 +20,8 @@ python3 fpv-library/scripts/sync.py --all
 
 See [`fpv-library/README.md`](fpv-library/README.md) for full documentation.
 
+**Themed highlights:** [`fpv-library/THEMED.md`](fpv-library/THEMED.md) — GCS, WFB, OpenIPC, fiber, MAVLink (280+ catalogued).
+
 ## Legacy examples (hand-copied)
 
 | Folder | Description |

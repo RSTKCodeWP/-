@@ -1,0 +1,351 @@
+{
+  "version": "0.1.0",
+  "mcpRevision": "2025-06-18",
+  "toolCount": 45,
+  "tools": [
+    {
+      "name": "admin.agent.restart_supervisor",
+      "group": "admin",
+      "scope": "flight",
+      "safetyClass": "flight",
+      "description": "Restart the agent supervisor and its whole service tree (confirm required).",
+      "agentModeOnly": true,
+      "affectsFlight": true
+    },
+    {
+      "name": "admin.network.wifi_join",
+      "group": "admin",
+      "scope": "admin",
+      "safetyClass": "admin",
+      "description": "Join a management Wi-Fi network.",
+      "agentModeOnly": true
+    },
+    {
+      "name": "admin.network.wifi_leave",
+      "group": "admin",
+      "scope": "admin",
+      "safetyClass": "admin",
+      "description": "Leave the current management Wi-Fi network.",
+      "agentModeOnly": true
+    },
+    {
+      "name": "admin.node.rename",
+      "group": "admin",
+      "scope": "admin",
+      "safetyClass": "admin",
+      "description": "Set the node's display name (shown in pairing and the fleet card). Not the OS hostname.",
+      "agentModeOnly": true
+    },
+    {
+      "name": "admin.pairing.claim",
+      "group": "admin",
+      "scope": "admin",
+      "safetyClass": "admin",
+      "description": "Claim an unpaired node for an operator (LAN presence is the auth boundary).",
+      "agentModeOnly": true
+    },
+    {
+      "name": "admin.pairing.generate_code",
+      "group": "admin",
+      "scope": "admin",
+      "safetyClass": "admin",
+      "description": "Mint a fresh local pair code (while the node is unpaired).",
+      "agentModeOnly": true
+    },
+    {
+      "name": "admin.pairing.info",
+      "group": "admin",
+      "scope": "read",
+      "safetyClass": "read",
+      "description": "Read the node's pairing status and reach info.",
+      "agentModeOnly": true
+    },
+    {
+      "name": "admin.pairing.unpair",
+      "group": "admin",
+      "scope": "admin",
+      "safetyClass": "admin",
+      "description": "Release the node's pairing (invalidates credentials derived from the pairing key).",
+      "agentModeOnly": true
+    },
+    {
+      "name": "admin.wfb.channel",
+      "group": "admin",
+      "scope": "admin",
+      "safetyClass": "admin",
+      "description": "Set the WFB radio channel (agent validates against its allowed set).",
+      "agentModeOnly": true
+    },
+    {
+      "name": "admin.wfb.tx_power",
+      "group": "admin",
+      "scope": "admin",
+      "safetyClass": "admin",
+      "description": "Set WFB TX power in dBm (agent clamps to its configured ceiling).",
+      "agentModeOnly": true
+    },
+    {
+      "name": "audit.query",
+      "group": "audit",
+      "scope": "read",
+      "safetyClass": "read",
+      "description": "Query this MCP server's own local audit log (every tool call it made), newest first. Filter by tool, node, decision, or time."
+    },
+    {
+      "name": "audit.search",
+      "group": "audit",
+      "scope": "read",
+      "safetyClass": "read",
+      "description": "Search this MCP server's own local audit log, newest first. The query is a field-qualified grammar: a `field:value` term (field one of tool / node / operator / decision / result) filters that field, and any other term is matched across the whole event. Example: `tool:params.set decision:denied`."
+    },
+    {
+      "name": "config.get",
+      "group": "config",
+      "scope": "read",
+      "safetyClass": "read",
+      "description": "Read the agent configuration document (secret-shaped fields redacted).",
+      "agentModeOnly": true
+    },
+    {
+      "name": "config.set",
+      "group": "config",
+      "scope": "safe_write",
+      "safetyClass": "safe_write",
+      "description": "Set one agent configuration value by dotted key (network paths escalate to admin and need confirm).",
+      "agentModeOnly": true
+    },
+    {
+      "name": "fleet.list_nodes",
+      "group": "fleet",
+      "scope": "read",
+      "safetyClass": "read",
+      "description": "List the nodes reachable through this connection, with a status summary."
+    },
+    {
+      "name": "flight.arm",
+      "group": "flight",
+      "scope": "flight",
+      "safetyClass": "flight",
+      "description": "Arm the vehicle. Requires the flight scope and an operator-present or signed confirm (or --sim).",
+      "affectsFlight": true
+    },
+    {
+      "name": "flight.disarm",
+      "group": "flight",
+      "scope": "flight",
+      "safetyClass": "flight",
+      "description": "Disarm the vehicle. Requires the flight scope and an operator-present or signed confirm (or --sim).",
+      "affectsFlight": true
+    },
+    {
+      "name": "flight.land",
+      "group": "flight",
+      "scope": "flight",
+      "safetyClass": "flight",
+      "description": "Command the vehicle to land. Requires the flight scope and an operator-present or signed confirm (or --sim).",
+      "affectsFlight": true
+    },
+    {
+      "name": "flight.mode",
+      "group": "flight",
+      "scope": "flight",
+      "safetyClass": "flight",
+      "description": "Set the flight mode by name (e.g. GUIDED, RTL, LOITER). Requires the flight scope + confirm/sim.",
+      "affectsFlight": true
+    },
+    {
+      "name": "flight.rtl",
+      "group": "flight",
+      "scope": "flight",
+      "safetyClass": "flight",
+      "description": "Return to launch. Requires the flight scope and an operator-present or signed confirm (or --sim).",
+      "affectsFlight": true
+    },
+    {
+      "name": "flight.takeoff",
+      "group": "flight",
+      "scope": "flight",
+      "safetyClass": "flight",
+      "description": "Takeoff to an altitude AGL in metres. Requires the flight scope + confirm/sim.",
+      "affectsFlight": true
+    },
+    {
+      "name": "logs.query",
+      "group": "logs",
+      "scope": "read",
+      "safetyClass": "read",
+      "description": "Query the node's agent logs (optional level filter, bounded count)."
+    },
+    {
+      "name": "params.diff_from_default",
+      "group": "params",
+      "scope": "read",
+      "safetyClass": "read",
+      "description": "List the parameters whose value differs from the firmware default.",
+      "agentModeOnly": true
+    },
+    {
+      "name": "params.explain",
+      "group": "params",
+      "scope": "read",
+      "safetyClass": "read",
+      "description": "Explain a parameter's meaning (metadata + the node's current value) without changing it.",
+      "agentModeOnly": true
+    },
+    {
+      "name": "params.get",
+      "group": "params",
+      "scope": "read",
+      "safetyClass": "read",
+      "description": "Read one flight-controller parameter with its decoded meaning and metadata.",
+      "agentModeOnly": true
+    },
+    {
+      "name": "params.optimize",
+      "group": "params",
+      "scope": "read",
+      "safetyClass": "read",
+      "description": "Read-only tuning advisory. Reads every FC parameter joined with firmware metadata and returns deterministic, metadata-grounded observations plus the joined data for the model to reason over. Writes nothing; applying a change is params.set.",
+      "agentModeOnly": true
+    },
+    {
+      "name": "params.read_all",
+      "group": "params",
+      "scope": "read",
+      "safetyClass": "read",
+      "description": "Read flight-controller parameters joined with firmware metadata (meaning, range, default). Filter with prefix or search; large sets are paged by limit.",
+      "agentModeOnly": true
+    },
+    {
+      "name": "params.set",
+      "group": "params",
+      "scope": "admin",
+      "safetyClass": "admin",
+      "description": "Set one flight-controller parameter to a numeric value (confirm required; flight-critical names need the flight scope and a signed confirm).",
+      "agentModeOnly": true
+    },
+    {
+      "name": "plugins.config",
+      "group": "plugins",
+      "scope": "safe_write",
+      "safetyClass": "safe_write",
+      "description": "Set one plugin configuration value (scope drone|global).",
+      "agentModeOnly": true
+    },
+    {
+      "name": "plugins.disable",
+      "group": "plugins",
+      "scope": "admin",
+      "safetyClass": "admin",
+      "description": "Disable an installed plugin by id (confirm required)."
+    },
+    {
+      "name": "plugins.enable",
+      "group": "plugins",
+      "scope": "admin",
+      "safetyClass": "admin",
+      "description": "Enable an installed plugin by id (confirm required)."
+    },
+    {
+      "name": "plugins.info",
+      "group": "plugins",
+      "scope": "read",
+      "safetyClass": "read",
+      "description": "Read one installed plugin's detail and manifest.",
+      "agentModeOnly": true
+    },
+    {
+      "name": "plugins.install",
+      "group": "plugins",
+      "scope": "admin",
+      "safetyClass": "admin",
+      "description": "Install a plugin from a signed archive url with a sha256 pin (confirm required).",
+      "agentModeOnly": true
+    },
+    {
+      "name": "plugins.list",
+      "group": "plugins",
+      "scope": "read",
+      "safetyClass": "read",
+      "description": "List installed plugins on the node.",
+      "agentModeOnly": true
+    },
+    {
+      "name": "plugins.remove",
+      "group": "plugins",
+      "scope": "admin",
+      "safetyClass": "admin",
+      "description": "Remove an installed plugin by id, optionally keeping its data (confirm required)."
+    },
+    {
+      "name": "services.list",
+      "group": "services",
+      "scope": "read",
+      "safetyClass": "read",
+      "description": "List the node's services and their running state."
+    },
+    {
+      "name": "services.restart",
+      "group": "services",
+      "scope": "admin",
+      "safetyClass": "admin",
+      "description": "Restart one supervised service on the node (confirm required)."
+    },
+    {
+      "name": "status.full",
+      "group": "status",
+      "scope": "read",
+      "safetyClass": "read",
+      "description": "Read the node's full status document (every reported field)."
+    },
+    {
+      "name": "status.get",
+      "group": "status",
+      "scope": "read",
+      "safetyClass": "read",
+      "description": "Read the node's consolidated status (link, FC, battery, mode, health)."
+    },
+    {
+      "name": "status.health",
+      "group": "status",
+      "scope": "read",
+      "safetyClass": "read",
+      "description": "A rollup of the node's reachability and reported health state."
+    },
+    {
+      "name": "status.ping",
+      "group": "status",
+      "scope": "read",
+      "safetyClass": "read",
+      "description": "A liveness probe: whether the node answers, with round-trip latency."
+    },
+    {
+      "name": "status.system",
+      "group": "status",
+      "scope": "read",
+      "safetyClass": "read",
+      "description": "Read host resources: cpu, memory, disk, temperature, load, uptime."
+    },
+    {
+      "name": "status.version",
+      "group": "status",
+      "scope": "read",
+      "safetyClass": "read",
+      "description": "Read the agent version and firmware identity for the node."
+    },
+    {
+      "name": "telemetry.snapshot",
+      "group": "telemetry",
+      "scope": "read",
+      "safetyClass": "read",
+      "description": "A one-shot flight telemetry read: battery, gps, position, attitude, mode."
+    },
+    {
+      "name": "vision.status",
+      "group": "vision",
+      "scope": "read",
+      "safetyClass": "read",
+      "description": "Read the perception engine status: model, tier, detection state."
+    }
+  ]
+}

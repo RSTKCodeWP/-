@@ -1,0 +1,24 @@
+{
+  "name": "altnautica-sitl",
+  "version": "0.1.0",
+  "description": "ArduPilot SITL launcher + TCP→WebSocket bridge for browser-based GCS",
+  "type": "module",
+  "license": "GPL-3.0-only",
+  "main": "src/index.ts",
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "setup": "bash scripts/setup-ardupilot.sh"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.0",
+    "@types/ws": "^8.5.0",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

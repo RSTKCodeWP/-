@@ -1,0 +1,14 @@
+on: [push, pull_request]
+jobs:
+  compile-sketches:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: arduino/compile-sketches@v1
+        with:
+          fqbn: esp32:esp32:esp32
+          sketch-paths: |
+            - examples/00.HelloWorld
+            - examples/10.Quadcopter
+            - examples/11.QuadcopterAdvanced
+            - examples/20.Plane

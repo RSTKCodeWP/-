@@ -1,0 +1,912 @@
+@import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
+
+/* Leaflet tile images must not be constrained by Tailwind preflight (img { max-width: 100%; height: auto }) */
+.leaflet-container img {
+  max-width: none !important;
+  max-height: none !important;
+  height: auto;
+}
+.leaflet-tile {
+  width: 256px !important;
+  height: 256px !important;
+}
+
+@import "@fontsource/space-grotesk/500.css";
+@import "@fontsource/space-grotesk/600.css";
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/600.css";
+@import "@fontsource/jetbrains-mono/400.css";
+@import "@fontsource/jetbrains-mono/600.css";
+
+@theme {
+  --color-bg-primary: var(--alt-bg-primary);
+  --color-bg-secondary: var(--alt-bg-secondary);
+  --color-bg-tertiary: var(--alt-bg-tertiary);
+  --color-text-primary: var(--alt-text-primary);
+  --color-text-secondary: var(--alt-text-secondary);
+  --color-text-tertiary: var(--alt-text-tertiary);
+  --color-accent-primary: var(--alt-accent-primary);
+  --color-accent-primary-hover: var(--alt-accent-primary-hover);
+  --color-accent-secondary: var(--alt-accent-secondary);
+  --color-border-default: var(--alt-border-default);
+  --color-border-strong: var(--alt-border-strong);
+  --color-status-success: var(--alt-status-success);
+  --color-status-warning: var(--alt-status-warning);
+  --color-status-error: var(--alt-status-error);
+  /* Fourth status step between warning and error (stale / reconnecting /
+     unverified). Derived per-theme from each theme's own warning+error, so it
+     fits every palette with no per-theme override. */
+  --color-status-serious: color-mix(in oklab, var(--alt-status-warning) 60%, var(--alt-status-error) 40%);
+  --color-gcs-hud-green: var(--gcs-hud-green);
+  --color-gcs-armed: var(--gcs-armed);
+  --color-gcs-disarmed: var(--gcs-disarmed);
+  --font-display: "Space Grotesk", sans-serif;
+  --font-body: "Inter", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+}
+
+:root {
+  /* Background */
+  --alt-bg-primary: #000000;
+  --alt-bg-secondary: #0a0a0a;
+  --alt-bg-tertiary: #141414;
+
+  /* Text */
+  --alt-text-primary: #fafafa;
+  --alt-text-secondary: #a0a0a0;
+  --alt-text-tertiary: #666666;
+
+  /* Accent */
+  --alt-accent-primary: #3a82ff;
+  --alt-accent-primary-hover: #5b9aff;
+  --alt-accent-secondary: #dff140;
+
+  /* Border */
+  --alt-border-default: #1a1a1a;
+  --alt-border-strong: #2a2a2a;
+
+  /* Status */
+  --alt-status-success: #22c55e;
+  --alt-status-warning: #f59e0b;
+  --alt-status-error: #ef4444;
+
+  /* Node profile accent hues (identity). Cool, distinct from the warm status
+     palette. Blended with the live surface at use via color-mix for theme-safe
+     contrast — see src/lib/nodes/node-profile.ts. */
+  --node-accent-drone: #3b82f6;
+  --node-accent-fc: #22d3ee;
+  --node-accent-gs: #a78bfa;
+  --node-accent-work: #2dd4bf;
+
+  /* Personalization swatches (user-chosen tile identity). These tint the tile
+     wash + accent rule only; the semantic status dots/badges keep their own
+     tokens so an error still reads red on any tile colour. */
+  --node-swatch-slate: #64748b;
+  --node-swatch-blue: #3b82f6;
+  --node-swatch-cyan: #06b6d4;
+  --node-swatch-teal: #14b8a6;
+  --node-swatch-green: #22c55e;
+  --node-swatch-amber: #f59e0b;
+  --node-swatch-orange: #f97316;
+  --node-swatch-red: #ef4444;
+  --node-swatch-pink: #ec4899;
+  --node-swatch-purple: #a855f7;
+
+  /* GCS-specific */
+  --gcs-hud-green: #00ff41;
+  --gcs-hud-bg: rgba(0, 0, 0, 0.6);
+  --gcs-armed: #ef4444;
+  --gcs-disarmed: #22c55e;
+}
+
+html[data-theme="light"] {
+  --alt-bg-primary: #f7f9fc;
+  --alt-bg-secondary: #eef2f8;
+  --alt-bg-tertiary: #e2e8f2;
+
+  --alt-text-primary: #111827;
+  --alt-text-secondary: #334155;
+  --alt-text-tertiary: #64748b;
+
+  --alt-accent-primary: #2f6feb;
+  --alt-accent-primary-hover: #4b82ef;
+  --alt-accent-secondary: #8ba000;
+
+  --alt-border-default: #d6dce8;
+  --alt-border-strong: #bec9da;
+
+  --gcs-hud-green: #22c55e;
+  --gcs-armed: #ef4444;
+  --gcs-disarmed: #22c55e;
+  --gcs-hud-bg: rgba(255, 255, 255, 0.7);
+}
+
+html[data-theme="solarized-dark"] {
+  /* Solarized dark: base03 background, base0 text */
+  --alt-bg-primary: #002b36;
+  --alt-bg-secondary: #073642;
+  --alt-bg-tertiary: #586e75;
+
+  --alt-text-primary: #eee8d5;
+  --alt-text-secondary: #93a1a1;
+  --alt-text-tertiary: #839496;
+
+  --alt-accent-primary: #268bd2;
+  --alt-accent-primary-hover: #2aa1de;
+  --alt-accent-secondary: #b58900;
+
+  --alt-border-default: #073642;
+  --alt-border-strong: #586e75;
+
+  --gcs-hud-green: #268bd2;
+  --gcs-armed: #dc322f;
+  --gcs-disarmed: #859900;
+  --gcs-hud-bg: rgba(0, 43, 54, 0.7);
+}
+
+html[data-theme="solarized-light"] {
+  /* Solarized light: base3 background, base00 text */
+  --alt-bg-primary: #fdf6e3;
+  --alt-bg-secondary: #eee8d5;
+  --alt-bg-tertiary: #d6d0c8;
+
+  --alt-text-primary: #002b36;
+  --alt-text-secondary: #657b83;
+  --alt-text-tertiary: #839496;
+
+  --alt-accent-primary: #268bd2;
+  --alt-accent-primary-hover: #2aa1de;
+  --alt-accent-secondary: #b58900;
+
+  --alt-border-default: #eee8d5;
+  --alt-border-strong: #d6d0c8;
+
+  --gcs-hud-green: #268bd2;
+  --gcs-armed: #dc322f;
+  --gcs-disarmed: #859900;
+  --gcs-hud-bg: rgba(253, 246, 227, 0.85);
+}
+
+html[data-theme="nvg"] {
+  --alt-bg-primary: #000000;
+  --alt-bg-secondary: #001100;
+  --alt-bg-tertiary: #002200;
+  --alt-text-primary: #00AA00;
+  --alt-text-secondary: #007700;
+  --alt-text-tertiary: #004400;
+  --alt-accent-primary: #00FF00;
+  --alt-accent-primary-hover: #00CC00;
+  --alt-accent-secondary: #008800;
+  --alt-border-default: #002200;
+  --alt-border-strong: #003300;
+  --alt-status-success: #005500;
+  --alt-status-warning: #886600;
+  --alt-status-error: #880000;
+  --gcs-hud-green: #00AA00;
+  --gcs-armed: #880000;
+  --gcs-disarmed: #005500;
+  --gcs-hud-bg: rgba(0, 17, 0, 0.8);
+}
+
+/* ── Community Dark Themes ── */
+
+html[data-theme="dracula"] {
+  --alt-bg-primary: #282a36;
+  --alt-bg-secondary: #21222c;
+  --alt-bg-tertiary: #44475a;
+  --alt-text-primary: #f8f8f2;
+  --alt-text-secondary: #6272a4;
+  --alt-text-tertiary: #4e5a84;
+  --alt-accent-primary: #bd93f9;
+  --alt-accent-primary-hover: #ff79c6;
+  --alt-accent-secondary: #8be9fd;
+  --alt-border-default: #383a4a;
+  --alt-border-strong: #44475a;
+  --alt-status-success: #50fa7b;
+  --alt-status-warning: #f1fa8c;
+  --alt-status-error: #ff5555;
+  --gcs-hud-green: #50fa7b;
+  --gcs-armed: #ff5555;
+  --gcs-disarmed: #50fa7b;
+  --gcs-hud-bg: rgba(40, 42, 54, 0.7);
+}
+
+html[data-theme="catppuccin-mocha"] {
+  --alt-bg-primary: #1e1e2e;
+  --alt-bg-secondary: #181825;
+  --alt-bg-tertiary: #313244;
+  --alt-text-primary: #cdd6f4;
+  --alt-text-secondary: #bac2de;
+  --alt-text-tertiary: #a6adc8;
+  --alt-accent-primary: #cba6f7;
+  --alt-accent-primary-hover: #b4befe;
+  --alt-accent-secondary: #94e2d5;
+  --alt-border-default: #313244;
+  --alt-border-strong: #6c7086;
+  --alt-status-success: #a6e3a1;
+  --alt-status-warning: #f9e2af;
+  --alt-status-error: #f38ba8;
+  --gcs-hud-green: #a6e3a1;
+  --gcs-armed: #f38ba8;
+  --gcs-disarmed: #a6e3a1;
+  --gcs-hud-bg: rgba(30, 30, 46, 0.7);
+}
+
+html[data-theme="catppuccin-frappe"] {
+  --alt-bg-primary: #303446;
+  --alt-bg-secondary: #292c3c;
+  --alt-bg-tertiary: #414559;
+  --alt-text-primary: #c6d0f5;
+  --alt-text-secondary: #b5bfe2;
+  --alt-text-tertiary: #a5adce;
+  --alt-accent-primary: #ca9ee6;
+  --alt-accent-primary-hover: #babbf1;
+  --alt-accent-secondary: #81c8be;
+  --alt-border-default: #414559;
+  --alt-border-strong: #737994;
+  --alt-status-success: #a6d189;
+  --alt-status-warning: #e5c890;
+  --alt-status-error: #e78284;
+  --gcs-hud-green: #a6d189;
+  --gcs-armed: #e78284;
+  --gcs-disarmed: #a6d189;
+  --gcs-hud-bg: rgba(48, 52, 70, 0.7);
+}
+
+html[data-theme="nord"] {
+  --alt-bg-primary: #2e3440;
+  --alt-bg-secondary: #3b4252;
+  --alt-bg-tertiary: #434c5e;
+  --alt-text-primary: #eceff4;
+  --alt-text-secondary: #d8dee9;
+  --alt-text-tertiary: #4c566a;
+  --alt-accent-primary: #88c0d0;
+  --alt-accent-primary-hover: #8fbcbb;
+  --alt-accent-secondary: #81a1c1;
+  --alt-border-default: #3b4252;
+  --alt-border-strong: #4c566a;
+  --alt-status-success: #a3be8c;
+  --alt-status-warning: #ebcb8b;
+  --alt-status-error: #bf616a;
+  --gcs-hud-green: #a3be8c;
+  --gcs-armed: #bf616a;
+  --gcs-disarmed: #a3be8c;
+  --gcs-hud-bg: rgba(46, 52, 64, 0.7);
+}
+
+html[data-theme="gruvbox-dark"] {
+  --alt-bg-primary: #282828;
+  --alt-bg-secondary: #1d2021;
+  --alt-bg-tertiary: #3c3836;
+  --alt-text-primary: #ebdbb2;
+  --alt-text-secondary: #d5c4a1;
+  --alt-text-tertiary: #a89984;
+  --alt-accent-primary: #83a598;
+  --alt-accent-primary-hover: #8ec07c;
+  --alt-accent-secondary: #d3869b;
+  --alt-border-default: #3c3836;
+  --alt-border-strong: #504945;
+  --alt-status-success: #b8bb26;
+  --alt-status-warning: #fabd2f;
+  --alt-status-error: #fb4934;
+  --gcs-hud-green: #b8bb26;
+  --gcs-armed: #fb4934;
+  --gcs-disarmed: #b8bb26;
+  --gcs-hud-bg: rgba(40, 40, 40, 0.7);
+}
+
+html[data-theme="one-dark"] {
+  --alt-bg-primary: #282c34;
+  --alt-bg-secondary: #21252b;
+  --alt-bg-tertiary: #353b45;
+  --alt-text-primary: #abb2bf;
+  --alt-text-secondary: #828997;
+  --alt-text-tertiary: #5c6370;
+  --alt-accent-primary: #61afef;
+  --alt-accent-primary-hover: #528bff;
+  --alt-accent-secondary: #c678dd;
+  --alt-border-default: #21252b;
+  --alt-border-strong: #3a3f4b;
+  --alt-status-success: #98c379;
+  --alt-status-warning: #e5c07b;
+  --alt-status-error: #e06c75;
+  --gcs-hud-green: #98c379;
+  --gcs-armed: #e06c75;
+  --gcs-disarmed: #98c379;
+  --gcs-hud-bg: rgba(40, 44, 52, 0.7);
+}
+
+html[data-theme="tokyo-night"] {
+  --alt-bg-primary: #1a1b26;
+  --alt-bg-secondary: #16161e;
+  --alt-bg-tertiary: #292e42;
+  --alt-text-primary: #c0caf5;
+  --alt-text-secondary: #a9b1d6;
+  --alt-text-tertiary: #565f89;
+  --alt-accent-primary: #7aa2f7;
+  --alt-accent-primary-hover: #7dcfff;
+  --alt-accent-secondary: #bb9af7;
+  --alt-border-default: #292e42;
+  --alt-border-strong: #3b4261;
+  --alt-status-success: #9ece6a;
+  --alt-status-warning: #e0af68;
+  --alt-status-error: #f7768e;
+  --gcs-hud-green: #9ece6a;
+  --gcs-armed: #f7768e;
+  --gcs-disarmed: #9ece6a;
+  --gcs-hud-bg: rgba(26, 27, 38, 0.7);
+}
+
+html[data-theme="rose-pine"] {
+  --alt-bg-primary: #191724;
+  --alt-bg-secondary: #1f1d2e;
+  --alt-bg-tertiary: #26233a;
+  --alt-text-primary: #e0def4;
+  --alt-text-secondary: #908caa;
+  --alt-text-tertiary: #6e6a86;
+  --alt-accent-primary: #c4a7e7;
+  --alt-accent-primary-hover: #ebbcba;
+  --alt-accent-secondary: #9ccfd8;
+  --alt-border-default: #403d52;
+  --alt-border-strong: #524f67;
+  --alt-status-success: #9ccfd8;
+  --alt-status-warning: #f6c177;
+  --alt-status-error: #eb6f92;
+  --gcs-hud-green: #9ccfd8;
+  --gcs-armed: #eb6f92;
+  --gcs-disarmed: #9ccfd8;
+  --gcs-hud-bg: rgba(25, 23, 36, 0.7);
+}
+
+html[data-theme="monokai"] {
+  --alt-bg-primary: #272822;
+  --alt-bg-secondary: #1e1f1c;
+  --alt-bg-tertiary: #3e3d32;
+  --alt-text-primary: #f8f8f2;
+  --alt-text-secondary: #cfcfc2;
+  --alt-text-tertiary: #75715e;
+  --alt-accent-primary: #a6e22e;
+  --alt-accent-primary-hover: #66d9ef;
+  --alt-accent-secondary: #ae81ff;
+  --alt-border-default: #3e3d32;
+  --alt-border-strong: #75715e;
+  --alt-status-success: #a6e22e;
+  --alt-status-warning: #e6db74;
+  --alt-status-error: #f92672;
+  --gcs-hud-green: #a6e22e;
+  --gcs-armed: #f92672;
+  --gcs-disarmed: #a6e22e;
+  --gcs-hud-bg: rgba(39, 40, 34, 0.7);
+}
+
+html[data-theme="kanagawa"] {
+  --alt-bg-primary: #1f1f28;
+  --alt-bg-secondary: #1a1a22;
+  --alt-bg-tertiary: #2a2a37;
+  --alt-text-primary: #dcd7ba;
+  --alt-text-secondary: #c8c093;
+  --alt-text-tertiary: #727169;
+  --alt-accent-primary: #7e9cd8;
+  --alt-accent-primary-hover: #7fb4ca;
+  --alt-accent-secondary: #957fb8;
+  --alt-border-default: #363646;
+  --alt-border-strong: #54546d;
+  --alt-status-success: #98bb6c;
+  --alt-status-warning: #ff9e3b;
+  --alt-status-error: #e82424;
+  --gcs-hud-green: #98bb6c;
+  --gcs-armed: #e82424;
+  --gcs-disarmed: #98bb6c;
+  --gcs-hud-bg: rgba(31, 31, 40, 0.7);
+}
+
+html[data-theme="synthwave"] {
+  --alt-bg-primary: #262335;
+  --alt-bg-secondary: #241b2f;
+  --alt-bg-tertiary: #2a2139;
+  --alt-text-primary: #ffffff;
+  --alt-text-secondary: #ffffffcc;
+  --alt-text-tertiary: #848bbd;
+  --alt-accent-primary: #ff7edb;
+  --alt-accent-primary-hover: #f97e72;
+  --alt-accent-secondary: #36f9f6;
+  --alt-border-default: #2a2139;
+  --alt-border-strong: #495495;
+  --alt-status-success: #72f1b8;
+  --alt-status-warning: #fede5d;
+  --alt-status-error: #fe4450;
+  --gcs-hud-green: #72f1b8;
+  --gcs-armed: #fe4450;
+  --gcs-disarmed: #72f1b8;
+  --gcs-hud-bg: rgba(38, 35, 53, 0.7);
+}
+
+html[data-theme="github-dark"] {
+  --alt-bg-primary: #0d1117;
+  --alt-bg-secondary: #010409;
+  --alt-bg-tertiary: #151b23;
+  --alt-text-primary: #f0f6fc;
+  --alt-text-secondary: #9198a1;
+  --alt-text-tertiary: #656c76;
+  --alt-accent-primary: #1f6feb;
+  --alt-accent-primary-hover: #388bfd;
+  --alt-accent-secondary: #58a6ff;
+  --alt-border-default: #2f3742;
+  --alt-border-strong: #656c76;
+  --alt-status-success: #238636;
+  --alt-status-warning: #d29922;
+  --alt-status-error: #da3633;
+  --gcs-hud-green: #238636;
+  --gcs-armed: #da3633;
+  --gcs-disarmed: #238636;
+  --gcs-hud-bg: rgba(13, 17, 23, 0.7);
+}
+
+/* ── Community Light Themes ── */
+
+html[data-theme="catppuccin-latte"] {
+  --alt-bg-primary: #eff1f5;
+  --alt-bg-secondary: #e6e9ef;
+  --alt-bg-tertiary: #ccd0da;
+  --alt-text-primary: #4c4f69;
+  --alt-text-secondary: #5c5f77;
+  --alt-text-tertiary: #6c6f85;
+  --alt-accent-primary: #8839ef;
+  --alt-accent-primary-hover: #7287fd;
+  --alt-accent-secondary: #179299;
+  --alt-border-default: #ccd0da;
+  --alt-border-strong: #9ca0b0;
+  --alt-status-success: #40a02b;
+  --alt-status-warning: #df8e1d;
+  --alt-status-error: #d20f39;
+  --gcs-hud-green: #40a02b;
+  --gcs-armed: #d20f39;
+  --gcs-disarmed: #40a02b;
+  --gcs-hud-bg: rgba(239, 241, 245, 0.85);
+}
+
+html[data-theme="gruvbox-light"] {
+  --alt-bg-primary: #fbf1c7;
+  --alt-bg-secondary: #f2e5bc;
+  --alt-bg-tertiary: #ebdbb2;
+  --alt-text-primary: #3c3836;
+  --alt-text-secondary: #504945;
+  --alt-text-tertiary: #7c6f64;
+  --alt-accent-primary: #076678;
+  --alt-accent-primary-hover: #458588;
+  --alt-accent-secondary: #8f3f71;
+  --alt-border-default: #ebdbb2;
+  --alt-border-strong: #d5c4a1;
+  --alt-status-success: #79740e;
+  --alt-status-warning: #b57614;
+  --alt-status-error: #9d0006;
+  --gcs-hud-green: #79740e;
+  --gcs-armed: #9d0006;
+  --gcs-disarmed: #79740e;
+  --gcs-hud-bg: rgba(251, 241, 199, 0.85);
+}
+
+/* ── Mid-tone Themes ── */
+
+html[data-theme="ayu-dark"] {
+  --alt-bg-primary: #0b0e14;
+  --alt-bg-secondary: #0a0d13;
+  --alt-bg-tertiary: #151a24;
+  --alt-text-primary: #bfbdb6;
+  --alt-text-secondary: #8b929a;
+  --alt-text-tertiary: #565b66;
+  --alt-accent-primary: #e6b450;
+  --alt-accent-primary-hover: #ffb454;
+  --alt-accent-secondary: #39bae6;
+  --alt-border-default: #1c2028;
+  --alt-border-strong: #2a3040;
+  --alt-status-success: #aad94c;
+  --alt-status-warning: #ff8f40;
+  --alt-status-error: #d95757;
+  --gcs-hud-green: #aad94c;
+  --gcs-armed: #d95757;
+  --gcs-disarmed: #aad94c;
+  --gcs-hud-bg: rgba(11, 14, 20, 0.7);
+}
+
+html[data-theme="ayu-mirage"] {
+  --alt-bg-primary: #242936;
+  --alt-bg-secondary: #1a1f29;
+  --alt-bg-tertiary: #2a3040;
+  --alt-text-primary: #cccac2;
+  --alt-text-secondary: #8b929a;
+  --alt-text-tertiary: #5c6370;
+  --alt-accent-primary: #ffcc66;
+  --alt-accent-primary-hover: #ffd173;
+  --alt-accent-secondary: #5ccfe6;
+  --alt-border-default: #2a3040;
+  --alt-border-strong: #3d4455;
+  --alt-status-success: #d5ff80;
+  --alt-status-warning: #ffad66;
+  --alt-status-error: #ff6666;
+  --gcs-hud-green: #d5ff80;
+  --gcs-armed: #ff6666;
+  --gcs-disarmed: #d5ff80;
+  --gcs-hud-bg: rgba(36, 41, 54, 0.7);
+}
+
+html[data-theme="everforest-dark"] {
+  --alt-bg-primary: #2d353b;
+  --alt-bg-secondary: #232a2e;
+  --alt-bg-tertiary: #343f44;
+  --alt-text-primary: #d3c6aa;
+  --alt-text-secondary: #9da9a0;
+  --alt-text-tertiary: #859289;
+  --alt-accent-primary: #a7c080;
+  --alt-accent-primary-hover: #83c092;
+  --alt-accent-secondary: #7fbbb3;
+  --alt-border-default: #475258;
+  --alt-border-strong: #4f585e;
+  --alt-status-success: #a7c080;
+  --alt-status-warning: #dbbc7f;
+  --alt-status-error: #e67e80;
+  --gcs-hud-green: #a7c080;
+  --gcs-armed: #e67e80;
+  --gcs-disarmed: #a7c080;
+  --gcs-hud-bg: rgba(45, 53, 59, 0.7);
+}
+
+html {
+  background-color: var(--alt-bg-primary);
+  color: var(--alt-text-primary);
+  font-family: var(--font-body);
+}
+
+body {
+  height: 100dvh;
+  overflow: hidden;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--alt-bg-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--alt-border-strong);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--alt-text-tertiary);
+}
+
+/* Opt-in: keep a container scrollable but hide the scrollbar chrome
+   (tab strips, ribbons). Overrides the global ::-webkit-scrollbar above. */
+@utility scrollbar-hide {
+  -ms-overflow-style: none; /* legacy Edge */
+  scrollbar-width: none;    /* Firefox */
+  &::-webkit-scrollbar {
+    display: none;          /* Chromium/WebKit/Electron */
+  }
+}
+
+/* Selection */
+::selection {
+  background-color: var(--alt-accent-primary);
+  color: var(--alt-text-primary);
+}
+
+/* GCS marker pulse — GPU-composited (transform+opacity on compositor thread) */
+@keyframes gcs-pulse {
+  0%, 100% { transform: scale(0.6); opacity: 0.6; }
+  50% { transform: scale(1); opacity: 0.2; }
+}
+
+/* Mode change pulse animation */
+@keyframes mode-pulse {
+  0% { opacity: 1; }
+  25% { opacity: 0.4; }
+  50% { opacity: 1; }
+  75% { opacity: 0.6; }
+  100% { opacity: 1; }
+}
+
+/* Reboot banner fade-out */
+@keyframes fade-out-down {
+  0% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(8px); }
+}
+
+/* Fleet mesh map — a proven relay stream flows toward the sink. The dash
+   marches along the edge (leaf → sink). Reduced motion is handled twice: the
+   graph withholds this class under a reduced-motion preference, and the global
+   reduced-motion rule below stops the animation regardless. */
+.mesh-flow {
+  animation: mesh-flow 1s linear infinite;
+}
+@keyframes mesh-flow {
+  to { stroke-dashoffset: -18; }
+}
+
+/* Relay-streams list — a proven, live funnel's status dot breathes. Reduced
+   motion is handled twice: the list withholds this class under a reduced-motion
+   preference, and the global reduced-motion rule below stops it regardless. */
+.relay-live-pulse {
+  animation: relay-live-pulse 1.4s ease-in-out infinite;
+}
+@keyframes relay-live-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ══ ADOS Cockpit — faithful port of the reference artifact (ados-cockpit.html) ══
+   A committed dark, immersive piloting world. Every rule is scoped under the
+   .ados-cockpit root so the artifact's generic class names never touch app
+   styles; token/blur/radius/spacing values are the artifact's, verbatim. */
+.ados-cockpit {
+  --hud: #63b3ff;
+  --hud-dim: #4b7fb5;
+  --ink: #eaf1fc;
+  --ink-2: #a9bad6;
+  --muted: #7286a6;
+  --good: #37d99a;
+  --warn: #f5b544;
+  --crit: #ff5a52;
+  --lock: #37d99a;
+  --glass: rgba(9, 15, 28, 0.58);
+  --glass-2: rgba(9, 15, 28, 0.78);
+  --hair: rgba(120, 160, 210, 0.22);
+  --hair-2: rgba(120, 160, 210, 0.12);
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+  position: relative;
+  overflow: hidden;
+  user-select: none;
+  color: var(--ink);
+}
+
+/* overlay zones */
+.ados-cockpit .zone { position: absolute; z-index: 20; }
+.ados-cockpit .zone.tl { top: 52px; left: 18px; }
+.ados-cockpit .zone.tr { top: 52px; right: 18px; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
+.ados-cockpit .zone.bl { bottom: 92px; left: 18px; }
+.ados-cockpit .zone.br { bottom: 92px; right: 18px; }
+.ados-cockpit .zone.bc { left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 30; }
+.ados-cockpit .zone.tls { top: 52px; left: 238px; }
+
+/* Arrangeable-widget zone containers (the registry composes the chips + plugin
+   widgets into these; the operator can move a widget between zones). One
+   anchored flex column per zone stacks that zone's widgets. Distinct from the
+   fixed `.zone.*` cards above so the minimap + faithful HUD are untouched. */
+.ados-cockpit .cockpit-zone { position: absolute; z-index: 20; display: flex; flex-direction: column; gap: 10px; }
+.ados-cockpit .cockpit-zone.tl { top: 205px; left: 18px; align-items: flex-start; }
+.ados-cockpit .cockpit-zone.tc { top: 52px; left: 50%; transform: translateX(-50%); align-items: center; }
+.ados-cockpit .cockpit-zone.tr { top: 96px; right: 18px; align-items: flex-end; }
+.ados-cockpit .cockpit-zone.ml { top: 50%; left: 18px; transform: translateY(-50%); align-items: flex-start; }
+.ados-cockpit .cockpit-zone.cc { top: 50%; left: 50%; transform: translate(-50%, -50%); align-items: center; }
+.ados-cockpit .cockpit-zone.mr { top: 50%; right: 18px; transform: translateY(-50%); align-items: flex-end; }
+.ados-cockpit .cockpit-zone.bl { bottom: 92px; left: 18px; align-items: flex-start; }
+.ados-cockpit .cockpit-zone.bc { left: 50%; bottom: 60px; transform: translateX(-50%); align-items: center; }
+.ados-cockpit .cockpit-zone.br { bottom: 92px; right: 18px; align-items: flex-end; }
+.ados-cockpit .cockpit-zone.full { inset: 0; align-items: center; justify-content: center; }
+
+.ados-cockpit .panel {
+  background: var(--glass); -webkit-backdrop-filter: blur(9px); backdrop-filter: blur(9px);
+  border: 1px solid var(--hair); border-radius: 12px;
+}
+.ados-cockpit .lbl { font-family: var(--mono); font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+.ados-cockpit .val { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--ink); }
+
+/* safety band (top, always visible) */
+.ados-cockpit .safety {
+  position: absolute; top: 0; left: 0; right: 0; height: 40px; z-index: 40;
+  display: flex; align-items: center; gap: 0; padding: 0 14px;
+  background: linear-gradient(var(--glass-2), rgba(9,15,28,.32));
+  border-bottom: 1px solid var(--hair); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+}
+.ados-cockpit .safety .brand { font-family: var(--mono); font-weight: 600; letter-spacing: .2em; font-size: 11px; color: var(--hud); margin-right: 6px; }
+.ados-cockpit .safety .node { font-family: var(--mono); font-size: 11px; color: var(--ink-2); letter-spacing: .04em; }
+.ados-cockpit .safety .spacer { flex: 1; }
+.ados-cockpit .stat { display: flex; align-items: center; gap: 7px; padding: 0 13px; height: 40px; border-left: 1px solid var(--hair-2); }
+.ados-cockpit .stat .k { font-family: var(--mono); font-size: 9px; letter-spacing: .12em; color: var(--muted); text-transform: uppercase; }
+.ados-cockpit .stat .v { font-family: var(--mono); font-size: 13px; font-variant-numeric: tabular-nums; color: var(--ink); }
+.ados-cockpit .pill { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 10px; border-radius: 6px; font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: .08em; }
+.ados-cockpit .pill .led { width: 7px; height: 7px; border-radius: 50%; }
+.ados-cockpit .pill.armed { color: #06120c; background: var(--good); }
+.ados-cockpit .pill.armed .led { background: #06120c; box-shadow: 0 0 0 2px rgba(255,255,255,.25) inset; }
+.ados-cockpit .pill.mode { color: var(--hud); border: 1px solid var(--hair); }
+.ados-cockpit .bar { width: 34px; height: 7px; border-radius: 3px; background: rgba(255,255,255,.12); overflow: hidden; }
+.ados-cockpit .bar > i { display: block; height: 100%; }
+.ados-cockpit .sig { display: inline-flex; align-items: flex-end; gap: 2px; height: 13px; }
+.ados-cockpit .sig > b { width: 3px; border-radius: 1px; background: var(--good); }
+
+/* HUD (center instruments) */
+.ados-cockpit .hud { position: absolute; inset: 0; z-index: 15; pointer-events: none; color: var(--hud); }
+.ados-cockpit .hud svg { position: absolute; inset: 0; width: 100%; height: 100%; filter: drop-shadow(0 0 4px rgba(60,140,230,.4)); }
+.ados-cockpit .hud line, .ados-cockpit .hud path, .ados-cockpit .hud circle, .ados-cockpit .hud rect, .ados-cockpit .hud polyline { vector-effect: non-scaling-stroke; }
+.ados-cockpit .hud text { font-family: var(--mono); fill: var(--hud); font-size: 12px; }
+
+/* speed / alt tapes */
+.ados-cockpit .tape { position: absolute; top: 50%; transform: translateY(-50%); width: 78px; z-index: 16; font-family: var(--mono); font-variant-numeric: tabular-nums; pointer-events: none; }
+.ados-cockpit .tape.l { left: 30px; } .ados-cockpit .tape.r { right: 30px; }
+.ados-cockpit .tape .rail { border: 1px solid var(--hair); background: rgba(9,15,28,.42); border-radius: 10px; -webkit-backdrop-filter: blur(8px) saturate(130%); backdrop-filter: blur(8px) saturate(130%); box-shadow: 0 8px 24px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.05); overflow: hidden; }
+.ados-cockpit .tape .tick { display: flex; align-items: center; justify-content: flex-end; height: 30px; padding: 0 11px; color: var(--ink-2); font-size: 13px; opacity: .6; }
+.ados-cockpit .tape.l .tick { justify-content: flex-start; }
+.ados-cockpit .tape .now { position: relative; margin: 3px 0; padding: 8px 10px; color: #06121e; background: var(--hud); text-align: center; font-size: 20px; font-weight: 700; letter-spacing: .01em; box-shadow: 0 3px 10px rgba(0,0,0,.4); }
+.ados-cockpit .tape .now .cap { display: block; font-size: 8.5px; font-weight: 600; letter-spacing: .12em; color: rgba(6,18,30,.72); margin-bottom: 1px; }
+
+/* locked target */
+.ados-cockpit .det { position: absolute; z-index: 18; border: 1.5px solid var(--hud); border-radius: 3px; box-shadow: 0 0 0 1px rgba(0,0,0,.4); }
+.ados-cockpit .det.dim { border-color: rgba(120,170,235,.5); border-style: dashed; }
+.ados-cockpit .det .cls { position: absolute; top: -18px; left: -1px; font-family: var(--mono); font-size: 10px; padding: 1px 5px; background: rgba(120,170,235,.5); color: #06121e; border-radius: 3px; white-space: nowrap; }
+.ados-cockpit .det.lock { border-color: var(--lock); box-shadow: 0 0 0 1px rgba(0,0,0,.5), 0 0 14px rgba(55,217,154,.35); }
+.ados-cockpit .det.lock .corner { position: absolute; width: 11px; height: 11px; border: 2px solid var(--lock); }
+.ados-cockpit .det.lock .corner.a { top: -2px; left: -2px; border-right: 0; border-bottom: 0; }
+.ados-cockpit .det.lock .corner.b { top: -2px; right: -2px; border-left: 0; border-bottom: 0; }
+.ados-cockpit .det.lock .corner.c { bottom: -2px; left: -2px; border-right: 0; border-top: 0; }
+.ados-cockpit .det.lock .corner.d { bottom: -2px; right: -2px; border-left: 0; border-top: 0; }
+@keyframes ados-lockpulse { 0%,100% { box-shadow: 0 0 0 1px rgba(0,0,0,.5), 0 0 12px rgba(55,217,154,.3); } 50% { box-shadow: 0 0 0 1px rgba(0,0,0,.5), 0 0 20px rgba(55,217,154,.55); } }
+.ados-cockpit .det.lock { animation: ados-lockpulse 2.4s ease-in-out infinite; }
+
+/* MCP activity watch — the "watch it work" cues. GPU-composited (box-shadow +
+   opacity + background) so there is no layout shift; both inherit the global
+   prefers-reduced-motion collapse. */
+@keyframes ados-mcp-arrive {
+  0%   { box-shadow: inset 0 0 0 3px rgba(58,130,255,.55), inset 0 0 44px rgba(58,130,255,.22); opacity: 1; }
+  100% { box-shadow: inset 0 0 0 3px rgba(58,130,255,0),   inset 0 0 44px rgba(58,130,255,0);   opacity: 0; }
+}
+.ados-mcp-arrive { animation: ados-mcp-arrive 1s ease-out forwards; }
+@keyframes ados-mcp-flash {
+  0%   { background-color: rgba(58,130,255,.22); }
+  100% { background-color: rgba(58,130,255,0); }
+}
+.ados-mcp-flash { animation: ados-mcp-flash 1.4s ease-out forwards; }
+.ados-cockpit .lead { position: absolute; z-index: 18; width: 16px; height: 16px; margin: -8px 0 0 -8px; }
+.ados-cockpit .lead::before, .ados-cockpit .lead::after { content:""; position: absolute; background: var(--warn); }
+.ados-cockpit .lead::before { left: 7px; top: 0; width: 2px; height: 16px; }
+.ados-cockpit .lead::after { top: 7px; left: 0; height: 2px; width: 16px; }
+
+/* "what's locked" chip */
+.ados-cockpit .lockchip { position: relative; z-index: 19; display: flex; align-items: center; gap: 10px; padding: 7px 12px 7px 10px; border-radius: 10px; background: var(--glass-2); border: 1px solid rgba(55,217,154,.5); -webkit-backdrop-filter: blur(9px); backdrop-filter: blur(9px); }
+.ados-cockpit .lockchip .ic { width: 24px; height: 24px; border-radius: 6px; background: rgba(55,217,154,.16); display: grid; place-items: center; color: var(--lock); }
+.ados-cockpit .lockchip .who { font-family: var(--mono); }
+.ados-cockpit .lockchip .who b { font-size: 12px; color: var(--ink); letter-spacing: .02em; }
+.ados-cockpit .lockchip .who span { display: block; font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--lock); margin-top: 1px; }
+.ados-cockpit .lockchip .rng { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 13px; color: var(--ink); padding-left: 10px; border-left: 1px solid var(--hair); }
+.ados-cockpit .lockchip .rng small { display: block; font-size: 8.5px; letter-spacing: .1em; color: var(--muted); text-transform: uppercase; }
+
+/* perception-health chip (tier + feed freshness; escalates when a live feed goes stale) */
+.ados-cockpit .perchip { position: relative; z-index: 19; display: inline-flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 10px; background: var(--glass-2); border: 1px solid var(--hair); -webkit-backdrop-filter: blur(9px); backdrop-filter: blur(9px); font-family: var(--mono); }
+.ados-cockpit .perchip.warn { border-color: rgba(245,181,68,.6); }
+.ados-cockpit .perchip.crit { border-color: rgba(255,90,82,.6); }
+.ados-cockpit .perchip .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--muted); }
+.ados-cockpit .perchip.fresh .dot { background: var(--good); box-shadow: 0 0 8px rgba(55,217,154,.5); }
+.ados-cockpit .perchip.warn .dot { background: var(--warn); box-shadow: 0 0 8px rgba(245,181,68,.5); }
+.ados-cockpit .perchip.crit .dot { background: var(--crit); box-shadow: 0 0 8px rgba(255,90,82,.55); }
+.ados-cockpit .perchip .body { display: flex; flex-direction: column; line-height: 1.25; }
+.ados-cockpit .perchip .tier { font-size: 11px; letter-spacing: .1em; color: var(--ink); }
+.ados-cockpit .perchip .tier .tgt { color: var(--ink-2); }
+.ados-cockpit .perchip .reason { font-size: 8.5px; letter-spacing: .12em; text-transform: uppercase; margin-top: 1px; }
+.ados-cockpit .perchip.warn .reason { color: var(--warn); }
+.ados-cockpit .perchip.crit .reason { color: var(--crit); }
+
+/* minimap */
+.ados-cockpit .mmap { width: 210px; height: 145px; overflow: hidden; position: relative; }
+.ados-cockpit .mmap .cap { position: absolute; top: 6px; left: 8px; z-index: 2; }
+
+/* proximity radar */
+.ados-cockpit .radar { width: 120px; height: 120px; position: relative; }
+.ados-cockpit .radar svg { width: 100%; height: 100%; }
+.ados-cockpit .radar .rlabel { position: absolute; bottom: 6px; left: 0; right: 0; text-align: center; }
+
+/* telemetry strip */
+.ados-cockpit .telem { padding: 10px 12px; display: grid; grid-template-columns: auto auto; gap: 6px 20px; }
+.ados-cockpit .telem .row { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; }
+.ados-cockpit .telem .row .k { font-family: var(--mono); font-size: 9px; letter-spacing: .12em; color: var(--muted); text-transform: uppercase; }
+.ados-cockpit .telem .row .v { font-family: var(--mono); font-size: 14px; font-variant-numeric: tabular-nums; color: var(--ink); }
+.ados-cockpit .telem .row .v small { font-size: 9px; color: var(--muted); }
+
+/* skill bar */
+.ados-cockpit .skillbar { display: flex; align-items: flex-end; gap: 8px; padding: 9px 11px 27px; background: var(--glass-2); border: 1px solid var(--hair); border-radius: 14px; -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+.ados-cockpit .skill { position: relative; width: 52px; height: 52px; border-radius: 10px; border: 1px solid var(--hair); background: rgba(255,255,255,.03); display: grid; place-items: center; }
+.ados-cockpit .skill .ic { color: var(--ink-2); }
+.ados-cockpit .skill .kbd { position: absolute; top: 3px; right: 4px; font-family: var(--mono); font-size: 8.5px; color: var(--muted); }
+/* The slot name gets its own reserved 2-line strip below the tile (housed by the
+   skillbar's bottom padding), so a long label ("Return to Home", "Kill Motors")
+   wraps + clamps instead of clipping at the cockpit's bottom edge or colliding
+   with its neighbour. */
+.ados-cockpit .skill .nm { position: absolute; top: calc(100% + 3px); left: -3px; right: -3px; height: 20px; text-align: center; font-family: var(--mono); font-size: 8.5px; line-height: 1.02; letter-spacing: .03em; color: var(--muted); white-space: normal; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.ados-cockpit .skill.active { border-color: var(--good); background: rgba(55,217,154,.12); box-shadow: 0 0 14px rgba(55,217,154,.28); }
+.ados-cockpit .skill.active .ic { color: var(--good); }
+.ados-cockpit .skill.cool { color: var(--ink); }
+.ados-cockpit .skill .cd { position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--mono); font-size: 15px; color: var(--ink); background: rgba(5,9,16,.6); border-radius: 10px; }
+.ados-cockpit .skill.dis { opacity: .42; }
+.ados-cockpit .skill.dis .ic { color: var(--muted); }
+.ados-cockpit .skdiv { width: 1px; align-self: stretch; margin: 4px 3px; background: var(--hair-2); }
+
+/* top-right cluster */
+.ados-cockpit .vstats { display: flex; gap: 8px; padding: 6px 10px; align-items: center; }
+.ados-cockpit .vstats .s { font-family: var(--mono); font-size: 11px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.ados-cockpit .vstats .s b { color: var(--ink); }
+.ados-cockpit .seg { display: inline-flex; padding: 3px; gap: 2px; background: var(--glass); border: 1px solid var(--hair); border-radius: 9px; }
+.ados-cockpit .seg button { font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); background: transparent; border: 0; padding: 5px 9px; border-radius: 6px; cursor: pointer; }
+.ados-cockpit .seg button[aria-pressed="true"] { color: #06121e; background: var(--hud); }
+.ados-cockpit .seg button:focus-visible { outline: 2px solid var(--hud); outline-offset: 2px; }
+.ados-cockpit .camsel { display: inline-flex; align-items: center; gap: 7px; padding: 6px 10px; max-width: 220px; }
+.ados-cockpit .camsel .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--good); flex: none; }
+.ados-cockpit .camsel.idle .dot { background: var(--muted); box-shadow: none; }
+.ados-cockpit .camsel span { font-family: var(--mono); font-size: 11px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ados-cockpit .camsel .more { color: var(--muted); flex: none; }
+
+/* multi-camera roster PiP: the other cameras beside the main feed */
+.ados-cockpit .camroster { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; min-width: 156px; max-width: 208px; }
+.ados-cockpit .camroster .rhead { font-family: var(--mono); font-size: 9px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+.ados-cockpit .camroster .crow { display: flex; align-items: center; gap: 7px; }
+.ados-cockpit .camroster .crow .dot { width: 6px; height: 6px; border-radius: 50%; flex: none; background: var(--muted); }
+.ados-cockpit .camroster .crow.live .dot { background: var(--good); box-shadow: 0 0 7px rgba(55,217,154,.5); }
+.ados-cockpit .camroster .crow .meta { display: flex; flex-direction: column; line-height: 1.2; min-width: 0; flex: 1; }
+.ados-cockpit .camroster .crow .nm { font-family: var(--mono); font-size: 11px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ados-cockpit .camroster .crow .sub { font-family: var(--mono); font-size: 8.5px; letter-spacing: .04em; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ados-cockpit .camroster .crow .badge { font-family: var(--mono); font-size: 8px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); flex: none; }
+.ados-cockpit .camroster .crow.live .badge { color: var(--good); }
+
+/* top-left stream switcher: sleek 1..N tabs that toggle the main video view */
+.ados-cockpit .strmtabs { display: inline-flex; align-items: stretch; gap: 5px; padding: 5px 6px; max-width: min(46vw, 520px); overflow-x: auto; }
+.ados-cockpit .strmtab { position: relative; display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-width: 42px; padding: 4px 8px 5px; border: 1px solid var(--hair); border-radius: 9px; background: rgba(255,255,255,.03); color: var(--ink-2); cursor: pointer; font-family: var(--mono); line-height: 1; transition: color .16s ease, border-color .16s ease, background .16s ease, box-shadow .16s ease; animation: ados-stream-slidein .28s ease both; }
+.ados-cockpit .strmtab .kbd { font-size: 12px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+.ados-cockpit .strmtab .lbl { font-size: 8.5px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); max-width: 84px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ados-cockpit .strmtab:hover { color: var(--ink); background: rgba(255,255,255,.06); }
+.ados-cockpit .strmtab:focus-visible { outline: 2px solid var(--hud); outline-offset: 2px; }
+.ados-cockpit .strmtab.active { border-color: var(--hud); background: rgba(99,179,255,.14); box-shadow: 0 0 10px rgba(99,179,255,.28); }
+.ados-cockpit .strmtab.active .lbl { color: var(--hud); }
+/* Optimistic "switching…" pulse while a single-encoder node restarts. A ::after
+   overlay so it never fights the tab's own slide-in reveal on a class toggle. */
+.ados-cockpit .strmtab.switching::after { content: ""; position: absolute; inset: 0; border-radius: 9px; background: rgba(99,179,255,.18); pointer-events: none; animation: strm-shimmer 1s ease-in-out infinite; }
+/* Sleek left-to-right reveal when the switcher appears (staggered per tab via an
+   inline animation-delay). Neutralized for reduced-motion below + globally. */
+@keyframes ados-stream-slidein { from { transform: translateX(-12px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes strm-shimmer { 0%, 100% { opacity: .25; } 50% { opacity: .7; } }
+
+/* picture-in-picture inset: a second stream over the main video, draggable */
+.ados-cockpit .pipinset { position: absolute; right: 18px; bottom: 96px; z-index: 25; width: 208px; padding: 0; overflow: hidden; }
+.ados-cockpit .pipinset .piphead { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 4px 5px 4px 9px; cursor: move; touch-action: none; background: var(--glass-2); border-bottom: 1px solid var(--hair); }
+.ados-cockpit .pipinset .piphead .lbl { font-family: var(--mono); font-size: 9px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ados-cockpit .pipinset .pipclose { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 5px; border: 0; background: transparent; color: var(--muted); cursor: pointer; flex: none; }
+.ados-cockpit .pipinset .pipclose:hover { color: var(--ink); background: rgba(255,255,255,.06); }
+.ados-cockpit .pipinset .pipbody { position: relative; width: 100%; aspect-ratio: 16 / 9; background: #05121e; }
+
+/* density hiding */
+.ados-cockpit[data-density="minimal"] .d-std,
+.ados-cockpit[data-density="minimal"] .d-full { display: none; }
+.ados-cockpit[data-density="standard"] .d-full { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ados-cockpit .det.lock { animation: none; }
+  .ados-cockpit .strmtab,
+  .ados-cockpit .strmtab.switching::after { animation: none; }
+}
+@media (max-width: 720px) {
+  .ados-cockpit .tape, .ados-cockpit .zone.bl { display: none; }
+}
+
+/* Changelog markdown body */
+.changelog-body strong { font-weight: 600; color: var(--alt-text-primary); }
+.changelog-body ul, .changelog-body ol { padding-left: 1.25rem; margin: 0.375rem 0; }
+.changelog-body li { list-style: disc; margin: 0.25rem 0; }
+.changelog-body code { font-family: var(--font-mono); background: var(--alt-bg-tertiary); padding: 0.125rem 0.25rem; border-radius: 2px; font-size: 0.9em; }
+.changelog-body a { color: var(--alt-accent-primary); text-decoration: underline; }
+.changelog-body p { margin: 0.375rem 0; }
+.changelog-body h3, .changelog-body h4 { font-weight: 600; color: var(--alt-text-primary); margin-top: 0.75rem; }

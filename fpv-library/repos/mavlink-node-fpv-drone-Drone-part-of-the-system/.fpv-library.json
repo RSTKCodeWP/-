@@ -1,0 +1,8 @@
+{
+  "source": "coroiu/mavlink-node-fpv-drone",
+  "upstream_commit": "7c53933fca3a9aa0c53f6d9ae32efde478a63148",
+  "upstream_updated": "2017-04-18T08:35:54Z",
+  "synced_at": "2026-07-26T23:32:47+00:00",
+  "discovered_via": "search:mavlink fpv:p1",
+  "score": 6.0
+}

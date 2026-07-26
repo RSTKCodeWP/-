@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="%lang%" translate="no">
+	<head>
+		<meta charset="utf-8" />
+		<link rel="icon" href="%sveltekit.assets%/favicon.png" />
+		<link rel="manifest" href="%sveltekit.assets%/manifest.webmanifest" />
+		<meta name="theme-color" content="#1c1c1e" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<script>
+			// Apply the saved theme before first paint so there is no flash and no
+			// SSR/client mismatch. Dark is the default.
+			try {
+				document.documentElement.classList.toggle('dark', localStorage.getItem('darkMode') !== 'false');
+			} catch (e) {}
+		</script>
+		%sveltekit.head%
+	</head>
+	<body data-sveltekit-preload-data="hover">
+		<div style="display: contents">%sveltekit.body%</div>
+	</body>
+</html>

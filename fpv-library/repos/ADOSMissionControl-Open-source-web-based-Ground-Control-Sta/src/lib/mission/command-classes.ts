@@ -1,0 +1,84 @@
+/**
+ * Classification of mission commands into navigation vs action commands.
+ *
+ * A navigation command owns a physical waypoint (a real position the vehicle
+ * flies to / through). An action command is a non-navigation command the flight
+ * controller executes at or between waypoints; it attaches to the preceding NAV
+ * waypoint and, on the wire, becomes its own mission item sequenced right after
+ * that NAV item.
+ *
+ * The `_classified` record below is a compile-time exhaustiveness guard: every
+ * `WaypointCommand` member must appear in it. A future command added to the
+ * union that is not classified here breaks the build, forcing an explicit
+ * nav-vs-action decision rather than a silent misclassification.
+ *
+ * @module mission/command-classes
+ * @license GPL-3.0-only
+ */
+
+import type { ActionCommand, NavCommand, WaypointCommand } from "@/lib/types/mission";
+
+/** Compile-time exhaustive nav-vs-action classification of every command. */
+const _classified: Record<WaypointCommand, "nav" | "action"> = {
+  // Navigation commands — each owns a physical waypoint.
+  WAYPOINT: "nav",
+  SPLINE_WAYPOINT: "nav",
+  LOITER: "nav",
+  LOITER_TIME: "nav",
+  LOITER_TURNS: "nav",
+  TAKEOFF: "nav",
+  LAND: "nav",
+  RTL: "nav",
+  NAV_PAYLOAD_PLACE: "nav",
+  VTOL_TAKEOFF: "nav",
+  VTOL_LAND: "nav",
+  DO_LAND_START: "nav",
+  // Action commands — attach to the preceding NAV waypoint.
+  ROI: "action",
+  DO_SET_SPEED: "action",
+  DO_SET_CAM_TRIGG: "action",
+  DO_DIGICAM: "action",
+  DO_JUMP: "action",
+  DELAY: "action",
+  CONDITION_YAW: "action",
+  DO_SET_SERVO: "action",
+  DO_FENCE_ENABLE: "action",
+  DO_MOUNT_CONTROL: "action",
+  DO_GRIPPER: "action",
+  DO_WINCH: "action",
+  CONDITION_DISTANCE: "action",
+  DO_SET_HOME: "action",
+  DO_AUX_FUNCTION: "action",
+  DO_SET_ROI_NONE: "action",
+};
+
+/** All navigation commands (each owns a physical waypoint). */
+export const NAV_COMMANDS: ReadonlySet<NavCommand> = new Set(
+  (Object.keys(_classified) as WaypointCommand[]).filter(
+    (c): c is NavCommand => _classified[c] === "nav",
+  ),
+);
+
+/** All action commands (attach to the preceding NAV waypoint). */
+export const ACTION_COMMANDS: ReadonlySet<ActionCommand> = new Set(
+  (Object.keys(_classified) as WaypointCommand[]).filter(
+    (c): c is ActionCommand => _classified[c] === "action",
+  ),
+);
+
+/**
+ * True when `c` is a navigation command. An undefined command defaults to
+ * `WAYPOINT` (the wire default), which is a nav command, so `isNavCommand()`
+ * returns `true`.
+ */
+export function isNavCommand(c?: WaypointCommand): boolean {
+  return NAV_COMMANDS.has((c ?? "WAYPOINT") as NavCommand);
+}
+
+/**
+ * True when `c` is an action command. An undefined command defaults to
+ * `WAYPOINT`, so `isActionCommand()` returns `false`.
+ */
+export function isActionCommand(c?: WaypointCommand): boolean {
+  return ACTION_COMMANDS.has((c ?? "WAYPOINT") as ActionCommand);
+}

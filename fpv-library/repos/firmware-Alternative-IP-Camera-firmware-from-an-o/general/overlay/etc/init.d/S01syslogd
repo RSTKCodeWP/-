@@ -1,0 +1,49 @@
+#!/bin/sh
+
+DAEMON="syslogd"
+PIDFILE="/var/run/$DAEMON.pid"
+
+# Size (KiB) of the in-RAM circular log buffer. Defaults to 64 KiB so stock
+# cameras spend no extra memory; the WebUI (Information > Logs) can raise it by
+# writing SYSLOG_SIZE to /etc/default/syslogd for users who want more backlog.
+SYSLOG_SIZE=64
+[ -r /etc/default/syslogd ] && . /etc/default/syslogd
+DAEMON_ARGS="-n -C${SYSLOG_SIZE:-64} -t"
+
+start() {
+	echo -n "Starting $DAEMON: "
+	start-stop-daemon -b -m -S -q -p "$PIDFILE" -x "$DAEMON" -- $DAEMON_ARGS
+	if [ $? -eq 0 ]; then
+		echo "OK"
+	else
+		echo "FAIL"
+	fi
+}
+
+stop() {
+	echo -n "Stopping $DAEMON: "
+	start-stop-daemon -K -q -p "$PIDFILE"
+	if [ $? -eq 0 ]; then
+		rm -f "$PIDFILE"
+		echo "OK"
+	else
+		echo "FAIL"
+	fi
+}
+
+case "$1" in
+	start|stop)
+		$1
+		;;
+
+	restart|reload)
+		stop
+		sleep 1
+		start
+		;;
+
+	*)
+		echo "Usage: $0 {start|stop|restart|reload}"
+		exit 1
+		;;
+esac

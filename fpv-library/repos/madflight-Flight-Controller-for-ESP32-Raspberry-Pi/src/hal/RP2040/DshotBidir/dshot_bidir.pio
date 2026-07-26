@@ -1,0 +1,92 @@
+/*==========================================================================================
+MIT License
+
+Copyright (c) 2025 https://github.com/qqqlab
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+==========================================================================================*/
+
+.pio_version 0 // only requires PIO version 0
+
+
+;=================================================================================================
+; 1-8 channel Bidirectional DSHOT, returns 8 channel reply as byte samples in rx fifo
+;=================================================================================================
+
+.program dshot_bidir
+
+; one TX bit is 40 cycles, one RX bit is 32 cycles
+
+//A bit period (1667ns for Dshot600) is split in 8 equal parts. A zero-bit is encoded as 3H 5L (625ns high), and a one-bit is encoded as 6H 2L (1250ns high) - see: https://brushlesswhoop.com/dshot-and-bidirectional-dshot/   https://blck.mn/2016/11/dshot-the-new-kid-on-the-block/  https://www.speedgoat.com/products/dshot
+//madflight v2.2.1: modified to zero: 1H 2L (556ns high), one: 2H 1L (1111ns high) as some ESC misinterpreted zeroes as ones  (new timing is approximate, kept 40 cycle TX bit timing)
+
+.define public T1 13
+.define public T2 14
+.define public T3 13
+
+//.define public TRX 8            ; 4x oversampling (response is 21 bits -> 81 samples)
+.define public TRX 6            ; 5.33x oversampling (response is 21 bits -> 112 samples)
+//.define public TRX 5            ; 6.4x oversampling (response is 21 bits -> 135 samples)
+
+txloop:
+    out x, 8                    ; "out x" is needed to stall here and keep pins low when fifo is empty (I.e. can't use "out pins 8" instead of "out x 8; mov pins x")
+    mov pins, null   [T1-1]
+    mov pins, x      [T2-1]
+    mov pins, !null  [T3-3]
+    jmp !osre txloop            ; loop until OSR FIFO is empty
+
+    ; Note: next instructions have delay [31] to partially bridge gap between sender - receiver (nominal gap is 30 us, measured between 20 ~ 40 us)
+
+    mov osr, null    [31]      ; (*1) Fill OSR with zeroes
+    out pindirs, 32  [31]      ; (*1) Set pins to input with pullup (and empty osr by pulling 32 bits)
+
+.wrap_target
+    in pins, 8 [TRX-1]         ; keep on sampling 8 channel bytes until reset by C program
+.wrap
+
+; (*1) Note: with PIO version 1 we can optimize "mov osr, null; out pindirs, 32" to "mov pindirs, null"
+
+
+% c-sdk {
+#include "hardware/clocks.h"
+
+// init the sm in disabled state, ready for loading tx fifo.
+static inline void dshot_bidir_program_init(PIO pio, uint sm, uint offset, uint pin_base, uint pin_count, float freq) {
+    pio_sm_set_enabled(pio, sm, false); //disable sm
+    for(uint i=pin_base; i<pin_base+pin_count; i++) {
+        pio_gpio_init(pio, i);
+    }
+    pio_sm_set_consecutive_pindirs(pio, sm, pin_base, pin_count, true); //set output
+
+    pio_sm_config c = dshot_bidir_program_get_default_config(offset);
+    sm_config_set_out_shift(&c, true, true, 32); //autopull
+    sm_config_set_out_pins(&c, pin_base, pin_count);
+    
+    sm_config_set_in_shift(&c, true, true, 32); //autopush
+    sm_config_set_in_pins(&c, pin_base);
+
+    int cycles_per_bit = dshot_bidir_T1 + dshot_bidir_T2 + dshot_bidir_T3;
+    float div = clock_get_hz(clk_sys) / (freq * cycles_per_bit);
+    sm_config_set_clkdiv(&c, div);
+
+    pio_sm_init(pio, sm, offset, &c);
+
+    pio_sm_clear_fifos(pio, sm); //just to be sure
+}
+%}

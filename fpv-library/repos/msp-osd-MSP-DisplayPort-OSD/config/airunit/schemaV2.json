@@ -1,0 +1,54 @@
+{
+    "title": "MSP OSD",
+    "description": "Airside OSD config",
+    "type": "object",
+    "units": [
+        "msp-osd-airside"
+    ],
+    "required": [],
+    "properties": {
+        "compress_osd": {
+            "title": "Compress OSD",
+            "type": "boolean",
+            "description": "",
+            "enum": [
+                true,
+                false
+            ]
+        },
+        "osd_update_rate_hz": {
+            "title": "OSD update rate (for Compressed OSD)",
+            "type": "number",
+            "description": "",
+            "minimum": 1,
+            "maximum": 20
+        },
+        "disable_betaflight_hd": {
+            "title": "Disable Betaflight HD Mode",
+            "type": "boolean",
+            "description": "",
+            "enum": [
+                true,
+                false
+            ]
+        },
+        "fast_serial": {
+            "type": "boolean",
+            "title": "Fast Serial",
+            "description": "",
+            "enum": [
+                true,
+                false
+            ]
+        },
+        "cache_serial": {
+            "type": "boolean",
+            "title": "Cache Responses",
+            "description": "",
+            "enum": [
+                true,
+                false
+            ]
+        }
+    }
+}

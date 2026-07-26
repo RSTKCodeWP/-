@@ -1,0 +1,41 @@
+[package]
+name = "gyro_chad"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "gyro_chad"
+path = "src/lib.rs"
+
+[dependencies]
+teloxide = { version = "0.12", features = ["macros", "auto-send"] }
+tokio = { version = "1", features = ["full"] }
+reqwest = { version = "0.11", features = ["json"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+dotenv = "0.15"
+log = "0.4"
+env_logger = "0.11"
+chrono = "0.4"
+qdrant-client = "1.11"
+anyhow = "1.0"
+clap = { version = "4.5", features = ["derive"] }
+uuid = { version = "1.10", features = ["v4"] }
+walkdir = "2.5"
+moka = { version = "0.12", features = ["sync"] }
+base64 = "0.22"
+csv = "1.3"
+
+[[bin]]
+name = "gyro_chad"
+path = "src/main.rs"
+
+[[bin]]
+name = "knowledge_injector"
+path = "knowledge_injector/main.rs"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
