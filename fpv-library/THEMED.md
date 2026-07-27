@@ -105,6 +105,8 @@ Curated index after multi-query discovery (GCS, datalink, fiber, IP control, Ope
 | [CaddxFPV-Tech/Caddx-Ascent-Firmware_Release](https://github.com/CaddxFPV-Tech/Caddx-Ascent-Firmware_Release) | Ascent firmware releases |
 | [CaddxFPV-Tech/Caddx-PC-Tool-Release](https://github.com/CaddxFPV-Tech/Caddx-PC-Tool-Release) | Caddx PC configuration tool |
 | [CaddxFPV-Tech/Caddx_Ground_Configuration_Release](https://github.com/CaddxFPV-Tech/Caddx_Ground_Configuration_Release) | Ground station configuration releases |
+| [umeow0716/Walksnail-Ascent-FPV-VRX-Rooting-Exploit](https://github.com/umeow0716/Walksnail-Ascent-FPV-VRX-Rooting-Exploit) | PoC: USB upgrade service RCE → root shell on Ascent VRX |
+| [umeow0716/extract-ascent-otra](https://github.com/umeow0716/extract-ascent-otra) | Extract Ascent OTRA firmware (companion to rooting exploit) |
 
 ## DJI FPV mods (fpv-wtf ecosystem)
 

@@ -95,6 +95,8 @@ CaddxFPV-Tech/Caddx_vrx_udp_protocol
 CaddxFPV-Tech/Caddx-Ascent-Firmware_Release
 CaddxFPV-Tech/Caddx-PC-Tool-Release
 CaddxFPV-Tech/Caddx_Ground_Configuration_Release
+umeow0716/Walksnail-Ascent-FPV-VRX-Rooting-Exploit
+umeow0716/extract-ascent-otra
 # Large flight stacks & firmware (synced — no size cap)
 betaflight/betaflight
 ArduPilot/ardupilot

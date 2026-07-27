@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-07-27T00:12:30+00:00",
+  "updated_at": "2026-07-27T00:13:26+00:00",
   "repos": [
     {
       "source": "johnboiles/Steer",
@@ -11306,6 +11306,50 @@
       "triage_at": "2026-07-27T00:12:24+00:00",
       "upstream_commit": "4dc08914161f9a1a3533ef4bc1f93d051f547079",
       "synced_at": "2026-07-27T00:12:30+00:00"
+    },
+    {
+      "source": "umeow0716/Walksnail-Ascent-FPV-VRX-Rooting-Exploit",
+      "path": "fpv-library/repos/Walksnail-Ascent-FPV-VRX-Rooting-Exploit-PoC-and-reverse-engineering-notes-for-a",
+      "added_at": "2026-07-27T00:13:24+00:00",
+      "discovered_via": "manual:user-url",
+      "description": "PoC and reverse engineering notes for a USB upgrade service RCE in Walksnail Ascent FPV VRX.",
+      "stars": 1,
+      "score": 6.0,
+      "upstream_updated": "2026-05-30T05:15:20Z",
+      "owner": "umeow0716",
+      "size_kb": 22,
+      "topics": [],
+      "verdict": "keep",
+      "categories": [
+        "other"
+      ],
+      "interesting": true,
+      "triage_reason": "high-score-fpv",
+      "triage_at": "2026-07-27T00:13:24+00:00",
+      "upstream_commit": "488bcf06a28bd6788b6b53e99bdbcc6eee11a9af",
+      "synced_at": "2026-07-27T00:13:25+00:00"
+    },
+    {
+      "source": "umeow0716/extract-ascent-otra",
+      "path": "fpv-library/repos/extract-ascent-otra",
+      "added_at": "2026-07-27T00:13:24+00:00",
+      "discovered_via": "manual:user-url",
+      "description": "",
+      "stars": 0,
+      "score": 6.0,
+      "upstream_updated": "2026-05-29T18:13:29Z",
+      "owner": "umeow0716",
+      "size_kb": 5,
+      "topics": [],
+      "verdict": "keep",
+      "categories": [
+        "other"
+      ],
+      "interesting": true,
+      "triage_reason": "low-relevance",
+      "triage_at": "2026-07-27T00:13:24+00:00",
+      "upstream_commit": "ca85dbc8f63af990916754f858f9f337fbdc704d",
+      "synced_at": "2026-07-27T00:13:26+00:00"
     }
   ],
   "search_queries": [
