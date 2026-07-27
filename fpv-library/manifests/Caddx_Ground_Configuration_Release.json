@@ -7,25 +7,16 @@
       "version": "0.3.3",
       "releaseDate": "2026-07-24",
       "changelogUrl": "https://github.com/CaddxFPV-Tech/Caddx_Ground_Configuration_Release/releases/tag/v0.3.3",
-      "notes": "Fix inconsistent RC stick travel for some controllers with reportLength=10 and maxValue=255.",
+      "notes": "v0.3.3\n- Fix the issue of inconsistent logical travel for remote controls with some reportLength of 10 bytes and maxValue=255.",
       "assets": [
         {
-          "id": "setup",
-          "name": "CaddxGroundConfiguration-win-Setup.exe",
-          "kind": "installer",
+          "id": "delta",
+          "name": "CaddxGroundConfiguration-0.3.3-delta.nupkg",
+          "kind": "nupkg-delta",
           "platform": "win",
-          "url": "https://github.com/CaddxFPV-Tech/Caddx_Ground_Configuration_Release/releases/download/v0.3.3/CaddxGroundConfiguration-win-Setup.exe",
-          "size": 56543057,
-          "sha256": "1c712da66ebc06af8681439cf7074b936e56595638ece232b9700f4fdac75837"
-        },
-        {
-          "id": "portable",
-          "name": "CaddxGroundConfiguration-win-Portable.zip",
-          "kind": "portable",
-          "platform": "win",
-          "url": "https://github.com/CaddxFPV-Tech/Caddx_Ground_Configuration_Release/releases/download/v0.3.3/CaddxGroundConfiguration-win-Portable.zip",
-          "size": 52055283,
-          "sha256": "b6ab32896a642a0cb2b73a23cce824190adc6235d7647f26ffb8b849ab131230"
+          "url": "https://github.com/CaddxFPV-Tech/Caddx_Ground_Configuration_Release/releases/download/v0.3.3/CaddxGroundConfiguration-0.3.3-delta.nupkg",
+          "size": 148481,
+          "sha256": "e23645debe407de1a38cfc612c97ba93ac0acc2bed95c167d9407034dde0138d"
         },
         {
           "id": "full",
@@ -37,13 +28,40 @@
           "sha256": "24f8c4199d564786ce6198286688bb41194a62644f13ca8c54b3c54142f1bdfb"
         },
         {
-          "id": "delta",
-          "name": "CaddxGroundConfiguration-0.3.3-delta.nupkg",
-          "kind": "nupkg-delta",
+          "id": "portable",
+          "name": "CaddxGroundConfiguration-win-Portable.zip",
+          "kind": "portable",
           "platform": "win",
-          "url": "https://github.com/CaddxFPV-Tech/Caddx_Ground_Configuration_Release/releases/download/v0.3.3/CaddxGroundConfiguration-0.3.3-delta.nupkg",
-          "size": 148481,
-          "sha256": "e23645debe407de1a38cfc612c97ba93ac0acc2bed95c167d9407034dde0138d"
+          "url": "https://github.com/CaddxFPV-Tech/Caddx_Ground_Configuration_Release/releases/download/v0.3.3/CaddxGroundConfiguration-win-Portable.zip",
+          "size": 52055283,
+          "sha256": "b6ab32896a642a0cb2b73a23cce824190adc6235d7647f26ffb8b849ab131230"
+        },
+        {
+          "id": "setup",
+          "name": "CaddxGroundConfiguration-win-Setup.exe",
+          "kind": "installer",
+          "platform": "win",
+          "url": "https://github.com/CaddxFPV-Tech/Caddx_Ground_Configuration_Release/releases/download/v0.3.3/CaddxGroundConfiguration-win-Setup.exe",
+          "size": 56543057,
+          "sha256": "1c712da66ebc06af8681439cf7074b936e56595638ece232b9700f4fdac75837"
+        },
+        {
+          "id": "releases",
+          "name": "RELEASES",
+          "kind": "metadata",
+          "platform": "win",
+          "url": "https://github.com/CaddxFPV-Tech/Caddx_Ground_Configuration_Release/releases/download/v0.3.3/RELEASES",
+          "size": 94,
+          "sha256": "4c81e4c3bfb7ea89e621a87792d6f0d433fd22013ca5dbb2537ef850932dd950"
+        },
+        {
+          "id": "releases_win_json",
+          "name": "releases.win.json",
+          "kind": "metadata",
+          "platform": "win",
+          "url": "https://github.com/CaddxFPV-Tech/Caddx_Ground_Configuration_Release/releases/download/v0.3.3/releases.win.json",
+          "size": 1182,
+          "sha256": "1e269217e0808f2aaeea59355a2a14798f246d3c6873349966636c92b09c62af"
         }
       ]
     },
@@ -52,16 +70,16 @@
       "version": "0.3.1",
       "releaseDate": "2026-07-22",
       "changelogUrl": "https://github.com/CaddxFPV-Tech/Caddx_Ground_Configuration_Release/releases/tag/v0.3.1",
-      "notes": "Test build (测试用).",
+      "notes": "- 测试用",
       "assets": [
         {
-          "id": "setup",
-          "name": "CaddxGroundConfiguration-win-Setup.exe",
-          "kind": "installer",
+          "id": "full",
+          "name": "CaddxGroundConfiguration-0.3.1-full.nupkg",
+          "kind": "nupkg",
           "platform": "win",
-          "url": "https://github.com/CaddxFPV-Tech/Caddx_Ground_Configuration_Release/releases/download/v0.3.1/CaddxGroundConfiguration-win-Setup.exe",
-          "size": 56544188,
-          "sha256": "dd255b0529e37b97dcd87f9039484f9863a76e524e2550efb7f33ec263abd9c3"
+          "url": "https://github.com/CaddxFPV-Tech/Caddx_Ground_Configuration_Release/releases/download/v0.3.1/CaddxGroundConfiguration-0.3.1-full.nupkg",
+          "size": 52071356,
+          "sha256": "7667f66a434b795aef86e4a49443e8632583a01ce43354b43b09483dab621eaa"
         },
         {
           "id": "portable",
@@ -73,13 +91,31 @@
           "sha256": "542d6c7cf014cbc905bd6fb41b7a645bb7b822b9bd887f542b4b4422e9793ac9"
         },
         {
-          "id": "full",
-          "name": "CaddxGroundConfiguration-0.3.1-full.nupkg",
-          "kind": "nupkg",
+          "id": "setup",
+          "name": "CaddxGroundConfiguration-win-Setup.exe",
+          "kind": "installer",
           "platform": "win",
-          "url": "https://github.com/CaddxFPV-Tech/Caddx_Ground_Configuration_Release/releases/download/v0.3.1/CaddxGroundConfiguration-0.3.1-full.nupkg",
-          "size": 52071356,
-          "sha256": "7667f66a434b795aef86e4a49443e8632583a01ce43354b43b09483dab621eaa"
+          "url": "https://github.com/CaddxFPV-Tech/Caddx_Ground_Configuration_Release/releases/download/v0.3.1/CaddxGroundConfiguration-win-Setup.exe",
+          "size": 56544188,
+          "sha256": "dd255b0529e37b97dcd87f9039484f9863a76e524e2550efb7f33ec263abd9c3"
+        },
+        {
+          "id": "releases",
+          "name": "RELEASES",
+          "kind": "metadata",
+          "platform": "win",
+          "url": "https://github.com/CaddxFPV-Tech/Caddx_Ground_Configuration_Release/releases/download/v0.3.1/RELEASES",
+          "size": 94,
+          "sha256": "cad6dde513d4f07308676e67452baca705337a7f253b2de25a87dbfd8400f5e9"
+        },
+        {
+          "id": "releases_win_json",
+          "name": "releases.win.json",
+          "kind": "metadata",
+          "platform": "win",
+          "url": "https://github.com/CaddxFPV-Tech/Caddx_Ground_Configuration_Release/releases/download/v0.3.1/releases.win.json",
+          "size": 441,
+          "sha256": "cc54769bfb0aa82420e220a98358588f9c34623a9394af8b3829014f8ff9ce39"
         }
       ]
     }

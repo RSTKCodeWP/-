@@ -1,0 +1,4 @@
+# Downloaded release binaries (fetched via sync_caddx_ground_config.py --download)
+*
+!.gitignore
+!README.md

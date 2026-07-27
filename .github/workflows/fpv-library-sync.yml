@@ -68,6 +68,9 @@ jobs:
             python3 fpv-library/scripts/sync.py --source "$src" || true
           done < fpv-library/priority-sync.txt
 
+      - name: Check Caddx Ground Configuration releases
+        run: python3 fpv-library/scripts/sync_caddx_ground_config.py --check-only
+
       - name: Commit updates
         run: |
           git config user.name "fpv-library-bot"

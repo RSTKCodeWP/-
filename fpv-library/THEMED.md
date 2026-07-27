@@ -147,11 +147,16 @@ uv run python fpv-library/repos/extract-ascent-otra/extract_ascent_otra.py \
 Manifest with SHA256: `fpv-library/manifests/Caddx_Ground_Configuration_Release.json`
 
 ```bash
-# List / download (not mirrored — binaries stay on GitHub)
+# Refresh manifest from GitHub + download all release assets
+python3 fpv-library/scripts/sync_caddx_ground_config.py --download
+
+# List / download single asset
 python3 fpv-library/scripts/download_caddx_ground_config.py
 python3 fpv-library/scripts/download_caddx_ground_config.py setup
 python3 fpv-library/scripts/download_caddx_ground_config.py portable --tag v0.3.3
 ```
+
+Update watch status: `fpv-library/manifests/Caddx_Ground_Configuration_Release.status.json` (CI checks daily).
 
 ## DJI FPV mods (fpv-wtf ecosystem)
 
