@@ -102,6 +102,8 @@ Curated index after multi-query discovery (GCS, datalink, fiber, IP control, Ope
 | Source | Notes |
 |--------|-------|
 | [CaddxFPV-Tech/Caddx_vrx_udp_protocol](https://github.com/CaddxFPV-Tech/Caddx_vrx_udp_protocol) | Ascent VRX UART binary protocol + Python UDP client |
+| [JerryLamMV/caddx_vrx_udp_protocol](https://github.com/JerryLamMV/caddx_vrx_udp_protocol) | Community mirror of VRX UDP protocol docs + client (≈ same as official) |
+| [JerryLamMV/CaddxPCTool_Release](https://github.com/JerryLamMV/CaddxPCTool_Release) | Caddx PC Tool release download links (Windows) |
 | [CaddxFPV-Tech/Caddx-Ascent-Firmware_Release](https://github.com/CaddxFPV-Tech/Caddx-Ascent-Firmware_Release) | Ascent firmware releases — see [V17.5.15](https://github.com/CaddxFPV-Tech/Caddx-Ascent-Firmware_Release/releases/tag/V17.5.15) |
 | [CaddxFPV-Tech/Caddx-PC-Tool-Release](https://github.com/CaddxFPV-Tech/Caddx-PC-Tool-Release) | Caddx PC configuration tool |
 | [CaddxFPV-Tech/Caddx_Ground_Configuration_Release](https://github.com/CaddxFPV-Tech/Caddx_Ground_Configuration_Release) | Ground station configuration releases |
