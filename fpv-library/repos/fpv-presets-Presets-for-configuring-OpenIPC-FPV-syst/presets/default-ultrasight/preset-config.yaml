@@ -1,0 +1,30 @@
+name: "default-ultrasight"
+author: "Your Name"
+description: "Description of default-ultrasight."
+category: "FPV"
+sensor: ""  # Set sensor file if needed
+status: "Community"
+tags: ["default-ultrasight"]
+files:
+  wfb.conf:
+    txpower: "1"
+    channel: "161"
+    driver_txpower_override: "20"
+    stbc: "1"
+    ldpc: "1"
+    mcs_index: "1"
+    fec_k: "8"
+    fec_n: "12"
+  telemetry.conf:
+    serial: /dev/ttyS2
+    # 2 for msposd
+    router: 0 
+  majestic.yaml:
+    fpv.enabled: "true"
+    fpv.noiseLevel: "0"
+    system.logLevel: "debug"
+    video0.codec: "h265"
+    video0.fps: "60"
+    video0.bitrate: "4096"
+    video0.size: "1920x1080"
+    

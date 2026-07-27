@@ -1,0 +1,75 @@
+fix missing update hosts (failed to install packages):
+
+In the meantime, perhaps you could try using a specific mirror server. There is a list at http://raspbian.org/RaspbianMirrors
+
+Edit your /etc/apt/sources.list file and change the line
+deb http://raspbian.raspberrypi.org/raspbian/ buster main contrib non-free rpi
+replace the "http://raspbian.raspberrypi.org/raspbian/ " bit with the link to the mirror of your choice from that page. Then run your normal update and upgrade and things should work properly.
+
+good mirror: http://mirror.aarnet.edu.au/pub/raspbian/raspbian
+
+
+--------------
+if failed to install packages:
+sudo rm -r /var/lib/apt/lists/*
+then: sudo apt update
+----
+
+For errors on update "release file is not valid yet"
+sudo apt-get update --allow-releaseinfo-change
+apt-get -o Acquire::Check-Valid-Until=false -o Acquire::Check-Date=false update
+sudo date -s '9 Jul 2023 22:44'
+
+
+---------------------------
+optional: how to install linuk kernel build header files:
+sudo apt-get install raspberrypi-kernel-headers
+
+-------------------------
+
+to compile veye, use the veye source code and the buildme script only. Not userland raspi stuff.
+
+to compile raspivid:
+
+sudo apt update
+sudo apt upgrade
+
+sudo apt install cmake gcc-arm-none-eabi libnewlib-arm-none-eabi build-essential
+
+NOTE: these packages might not be needed: gcc-arm-none-eabi libnewlib-arm-none-eabi
+
+remove the install part from buildme script in userland folder
+if [ "$1" != "" ]; then
+		sudo make install DESTDIR=$1
+	else
+		sudo make install
+	fi
+then:
+export PATH=$PATH:/opt/vc/include
+export CPATH=/opt/vc/include/
+export C_INCLUDE_PATH=/opt/vc/include/
+
+compile userland:
+execute ./buildme in userland folder
+
+or in raspicam folder:
+mkdir build
+cd build
+cmake ../
+then
+make
+
+how to see mmal errors:
+sudo vcdbg log msg
+
+
+play h264 frames:
+
+ffplay -i test3.h264 -vf select='eq(pict_type\,B)'
+
+I - intracoded (fullimage)
+P - predictive
+B - bipredictive (not used in Raspberry)
+
+./ruby_capture_raspi -cd H264 -n -fl -w 1280 -h 720 -fps 30 -g 12 -b 7000000 -ih -pf main -lev 4.1 -if cyclic -br 57 -co -11 -sa -20 -sh 9 -vf -hf -drc med -ex backlight -awb auto -mm backlit -a "DEV" -log -t 0 -o - >> tmp/ruby/fifocam &
+

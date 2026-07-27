@@ -1,0 +1,32 @@
+# Ecosystem discovery queries
+# Used by discover_themes.py and manual discovery runs
+
+# DJI / WTFOS
+dji o3 air unit
+dji o4 air unit fpv
+dji hd fpv goggles hack
+dji vista fpv
+wtfos dji fpv
+fpv digital vtx o3
+
+# Walksnail / Caddx / Avatar
+walksnail avatar
+walksnail ascent vrx
+caddx avatar vtx
+avatar hd vtx walksnail
+
+# Ruby / OpenIPC / link stacks
+rubyfpv digital
+openipc fpv
+
+# Emax / Runcam
+emax nanohawk fpv
+emax tinyhawk
+runcam wifi link
+runcam wifilink fpv
+
+# Vision
+opencv fpv drone
+
+# Owners expanded in discover_themes.py:
+# fpv-wtf, CaddxFPV-Tech, Consti10, RubyFPV, EmaxModel, avsaase, shellixyz, alejopdl, wkumik, OpenIPC

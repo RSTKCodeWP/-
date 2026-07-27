@@ -1,0 +1,102 @@
+name: Update Preset Index
+
+on:
+  # Run on push to main branch
+  push:
+    branches: [ main ]
+    paths:
+      - 'presets/**'  # Only run when changes occur in presets directory
+  
+  # Allow manual triggering
+  workflow_dispatch:
+  
+  # Run on a schedule (e.g., daily at midnight UTC)
+  schedule:
+    - cron: '0 0 * * *'
+
+permissions:
+  contents: write  # Needed to commit back to the repository
+
+jobs:
+  update-preset-index:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Fetch all history for git commands
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        
+    - name: Install dependencies
+      run: |
+        npm ci
+        npm install js-yaml  # Ensure yaml dependency is installed
+      
+    - name: Update indexer with git commit hash
+      run: |
+        # Get short commit hash
+        GIT_HASH=$(git rev-parse --short HEAD)
+        echo "Using commit hash: $GIT_HASH"
+        
+        # Create a temporary modified indexer that uses the git hash
+        cat > tools/indexer/run-indexer.js << 'EOL'
+        const indexer = require('./indexer');
+        const path = require('path');
+        
+        // Get the git hash from environment variable
+        const gitHash = process.env.GIT_HASH || 'unknown';
+        
+        // Use the repository root path
+        const repoPath = process.cwd();
+        
+        // Generate the index with git hash as version
+        const indexContent = indexer.generatePresetIndex(repoPath);
+        
+        // Update version with git hash
+        if (indexContent) {
+          indexContent.version = gitHash;
+          indexContent.last_updated = new Date().toISOString();
+          
+          // Write updated index back to file
+          const fs = require('fs');
+          const yaml = require('js-yaml');
+          fs.writeFileSync(
+            path.join(repoPath, 'PRESET_INDEX.yaml'), 
+            yaml.dump(indexContent)
+          );
+          
+          console.log(`Updated index version to ${gitHash}`);
+        }
+        
+        // Validate the index
+        indexer.validatePresetIndex(repoPath);
+        EOL
+        
+        # Make the script executable
+        chmod +x tools/indexer/run-indexer.js
+      env:
+        GIT_HASH: ${{ github.sha }}
+      
+    - name: Run preset indexer
+      run: |
+        node tools/indexer/run-indexer.js
+      env:
+        GIT_HASH: ${{ github.sha }}
+      
+    - name: Commit updated index
+      run: |
+        git config --local user.email "github-actions@github.com"
+        git config --local user.name "GitHub Actions"
+        git add PRESET_INDEX.yaml
+        git diff --staged --quiet || git commit -m "Update preset index with commit ${{ github.sha }} [skip ci]"
+        
+    - name: Push changes
+      uses: ad-m/github-push-action@master
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        branch: ${{ github.ref }}

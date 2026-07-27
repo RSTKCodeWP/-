@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-07-27T00:15:35+00:00",
+  "updated_at": "2026-07-27T00:39:25+00:00",
   "repos": [
     {
       "source": "johnboiles/Steer",
@@ -11392,6 +11392,1162 @@
       "triage_at": "2026-07-27T00:15:34+00:00",
       "upstream_commit": "8818e325ddaf2919ec672a5aeb7ea24d183b094d",
       "synced_at": "2026-07-27T00:15:35+00:00"
+    },
+    {
+      "source": "matyxcz44/Mat-j-FPV-Drone-",
+      "path": "fpv-library/repos/Mat-j-FPV-Drone--I-will-build-a-fully-functional-FPV-dron",
+      "added_at": "2026-07-27T00:38:20+00:00",
+      "discovered_via": "search:dji o3 air unit:p1",
+      "description": "I will build a fully functional FPV drone using the DJI O3 Air Unit. I will solder and assemble all parts myself, design and 3D print custom components, configure the flight controller, and document the entire process with photos and videos. This project will teach me electronics, drone assembly, digital FPV systems, and 3D design.",
+      "stars": 0,
+      "score": 6.5,
+      "upstream_updated": "2026-01-25T18:54:22Z",
+      "owner": "matyxcz44",
+      "size_kb": 4084,
+      "topics": [],
+      "verdict": "keep",
+      "categories": [
+        "fc"
+      ],
+      "interesting": true,
+      "triage_reason": "high-score-fpv",
+      "triage_at": "2026-07-27T00:38:20+00:00"
+    },
+    {
+      "source": "MegaAnda123/o3_auto_encode",
+      "path": "fpv-library/repos/o3_auto_encode-Automated-tool-for-recombining-split-air",
+      "added_at": "2026-07-27T00:38:20+00:00",
+      "discovered_via": "search:dji o3 air unit:p1",
+      "description": "Automated tool for recombining split air unit clips into one file and reducing overall video file size.",
+      "stars": 0,
+      "score": 3.0,
+      "upstream_updated": "2025-12-04T12:37:15Z",
+      "owner": "MegaAnda123",
+      "size_kb": 98277,
+      "topics": [
+        "dji",
+        "ffmpeg",
+        "ffmpeg-wrapper",
+        "fpv",
+        "python",
+        "video-processing"
+      ],
+      "verdict": "watch",
+      "categories": [
+        "other"
+      ],
+      "interesting": false,
+      "triage_reason": "weak-hook",
+      "triage_at": "2026-07-27T00:38:20+00:00"
+    },
+    {
+      "source": "maduwanthasl/Micofpv",
+      "path": "fpv-library/repos/Micofpv-5-Freestyle-FPV-Build-Mark4-DJI-O4-Air-U",
+      "added_at": "2026-07-27T00:38:21+00:00",
+      "discovered_via": "search:dji o4 air unit fpv:p1",
+      "description": "5\" Freestyle FPV Build (Mark4 + DJI O4 Air Unit Pro)",
+      "stars": 1,
+      "score": 3.0,
+      "upstream_updated": "2025-08-21T17:48:07Z",
+      "owner": "maduwanthasl",
+      "size_kb": 3570,
+      "topics": [],
+      "verdict": "watch",
+      "categories": [
+        "other"
+      ],
+      "interesting": false,
+      "triage_reason": "weak-hook",
+      "triage_at": "2026-07-27T00:38:21+00:00"
+    },
+    {
+      "source": "egorsiniaev/walksnail-osd-export",
+      "path": "fpv-library/repos/walksnail-osd-export-Export-Walksnail-Avatar-osd-goggle-recor",
+      "added_at": "2026-07-27T00:38:22+00:00",
+      "discovered_via": "search:walksnail avatar:p1",
+      "description": "Export Walksnail Avatar (.osd) goggle recordings to text and labelled telemetry CSV. Inspired by pymsposd.",
+      "stars": 0,
+      "score": 5.1,
+      "upstream_updated": "2026-07-05T20:05:39Z",
+      "owner": "egorsiniaev",
+      "size_kb": 19,
+      "topics": [],
+      "verdict": "keep",
+      "categories": [
+        "osd"
+      ],
+      "interesting": true,
+      "triage_reason": "high-score-fpv",
+      "triage_at": "2026-07-27T00:38:22+00:00",
+      "upstream_commit": "8621aff5fad53eb5308dc00c068aebe92980c6ed",
+      "synced_at": "2026-07-27T00:39:24+00:00"
+    },
+    {
+      "source": "alejopdl/walksnail-goggles-web",
+      "path": "fpv-library/repos/walksnail-goggles-web-Unofficial-web-app-client-for-Walksnail",
+      "added_at": "2026-07-27T00:38:22+00:00",
+      "discovered_via": "search:walksnail avatar:p1",
+      "description": "Unofficial web app + client for Walksnail Avatar HD goggles — live video, telemetry & DVR media in the browser. Tested on Goggles X (fw 39.44.15). Not affiliated with Caddx/Walksnail.",
+      "stars": 3,
+      "score": 7.8,
+      "upstream_updated": "2026-07-04T07:27:01Z",
+      "owner": "alejopdl",
+      "size_kb": 1335,
+      "topics": [
+        "drone",
+        "fastapi",
+        "fpv",
+        "goggles",
+        "ground-station",
+        "h264",
+        "rtsp",
+        "walksnail"
+      ],
+      "verdict": "keep",
+      "categories": [
+        "openipc",
+        "goggles"
+      ],
+      "interesting": true,
+      "triage_reason": "high-score-fpv",
+      "triage_at": "2026-07-27T00:38:22+00:00",
+      "upstream_commit": "44680d455465195e15a05e34d6a206ed9948516d",
+      "synced_at": "2026-07-27T00:39:15+00:00"
+    },
+    {
+      "source": "iksaif/walksnail-updater",
+      "path": "fpv-library/repos/walksnail-updater-Unofficial-cross-platform-Walksnail-Avat",
+      "added_at": "2026-07-27T00:38:22+00:00",
+      "discovered_via": "search:walksnail avatar:p1",
+      "description": "Unofficial cross-platform Walksnail Avatar HD firmware updater",
+      "stars": 0,
+      "score": 2.3,
+      "upstream_updated": "2026-07-21T19:26:52Z",
+      "owner": "iksaif",
+      "size_kb": 872,
+      "topics": [],
+      "verdict": "skip",
+      "categories": [
+        "other"
+      ],
+      "interesting": false,
+      "triage_reason": "low-relevance",
+      "triage_at": "2026-07-27T00:38:22+00:00"
+    },
+    {
+      "source": "avsaase/walksnail-osd-tool",
+      "path": "fpv-library/repos/walksnail-osd-tool-Cross-platform-tool-for-rendering-the-fl",
+      "added_at": "2026-07-27T00:38:22+00:00",
+      "discovered_via": "search:walksnail avatar:p1",
+      "description": "Cross-platform tool for rendering the flight controller OSD and SRT data from the Walksnail Avatar HD FPV system on top of the goggle or VRX recording",
+      "stars": 146,
+      "score": 11.1,
+      "upstream_updated": "2026-03-02T07:38:32Z",
+      "owner": "avsaase",
+      "size_kb": 110574,
+      "topics": [
+        "fpv",
+        "video",
+        "walksnail"
+      ],
+      "verdict": "keep",
+      "categories": [
+        "osd",
+        "fc"
+      ],
+      "interesting": true,
+      "triage_reason": "high-score-fpv",
+      "triage_at": "2026-07-27T00:38:22+00:00",
+      "upstream_commit": "574d46ff97c8602142c9eb32d73a4855b67eafd0",
+      "synced_at": "2026-07-27T00:39:14+00:00"
+    },
+    {
+      "source": "shellixyz/hd_fpv_video_tool",
+      "path": "fpv-library/repos/hd_fpv_video_tool-A-software-tool-to-manipulate-video-file",
+      "added_at": "2026-07-27T00:38:22+00:00",
+      "discovered_via": "search:walksnail avatar:p1",
+      "description": "A software tool to manipulate video files and OSD files recoded with the DJI and Walksnail Avatar FPV systems",
+      "stars": 23,
+      "score": 8.1,
+      "upstream_updated": "2026-02-23T21:43:49Z",
+      "owner": "shellixyz",
+      "size_kb": 685,
+      "topics": [
+        "avatar",
+        "dji",
+        "fpv",
+        "walksnail"
+      ],
+      "verdict": "keep",
+      "categories": [
+        "osd",
+        "goggles"
+      ],
+      "interesting": true,
+      "triage_reason": "high-score-fpv",
+      "triage_at": "2026-07-27T00:38:22+00:00",
+      "upstream_commit": "4e0547edcc747b81673c2319898130bc69caedcc",
+      "synced_at": "2026-07-27T00:39:16+00:00"
+    },
+    {
+      "source": "yukteshwarrajrah/FPV-DRONE",
+      "path": "fpv-library/repos/FPV-DRONE-COMPONENTS-Walksnail-Avatar-HD-Pro-Kit-F",
+      "added_at": "2026-07-27T00:38:22+00:00",
+      "discovered_via": "search:walksnail avatar:p1",
+      "description": "COMPONENTS :-) Walksnail Avatar HD Pro Kit FlySky FS-i6 2.4G 6CH PPM RC Transmitter With FS-iA6B Receiver MARK5 5inch 225mm FPV Carbon Fiber Frame blue T6143 FPV Freestyle Drone Propellers Hobby Battery Strap for FPV Drone Velox CINE F7+V50A SE HD Stack For FPV Drones Velox V2207 V3 Brushless Drone Motor",
+      "stars": 0,
+      "score": 9.8,
+      "upstream_updated": "2025-12-04T18:09:01Z",
+      "owner": "yukteshwarrajrah",
+      "size_kb": 0,
+      "topics": [],
+      "verdict": "keep",
+      "categories": [
+        "fiber"
+      ],
+      "interesting": true,
+      "triage_reason": "high-score-fpv",
+      "triage_at": "2026-07-27T00:38:22+00:00"
+    },
+    {
+      "source": "shellixyz/hd_fpv_osd_font_tool",
+      "path": "fpv-library/repos/hd_fpv_osd_font_tool-A-tool-for-managing-OSD-fonts-or-tile-co",
+      "added_at": "2026-07-27T00:38:22+00:00",
+      "discovered_via": "search:walksnail avatar:p1",
+      "description": "A tool for managing OSD fonts or tile collections for HD FPV systems (Walksnail Avatar, HDZero, DJI FPV system)",
+      "stars": 13,
+      "score": 7.6,
+      "upstream_updated": "2025-11-15T18:34:08Z",
+      "owner": "shellixyz",
+      "size_kb": 603,
+      "topics": [],
+      "verdict": "keep",
+      "categories": [
+        "osd",
+        "goggles"
+      ],
+      "interesting": true,
+      "triage_reason": "high-score-fpv",
+      "triage_at": "2026-07-27T00:38:22+00:00",
+      "upstream_commit": "af3ed6657cae890c0b1d903619ca5a2e05d5a810",
+      "synced_at": "2026-07-27T00:39:25+00:00"
+    },
+    {
+      "source": "aj22r/walksnail-root",
+      "path": "fpv-library/repos/walksnail-root-Walksnail-Avatar-Goggles-X-rooting-utili",
+      "added_at": "2026-07-27T00:38:22+00:00",
+      "discovered_via": "search:walksnail avatar:p1",
+      "description": "Walksnail Avatar Goggles X rooting utility",
+      "stars": 31,
+      "score": 3.3,
+      "upstream_updated": "2024-10-20T10:28:16Z",
+      "owner": "aj22r",
+      "size_kb": 3500,
+      "topics": [],
+      "verdict": "skip",
+      "categories": [
+        "goggles"
+      ],
+      "interesting": false,
+      "triage_reason": "low-relevance",
+      "triage_at": "2026-07-27T00:38:22+00:00"
+    },
+    {
+      "source": "Kw0ngk4n/WS-Neue",
+      "path": "fpv-library/repos/WS-Neue-Some-S-W-A-G-for-your-Walksnail-Avatar-O",
+      "added_at": "2026-07-27T00:38:22+00:00",
+      "discovered_via": "search:walksnail avatar:p1",
+      "description": "Some S-W-A-G for your Walksnail Avatar OSD",
+      "stars": 6,
+      "score": 4.6,
+      "upstream_updated": "2024-09-27T10:30:14Z",
+      "owner": "Kw0ngk4n",
+      "size_kb": 286,
+      "topics": [],
+      "verdict": "skip",
+      "categories": [
+        "osd"
+      ],
+      "interesting": false,
+      "triage_reason": "low-relevance",
+      "triage_at": "2026-07-27T00:38:22+00:00"
+    },
+    {
+      "source": "MrD-RC/hdosd-font-tool",
+      "path": "fpv-library/repos/hdosd-font-tool-A-tool-for-compiling-fonts-for-the-Avata",
+      "added_at": "2026-07-27T00:38:22+00:00",
+      "discovered_via": "search:walksnail avatar:p1",
+      "description": "A tool for compiling fonts for the Avatar (Walksnail/Caddx) HD system",
+      "stars": 0,
+      "score": 2.3,
+      "upstream_updated": "2023-12-24T08:10:49Z",
+      "owner": "MrD-RC",
+      "size_kb": 3275,
+      "topics": [],
+      "verdict": "skip",
+      "categories": [
+        "other"
+      ],
+      "interesting": false,
+      "triage_reason": "low-relevance",
+      "triage_at": "2026-07-27T00:38:22+00:00"
+    },
+    {
+      "source": "aleksandr-vin/emax-analog-screen-case",
+      "path": "fpv-library/repos/emax-analog-screen-case-Case-for-a-analog-screen-from-Emax-Tinyh",
+      "added_at": "2026-07-27T00:38:24+00:00",
+      "discovered_via": "search:emax tinyhawk:p1",
+      "description": "Case for a analog screen from Emax Tinyhawk 5.8G 48CH Diversity FPV Goggles 4.3 Inches 480*320 Video Headset With Dual Antennas 4.2V 1800mAh Battery For RC Drone",
+      "stars": 0,
+      "score": 4.5,
+      "upstream_updated": "2024-09-14T08:57:55Z",
+      "owner": "aleksandr-vin",
+      "size_kb": 60,
+      "topics": [],
+      "verdict": "keep",
+      "categories": [
+        "goggles"
+      ],
+      "interesting": true,
+      "triage_reason": "hook-reviewed",
+      "triage_at": "2026-07-27T00:38:24+00:00"
+    },
+    {
+      "source": "nepeee/TinyHawkFlyskyRx",
+      "path": "fpv-library/repos/TinyHawkFlyskyRx-Flysky-AFHDS-2A-compatible-receiver-firm",
+      "added_at": "2026-07-27T00:38:24+00:00",
+      "discovered_via": "search:emax tinyhawk:p1",
+      "description": "Flysky AFHDS 2A compatible receiver firmware for the TI CC251x rf transceiver IC written for the Emax TinyHawk brushless quadcopter.",
+      "stars": 30,
+      "score": 4.2,
+      "upstream_updated": "2019-02-03T19:55:44Z",
+      "owner": "nepeee",
+      "size_kb": 405,
+      "topics": [
+        "afhds-2a",
+        "cc2510",
+        "flysky",
+        "receiver",
+        "tinyhawk"
+      ],
+      "verdict": "skip",
+      "categories": [
+        "other"
+      ],
+      "interesting": false,
+      "triage_reason": "low-relevance",
+      "triage_at": "2026-07-27T00:38:24+00:00"
+    },
+    {
+      "source": "RastaDevX/runcam-divinus",
+      "path": "fpv-library/repos/runcam-divinus-Divinus-streamer-for-RunCam-WiFiLink-2-S",
+      "added_at": "2026-07-27T00:38:25+00:00",
+      "discovered_via": "search:runcam wifilink fpv:p1",
+      "description": "Divinus streamer for RunCam WiFiLink 2 (SSC338Q) — optimized FPV encoding",
+      "stars": 0,
+      "score": 3.0,
+      "upstream_updated": "2026-04-14T17:00:09Z",
+      "owner": "RastaDevX",
+      "size_kb": 28,
+      "topics": [],
+      "verdict": "watch",
+      "categories": [
+        "other"
+      ],
+      "interesting": false,
+      "triage_reason": "weak-hook",
+      "triage_at": "2026-07-27T00:38:25+00:00",
+      "upstream_commit": "317914db8ac16297f1fa8362b2bed5961ea65496",
+      "synced_at": "2026-07-27T00:39:22+00:00"
+    },
+    {
+      "source": "pingbiqi/RubyFPV",
+      "path": "fpv-library/repos/RubyFPV-RubyFPV-Bingguang-Wireless-RubyFPV-Chine",
+      "added_at": "2026-07-27T00:38:26+00:00",
+      "discovered_via": "search:rubyfpv digital:p1",
+      "description": "RubyFPV 中文镜像与技术支持仓库。专注于高可靠、超远距离数字图传系统优化，提供硬件选型、固件加速及中文文档。由炳光无线 (Bingguang Wireless) 维护。RubyFPV Chinese Community & Tech Support. Advanced digital FPV system with ARQ & Diversity. Optimized firmware, hardware guides, and wireless solutions by Bingguang Wireless.",
+      "stars": 0,
+      "score": 3.0,
+      "upstream_updated": "2026-07-26T05:29:16Z",
+      "owner": "pingbiqi",
+      "size_kb": 42,
+      "topics": [],
+      "verdict": "watch",
+      "categories": [
+        "other"
+      ],
+      "interesting": false,
+      "triage_reason": "weak-hook",
+      "triage_at": "2026-07-27T00:38:26+00:00"
+    },
+    {
+      "source": "RubyFPV/RubyFPV",
+      "path": "fpv-library/repos/RubyFPV-RubyFPV-open-source-digital-FPV-system",
+      "added_at": "2026-07-27T00:38:26+00:00",
+      "discovered_via": "search:rubyfpv digital:p1",
+      "description": "RubyFPV: open source digital FPV system",
+      "stars": 290,
+      "score": 5.0,
+      "upstream_updated": "2026-02-23T17:33:15Z",
+      "owner": "RubyFPV",
+      "size_kb": 71148,
+      "topics": [],
+      "verdict": "keep",
+      "categories": [
+        "other"
+      ],
+      "interesting": true,
+      "triage_reason": "high-score-fpv",
+      "triage_at": "2026-07-27T00:38:26+00:00",
+      "upstream_commit": "1c2365f212135d408eca55e3a6084a255afeb8e8",
+      "synced_at": "2026-07-27T00:39:19+00:00"
+    },
+    {
+      "source": "Ferousco-dev/sentinel-aerial",
+      "path": "fpv-library/repos/sentinel-aerial-AI-Aerial-Surveillance-Response-System-a",
+      "added_at": "2026-07-27T00:38:27+00:00",
+      "discovered_via": "search:opencv fpv drone:p1",
+      "description": "AI Aerial Surveillance & Response System — a software-only surveillance brain that turns a closed WiFi FPV toy drone into an autonomous aerial sensor: video ingest, image enhancement, on-device YOLO detection, event logging, live dashboard, and zone-breach alerting.",
+      "stars": 9,
+      "score": 5.0,
+      "upstream_updated": "2026-07-24T17:39:51Z",
+      "owner": "Ferousco-dev",
+      "size_kb": 119,
+      "topics": [
+        "computer-vision",
+        "drone",
+        "edge-ai",
+        "fastapi",
+        "opencv",
+        "python",
+        "surveillance",
+        "yolov8"
+      ],
+      "verdict": "keep",
+      "categories": [
+        "ai"
+      ],
+      "interesting": true,
+      "triage_reason": "high-score-fpv",
+      "triage_at": "2026-07-27T00:38:27+00:00"
+    },
+    {
+      "source": "szymdzum/tello-drone",
+      "path": "fpv-library/repos/tello-drone-Fly-a-DJI-Tello-from-scratch-over-raw-UD",
+      "added_at": "2026-07-27T00:38:27+00:00",
+      "discovered_via": "search:opencv fpv drone:p1",
+      "description": "Fly a DJI Tello from scratch over raw UDP, keyboard FPV with an arcade HUD, face tracking, crash detection, drift damping, and a JSONL flight recorder. Stdlib-only protocol core.",
+      "stars": 0,
+      "score": 5.5,
+      "upstream_updated": "2026-06-12T16:20:15Z",
+      "owner": "szymdzum",
+      "size_kb": 807,
+      "topics": [
+        "computer-vision",
+        "dji-tello",
+        "drone",
+        "face-tracking",
+        "fpv",
+        "opencv",
+        "python",
+        "robotics",
+        "telemetry",
+        "tello",
+        "udp"
+      ],
+      "verdict": "keep",
+      "categories": [
+        "ai"
+      ],
+      "interesting": true,
+      "triage_reason": "high-score-fpv",
+      "triage_at": "2026-07-27T00:38:27+00:00"
+    },
+    {
+      "source": "Jouwert/happy-bee",
+      "path": "fpv-library/repos/happy-bee-Raspberry-Pi-assisted-micro-drone-experi",
+      "added_at": "2026-07-27T00:38:27+00:00",
+      "discovered_via": "search:opencv fpv drone:p1",
+      "description": "Raspberry Pi–assisted micro-drone experiment: FPV video ingest, face recognition, and PPM control-path exploration.",
+      "stars": 0,
+      "score": 4.5,
+      "upstream_updated": "2026-05-27T15:36:54Z",
+      "owner": "Jouwert",
+      "size_kb": 1222,
+      "topics": [
+        "computer-vision",
+        "drone",
+        "fpv",
+        "maker",
+        "opencv",
+        "raspberry-pi"
+      ],
+      "verdict": "keep",
+      "categories": [
+        "ai"
+      ],
+      "interesting": true,
+      "triage_reason": "hook-reviewed",
+      "triage_at": "2026-07-27T00:38:27+00:00"
+    },
+    {
+      "source": "DreamChase29/fpv-yolo-drone-detection",
+      "path": "fpv-library/repos/fpv-yolo-drone-detection-Real-time-FPV-drone-video-object-detecti",
+      "added_at": "2026-07-27T00:38:27+00:00",
+      "discovered_via": "search:opencv fpv drone:p1",
+      "description": "Real-time FPV/drone video object detection using YOLO, OpenCV, and Jetson deployment notes.",
+      "stars": 0,
+      "score": 4.5,
+      "upstream_updated": "2026-05-16T04:15:10Z",
+      "owner": "DreamChase29",
+      "size_kb": 19,
+      "topics": [],
+      "verdict": "keep",
+      "categories": [
+        "ai"
+      ],
+      "interesting": true,
+      "triage_reason": "hook-reviewed",
+      "triage_at": "2026-07-27T00:38:27+00:00"
+    },
+    {
+      "source": "mrsamsonn/Beaglebone_Drone_Documentation",
+      "path": "fpv-library/repos/Beaglebone_Drone_Documentation-Built-a-drone-by-configuring-a-Beaglebon",
+      "added_at": "2026-07-27T00:38:27+00:00",
+      "discovered_via": "search:opencv fpv drone:p1",
+      "description": "Built a drone by configuring a Beaglebone Blue as a Flight Control Unit using Ardupilot and added FPV function by utilizing OpenCV and open source packages.",
+      "stars": 0,
+      "score": 7.0,
+      "upstream_updated": "2023-03-14T07:51:00Z",
+      "owner": "mrsamsonn",
+      "size_kb": 21269,
+      "topics": [],
+      "verdict": "keep",
+      "categories": [
+        "fc"
+      ],
+      "interesting": true,
+      "triage_reason": "high-score-fpv",
+      "triage_at": "2026-07-27T00:38:27+00:00"
+    },
+    {
+      "source": "Jadit19/FPV-Drone-Racing",
+      "path": "fpv-library/repos/FPV-Drone-Racing-Repo-for-FPV-Drone-Racing-mini-project-b",
+      "added_at": "2026-07-27T00:38:27+00:00",
+      "discovered_via": "search:opencv fpv drone:p1",
+      "description": "Repo for FPV Drone Racing mini-project by Aerial Robotics, IITK, 2021",
+      "stars": 3,
+      "score": 4.5,
+      "upstream_updated": "2022-01-15T18:53:28Z",
+      "owner": "Jadit19",
+      "size_kb": 15774,
+      "topics": [
+        "cpp",
+        "fpv-racing",
+        "gazebo",
+        "opencv",
+        "ros"
+      ],
+      "verdict": "keep",
+      "categories": [
+        "other"
+      ],
+      "interesting": true,
+      "triage_reason": "hook-reviewed",
+      "triage_at": "2026-07-27T00:38:27+00:00"
+    },
+    {
+      "source": "Orandus/fpv-opencv",
+      "path": "fpv-library/repos/fpv-opencv-OpenCV-implementation-for-FPV-drone-foot",
+      "added_at": "2026-07-27T00:38:27+00:00",
+      "discovered_via": "search:opencv fpv drone:p1",
+      "description": "OpenCV implementation for FPV drone footage.",
+      "stars": 0,
+      "score": 4.5,
+      "upstream_updated": "2021-04-16T10:42:34Z",
+      "owner": "Orandus",
+      "size_kb": 12178,
+      "topics": [],
+      "verdict": "keep",
+      "categories": [
+        "other"
+      ],
+      "interesting": true,
+      "triage_reason": "hook-reviewed",
+      "triage_at": "2026-07-27T00:38:27+00:00",
+      "upstream_commit": "8359017a5cf0e74120ca4eb35d6fad427db7e91d",
+      "synced_at": "2026-07-27T00:39:21+00:00"
+    },
+    {
+      "source": "JoshG20/DJI-MIPI-Switch",
+      "path": "fpv-library/repos/DJI-MIPI-Switch-2-Camera-Input-MIPI-Switch-for-Caddx-Vis",
+      "added_at": "2026-07-27T00:38:27+00:00",
+      "discovered_via": "search:dji vista fpv:p1",
+      "description": "2-Camera Input MIPI Switch for Caddx Vista/DJI FPV V1/Runcam Link systems",
+      "stars": 12,
+      "score": 3.5,
+      "upstream_updated": "2024-08-30T23:00:47Z",
+      "owner": "JoshG20",
+      "size_kb": 13038,
+      "topics": [],
+      "verdict": "keep",
+      "categories": [
+        "goggles"
+      ],
+      "interesting": true,
+      "triage_reason": "hook-reviewed",
+      "triage_at": "2026-07-27T00:38:27+00:00",
+      "upstream_commit": "0dd9390a8bd54602230d893605ce373f14b13d18",
+      "synced_at": "2026-07-27T00:39:23+00:00"
+    },
+    {
+      "source": "fpv-wtf/wtfos-configurator-old-stable",
+      "path": "fpv-library/repos/wtfos-configurator-old-stable",
+      "added_at": "2026-07-27T00:38:29+00:00",
+      "discovered_via": "owner:fpv-wtf",
+      "description": "",
+      "stars": 1,
+      "score": 4.2,
+      "upstream_updated": "2023-03-17T21:07:53Z",
+      "owner": "fpv-wtf",
+      "size_kb": 3479,
+      "topics": [],
+      "verdict": "keep",
+      "categories": [
+        "goggles",
+        "tools"
+      ],
+      "interesting": true,
+      "triage_reason": "strong-signals",
+      "triage_at": "2026-07-27T00:38:29+00:00"
+    },
+    {
+      "source": "fpv-wtf/wtfos-configurator-develop-preview",
+      "path": "fpv-library/repos/wtfos-configurator-develop-preview",
+      "added_at": "2026-07-27T00:38:29+00:00",
+      "discovered_via": "owner:fpv-wtf",
+      "description": "",
+      "stars": 0,
+      "score": 4.2,
+      "upstream_updated": "2024-11-29T17:55:11Z",
+      "owner": "fpv-wtf",
+      "size_kb": 76214,
+      "topics": [],
+      "verdict": "keep",
+      "categories": [
+        "goggles",
+        "tools"
+      ],
+      "interesting": true,
+      "triage_reason": "strong-signals",
+      "triage_at": "2026-07-27T00:38:29+00:00"
+    },
+    {
+      "source": "fpv-wtf/wtfos-healthchecks",
+      "path": "fpv-library/repos/wtfos-healthchecks-Health-check-units-for-the-configurator",
+      "added_at": "2026-07-27T00:38:29+00:00",
+      "discovered_via": "owner:fpv-wtf",
+      "description": "Health check units for the configurator",
+      "stars": 4,
+      "score": 4.2,
+      "upstream_updated": "2023-06-20T21:23:45Z",
+      "owner": "fpv-wtf",
+      "size_kb": 691,
+      "topics": [],
+      "verdict": "keep",
+      "categories": [
+        "goggles",
+        "tools"
+      ],
+      "interesting": true,
+      "triage_reason": "strong-signals",
+      "triage_at": "2026-07-27T00:38:29+00:00"
+    },
+    {
+      "source": "fpv-wtf/wtfos-package-config",
+      "path": "fpv-library/repos/wtfos-package-config-CLI-config-tool-for-managing-wtfos-packa",
+      "added_at": "2026-07-27T00:38:29+00:00",
+      "discovered_via": "owner:fpv-wtf",
+      "description": "CLI config tool for managing wtfos package settings",
+      "stars": 5,
+      "score": 3.5,
+      "upstream_updated": "2022-10-09T21:22:36Z",
+      "owner": "fpv-wtf",
+      "size_kb": 33,
+      "topics": [],
+      "verdict": "keep",
+      "categories": [
+        "goggles"
+      ],
+      "interesting": false,
+      "triage_reason": "strong-signals",
+      "triage_at": "2026-07-27T00:38:29+00:00"
+    },
+    {
+      "source": "fpv-wtf/voc-web",
+      "path": "fpv-library/repos/voc-web-Web-based-version-of-DJI-Goggles-Video-O",
+      "added_at": "2026-07-27T00:38:29+00:00",
+      "discovered_via": "owner:fpv-wtf",
+      "description": "Web based version of DJI Goggles Video Out",
+      "stars": 18,
+      "score": 3.5,
+      "upstream_updated": "2022-09-22T23:03:59Z",
+      "owner": "fpv-wtf",
+      "size_kb": 4734,
+      "topics": [],
+      "verdict": "keep",
+      "categories": [
+        "goggles"
+      ],
+      "interesting": true,
+      "triage_reason": "hook-reviewed",
+      "triage_at": "2026-07-27T00:38:29+00:00",
+      "upstream_commit": "955c7282fbc3943074f8546654729731e3c8f6c3",
+      "synced_at": "2026-07-27T00:39:11+00:00"
+    },
+    {
+      "source": "fpv-wtf/buildroot-libre-artosyn",
+      "path": "fpv-library/repos/buildroot-libre-artosyn-A-buildroot-based-OS-for-wide-range-of-a",
+      "added_at": "2026-07-27T00:38:29+00:00",
+      "discovered_via": "owner:fpv-wtf",
+      "description": "A buildroot based OS for wide range of artosyn SoC based devices",
+      "stars": 2,
+      "score": 3.0,
+      "upstream_updated": "2026-05-28T23:38:19Z",
+      "owner": "fpv-wtf",
+      "size_kb": 15,
+      "topics": [],
+      "verdict": "watch",
+      "categories": [
+        "other"
+      ],
+      "interesting": false,
+      "triage_reason": "weak-hook",
+      "triage_at": "2026-07-27T00:38:29+00:00"
+    },
+    {
+      "source": "fpv-wtf/fpv_viewer_android",
+      "path": "fpv-library/repos/fpv_viewer_android-fpv-viewer-android",
+      "added_at": "2026-07-27T00:38:29+00:00",
+      "discovered_via": "owner:fpv-wtf",
+      "description": "",
+      "stars": 18,
+      "score": 3.0,
+      "upstream_updated": "2021-05-14T03:02:59Z",
+      "owner": "fpv-wtf",
+      "size_kb": 334,
+      "topics": [],
+      "verdict": "keep",
+      "categories": [
+        "other"
+      ],
+      "interesting": true,
+      "triage_reason": "hook-reviewed",
+      "triage_at": "2026-07-27T00:38:29+00:00",
+      "upstream_commit": "3bf877c3ed7dcb1dd18f5a4a8f15d9b4cbeb80b1",
+      "synced_at": "2026-07-27T00:39:12+00:00"
+    },
+    {
+      "source": "fpv-wtf/frida-core",
+      "path": "fpv-library/repos/frida-core-Frida-core-library-intended-for-static-l",
+      "added_at": "2026-07-27T00:38:29+00:00",
+      "discovered_via": "owner:fpv-wtf",
+      "description": "Frida core library intended for static linking into bindings",
+      "stars": 8,
+      "score": 3.0,
+      "upstream_updated": "2022-03-04T10:19:20Z",
+      "owner": "fpv-wtf",
+      "size_kb": 7454,
+      "topics": [],
+      "verdict": "keep",
+      "categories": [
+        "other"
+      ],
+      "interesting": true,
+      "triage_reason": "hook-reviewed",
+      "triage_at": "2026-07-27T00:38:29+00:00"
+    },
+    {
+      "source": "fpv-wtf/disko",
+      "path": "fpv-library/repos/disko",
+      "added_at": "2026-07-27T00:38:29+00:00",
+      "discovered_via": "owner:fpv-wtf",
+      "description": "",
+      "stars": 3,
+      "score": 3.0,
+      "upstream_updated": "2022-05-28T17:17:50Z",
+      "owner": "fpv-wtf",
+      "size_kb": 120564,
+      "topics": [],
+      "verdict": "watch",
+      "categories": [
+        "other"
+      ],
+      "interesting": false,
+      "triage_reason": "weak-hook",
+      "triage_at": "2026-07-27T00:38:29+00:00"
+    },
+    {
+      "source": "fpv-wtf/lua-sandbox",
+      "path": "fpv-library/repos/lua-sandbox",
+      "added_at": "2026-07-27T00:38:29+00:00",
+      "discovered_via": "owner:fpv-wtf",
+      "description": "",
+      "stars": 1,
+      "score": 3.0,
+      "upstream_updated": "2023-04-20T11:16:45Z",
+      "owner": "fpv-wtf",
+      "size_kb": 3796,
+      "topics": [],
+      "verdict": "watch",
+      "categories": [
+        "other"
+      ],
+      "interesting": false,
+      "triage_reason": "weak-hook",
+      "triage_at": "2026-07-27T00:38:29+00:00"
+    },
+    {
+      "source": "fpv-wtf/.github",
+      "path": "fpv-library/repos/.github",
+      "added_at": "2026-07-27T00:38:29+00:00",
+      "discovered_via": "owner:fpv-wtf",
+      "description": "",
+      "stars": 1,
+      "score": 3.0,
+      "upstream_updated": "2022-09-13T22:10:57Z",
+      "owner": "fpv-wtf",
+      "size_kb": 6,
+      "topics": [],
+      "verdict": "skip",
+      "categories": [
+        "other"
+      ],
+      "interesting": false,
+      "triage_reason": "noise:github-meta",
+      "triage_at": "2026-07-27T00:38:29+00:00"
+    },
+    {
+      "source": "fpv-wtf/dpfont",
+      "path": "fpv-library/repos/dpfont",
+      "added_at": "2026-07-27T00:38:29+00:00",
+      "discovered_via": "owner:fpv-wtf",
+      "description": "",
+      "stars": 2,
+      "score": 3.0,
+      "upstream_updated": "2023-11-04T12:42:45Z",
+      "owner": "fpv-wtf",
+      "size_kb": 22,
+      "topics": [],
+      "verdict": "watch",
+      "categories": [
+        "other"
+      ],
+      "interesting": false,
+      "triage_reason": "weak-hook",
+      "triage_at": "2026-07-27T00:38:29+00:00"
+    },
+    {
+      "source": "fpv-wtf/wtfos-tests",
+      "path": "fpv-library/repos/wtfos-tests",
+      "added_at": "2026-07-27T00:38:29+00:00",
+      "discovered_via": "owner:fpv-wtf",
+      "description": "",
+      "stars": 0,
+      "score": 3.0,
+      "upstream_updated": "2023-07-09T17:41:32Z",
+      "owner": "fpv-wtf",
+      "size_kb": 2,
+      "topics": [],
+      "verdict": "keep",
+      "categories": [
+        "goggles"
+      ],
+      "interesting": false,
+      "triage_reason": "strong-signals",
+      "triage_at": "2026-07-27T00:38:29+00:00"
+    },
+    {
+      "source": "fpv-wtf/temp-redirect",
+      "path": "fpv-library/repos/temp-redirect",
+      "added_at": "2026-07-27T00:38:29+00:00",
+      "discovered_via": "owner:fpv-wtf",
+      "description": "",
+      "stars": 0,
+      "score": 3.0,
+      "upstream_updated": "2022-09-22T23:04:35Z",
+      "owner": "fpv-wtf",
+      "size_kb": 0,
+      "topics": [],
+      "verdict": "watch",
+      "categories": [
+        "other"
+      ],
+      "interesting": false,
+      "triage_reason": "weak-hook",
+      "triage_at": "2026-07-27T00:38:29+00:00"
+    },
+    {
+      "source": "fpv-wtf/dji-hd-fpv-dinit",
+      "path": "fpv-library/repos/dji-hd-fpv-dinit",
+      "added_at": "2026-07-27T00:38:29+00:00",
+      "discovered_via": "owner:fpv-wtf",
+      "description": "",
+      "stars": 1,
+      "score": 3.0,
+      "upstream_updated": "2022-04-30T08:42:32Z",
+      "owner": "fpv-wtf",
+      "size_kb": 101,
+      "topics": [],
+      "verdict": "watch",
+      "categories": [
+        "other"
+      ],
+      "interesting": false,
+      "triage_reason": "weak-hook",
+      "triage_at": "2026-07-27T00:38:29+00:00"
+    },
+    {
+      "source": "fpv-wtf/chocolate-doom",
+      "path": "fpv-library/repos/chocolate-doom-Chocolate-Doom-is-a-Doom-source-port-tha",
+      "added_at": "2026-07-27T00:38:29+00:00",
+      "discovered_via": "owner:fpv-wtf",
+      "description": "Chocolate Doom is a Doom source port that is minimalist and historically accurate. For Arty",
+      "stars": 0,
+      "score": 2.5,
+      "upstream_updated": "2026-06-05T22:29:43Z",
+      "owner": "fpv-wtf",
+      "size_kb": 15215,
+      "topics": [],
+      "verdict": "watch",
+      "categories": [
+        "other"
+      ],
+      "interesting": false,
+      "triage_reason": "weak-hook",
+      "triage_at": "2026-07-27T00:38:29+00:00"
+    },
+    {
+      "source": "fpv-wtf/dinit",
+      "path": "fpv-library/repos/dinit-dinit-for-wtfos",
+      "added_at": "2026-07-27T00:38:29+00:00",
+      "discovered_via": "owner:fpv-wtf",
+      "description": "dinit for wtfos",
+      "stars": 2,
+      "score": 2.5,
+      "upstream_updated": "2023-03-22T14:56:20Z",
+      "owner": "fpv-wtf",
+      "size_kb": 1790,
+      "topics": [],
+      "verdict": "watch",
+      "categories": [
+        "goggles"
+      ],
+      "interesting": false,
+      "triage_reason": "weak-hook",
+      "triage_at": "2026-07-27T00:38:29+00:00"
+    },
+    {
+      "source": "Consti10/wifibroadcast_bridge",
+      "path": "fpv-library/repos/wifibroadcast_bridge-A-UDP-bridge-over-a-wifibroadcast-link",
+      "added_at": "2026-07-27T00:38:29+00:00",
+      "discovered_via": "owner:Consti10",
+      "description": "A UDP bridge over a wifibroadcast link",
+      "stars": 0,
+      "score": 1.5,
+      "upstream_updated": "2020-12-20T20:20:51Z",
+      "owner": "Consti10",
+      "size_kb": 649,
+      "topics": [],
+      "verdict": "skip",
+      "categories": [
+        "link"
+      ],
+      "interesting": false,
+      "triage_reason": "low-relevance",
+      "triage_at": "2026-07-27T00:38:29+00:00"
+    },
+    {
+      "source": "Consti10/cleanflight",
+      "path": "fpv-library/repos/cleanflight-Clean-code-version-of-the-baseflight-fli",
+      "added_at": "2026-07-27T00:38:29+00:00",
+      "discovered_via": "owner:Consti10",
+      "description": "Clean-code version of the baseflight flight controller firmware",
+      "stars": 0,
+      "score": 1.5,
+      "upstream_updated": "2019-03-10T08:15:28Z",
+      "owner": "Consti10",
+      "size_kb": 223356,
+      "topics": [],
+      "verdict": "skip",
+      "categories": [
+        "fc"
+      ],
+      "interesting": false,
+      "triage_reason": "low-relevance",
+      "triage_at": "2026-07-27T00:38:29+00:00"
+    },
+    {
+      "source": "wkumik/companion",
+      "path": "fpv-library/repos/companion-An-official-multi-platform-configuration",
+      "added_at": "2026-07-27T00:38:30+00:00",
+      "discovered_via": "owner:wkumik",
+      "description": "An official multi-platform configuration tool for OpenIPC cameras, built using Avalonia UI.",
+      "stars": 0,
+      "score": 1.5,
+      "upstream_updated": "2026-07-17T18:55:47Z",
+      "owner": "wkumik",
+      "size_kb": 3936,
+      "topics": [],
+      "verdict": "skip",
+      "categories": [
+        "openipc"
+      ],
+      "interesting": false,
+      "triage_reason": "low-relevance",
+      "triage_at": "2026-07-27T00:38:30+00:00"
+    },
+    {
+      "source": "wkumik/docs",
+      "path": "fpv-library/repos/docs-The-new-OpenIPC-docs",
+      "added_at": "2026-07-27T00:38:30+00:00",
+      "discovered_via": "owner:wkumik",
+      "description": "The new OpenIPC docs",
+      "stars": 0,
+      "score": 1.5,
+      "upstream_updated": "2025-05-06T13:47:24Z",
+      "owner": "wkumik",
+      "size_kb": 50673,
+      "topics": [],
+      "verdict": "skip",
+      "categories": [
+        "openipc"
+      ],
+      "interesting": false,
+      "triage_reason": "low-relevance",
+      "triage_at": "2026-07-27T00:38:30+00:00"
+    },
+    {
+      "source": "wkumik/wiki",
+      "path": "fpv-library/repos/wiki-The-new-OpenIPC-wiki",
+      "added_at": "2026-07-27T00:38:30+00:00",
+      "discovered_via": "owner:wkumik",
+      "description": "The new OpenIPC wiki",
+      "stars": 0,
+      "score": 1.5,
+      "upstream_updated": "2025-05-01T12:15:24Z",
+      "owner": "wkumik",
+      "size_kb": 55265,
+      "topics": [],
+      "verdict": "skip",
+      "categories": [
+        "openipc"
+      ],
+      "interesting": false,
+      "triage_reason": "low-relevance",
+      "triage_at": "2026-07-27T00:38:30+00:00"
+    },
+    {
+      "source": "EmaxModel/fpv-presets",
+      "path": "fpv-library/repos/fpv-presets-Presets-for-configuring-OpenIPC-FPV-syst",
+      "added_at": "2026-07-27T00:38:30+00:00",
+      "discovered_via": "owner:EMAXmodel",
+      "description": "Presets for configuring OpenIPC FPV systems",
+      "stars": 0,
+      "score": 4.5,
+      "upstream_updated": "2025-03-24T00:57:19Z",
+      "owner": "EmaxModel",
+      "size_kb": 1033,
+      "topics": [],
+      "verdict": "keep",
+      "categories": [
+        "openipc"
+      ],
+      "interesting": true,
+      "triage_reason": "strong-signals",
+      "triage_at": "2026-07-27T00:38:30+00:00",
+      "upstream_commit": "52d2428d6688f9f8db8a10764a11555097701157",
+      "synced_at": "2026-07-27T00:39:20+00:00"
+    },
+    {
+      "source": "EmaxModel/betaflight",
+      "path": "fpv-library/repos/betaflight-Open-Source-Flight-Controller-Firmware",
+      "added_at": "2026-07-27T00:38:30+00:00",
+      "discovered_via": "owner:EMAXmodel",
+      "description": "Open Source Flight Controller Firmware",
+      "stars": 0,
+      "score": 4.0,
+      "upstream_updated": "2023-02-10T12:11:26Z",
+      "owner": "EmaxModel",
+      "size_kb": 388720,
+      "topics": [],
+      "verdict": "keep",
+      "categories": [
+        "fc"
+      ],
+      "interesting": true,
+      "triage_reason": "hook-reviewed",
+      "triage_at": "2026-07-27T00:38:30+00:00"
+    },
+    {
+      "source": "EmaxModel/OpenVTx",
+      "path": "fpv-library/repos/OpenVTx-Open-source-video-transmitter-firmware-f",
+      "added_at": "2026-07-27T00:38:30+00:00",
+      "discovered_via": "owner:EMAXmodel",
+      "description": "Open source video transmitter firmware for FPV",
+      "stars": 0,
+      "score": 2.5,
+      "upstream_updated": "2022-01-17T16:14:26Z",
+      "owner": "EmaxModel",
+      "size_kb": 34315,
+      "topics": [],
+      "verdict": "watch",
+      "categories": [
+        "other"
+      ],
+      "interesting": false,
+      "triage_reason": "weak-hook",
+      "triage_at": "2026-07-27T00:38:30+00:00"
+    },
+    {
+      "source": "EmaxModel/unified-targets",
+      "path": "fpv-library/repos/unified-targets-Target-configurations-for-Betaflight-Uni",
+      "added_at": "2026-07-27T00:38:30+00:00",
+      "discovered_via": "owner:EMAXmodel",
+      "description": "Target configurations for Betaflight Unified Targets",
+      "stars": 0,
+      "score": 2.0,
+      "upstream_updated": "2023-02-13T01:00:21Z",
+      "owner": "EmaxModel",
+      "size_kb": 1697,
+      "topics": [],
+      "verdict": "watch",
+      "categories": [
+        "fc"
+      ],
+      "interesting": false,
+      "triage_reason": "peripheral",
+      "triage_at": "2026-07-27T00:38:30+00:00"
+    },
+    {
+      "source": "EmaxModel/inav",
+      "path": "fpv-library/repos/inav-INAV-Navigation-enabled-flight-control-s",
+      "added_at": "2026-07-27T00:38:30+00:00",
+      "discovered_via": "owner:EMAXmodel",
+      "description": "INAV: Navigation-enabled flight control software",
+      "stars": 0,
+      "score": 2.0,
+      "upstream_updated": "2022-04-21T19:04:47Z",
+      "owner": "EmaxModel",
+      "size_kb": 259127,
+      "topics": [],
+      "verdict": "watch",
+      "categories": [
+        "fc"
+      ],
+      "interesting": false,
+      "triage_reason": "peripheral",
+      "triage_at": "2026-07-27T00:38:30+00:00"
     }
   ],
   "search_queries": [

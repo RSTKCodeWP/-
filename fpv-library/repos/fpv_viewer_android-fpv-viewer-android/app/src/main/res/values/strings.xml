@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">DigiView</string>
+    <string name="connectButtonText">Connect</string>
+</resources>

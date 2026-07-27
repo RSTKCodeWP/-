@@ -1,0 +1,15 @@
+/target
+*.osd
+*.srt
+*.png
+*.bak*
+*.mp4
+/.vscode
+/fonts
+*.webm
+*.bin
+/TODO
+/*.AppImage
+/libs
+/appimagetool
+/.direnv

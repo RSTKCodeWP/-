@@ -1,0 +1,33 @@
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.TH cut-video 1  "cut-video " 
+.SH NAME
+cut\-video \- Cut a video file without transcoding by specifying the desired start and/or end timestamp
+.SH SYNOPSIS
+\fBcut\-video\fR [\fB\-s\fR|\fB\-\-start\fR] [\fB\-e\fR|\fB\-\-end\fR] [\fB\-P\fR|\fB\-\-ffmpeg\-priority\fR] [\fB\-y\fR|\fB\-\-overwrite\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fIINPUT_VIDEO_FILE\fR> [\fIOUTPUT_VIDEO_FILE\fR] 
+.SH DESCRIPTION
+Cut a video file without transcoding by specifying the desired start and/or end timestamp
+.PP
+Note that without transcoding videos can only be cut at the nearest P\-frame so the cuts may not be at exactly the start/end points. If you need precise slicing use the `transcode` command instead.
+.SH OPTIONS
+.TP
+\fB\-s\fR, \fB\-\-start\fR \fI<[HH:]MM:SS>\fR
+start timestamp
+.TP
+\fB\-e\fR, \fB\-\-end\fR \fI<[HH:]MM:SS>\fR
+end timestamp
+.TP
+\fB\-P\fR, \fB\-\-ffmpeg\-priority\fR \fI<FFMPEG_PRIORITY>\fR
+
+.TP
+\fB\-y\fR, \fB\-\-overwrite\fR
+overwrite output file if it exists
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help (see a summary with \*(Aq\-h\*(Aq)
+.TP
+<\fIINPUT_VIDEO_FILE\fR>
+input video file path
+.TP
+[\fIOUTPUT_VIDEO_FILE\fR]
+output video file path

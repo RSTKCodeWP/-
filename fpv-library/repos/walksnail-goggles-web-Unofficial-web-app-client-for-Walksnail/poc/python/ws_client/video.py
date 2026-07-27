@@ -1,0 +1,332 @@
+"""Live video for the FPV goggles.
+
+The feed is plain H.264-over-RTSP (``rtsp://<host>/live.ch01``), so PyAV (FFmpeg)
+decodes it with no custom parsing. Requires the ``[video]`` extra:
+
+    pip install -e ".[video]"
+
+A media stream only exists when an air unit is linked (``vtx_connect == 1``).
+
+Low latency & robustness
+------------------------
+* A background reader decodes as fast as the network allows and keeps **only the
+  most recent frame**, so latency never accumulates.
+* Decoding is **slice-threaded** (frame threading would delay output by frames)
+  with aggressive FFmpeg de-buffering options.
+* The reader is **resilient**: corrupt frames (common on UDP packet loss) are
+  skipped, and it **auto-reconnects** on stream errors instead of crashing.
+"""
+
+from __future__ import annotations
+
+import threading
+import time
+from collections.abc import Iterator
+from typing import TYPE_CHECKING
+
+from . import debuglog
+from . import protocol as p
+
+if TYPE_CHECKING:  # pragma: no cover
+    import numpy as np
+
+
+def _ll_opts(transport: str) -> dict[str, str]:
+    """FFmpeg options tuned for low-latency live FPV."""
+    return {
+        "rtsp_transport": transport,
+        "rtsp_flags": "prefer_tcp" if transport == "tcp" else "none",
+        "fflags": "nobuffer",
+        "flags": "low_delay",
+        "max_delay": "0",
+        "reorder_queue_size": "0",
+        "probesize": "100000",
+        "analyzeduration": "0",
+        "timeout": "5000000",  # socket timeout, microseconds (ffmpeg >=6)
+    }
+
+
+def _open(host: str, transport: str):
+    import av  # lazy import so the control plane needs no video deps
+
+    container = av.open(p.rtsp_url(host), options=_ll_opts(transport))
+    stream = container.streams.video[0]
+    stream.thread_type = "SLICE"  # parallel decode without buffering frames
+    return container, stream
+
+
+def live_frames(host: str = p.DEFAULT_HOST, *, bgr: bool = True,
+                transport: str = "tcp") -> Iterator["np.ndarray"]:
+    """Yield decoded frames as numpy arrays (BGR by default, else RGB).
+
+    Sequential generator (no reconnect) — fine for processing/recording. For a
+    low-latency, self-healing live view use :func:`show_live`.
+    """
+    import av
+
+    fmt = "bgr24" if bgr else "rgb24"
+    container, stream = _open(host, transport)
+    try:
+        for packet in container.demux(stream):
+            try:
+                for frame in packet.decode():
+                    yield frame.to_ndarray(format=fmt)
+            except av.error.FFmpegError:
+                continue  # skip corrupt frame
+    finally:
+        container.close()
+
+
+class LatestFrameReader:
+    """Background RTSP decoder exposing only the newest frame; self-healing."""
+
+    # After this many consecutive "connected but 0 frames" sessions we treat the
+    # goggles' single-session RTSP server as wedged and stop hammering it.
+    WEDGE_THRESHOLD = 3
+
+    def __init__(self, host: str = p.DEFAULT_HOST, *, transport: str = "tcp",
+                 start_delay: float = 0.0):
+        self.host = host
+        self.transport = transport
+        # Settle delay before the FIRST connect. On a restart (transport change /
+        # manual) the goggles need a moment to release the previous RTSP session;
+        # reconnecting instantly makes them hand out a dead, frame-less session.
+        self.start_delay = start_delay
+        self._frame: "np.ndarray | None" = None
+        self._lock = threading.Lock()
+        self._stop = threading.Event()
+        self._thread: threading.Thread | None = None
+        self.frames_decoded = 0
+        self.last_error: BaseException | None = None
+        self.empty_sessions = 0  # consecutive connected-but-0-frame sessions
+
+    @property
+    def wedged(self) -> bool:
+        """True when the RTSP session appears stuck (connects, no frames)."""
+        return self.empty_sessions >= self.WEDGE_THRESHOLD
+
+    def start(self) -> "LatestFrameReader":
+        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._thread.start()
+        return self
+
+    def _run(self) -> None:
+        import av
+
+        if self.start_delay > 0:
+            debuglog.event(f"[rtsp] settle delay {self.start_delay:.1f}s "
+                           "before first connect (restart)")
+            if self._stop.wait(self.start_delay):
+                debuglog.event("[rtsp] reader stopped")
+                return
+
+        connect_fails = 0
+        session = 0
+        frame_errs = 0
+        while not self._stop.is_set():
+            session += 1
+            debuglog.event(f"[rtsp] connect attempt #{session} "
+                           f"(transport={self.transport}, host={self.host})")
+            t0 = time.monotonic()
+            try:
+                container, stream = _open(self.host, self.transport)
+                connect_fails = 0  # connected — reset backoff
+                debuglog.event(f"[rtsp] connected in "
+                               f"{(time.monotonic() - t0) * 1000:.0f}ms")
+            except Exception as e:  # noqa: BLE001 — connect failed; back off + retry
+                self.last_error = e
+                # Exponential backoff (0.5s → 5s cap). Rapid reconnects can wedge
+                # the goggles' single-session RTSP server, so don't hammer it.
+                connect_fails += 1
+                delay = min(0.5 * (2 ** (connect_fails - 1)), 5.0)
+                debuglog.event(f"[rtsp] connect FAILED #{connect_fails} "
+                               f"(backoff {delay:.1f}s): {type(e).__name__}: {e}")
+                if self._stop.wait(delay):
+                    return
+                continue
+            got_frame = False
+            try:
+                for packet in container.demux(stream):
+                    if self._stop.is_set():
+                        break
+                    try:
+                        for frame in packet.decode():
+                            img = frame.to_ndarray(format="bgr24")
+                            with self._lock:
+                                self._frame = img
+                            self.frames_decoded += 1
+                            if not got_frame:
+                                got_frame = True
+                                debuglog.event(
+                                    f"[rtsp] first frame in "
+                                    f"{(time.monotonic() - t0) * 1000:.0f}ms "
+                                    f"(total decoded={self.frames_decoded})")
+                    except av.error.FFmpegError as e:
+                        self.last_error = e  # corrupt frame (UDP loss) — skip
+                        frame_errs += 1
+                        # rate-limit: first, then every 100th corrupt frame
+                        if debuglog.enabled() and (frame_errs <= 3 or frame_errs % 100 == 0):
+                            debuglog.event(f"[rtsp] corrupt frame #{frame_errs}: {e}")
+                        continue
+            except av.error.FFmpegError as e:
+                self.last_error = e  # stream hiccup/EOF — reconnect
+                debuglog.event(f"[rtsp] stream error after {self.frames_decoded} "
+                               f"frames -> reconnect: {type(e).__name__}: {e}")
+            else:
+                debuglog.event(f"[rtsp] stream ended (demux exhausted) after "
+                               f"{self.frames_decoded} frames -> reconnect")
+            finally:
+                container.close()
+
+            # Track "connected but no frames" sessions. Several in a row means the
+            # goggles handed us a dead session (single-session RTSP wedged after a
+            # too-fast restart) — reconnecting fast won't help, so back off hard
+            # and let the UI tell the user to reboot the goggles.
+            if got_frame:
+                self.empty_sessions = 0
+            else:
+                self.empty_sessions += 1
+                if self.wedged:
+                    debuglog.event(f"[rtsp] WEDGED: {self.empty_sessions} sessions "
+                                   "connected with 0 frames — goggles RTSP stuck; "
+                                   "backing off (reboot goggles to recover)")
+            pause = 3.0 if self.wedged else 0.1
+            if self._stop.wait(pause):
+                return
+        debuglog.event("[rtsp] reader stopped")
+
+    def read(self) -> "np.ndarray | None":
+        """Most recent frame, or ``None`` if none decoded yet."""
+        with self._lock:
+            return self._frame
+
+    def stop(self) -> None:
+        self._stop.set()
+        if self._thread is not None:
+            self._thread.join(timeout=2.0)
+
+
+class _TelemetryPoller:
+    """Polls ``devicestate`` in the background for the OSD overlay."""
+
+    def __init__(self, host: str, interval: float = 0.5):
+        self.host = host
+        self.interval = interval
+        self.state: dict = {}
+        self._stop = threading.Event()
+        self._thread: threading.Thread | None = None
+
+    def start(self) -> "_TelemetryPoller":
+        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._thread.start()
+        return self
+
+    def _run(self) -> None:
+        from .client import WSClient
+        c = WSClient(self.host, timeout=2.0)
+        while not self._stop.wait(self.interval):
+            try:
+                self.state = c.get_device_state()
+            except Exception:  # noqa: BLE001 — OSD is best-effort
+                pass
+
+    def stop(self) -> None:
+        self._stop.set()
+
+
+def _draw_osd(frame, state: dict) -> None:
+    import cv2
+
+    v = state.get("gas_voltage")
+    line = "  ".join(filter(None, [
+        f"BAT {v:.1f}V" if isinstance(v, (int, float)) else None,
+        f"GTEMP {state.get('gas_tempeture')}C" if "gas_tempeture" in state else None,
+        f"VTX {'LINK' if state.get('vtx_connect') else 'NO'}",
+        f"{state['bitrate'] / 1e6:.1f}Mbps" if state.get("bitrate") else None,
+    ]))
+    if not line:
+        return
+    cv2.putText(frame, line, (12, 28), cv2.FONT_HERSHEY_SIMPLEX, 0.7,
+                (0, 0, 0), 4, cv2.LINE_AA)            # outline for contrast
+    cv2.putText(frame, line, (12, 28), cv2.FONT_HERSHEY_SIMPLEX, 0.7,
+                (0, 255, 0), 1, cv2.LINE_AA)
+
+
+def play_url(url: str, *, window: str = "WS DVR") -> None:
+    """Play a recorded clip (URL or local path) at real speed.
+
+    Unlike the live view this honours each frame's PTS so playback runs at the
+    recorded rate. Keys: 'q'/ESC quit, space pause/resume.
+    """
+    import av
+    import cv2
+
+    container = av.open(url)
+    try:
+        stream = container.streams.video[0]
+        tb = float(stream.time_base) if stream.time_base else 0.0
+        start = time.monotonic()
+        first_pts = None
+        paused = False
+        for frame in container.decode(stream):
+            img = frame.to_ndarray(format="bgr24")
+            if tb and frame.pts is not None:
+                pts = frame.pts * tb
+                first_pts = pts if first_pts is None else first_pts
+                delay = (start + (pts - first_pts)) - time.monotonic()
+                if delay > 0:
+                    time.sleep(min(delay, 1.0))
+            cv2.imshow(window, img)
+            key = cv2.waitKey(1) & 0xFF
+            if key in (ord("q"), 27):
+                break
+            if key == ord(" "):
+                paused = not paused
+                while paused:
+                    k = cv2.waitKey(50) & 0xFF
+                    if k == ord(" "):
+                        paused = False
+                    elif k in (ord("q"), 27):
+                        return
+    finally:
+        container.close()
+        cv2.destroyAllWindows()
+
+
+def show_live(host: str = p.DEFAULT_HOST, *, window: str = "WS Live",
+              transport: str = "tcp", osd: bool = False) -> None:
+    """Open a window and render the live feed (latest-frame, low latency).
+
+    Keys: 'q'/ESC quit, 's' save a PNG snapshot. ``transport='udp'`` may lower
+    latency further (resilient to loss). ``osd=True`` overlays telemetry.
+    """
+    import cv2
+
+    reader = LatestFrameReader(host, transport=transport).start()
+    tele = _TelemetryPoller(host).start() if osd else None
+    waiting_since = time.monotonic()
+    try:
+        while True:
+            frame = reader.read()
+            if frame is None:
+                if time.monotonic() - waiting_since > 8 and reader.last_error:
+                    print(f"  (still connecting… last error: {reader.last_error})")
+                    waiting_since = time.monotonic()
+                if cv2.waitKey(5) & 0xFF in (ord("q"), 27):
+                    break
+                continue
+            if tele is not None and tele.state:
+                _draw_osd(frame, tele.state)
+            cv2.imshow(window, frame)
+            key = cv2.waitKey(1) & 0xFF
+            if key in (ord("q"), 27):
+                break
+            if key == ord("s"):
+                fn = time.strftime("ws_%Y%m%d_%H%M%S.png")
+                cv2.imwrite(fn, frame)
+                print(f"  saved {fn}")
+    finally:
+        reader.stop()
+        if tele is not None:
+            tele.stop()
+        cv2.destroyAllWindows()

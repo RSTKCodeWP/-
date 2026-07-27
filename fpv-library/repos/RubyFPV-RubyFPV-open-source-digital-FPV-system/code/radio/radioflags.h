@@ -1,0 +1,23 @@
+#pragma once
+
+#define RADIO_FLAGS_USE_LEGACY_DATARATES (((u32)0x01)<<1)
+#define RADIO_FLAGS_USE_MCS_DATARATES (((u32)0x01)<<2)
+
+#define RADIO_FLAG_5MHZ (((u32)0x01)<<3)
+#define RADIO_FLAG_10MHZ (((u32)0x01)<<4)
+
+//#define RADIO_FLAGS_FRAME_TYPE_DATA_SHORT (((u32)0x01)<<5)
+#define RADIO_FLAGS_FRAME_TYPE_DATA (((u32)0x01)<<6)
+//#define RADIO_FLAGS_FRAME_TYPE_RTS (((u32)0x01)<<7)
+
+#define RADIO_FLAG_HT40 (((u32)0x01)<<8)
+#define RADIO_FLAG_SGI (((u32)0x01)<<9)
+#define RADIO_FLAG_STBC (((u32)0x01)<<10)
+#define RADIO_FLAG_LDPC (((u32)0x01)<<11)
+
+#define RADIO_FLAGS_MCS ((u32)(RADIO_FLAG_HT40 | RADIO_FLAG_SGI | RADIO_FLAG_STBC | RADIO_FLAG_LDPC))
+
+#define RADIO_FLAGS_SIK_ECC (((u32)0x01)<<12)
+#define RADIO_FLAGS_SIK_LBT (((u32)0x01)<<13)
+#define RADIO_FLAGS_SIK_MCSTR (((u32)0x01)<<14)
+

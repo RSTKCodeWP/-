@@ -1,0 +1,45 @@
+--- a/src/hal/star/i6c_hal.c
++++ b/src/hal/star/i6c_hal.c
+@@ -180,6 +180,45 @@ static int i6c_video_create_channel(int channel, hal_vidconfig *config)
+         chnAttr.stRcAttr.stAttrH265eVbr.u32MaxBitRate = config->bitrate;
+     }
+ 
++    // AVBR mode with extended tuning parameters
++    if (config->mode == HAL_VIDMODE_AVBR && config->codec == HAL_VIDCODEC_H265) {
++        chnAttr.stRcAttr.eRcMode = E_MI_VENC_RC_MODE_H265AVBR;
++
++        MI_VENC_AttrH265eAvbr_t *avbr = &chnAttr.stRcAttr.stAttrH265eAvbr;
++        avbr->u32Gop           = config->gop;
++        avbr->u32SrcFrmRateNum = config->fps;
++        avbr->u32SrcFrmRateDen = 1;
++        avbr->u32BitRate       = config->bitrate;
++        avbr->u32MaxBitRate    = config->maxBitrate;
++        avbr->u32StatTime      = config->statTime;
++
++        // QP bounds for quality control
++        avbr->u32MinQp = config->minQp;
++        avbr->u32MaxQp = config->maxQp;
++
++        HAL_INFO("i6c", "H265 AVBR: %d/%d kbps, QP %d-%d, stat %ds",
++                 config->bitrate, config->maxBitrate,
++                 config->minQp, config->maxQp, config->statTime);
++    }
++
++    // Profile selection for H.265
++    if (config->codec == HAL_VIDCODEC_H265) {
++        switch (config->profile) {
++            case HAL_VIDPROFILE_HP:
++                chnAttr.stVeAttr.stAttrH265e.eProfile = E_MI_VENC_H265E_HIGH;
++                HAL_INFO("i6c", "H265 High Profile selected");
++                break;
++            case HAL_VIDPROFILE_MP:
++            default:
++                chnAttr.stVeAttr.stAttrH265e.eProfile = E_MI_VENC_H265E_MAIN;
++                HAL_INFO("i6c", "H265 Main Profile selected");
++                break;
++        }
++    }
++
+     ret = MI_VENC_CreateChn(channel, &chnAttr);
+     if (ret != MI_SUCCESS) {
+         HAL_ERROR("i6c", "Failed to create VENC channel %d: 0x%x", channel, ret);

@@ -1,0 +1,17 @@
+--- a/src/stream.c
++++ b/src/stream.c
+@@ -85,6 +85,15 @@ static int stream_init_output(stream_ctx *ctx)
+     ctx->output.protocol = STREAM_PROTO_UDP;
+     ctx->output.port     = app_config.stream.port;
+ 
++    // FPV latency optimization:
++    // Disable output buffering — send frames immediately
++    ctx->output.buffer_size = 0;
++    ctx->output.flush_immediately = 1;
++
++    // Set socket options for low-latency UDP
++    ctx->output.tcp_nodelay = 0;  // N/A for UDP but defensive
++    ctx->output.send_buffer = 65536; // Minimal socket buffer
++
+     return 0;
+ }

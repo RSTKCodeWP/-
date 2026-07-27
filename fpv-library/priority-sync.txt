@@ -59,9 +59,6 @@ Knifa/material-osd
 # Round 2 themed discoveries
 KenLagoni/OpenHD-LTE
 KenLagoni/MavlinkGPRS
-fpv-wtf/wtfos
-fpv-wtf/voc-poc
-fpv-wtf/wtfos-configurator
 iBz-04/Cevheri
 kaack/elrs-joystick-control
 MishkaRogachev/JAGCS
@@ -90,7 +87,40 @@ OpenIPC/configurator
 OpenIPC/fpv4win
 rodizio1/EZ-WifiBroadcast
 AkitaEngineering/Meshtastic-Integration-for-DroneBridge32-Swarm
-# Caddx Ascent / Walksnail HD ecosystem (official)
+# DJI FPV / WTFOS (fpv-wtf) — full org
+fpv-wtf/wtfos
+fpv-wtf/voc-poc
+fpv-wtf/voc-web
+fpv-wtf/fpv_viewer_android
+fpv-wtf/wtfos-configurator
+fpv-wtf/msp-osd
+fpv-wtf/margerine
+fpv-wtf/ar-firmware-tools
+fpv-wtf/dji-moonlight-shim
+fpv-wtf/dji-moonlight-gui
+fpv-wtf/wtfos-tweaks
+fpv-wtf/driver-installer
+fpv-wtf/wtfos-modloader
+fpv-wtf/opkg-repo
+# Walksnail / Avatar / HD digital (community tools)
+avsaase/walksnail-osd-tool
+alejopdl/walksnail-goggles-web
+shellixyz/hd_fpv_video_tool
+shellixyz/hd_fpv_osd_font_tool
+egorsiniaev/walksnail-osd-export
+RubyFPV/RubyFPV
+Consti10/RubyFPV
+# Emax
+EmaxModel/fpv-presets
+EmaxModel/betaflight
+EmaxModel/OpenVTx
+# Runcam / OpenCV FPV
+RastaDevX/runcam-divinus
+Orandus/fpv-opencv
+DreamChase29/fpv-yolo-drone-detection
+# DJI O3/O4 / Vista (community)
+matyxcz44/Mat-j-FPV-Drone-
+JoshG20/DJI-MIPI-Switch
 CaddxFPV-Tech/Caddx_vrx_udp_protocol
 JerryLamMV/caddx_vrx_udp_protocol
 JerryLamMV/CaddxPCTool_Release

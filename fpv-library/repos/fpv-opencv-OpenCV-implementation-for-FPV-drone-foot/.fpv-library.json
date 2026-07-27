@@ -1,0 +1,8 @@
+{
+  "source": "Orandus/fpv-opencv",
+  "upstream_commit": "8359017a5cf0e74120ca4eb35d6fad427db7e91d",
+  "upstream_updated": "2021-04-16T10:42:34Z",
+  "synced_at": "2026-07-27T00:39:21+00:00",
+  "discovered_via": "search:opencv fpv drone:p1",
+  "score": 4.5
+}

@@ -1,0 +1,9 @@
+# Build artifacts
+divinus-src/
+sdcard/divinus
+
+# Official firmware binaries (too large for git)
+official FW/*.bin
+
+# macOS
+.DS_Store

@@ -1,0 +1,30 @@
+name: Cargo Build & Test
+on: [push, pull_request]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build_and_test:
+    runs-on: ubuntu-latest
+    steps:
+      # Required on GitHub; wrkflw emulates checkout locally
+      - uses: actions/checkout@v4
+
+      # Run build & tests inside the official Rust (Debian bookworm) image
+      - name: Build & test in Rust container
+        uses: docker://rust:1-bookworm
+        with:
+          args: |
+            bash -lc "
+              set -euo pipefail
+              export PATH=/usr/local/cargo/bin:$HOME/.cargo/bin:$PATH
+              apt-get update
+              apt-get install -y --no-install-recommends \
+                ffmpeg libavformat-dev libavutil-dev libavfilter-dev \
+                libavdevice-dev libva-dev clang pkg-config
+              cargo --version
+              cargo build --verbose
+              cargo test --verbose
+            "
+

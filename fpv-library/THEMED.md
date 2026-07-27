@@ -162,10 +162,67 @@ Update watch status: `fpv-library/manifests/Caddx_Ground_Configuration_Release.s
 
 | Source | Notes |
 |--------|-------|
-| [fpv-wtf/wtfos](https://github.com/fpv-wtf/wtfos) | Firmware mod framework for DJI Goggles / Air Unit |
+| [fpv-wtf/wtfos](https://github.com/fpv-wtf/wtfos) | Firmware mod framework for DJI Goggles / Air Unit (O3/O4 era) |
+| [fpv-wtf/wtfos-configurator](https://github.com/fpv-wtf/wtfos-configurator) | WTFOS configurator + margerine |
+| [fpv-wtf/msp-osd](https://github.com/fpv-wtf/msp-osd) | MSP DisplayPort OSD on DJI goggles |
 | [fpv-wtf/voc-poc](https://github.com/fpv-wtf/voc-poc) | USB video out from DJI FPV Goggles |
-| [fpv-wtf/wtfos-configurator](https://github.com/fpv-wtf/wtfos-configurator) | WTFOS configurator |
+| [fpv-wtf/voc-web](https://github.com/fpv-wtf/voc-web) | Web-based DJI Goggles video out |
+| [fpv-wtf/fpv_viewer_android](https://github.com/fpv-wtf/fpv_viewer_android) | Android FPV viewer for DJI devices |
+| [fpv-wtf/margerine](https://github.com/fpv-wtf/margerine) | Root exploit chain for DJI HD system |
+| [fpv-wtf/ar-firmware-tools](https://github.com/fpv-wtf/ar-firmware-tools) | OTRA firmware format tools (Artosyn / Walksnail family) |
+| [fpv-wtf/dji-moonlight-shim](https://github.com/fpv-wtf/dji-moonlight-shim) | Stream games to DJI goggles via Moonlight |
 | [fpv-wtf/dji-moonlight-gui](https://github.com/fpv-wtf/dji-moonlight-gui) | Moonlight streaming GUI for DJI |
+| [fpv-wtf/wtfos-tweaks](https://github.com/fpv-wtf/wtfos-tweaks) | OS behavior tweaks on DJI FPV devices |
+| [fpv-wtf/opkg-repo](https://github.com/fpv-wtf/opkg-repo) | Official WTFOS package repository |
+| [fpv-wtf/driver-installer](https://github.com/fpv-wtf/driver-installer) | USB driver installer for FPV devices |
+| [JoshG20/DJI-MIPI-Switch](https://github.com/JoshG20/DJI-MIPI-Switch) | DJI Vista MIPI switch hardware/firmware |
+
+## Walksnail Avatar / HD digital (community)
+
+| Source | Notes |
+|--------|-------|
+| [avsaase/walksnail-osd-tool](https://github.com/avsaase/walksnail-osd-tool) | Walksnail OSD font/tooling |
+| [alejopdl/walksnail-goggles-web](https://github.com/alejopdl/walksnail-goggles-web) | Web UI for Walksnail goggles |
+| [shellixyz/hd_fpv_video_tool](https://github.com/shellixyz/hd_fpv_video_tool) | HD FPV video processing tool |
+| [shellixyz/hd_fpv_osd_font_tool](https://github.com/shellixyz/hd_fpv_osd_font_tool) | HD FPV OSD font editor |
+| [egorsiniaev/walksnail-osd-export](https://github.com/egorsiniaev/walksnail-osd-export) | Export Walksnail OSD assets |
+
+## RubyFPV digital link
+
+| Source | Notes |
+|--------|-------|
+| [Consti10/RubyFPV](https://github.com/Consti10/RubyFPV) | Ruby long-range digital FPV stack |
+| [RubyFPV/RubyFPV](https://github.com/RubyFPV/RubyFPV) | RubyFPV org mirror / releases |
+| [wkumik/RubyFPV](https://github.com/wkumik/RubyFPV) | Community RubyFPV fork |
+
+## Emax
+
+| Source | Notes |
+|--------|-------|
+| [EmaxModel/fpv-presets](https://github.com/EmaxModel/fpv-presets) | Official Emax Betaflight/iNav presets |
+| [EmaxModel/betaflight](https://github.com/EmaxModel/betaflight) | Emax Betaflight fork |
+| [EmaxModel/OpenVTx](https://github.com/EmaxModel/OpenVTx) | OpenVTx for Emax hardware |
+
+## OpenCV / vision FPV
+
+| Source | Notes |
+|--------|-------|
+| [Orandus/fpv-opencv](https://github.com/Orandus/fpv-opencv) | OpenCV FPV experiments |
+| [DreamChase29/fpv-yolo-drone-detection](https://github.com/DreamChase29/fpv-yolo-drone-detection) | YOLO drone detection on FPV stream |
+| [Jadit19/FPV-Drone-Racing](https://github.com/Jadit19/FPV-Drone-Racing) | FPV racing + computer vision |
+
+## Runcam
+
+| Source | Notes |
+|--------|-------|
+| [RastaDevX/runcam-divinus](https://github.com/RastaDevX/runcam-divinus) | Runcam Divinus / WiFi-link related tooling |
+
+## DJI O3 / O4 (community)
+
+| Source | Notes |
+|--------|-------|
+| [matyxcz44/Mat-j-FPV-Drone-](https://github.com/matyxcz44/Mat-j-FPV-Drone-) | DJI O3-based FPV drone project |
+| [MegaAnda123/o3_auto_encode](https://github.com/MegaAnda123/o3_auto_encode) | O3 auto-encode utilities (watch) |
 
 ## Owner ecosystems (repos as parts of larger projects)
 
@@ -175,7 +232,7 @@ Update watch status: `fpv-library/manifests/Caddx_Ground_Configuration_Release.s
 | [svpcom](https://github.com/svpcom) | WiFiBroadcast / wfb-ng stack | wfb-ng, wfb-ng-osd, rtl8812au drivers |
 | [DroneBridge](https://github.com/DroneBridge) | WiFi MAVLink bridge | DroneBridge, ESP32, Desktop, Docs |
 | [OpenHD](https://github.com/OpenHD) | HD FPV system | OpenHD, QOpenHD, ImageBuilder |
-| [fpv-wtf](https://github.com/fpv-wtf) | DJI FPV hacking | wtfos, msp-osd, voc-poc |
+| [fpv-wtf](https://github.com/fpv-wtf) | DJI FPV hacking (WTFOS, VOC, MSP-OSD, OTRA tools) | wtfos, voc-web, msp-osd, ar-firmware-tools |
 | [CaddxFPV-Tech](https://github.com/CaddxFPV-Tech) | Caddx Ascent / Walksnail HD | vrx_udp_protocol, firmware, PC tool, ground config |
 | [ExperimentalDesignBureau-1571](https://github.com/ExperimentalDesignBureau-1571) | НСК «ГАЛІТ» (UA) | fpv-ground-control-station, FPV-control-and-video-repeater |
 | [altnautica](https://github.com/altnautica) | ADOS drone platform | ADOSMissionControl, ADOSDroneAgent, ADOSAndroidGCS |

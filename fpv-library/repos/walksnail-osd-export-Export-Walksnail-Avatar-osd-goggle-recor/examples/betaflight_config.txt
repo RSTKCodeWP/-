@@ -1,0 +1,286 @@
+defaults nosave
+
+
+# version
+# Betaflight / STM32F405 (S405) 4.5.1 Dec 20 2024 / 18:38:39 (77d01ba3b) MSP API: 1.46
+# config rev: 3c54148
+
+# start the command batch
+batch start
+
+# reset configuration to default settings
+defaults nosave
+
+board_name BETAFLIGHTF4
+manufacturer_id FPVM
+mcu_id 004900363135511833323839
+signature 
+
+# name: Mobula8
+
+# resources
+resource PULLDOWN 1 B08
+
+# feature
+feature TELEMETRY
+feature OSD
+
+# serial
+serial 0 131073 115200 57600 0 115200
+serial 1 64 115200 57600 0 115200
+
+# aux
+aux 0 0 0 1800 2100 0 0
+aux 1 1 1 900 1200 0 0
+aux 2 2 1 1300 1700 0 0
+aux 3 35 3 1700 2100 0 0
+
+# adjrange
+adjrange 0 0 2 900 2100 12 2 0 0
+
+# vtxtable
+vtxtable bands 6
+vtxtable channels 8
+vtxtable band 1 BOSCAM_A A FACTORY    0    0    0    0    0    0    0    0
+vtxtable band 2 BOSCAM_B B FACTORY    0    0    0    0    0    0    0    0
+vtxtable band 3 BOSCAM_E E FACTORY    0    0    0    0    0    0    0    0
+vtxtable band 4 FATSHARK F FACTORY    0 5760    0 5800    0    0    0    0
+vtxtable band 5 RACEBAND R FACTORY 5658 5695 5732 5769 5806 5843 5880 5917
+vtxtable band 6 IMD6     I FACTORY    0    0    0    0    0    0    0    0
+vtxtable powerlevels 3
+vtxtable powervalues 14 23 0
+vtxtable powerlabels 25 200 0
+
+# master
+set gyro_lpf1_static_hz = 212
+set gyro_lpf2_type = PT2
+set gyro_lpf2_static_hz = 0
+set dyn_notch_q = 500
+set dyn_notch_min_hz = 90
+set dyn_notch_max_hz = 350
+set gyro_lpf1_dyn_min_hz = 0
+set gyro_lpf1_dyn_max_hz = 400
+set acc_lpf_hz = 10
+set acc_calibration = 12,15,-60,1
+set baro_hardware = NONE
+set rc_smoothing_auto_factor = 250
+set rc_smoothing_auto_factor_throttle = 170
+set rc_smoothing_setpoint_cutoff = 6
+set rc_smoothing_feedforward_cutoff = 6
+set rc_smoothing_throttle_cutoff = 20
+set blackbox_sample_rate = 1/8
+set dshot_idle_value = 850
+set motor_pwm_protocol = DSHOT300
+set motor_poles = 12
+set failsafe_recovery_delay = 10
+set current_meter = ADC
+set battery_meter = ADC
+set ibata_scale = 470
+set yaw_motors_reversed = ON
+set small_angle = 180
+set gps_provider = NMEA
+set gps_rescue_ascend_rate = 500
+set gps_rescue_ground_speed = 2000
+set gps_rescue_descent_dist = 200
+set gps_rescue_landing_alt = 5
+set gps_rescue_throttle_max = 1600
+set gps_rescue_throttle_hover = 1280
+set gps_rescue_sanity_checks = RESCUE_SANITY_ON
+set gps_rescue_throttle_p = 150
+set gps_rescue_throttle_i = 20
+set gps_rescue_throttle_d = 50
+set gps_rescue_velocity_p = 80
+set gps_rescue_velocity_i = 20
+set gps_rescue_velocity_d = 15
+set gps_rescue_yaw_p = 40
+set simplified_gyro_filter = OFF
+set simplified_gyro_filter_multiplier = 85
+set report_cell_voltage = ON
+set osd_warn_bitmask = 286719
+set osd_vbat_pos = 234
+set osd_rssi_pos = 314
+set osd_link_quality_pos = 3374
+set osd_link_tx_power_pos = 234
+set osd_rssi_dbm_pos = 3407
+set osd_tim_1_pos = 234
+set osd_tim_2_pos = 2433
+set osd_remaining_time_estimate_pos = 234
+set osd_flymode_pos = 3504
+set osd_anti_gravity_pos = 234
+set osd_g_force_pos = 234
+set osd_throttle_pos = 3440
+set osd_vtx_channel_pos = 33
+set osd_crosshairs_pos = 2361
+set osd_ah_sbar_pos = 206
+set osd_ah_pos = 78
+set osd_current_pos = 2336
+set osd_mah_drawn_pos = 2368
+set osd_motor_diag_pos = 234
+set osd_craft_name_pos = 374
+set osd_gps_speed_pos = 65
+set osd_gps_lon_pos = 33
+set osd_gps_lat_pos = 49
+set osd_gps_sats_pos = 88
+set osd_home_dir_pos = 79
+set osd_home_dist_pos = 364
+set osd_flight_dist_pos = 234
+set osd_compass_bar_pos = 234
+set osd_altitude_pos = 234
+set osd_pid_roll_pos = 234
+set osd_pid_pitch_pos = 234
+set osd_pid_yaw_pos = 234
+set osd_debug_pos = 234
+set osd_power_pos = 234
+set osd_pidrate_profile_pos = 234
+set osd_warnings_pos = 2325
+set osd_avg_cell_voltage_pos = 2401
+set osd_pit_ang_pos = 234
+set osd_rol_ang_pos = 234
+set osd_battery_usage_pos = 234
+set osd_disarmed_pos = 2391
+set osd_nheading_pos = 234
+set osd_up_down_reference_pos = 205
+set osd_nvario_pos = 248
+set osd_esc_tmp_pos = 234
+set osd_esc_rpm_pos = 161
+set osd_esc_rpm_freq_pos = 234
+set osd_rtc_date_time_pos = 234
+set osd_adjustment_range_pos = 234
+set osd_flip_arrow_pos = 2426
+set osd_core_temp_pos = 3183
+set osd_log_status_pos = 234
+set osd_stick_overlay_left_pos = 234
+set osd_stick_overlay_right_pos = 234
+set osd_rate_profile_name_pos = 3662
+set osd_pid_profile_name_pos = 600
+set osd_profile_name_pos = 234
+set osd_rcchannels_pos = 234
+set osd_camera_frame_pos = 35
+set osd_efficiency_pos = 234
+set osd_total_flights_pos = 234
+set osd_sys_vtx_temp_pos = 3151
+set osd_stat_bitmask = 1073755948
+set debug_mode = GYRO_SCALED
+set vtx_band = 5
+set vtx_channel = 1
+set vtx_power = 1
+set vtx_freq = 5658
+set gyro_1_sensor_align = CW0
+set gyro_1_align_yaw = 0
+set gyro_2_bustype = SPI
+set gyro_2_sensor_align = CW0
+set rpm_filter_harmonics = 0
+set craft_name = Mobula8
+
+profile 0
+
+# profile 0
+set dterm_lpf1_dyn_min_hz = 0
+set dterm_lpf1_dyn_max_hz = 120
+set dterm_lpf1_type = BIQUAD
+set dterm_lpf1_static_hz = 60
+set dterm_lpf2_static_hz = 0
+set vbat_sag_compensation = 100
+set anti_gravity_gain = 45
+set iterm_relax_cutoff = 30
+set p_pitch = 44
+set i_pitch = 98
+set d_pitch = 42
+set f_pitch = 86
+set p_roll = 47
+set i_roll = 104
+set d_roll = 36
+set f_roll = 92
+set p_yaw = 73
+set i_yaw = 150
+set f_yaw = 125
+set d_min_roll = 34
+set d_min_pitch = 39
+set auto_profile_cell_count = 2
+set thrust_linear = 100
+set feedforward_averaging = 2_POINT
+set feedforward_smooth_factor = 45
+set feedforward_jitter_factor = 10
+set dyn_idle_min_rpm = 95
+set simplified_pids_mode = RP
+set simplified_master_multiplier = 110
+set simplified_i_gain = 125
+set simplified_d_gain = 105
+set simplified_pi_gain = 95
+set simplified_dmax_gain = 20
+set simplified_feedforward_gain = 70
+set simplified_pitch_pi_gain = 90
+set simplified_dterm_filter = OFF
+set simplified_dterm_filter_multiplier = 80
+set tpa_breakpoint = 1250
+set ez_landing_limit = 5
+
+profile 1
+
+# profile 1
+set horizon_level_strength = 50
+
+profile 2
+
+# profile 2
+set horizon_level_strength = 50
+
+profile 3
+
+# restore original profile selection
+profile 0
+
+rateprofile 0
+
+# rateprofile 0
+set rateprofile_name = Start
+set roll_rc_rate = 1
+set pitch_rc_rate = 1
+set yaw_rc_rate = 1
+set roll_expo = 40
+set pitch_expo = 40
+set yaw_expo = 40
+set roll_srate = 45
+set pitch_srate = 45
+set yaw_srate = 45
+set throttle_limit_type = SCALE
+set throttle_limit_percent = 80
+
+rateprofile 1
+
+# rateprofile 1
+set rateprofile_name = Outdoor
+set roll_rc_rate = 1
+set pitch_rc_rate = 1
+set yaw_rc_rate = 1
+set roll_expo = 35
+set pitch_expo = 35
+set yaw_expo = 35
+set roll_srate = 60
+set pitch_srate = 60
+set yaw_srate = 60
+set throttle_limit_type = SCALE
+set throttle_limit_percent = 80
+
+rateprofile 2
+
+# rateprofile 2
+set rateprofile_name = Indoor
+set roll_rc_rate = 1
+set pitch_rc_rate = 1
+set yaw_rc_rate = 1
+set roll_expo = 45
+set pitch_expo = 45
+set yaw_expo = 45
+set roll_srate = 35
+set pitch_srate = 35
+set yaw_srate = 35
+set throttle_limit_type = SCALE
+set throttle_limit_percent = 80
+
+rateprofile 3
+
+# restore original rateprofile selection
+rateprofile 0
+
+# save configuration

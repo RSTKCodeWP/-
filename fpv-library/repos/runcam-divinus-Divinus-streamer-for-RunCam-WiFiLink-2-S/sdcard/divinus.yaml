@@ -1,0 +1,39 @@
+system:
+  sensor_config: /etc/sensors/imx335_fpv.bin
+  web_port: 8080
+  web_enable_auth: false
+  web_enable_static: false
+  isp_thread_stack_size: 16384
+  venc_stream_thread_stack_size: 16384
+  web_server_thread_stack_size: 32768
+  watchdog: 30
+
+isp:
+  mirror: false
+  flip: false
+  antiflicker: 60
+
+rtsp:
+  enable: false
+
+stream:
+  enable: true
+  dest:
+    - udp://127.0.0.1:5600
+
+audio:
+  enable: false
+
+mp4:
+  enable: true
+  codec: H.265
+  mode: AVBR
+  width: 1024
+  height: 576
+  fps: 30
+  gop: 30
+  profile: HP
+  bitrate: 5600
+
+jpeg:
+  enable: false

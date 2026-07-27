@@ -1,0 +1,22 @@
+#!/bin/sh
+DAEMON=/usr/bin/divinus
+CONF=/etc/divinus.yaml
+
+case "$1" in
+  start)
+    echo "Starting divinus..."
+    cp $CONF /root/divinus.yaml
+    cd /root && $DAEMON &
+    ;;
+  stop)
+    echo "Stopping divinus..."
+    killall -9 divinus 2>/dev/null
+    ;;
+  restart)
+    $0 stop; sleep 1; $0 start
+    ;;
+  *)
+    echo "Usage: $0 {start|stop|restart}"
+    exit 1
+    ;;
+esac

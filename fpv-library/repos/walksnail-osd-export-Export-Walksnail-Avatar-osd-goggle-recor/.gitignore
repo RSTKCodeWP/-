@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+
+# Personal flight recordings and their exports live at the repo root and are not
+# published. Sample fixtures under examples/ are tracked explicitly.
+/*.osd
+/*.srt
+/*.csv
+/*.txt

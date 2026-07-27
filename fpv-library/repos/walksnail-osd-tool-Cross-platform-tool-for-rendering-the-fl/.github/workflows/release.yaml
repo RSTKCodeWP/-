@@ -1,0 +1,45 @@
+name: Release
+
+permissions:
+  contents: write
+
+on: 
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    uses: ./.github/workflows/build.yaml
+
+  release:
+    name: Create GitHub release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install parse-changelog
+        uses: taiki-e/install-action@v2
+        with:
+          tool: parse-changelog
+
+      - name: Generate release notes
+        run: parse-changelog ${{ github.workspace }}/CHANGELOG.md > ${{ github.workspace }}-release_notes.md
+
+      - name: Download artifacts
+        id: download
+        uses: actions/download-artifact@v4
+        with:
+          pattern: walksnail-osd-tool-*
+          merge-multiple: true
+          path: ${{ github.workspace }}/_deploy/artifacts
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            ${{ steps.download.outputs.download-path }}/*
+          draft: true
+          body_path: ${{ github.workspace }}-release_notes.md
