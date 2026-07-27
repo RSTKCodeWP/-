@@ -13,6 +13,7 @@
 | [`manifests/`](manifests/) | JSON-маніфести релізів з SHA256 (firmware `.img`, Ground Configuration) |
 | [`ground-config/`](ground-config/) | Завантажені Windows-бінарники Caddx Ground Configuration (не в git) |
 | [`keywords.txt`](keywords.txt) | Пошукові ключові слова (ротація в CI) |
+| [`funnel-queries.txt`](funnel-queries.txt) | Широкі запити для funnel discovery |
 | [`blocklist.txt`](blocklist.txt) | Blocklist — не додавати в каталог |
 | [`priority-sync.txt`](priority-sync.txt) | Завжди синхронізувати ці `owner/repo` |
 | [`THEMED.md`](THEMED.md) | Кураторський індекс за темами |
@@ -25,6 +26,7 @@
 | `discover.py` | Пошук на GitHub + розширення по owner |
 | `discover_keywords.py` | Ротаційний batch з `keywords.txt` |
 | `discover_themes.py` | Тематичні запити (GCS, fiber, WFB…) |
+| `discover_funnel.py` | Широкий funnel + seed owners (EdgeTX, fpv-wtf, Caddx…) |
 | `triage_catalog.py` | keep / watch / skip → `HOOKS.md` |
 | `sync.py` | `git pull` upstream для каталогу |
 | `sync_caddx_ground_config.py` | Маніфест + завантаження Caddx Ground Configuration |

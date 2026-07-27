@@ -1,0 +1,111 @@
+# Funnel queries — broad drone / FPV / RC / link / GCS discovery
+# Run: python3 fpv-library/scripts/discover_funnel.py
+
+# Radio / TX firmware
+edgetx
+opentx
+edgetx companion
+opentx companion
+edge tx lua script fpv
+radio master tx lua
+
+# Bridges / hubs / relays / forwarders
+fpv hub mavlink
+drone bridge mavlink
+mavlink bridge drone
+mavlink router drone
+mavlink relay
+mavlink forwarder serial
+serial bridge drone telemetry
+esp32 mavlink bridge
+esp32 drone bridge
+telemetry bridge uart udp
+rc bridge mavlink
+crsf mavlink bridge
+elrs mavlink bridge
+fpv repeater video
+video relay drone
+rtsp relay drone
+hdmi bridge fpv
+
+# Long range / LoRa / LTE / cellular
+lora fpv drone
+lorawan drone telemetry
+lora mavlink
+meshtastic drone mavlink
+long range fpv video
+long range rf drone
+lte fpv video mavlink
+lte drone telemetry
+4g drone video stream
+cellular mavlink drone
+openhd lte
+
+# Tracking without GPS / VIO / optical flow
+visual odometry drone
+vio drone positioning
+optical flow drone navigation
+gps denied drone navigation
+visual inertial odometry uav
+optical flow mavlink
+uwb drone positioning
+vins drone
+
+# Configurators / calculators / tools
+betaflight configurator
+inav configurator
+ardupilot configurator
+expresslrs configurator
+fpv prop calculator
+fpv vtx calculator
+thrust calculator drone
+pid tuning tool betaflight
+blackbox log viewer
+ulog analyzer px4
+gyroflow fpv
+osd configurator betaflight
+radio configurator edgetx
+
+# FPV mods / digital stacks
+hdzero fpv
+hdzero goggles
+walksnail avatar
+dji fpv mod
+wtfos
+fpv digital vtx
+analog vtx control
+smartaudio tramp
+crossfire configurator
+elrs backpack
+
+# OpenCV / vision / AI drone
+opencv drone tracking
+yolo fpv drone
+drone detection computer vision
+fpv object tracking
+
+# Hubs / aggregators / multi-link
+drone telemetry hub
+fpv ground station hub
+multi link drone
+swarm drone ground station
+mavlink multiplexer
+
+# Equipment software
+hackrf fpv
+rtl-sdr drone
+spectrum analyzer vtx
+elrs sniffer
+vtx scanner fpv
+rotor hazard
+race timing fpv
+
+# Misc drone stacks
+px4 offboard
+ros2 mavlink
+ros drone fpv
+companion computer drone
+jetson drone fpv
+raspberry pi fpv ground station
+sitl ardupilot gazebo
+betaflight sitl

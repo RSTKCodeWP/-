@@ -11,14 +11,21 @@ fpv repeater
 fpv telemetry
 fpv goggles
 fpv configurator
+fpv hub mavlink
+fpv bridge
+fpv calculator
 betaflight
 betaflight osd
+betaflight configurator
 inav flight controller
 inav osd
+inav configurator
 ardupilot fpv
 expresslrs
 elrs joystick
+elrs backpack
 crsf telemetry
+crsf mavlink bridge
 openipc fpv
 wfb-ng
 wifibroadcast drone
@@ -26,6 +33,8 @@ openhd fpv
 dronebridge
 mavlink drone gcs
 mavlink osd fpv
+mavlink router
+mavlink relay drone
 msp displayport
 rotorhazard
 blackbox betaflight
@@ -49,3 +58,35 @@ fpv parts database
 fpv long range
 fpv analog vtx
 digital fpv hd
+edgetx
+opentx
+edgetx companion
+opentx companion
+lora fpv drone
+lorawan drone telemetry
+lte fpv video
+long range rf fpv
+visual odometry drone
+optical flow drone
+gps denied navigation drone
+hdzero fpv
+gyroflow fpv
+propeller calculator fpv
+thrust calculator drone
+serial bridge mavlink
+esp32 drone telemetry
+meshtastic drone
+ros2 mavlink drone
+jetson fpv
+companion computer drone
+px4 offboard
+betaflight sitl
+vtx scanner
+elrs sniffer
+smartaudio vtx
+crossfire bridge
+video relay drone
+rtsp ground station fpv
+swarm drone gcs
+drone configurator
+radio configurator lua

@@ -9,7 +9,9 @@ from typing import Any
 # Category tags for curated browsing
 CATEGORY_RULES: list[tuple[str, list[str]]] = [
     ("gcs", [r"\bgcs\b", r"ground\s*control", r"mission\s*control", r"qgroundcontrol"]),
-    ("link", [r"wfb", r"wifibroadcast", r"openhd", r"dronebridge", r"video\s*link", r"datalink", r"lte", r"gprs"]),
+    ("link", [r"wfb", r"wifibroadcast", r"openhd", r"dronebridge", r"video\s*link", r"datalink", r"lte", r"gprs", r"lora", r"lorawan", r"4g", r"cellular", r"long\s*range"]),
+    ("bridge", [r"\bbridge\b", r"\brelay\b", r"\brepeater\b", r"forwarder", r"router", r"multiplex", r"\bhub\b"]),
+    ("radio", [r"edgetx", r"opentx", r"\btx16s\b", r"\btaranis\b", r"radio\s*master", r"\bcrsf\b", r"\belrs\b"]),
     ("fiber", [r"fiber", r"optical", r"оптоволок", r"tether"]),
     ("osd", [r"\bosd\b", r"msp", r"displayport", r"overlay"]),
     ("fc", [r"betaflight", r"\binav\b", r"ardupilot", r"flight\s*controller", r"blackbox", r"pid\s*tun"]),
@@ -81,6 +83,19 @@ KEEP_PATTERNS: list[str] = [
     r"wtfos",
     r"pixelpilot",
     r"madflight",
+    r"edgetx",
+    r"opentx",
+    r"\blora\b",
+    r"lorawan",
+    r"\blte\b",
+    r"hdzero",
+    r"mavlink.*router",
+    r"drone.*bridge",
+    r"optical\s*flow",
+    r"visual\s*odometry",
+    r"configurator",
+    r"px4",
+    r"meshtastic",
 ]
 
 
@@ -119,9 +134,12 @@ def triage_entry(entry: dict[str, Any]) -> dict[str, Any]:
 
     fpv_core = bool(
         re.search(
-            r"\bfpv\b|betaflight|\binav\b|openipc|wfb|wifibroadcast|openhd|"
+            r"\bfpv\b|betaflight|\binav\b|ardupilot|openipc|wfb|wifibroadcast|openhd|"
             r"dronebridge|expresslrs|\belrs\b|rotorhazard|wtfos|pixelpilot|"
-            r"ground\s*control|\bgcs\b|msp.*osd|fiber|blackbox|whoop|\bvtx\b|madflight",
+            r"ground\s*control|\bgcs\b|msp.*osd|fiber|blackbox|whoop|\bvtx\b|madflight|"
+            r"edgetx|opentx|\blora\b|lorawan|\blte\b|hdzero|mavlink|px4|"
+            r"optical\s*flow|visual\s*odometry|configurator|meshtastic|drone\b|uav\b|"
+            r"\bbridge\b|\brepeater\b|telemetry",
             text,
             re.I,
         )

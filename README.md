@@ -10,6 +10,7 @@
 | **[docs/STRUCTURE.md](docs/STRUCTURE.md)** | Структура тек і правила іменування |
 | **[fpv-library/](fpv-library/)** | Автокаталог (discover → triage → sync) |
 | **[fpv-library/THEMED.md](fpv-library/THEMED.md)** | Тематичні добірки (GCS, WFB, OpenIPC, Caddx…) |
+| **[fpv-library/docs/ASCENT.md](fpv-library/docs/ASCENT.md)** | Walksnail / Caddx Ascent — прошивки та RE |
 | **[fpv-library/HOOKS.md](fpv-library/HOOKS.md)** | Цікаві / watch репо |
 
 ## Структура (коротко)
@@ -19,11 +20,13 @@
 ├── REPOS.md                 # автоген: кожен репо + опис + розмір + дата
 ├── docs/STRUCTURE.md        # що означає кожна тека
 ├── fpv-library/
-│   ├── catalog.json         # маніфест 470+ проєктів
+│   ├── catalog.json         # маніфест 520+ проєктів
 │   ├── repos/               # дзеркала GitHub (auto-sync)
 │   ├── scripts/             # discover, sync, triage, Caddx tools
 │   ├── manifests/           # SHA256 релізів (firmware, ground config)
+│   ├── docs/ASCENT.md       # Ascent firmware + RE index
 │   ├── ground-config/       # завантажені Caddx Ground Configuration
+│   ├── funnel-queries.txt   # широкий funnel discovery
 │   ├── THEMED.md            # кураторський індекс
 │   └── HOOKS.md             # hooks / watch list
 ├── Steer-iOS-RC-Car-FPV/    # legacy: ручні копії з описовою назвою теки

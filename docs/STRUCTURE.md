@@ -38,9 +38,11 @@
 | `manifests/` | SHA256-маніфести офіційних релізів (firmware, Ground Configuration) |
 | `ground-config/` | Локальні завантаження **Caddx Ground Configuration** (бінарники в .gitignore) |
 | `keywords.txt` | Ключові слова для ротаційного пошуку на GitHub |
+| `funnel-queries.txt` | Широкі funnel-запити для discover |
 | `blocklist.txt` | Репо, які ніколи не додавати (боти, шум) |
 | `priority-sync.txt` | Пріоритетний список для щоденного sync |
 | `THEMED.md` | Тематичний індекс (GCS, WFB, OpenIPC, Caddx, fiber…) |
+| `docs/ASCENT.md` | Ascent firmware + RE index |
 | `HOOKS.md` | Автогенерований список цікавих / `watch` репо |
 
 ## Іменування тек у `fpv-library/repos/`

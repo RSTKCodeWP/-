@@ -71,6 +71,13 @@ jobs:
       - name: Check Caddx Ground Configuration releases
         run: python3 fpv-library/scripts/sync_caddx_ground_config.py --check-only
 
+      - name: Funnel discovery (broad drone queries + owner expand)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 fpv-library/scripts/discover_funnel.py --pages 1 --owner-limit 15 --min-score 1.8 || true
+          python3 fpv-library/scripts/triage_catalog.py --force
+
       - name: Regenerate REPOS.md index
         run: python3 fpv-library/scripts/generate_repo_index.py
 
@@ -78,7 +85,7 @@ jobs:
         run: |
           git config user.name "fpv-library-bot"
           git config user.email "fpv-library-bot@users.noreply.github.com"
-          git add fpv-library/
+          git add fpv-library/ REPOS.md
           if git diff --staged --quiet; then
             echo "No changes to commit"
           else

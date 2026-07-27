@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# FPV library local downloads (see fpv-library/ground-config/.gitignore)
+fpv-library/ground-config/*
+!fpv-library/ground-config/.gitignore
+
+# Large firmware images (manifests only in git)
+fpv-library/firmware-images/
+
+# OS / editor
+.DS_Store
+*.swp
+.idea/
+.vscode/
