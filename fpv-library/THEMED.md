@@ -102,11 +102,31 @@ Curated index after multi-query discovery (GCS, datalink, fiber, IP control, Ope
 | Source | Notes |
 |--------|-------|
 | [CaddxFPV-Tech/Caddx_vrx_udp_protocol](https://github.com/CaddxFPV-Tech/Caddx_vrx_udp_protocol) | Ascent VRX UART binary protocol + Python UDP client |
-| [CaddxFPV-Tech/Caddx-Ascent-Firmware_Release](https://github.com/CaddxFPV-Tech/Caddx-Ascent-Firmware_Release) | Ascent firmware releases |
+| [CaddxFPV-Tech/Caddx-Ascent-Firmware_Release](https://github.com/CaddxFPV-Tech/Caddx-Ascent-Firmware_Release) | Ascent firmware releases — see [V17.5.15](https://github.com/CaddxFPV-Tech/Caddx-Ascent-Firmware_Release/releases/tag/V17.5.15) |
 | [CaddxFPV-Tech/Caddx-PC-Tool-Release](https://github.com/CaddxFPV-Tech/Caddx-PC-Tool-Release) | Caddx PC configuration tool |
 | [CaddxFPV-Tech/Caddx_Ground_Configuration_Release](https://github.com/CaddxFPV-Tech/Caddx_Ground_Configuration_Release) | Ground station configuration releases |
 | [umeow0716/Walksnail-Ascent-FPV-VRX-Rooting-Exploit](https://github.com/umeow0716/Walksnail-Ascent-FPV-VRX-Rooting-Exploit) | PoC: USB upgrade service RCE → root shell on Ascent VRX |
 | [umeow0716/extract-ascent-otra](https://github.com/umeow0716/extract-ascent-otra) | Extract Ascent OTRA firmware (companion to rooting exploit) |
+
+### Firmware release V17.5.15 (2026-07-17)
+
+| Device | Role | Chip | Image | Size |
+|--------|------|------|-------|------|
+| Ascent_G_Gnd | ground (VRX) | cx485 | `Ascent_G_Gnd_17_5_15.img` | ~47 MB |
+| Ascent_G_Sky | air | cx486 | `Ascent_G_Sky_17_5_15.img` | ~15 MB |
+| Ascent_H_Sky | air | cx482 | `Ascent_H_Sky_17_5_15.img` | ~14 MB |
+| Ascent_L_Gnd | ground | cx401 | `Ascent_L_Gnd_17_5_15.img` | ~46 MB |
+
+Manifest with SHA256: `fpv-library/repos/Caddx-Ascent-Firmware_Release-.../manifest.json`
+
+```bash
+# Download official .img (not mirrored — too large)
+python3 fpv-library/scripts/download_caddx_firmware.py Ascent_G_Gnd
+
+# Unpack OTRA container
+uv run python fpv-library/repos/extract-ascent-otra/extract_ascent_otra.py \
+  fpv-library/firmware-images/Ascent_G_Gnd_17_5_15.img -o extracted/
+```
 
 ## DJI FPV mods (fpv-wtf ecosystem)
 
