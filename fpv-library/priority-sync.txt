@@ -129,6 +129,8 @@ CaddxFPV-Tech/Caddx-PC-Tool-Release
 CaddxFPV-Tech/Caddx_Ground_Configuration_Release
 umeow0716/Walksnail-Ascent-FPV-VRX-Rooting-Exploit
 umeow0716/extract-ascent-otra
+# RSTKCodeWP own Ascent RE (sync when repo is published)
+RSTKCodeWP/Ascent-
 # Large flight stacks & firmware (synced — no size cap)
 betaflight/betaflight
 ArduPilot/ardupilot

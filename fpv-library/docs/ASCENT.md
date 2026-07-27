@@ -2,6 +2,16 @@
 
 Індекс усього, що є в **цьому репо** по Ascent (офіційні джерела + RE + exploit).
 
+## Окремий репозиторій RSTKCodeWP
+
+**Цільовий репо:** [RSTKCodeWP/Ascent-](https://github.com/RSTKCodeWP/Ascent-) — власний розбір / нотатки Ascent.
+
+| Статус | Дія |
+|--------|-----|
+| Поки **404** (репо не створено або приватний без доступу CI) | У `priority-sync.txt` вже є запис; після публікації: `python3 fpv-library/scripts/sync.py --source RSTKCodeWP/Ascent-` |
+
+Коли репо з’явиться — mirror піде в `fpv-library/repos/Ascent-…/` і потрапить у [REPOS.md](../../REPOS.md).
+
 ## Офіційні прошивки (Caddx)
 
 Репо: [CaddxFPV-Tech/Caddx-Ascent-Firmware_Release](https://github.com/CaddxFPV-Tech/Caddx-Ascent-Firmware_Release)
