@@ -99,6 +99,8 @@ Curated index after multi-query discovery (GCS, datalink, fiber, IP control, Ope
 
 ## Caddx Ascent / HD VRX (official)
 
+**Повний індекс прошивок + RE у репо:** [fpv-library/docs/ASCENT.md](docs/ASCENT.md)
+
 | Source | Notes |
 |--------|-------|
 | [CaddxFPV-Tech/Caddx_vrx_udp_protocol](https://github.com/CaddxFPV-Tech/Caddx_vrx_udp_protocol) | Ascent VRX UART binary protocol + Python UDP client |
