@@ -1,0 +1,41 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "status",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/udp_vrx_client.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "args": [
+                "status"
+            ],
+            "justMyCode": true
+        },
+        {
+            "name": "get-frequency",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/udp_vrx_client.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "args": [
+                "get-frequency"
+            ],
+            "justMyCode": true
+        },
+        {
+            "name": "keyboard",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/udp_vrx_client.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "args": [
+                "keyboard"
+            ],
+            "justMyCode": true
+        }
+    ]
+}

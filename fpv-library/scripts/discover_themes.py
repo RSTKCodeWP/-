@@ -76,6 +76,7 @@ OWNERS = [
     "iBz-04",
     "kaack",
     "MishkaRogachev",
+    "CaddxFPV-Tech",
 ]
 
 

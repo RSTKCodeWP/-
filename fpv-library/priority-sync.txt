@@ -90,6 +90,11 @@ OpenIPC/configurator
 OpenIPC/fpv4win
 rodizio1/EZ-WifiBroadcast
 AkitaEngineering/Meshtastic-Integration-for-DroneBridge32-Swarm
+# Caddx Ascent / Walksnail HD ecosystem (official)
+CaddxFPV-Tech/Caddx_vrx_udp_protocol
+CaddxFPV-Tech/Caddx-Ascent-Firmware_Release
+CaddxFPV-Tech/Caddx-PC-Tool-Release
+CaddxFPV-Tech/Caddx_Ground_Configuration_Release
 # Large flight stacks & firmware (synced — no size cap)
 betaflight/betaflight
 ArduPilot/ardupilot

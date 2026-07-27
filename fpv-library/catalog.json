@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-07-26T23:52:44+00:00",
+  "updated_at": "2026-07-27T00:12:30+00:00",
   "repos": [
     {
       "source": "johnboiles/Steer",
@@ -11218,6 +11218,94 @@
       "interesting": false,
       "triage_reason": "weak-hook",
       "triage_at": "2026-07-26T23:52:44+00:00"
+    },
+    {
+      "source": "CaddxFPV-Tech/Caddx_vrx_udp_protocol",
+      "path": "fpv-library/repos/Caddx_vrx_udp_protocol-he-Ascent-VRX-UART-protocol-is-a-binary",
+      "added_at": "2026-07-27T00:12:23+00:00",
+      "discovered_via": "manual:user-url",
+      "description": "he Ascent VRX UART protocol is a **binary frame-based communication protocol** that uses a structured packet format to exchange commands and data between a host controller and the VRX device. This document provides a comprehensive guide on how to **assemble (pack)** outgoing command packets and **disassemble (unpack)** incoming response packets.",
+      "stars": 0,
+      "score": 5.0,
+      "upstream_updated": "2026-07-20T07:32:02Z",
+      "owner": "CaddxFPV-Tech",
+      "size_kb": 27,
+      "topics": [],
+      "verdict": "keep",
+      "categories": [
+        "other"
+      ],
+      "interesting": true,
+      "triage_reason": "low-relevance",
+      "triage_at": "2026-07-27T00:12:23+00:00",
+      "upstream_commit": "d843e6a137c750310b2de57689e855ad3c4cc321",
+      "synced_at": "2026-07-27T00:12:28+00:00"
+    },
+    {
+      "source": "CaddxFPV-Tech/Caddx-Ascent-Firmware_Release",
+      "path": "fpv-library/repos/Caddx-Ascent-Firmware_Release-Caddx-Ascent-Firmware-Release",
+      "added_at": "2026-07-27T00:12:24+00:00",
+      "discovered_via": "manual:user-url",
+      "description": "",
+      "stars": 0,
+      "score": 5.0,
+      "upstream_updated": "2026-07-17T03:21:40Z",
+      "owner": "CaddxFPV-Tech",
+      "size_kb": 1,
+      "topics": [],
+      "verdict": "keep",
+      "categories": [
+        "other"
+      ],
+      "interesting": true,
+      "triage_reason": "low-relevance",
+      "triage_at": "2026-07-27T00:12:24+00:00",
+      "upstream_commit": "66cbc8b5cb0882a1accbb72c82a9a9d4a0d76321",
+      "synced_at": "2026-07-27T00:12:29+00:00"
+    },
+    {
+      "source": "CaddxFPV-Tech/Caddx-PC-Tool-Release",
+      "path": "fpv-library/repos/Caddx-PC-Tool-Release",
+      "added_at": "2026-07-27T00:12:24+00:00",
+      "discovered_via": "manual:user-url",
+      "description": "",
+      "stars": 1,
+      "score": 5.0,
+      "upstream_updated": "2026-07-15T02:32:03Z",
+      "owner": "CaddxFPV-Tech",
+      "size_kb": 0,
+      "topics": [],
+      "verdict": "keep",
+      "categories": [
+        "other"
+      ],
+      "interesting": true,
+      "triage_reason": "low-relevance",
+      "triage_at": "2026-07-27T00:12:24+00:00",
+      "upstream_commit": "a5d2a378e9a276015d12f972b45ec53f3c5aef66",
+      "synced_at": "2026-07-27T00:12:30+00:00"
+    },
+    {
+      "source": "CaddxFPV-Tech/Caddx_Ground_Configuration_Release",
+      "path": "fpv-library/repos/Caddx_Ground_Configuration_Release-Caddx-Ground-Configuration-Release",
+      "added_at": "2026-07-27T00:12:24+00:00",
+      "discovered_via": "manual:user-url",
+      "description": "",
+      "stars": 0,
+      "score": 5.0,
+      "upstream_updated": "2026-07-23T10:31:35Z",
+      "owner": "CaddxFPV-Tech",
+      "size_kb": 0,
+      "topics": [],
+      "verdict": "keep",
+      "categories": [
+        "other"
+      ],
+      "interesting": true,
+      "triage_reason": "peripheral",
+      "triage_at": "2026-07-27T00:12:24+00:00",
+      "upstream_commit": "4dc08914161f9a1a3533ef4bc1f93d051f547079",
+      "synced_at": "2026-07-27T00:12:30+00:00"
     }
   ],
   "search_queries": [
@@ -11247,6 +11335,12 @@
     },
     {
       "query": "Katena fiber optic drone",
+      "pages": [
+        1
+      ]
+    },
+    {
+      "query": "Caddx_vrx_udp_protocol",
       "pages": [
         1
       ]

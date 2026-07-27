@@ -97,6 +97,15 @@ Curated index after multi-query discovery (GCS, datalink, fiber, IP control, Ope
 | [wkumik/Digital-FPV-OSD-Tool](https://github.com/wkumik/Digital-FPV-OSD-Tool) | MSP-OSD overlay on DVR video |
 | [AtiqAakash/Mavlink-OSD](https://github.com/AtiqAakash/Mavlink-OSD) | FPV-style transparent MAVLink overlay |
 
+## Caddx Ascent / HD VRX (official)
+
+| Source | Notes |
+|--------|-------|
+| [CaddxFPV-Tech/Caddx_vrx_udp_protocol](https://github.com/CaddxFPV-Tech/Caddx_vrx_udp_protocol) | Ascent VRX UART binary protocol + Python UDP client |
+| [CaddxFPV-Tech/Caddx-Ascent-Firmware_Release](https://github.com/CaddxFPV-Tech/Caddx-Ascent-Firmware_Release) | Ascent firmware releases |
+| [CaddxFPV-Tech/Caddx-PC-Tool-Release](https://github.com/CaddxFPV-Tech/Caddx-PC-Tool-Release) | Caddx PC configuration tool |
+| [CaddxFPV-Tech/Caddx_Ground_Configuration_Release](https://github.com/CaddxFPV-Tech/Caddx_Ground_Configuration_Release) | Ground station configuration releases |
+
 ## DJI FPV mods (fpv-wtf ecosystem)
 
 | Source | Notes |
@@ -115,6 +124,7 @@ Curated index after multi-query discovery (GCS, datalink, fiber, IP control, Ope
 | [DroneBridge](https://github.com/DroneBridge) | WiFi MAVLink bridge | DroneBridge, ESP32, Desktop, Docs |
 | [OpenHD](https://github.com/OpenHD) | HD FPV system | OpenHD, QOpenHD, ImageBuilder |
 | [fpv-wtf](https://github.com/fpv-wtf) | DJI FPV hacking | wtfos, msp-osd, voc-poc |
+| [CaddxFPV-Tech](https://github.com/CaddxFPV-Tech) | Caddx Ascent / Walksnail HD | vrx_udp_protocol, firmware, PC tool, ground config |
 | [ExperimentalDesignBureau-1571](https://github.com/ExperimentalDesignBureau-1571) | НСК «ГАЛІТ» (UA) | fpv-ground-control-station, FPV-control-and-video-repeater |
 | [altnautica](https://github.com/altnautica) | ADOS drone platform | ADOSMissionControl, ADOSDroneAgent, ADOSAndroidGCS |
 | [skybrush-io](https://github.com/skybrush-io) | Drone light shows | live, skybrush-server, studio-blender |

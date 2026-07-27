@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "releases": [
+    {
+      "tag": "V17.5.15",
+      "version": "17.5.15",
+      "releaseDate": "2025-06-24",
+      "changelogUrl": "https://github.com/CaddxFPV-Tech/Caddx-Ascent-Firmware_Release/releases/tag/V17.5.15",
+      "devices": [
+        {
+          "deviceId": "Ascent_G_Gnd",
+          "chip": "cx485",
+          "role": "gnd",
+          "displayName": "Ascent G 地面端 (cx485)",
+          "version": "17.5.15",
+          "files": [
+            {
+              "name": "Ascent_G_Gnd_17_5_15.img",
+              "role": "main",
+              "url": "https://github.com/CaddxFPV-Tech/Caddx-Ascent-Firmware_Release/releases/download/V17.5.15/Ascent_G_Gnd_17_5_15.img",
+              "size": 49209410,
+              "sha256": "d5fba9a867bd5c6b664750937e2185a2b2db01d49b0b586815f1199db747791f"
+            }
+          ]
+        },
+        {
+          "deviceId": "Ascent_G_Sky",
+          "chip": "cx486",
+          "role": "sky",
+          "displayName": "Ascent G 天空端 (cx486)",
+          "version": "17.5.15",
+          "files": [
+            {
+              "name": "Ascent_G_Sky_17_5_15.img",
+              "role": "main",
+              "url": "https://github.com/CaddxFPV-Tech/Caddx-Ascent-Firmware_Release/releases/download/V17.5.15/Ascent_G_Sky_17_5_15.img",
+              "size": 15600677,
+              "sha256": "9194b2766e739cb0aa79069d93dafbcf24a10985b4feec2d5dc6c901d7831c3b"
+            }
+          ]
+        },
+        {
+          "deviceId": "Ascent_H_Sky",
+          "chip": "cx482",
+          "role": "sky",
+          "displayName": "Ascent H 天空端 (cx482)",
+          "version": "17.5.15",
+          "files": [
+            {
+              "name": "Ascent_H_Sky_17_5_15.img",
+              "role": "main",
+              "url": "https://github.com/CaddxFPV-Tech/Caddx-Ascent-Firmware_Release/releases/download/V17.5.15/Ascent_H_Sky_17_5_15.img",
+              "size": 14945317,
+              "sha256": "7b5c7cbf24afb21f705e2fc7e8ea93b6d1b622c46ea863b89e1230cf00cb8951"
+            }
+          ]
+        },
+        {
+          "deviceId": "Ascent_L_Gnd",
+          "chip": "cx401",
+          "role": "gnd",
+          "displayName": "Ascent L 地面端 (cx401)",
+          "version": "17.5.15",
+          "files": [
+            {
+              "name": "Ascent_L_Gnd_17_5_15.img",
+              "role": "main",
+              "url": "https://github.com/CaddxFPV-Tech/Caddx-Ascent-Firmware_Release/releases/download/V17.5.15/Ascent_L_Gnd_17_5_15.img",
+              "size": 48546162,
+              "sha256": "97ac0132ec4613e7c72cc802ddaf01b63d19f1718935a2f49949352f2400bde8"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
