@@ -92,6 +92,8 @@ rodizio1/EZ-WifiBroadcast
 AkitaEngineering/Meshtastic-Integration-for-DroneBridge32-Swarm
 # Caddx Ascent / Walksnail HD ecosystem (official)
 CaddxFPV-Tech/Caddx_vrx_udp_protocol
+JerryLamMV/caddx_vrx_udp_protocol
+JerryLamMV/CaddxPCTool_Release
 CaddxFPV-Tech/Caddx-Ascent-Firmware_Release
 CaddxFPV-Tech/Caddx-PC-Tool-Release
 CaddxFPV-Tech/Caddx_Ground_Configuration_Release

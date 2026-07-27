@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-07-27T00:13:26+00:00",
+  "updated_at": "2026-07-27T00:15:35+00:00",
   "repos": [
     {
       "source": "johnboiles/Steer",
@@ -11350,6 +11350,48 @@
       "triage_at": "2026-07-27T00:13:24+00:00",
       "upstream_commit": "ca85dbc8f63af990916754f858f9f337fbdc704d",
       "synced_at": "2026-07-27T00:13:26+00:00"
+    },
+    {
+      "source": "JerryLamMV/caddx_vrx_udp_protocol",
+      "path": "fpv-library/repos/caddx_vrx_udp_protocol-Community-fork-docs-for-Caddx-Ascent-VRX",
+      "added_at": "2026-07-27T00:15:34+00:00",
+      "discovered_via": "manual:user-url",
+      "description": "Community fork/docs for Caddx Ascent VRX UART/UDP protocol",
+      "stars": 0,
+      "score": 5.0,
+      "upstream_updated": "2026-07-13T02:57:10Z",
+      "owner": "JerryLamMV",
+      "size_kb": 16,
+      "verdict": "keep",
+      "categories": [
+        "other"
+      ],
+      "interesting": true,
+      "triage_reason": "low-relevance",
+      "triage_at": "2026-07-27T00:15:34+00:00",
+      "upstream_commit": "08f6f5326315a068fcdea5cd07bee0c6348f425e",
+      "synced_at": "2026-07-27T00:15:35+00:00"
+    },
+    {
+      "source": "JerryLamMV/CaddxPCTool_Release",
+      "path": "fpv-library/repos/CaddxPCTool_Release-Caddx-pc-tool-release-version-download-a",
+      "added_at": "2026-07-27T00:15:34+00:00",
+      "discovered_via": "manual:user-url",
+      "description": "Caddx pc tool release version download address, used for upgrading the caddx high-definition image transmission system",
+      "stars": 1,
+      "score": 5.0,
+      "upstream_updated": "2026-07-09T13:40:20Z",
+      "owner": "JerryLamMV",
+      "size_kb": 20,
+      "verdict": "keep",
+      "categories": [
+        "other"
+      ],
+      "interesting": true,
+      "triage_reason": "low-relevance",
+      "triage_at": "2026-07-27T00:15:34+00:00",
+      "upstream_commit": "8818e325ddaf2919ec672a5aeb7ea24d183b094d",
+      "synced_at": "2026-07-27T00:15:35+00:00"
     }
   ],
   "search_queries": [
