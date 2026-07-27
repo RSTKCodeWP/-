@@ -106,7 +106,7 @@ Curated index after multi-query discovery (GCS, datalink, fiber, IP control, Ope
 | [JerryLamMV/CaddxPCTool_Release](https://github.com/JerryLamMV/CaddxPCTool_Release) | Caddx PC Tool release download links (Windows) |
 | [CaddxFPV-Tech/Caddx-Ascent-Firmware_Release](https://github.com/CaddxFPV-Tech/Caddx-Ascent-Firmware_Release) | Ascent firmware releases — see [V17.5.15](https://github.com/CaddxFPV-Tech/Caddx-Ascent-Firmware_Release/releases/tag/V17.5.15) |
 | [CaddxFPV-Tech/Caddx-PC-Tool-Release](https://github.com/CaddxFPV-Tech/Caddx-PC-Tool-Release) | Caddx PC configuration tool |
-| [CaddxFPV-Tech/Caddx_Ground_Configuration_Release](https://github.com/CaddxFPV-Tech/Caddx_Ground_Configuration_Release) | Ground station configuration releases |
+| [CaddxFPV-Tech/Caddx_Ground_Configuration_Release](https://github.com/CaddxFPV-Tech/Caddx_Ground_Configuration_Release) | Ascent ground-station config app (Windows) — see [v0.3.3](https://github.com/CaddxFPV-Tech/Caddx_Ground_Configuration_Release/releases/tag/v0.3.3) |
 | [umeow0716/Walksnail-Ascent-FPV-VRX-Rooting-Exploit](https://github.com/umeow0716/Walksnail-Ascent-FPV-VRX-Rooting-Exploit) | PoC: USB upgrade service RCE → root shell on Ascent VRX |
 | [umeow0716/extract-ascent-otra](https://github.com/umeow0716/extract-ascent-otra) | Extract Ascent OTRA firmware (companion to rooting exploit) |
 
@@ -128,6 +128,29 @@ python3 fpv-library/scripts/download_caddx_firmware.py Ascent_G_Gnd
 # Unpack OTRA container
 uv run python fpv-library/repos/extract-ascent-otra/extract_ascent_otra.py \
   fpv-library/firmware-images/Ascent_G_Gnd_17_5_15.img -o extracted/
+```
+
+### Ground Configuration releases
+
+| Tag | Date | Notes |
+|-----|------|-------|
+| [v0.3.3](https://github.com/CaddxFPV-Tech/Caddx_Ground_Configuration_Release/releases/tag/v0.3.3) | 2026-07-24 | Fix RC stick travel for some 10-byte reportLength controllers (maxValue=255) |
+| [v0.3.1](https://github.com/CaddxFPV-Tech/Caddx_Ground_Configuration_Release/releases/tag/v0.3.1) | 2026-07-22 | Test build |
+
+| Asset (v0.3.3) | Kind | Size |
+|----------------|------|------|
+| `CaddxGroundConfiguration-win-Setup.exe` | Windows installer (Squirrel) | ~54 MB |
+| `CaddxGroundConfiguration-win-Portable.zip` | Portable zip | ~50 MB |
+| `CaddxGroundConfiguration-0.3.3-full.nupkg` | Squirrel full package | ~50 MB |
+| `CaddxGroundConfiguration-0.3.3-delta.nupkg` | Squirrel delta update | ~145 KB |
+
+Manifest with SHA256: `fpv-library/manifests/Caddx_Ground_Configuration_Release.json`
+
+```bash
+# List / download (not mirrored — binaries stay on GitHub)
+python3 fpv-library/scripts/download_caddx_ground_config.py
+python3 fpv-library/scripts/download_caddx_ground_config.py setup
+python3 fpv-library/scripts/download_caddx_ground_config.py portable --tag v0.3.3
 ```
 
 ## DJI FPV mods (fpv-wtf ecosystem)
