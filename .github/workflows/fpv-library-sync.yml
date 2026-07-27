@@ -71,6 +71,9 @@ jobs:
       - name: Check Caddx Ground Configuration releases
         run: python3 fpv-library/scripts/sync_caddx_ground_config.py --check-only
 
+      - name: Regenerate REPOS.md index
+        run: python3 fpv-library/scripts/generate_repo_index.py
+
       - name: Commit updates
         run: |
           git config user.name "fpv-library-bot"

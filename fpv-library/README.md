@@ -20,16 +20,22 @@ This library keeps a **`catalog.json`** manifest: source repo, local path, last 
 ```
 fpv-library/
   catalog.json          # manifest of all tracked projects
+  STRUCTURE.md          # what each folder/file means (UA + EN)
   repos/                # auto-synced mirrors (discovered repos)
+  manifests/            # release SHA256 manifests (Caddx firmware, ground config)
+  ground-config/        # downloaded Caddx Ground Configuration binaries (gitignored)
   scripts/
     discover.py         # parse GitHub search + expand owners
     discover_themes.py  # multi-query themed discovery (GCS, fiber, WFB, …)
     sync.py             # pull upstream updates when commit changes
+    generate_repo_index.py  # write ../REPOS.md (full project list)
     register_legacy.py  # register hand-copied example folders at repo root
   THEMED.md             # curated highlights by category
+  HOOKS.md              # auto-generated interesting / watch list
 ```
 
-Legacy example copies (Steer, SkySweep32, wfb-ng, …) remain at the repository root and are listed in `catalog.json` with `"legacy": true`. New discoveries go under `fpv-library/repos/`.
+**Full project index (description, path, date, size):** [`../REPOS.md`](../REPOS.md)  
+**Repository layout:** [`../docs/STRUCTURE.md`](../docs/STRUCTURE.md) · [`STRUCTURE.md`](STRUCTURE.md)
 
 ## Usage
 
@@ -76,7 +82,8 @@ python3 fpv-library/scripts/register_legacy.py
 2. **Themed discovery** — GCS / link / fiber queries + owner ecosystems
 3. **Triage** — classify each repo: `keep` / `watch` / `skip`; write `HOOKS.md`
 4. **Sync** — pull upstream for `verdict=keep` repos (no size limit)
-5. **Commit** — push catalog + mirror updates
+5. **Index** — regenerate root `REPOS.md` (descriptions, sizes, dates)
+6. **Commit** — push catalog + mirror updates
 
 Manual run: Actions → **FPV Library Sync** → Run workflow.
 
