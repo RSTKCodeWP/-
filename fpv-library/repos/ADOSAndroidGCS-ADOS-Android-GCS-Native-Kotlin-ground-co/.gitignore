@@ -20,3 +20,7 @@
 *.keystore
 *.log
 /app/release
+
+# Local agent tooling directory (not part of the project)
+.opencode/
+opencode.jsonc

@@ -12,11 +12,28 @@ import { CALIBRATION_TYPES, type CalibrationVerification } from '../../../../sha
 import { boardSupportsPersistentParamSave } from '../../../../shared/board-mappings';
 import { CalibrationResultCard } from '../shared/CalibrationResultCard';
 
+const ROTATION_NAMES: Record<number, string> = {
+  0: 'None', 1: 'Yaw 45', 2: 'Yaw 90', 3: 'Yaw 135', 4: 'Yaw 180',
+  5: 'Yaw 225', 6: 'Yaw 270', 7: 'Yaw 315', 8: 'Roll 180', 12: 'Pitch 180',
+};
+function rotationName(o: number | null): string {
+  if (o == null) return '—';
+  return ROTATION_NAMES[o] ?? `Rotation ${o}`;
+}
+// ArduPilot compass fitness is RMS milligauss residual: < 2 good, < 3.5 usable,
+// higher means interference / insufficient rotation coverage.
+function fitnessVerdict(f: number): { label: string; cls: string } {
+  if (f < 2) return { label: 'Good', cls: 'text-green-400 bg-green-500/15 border-green-500/30' };
+  if (f < 3.5) return { label: 'Marginal', cls: 'text-amber-400 bg-amber-500/15 border-amber-500/30' };
+  return { label: 'Poor', cls: 'text-red-400 bg-red-500/15 border-red-500/30' };
+}
+
 export function CalibrationCompleteStep() {
   const {
     calibrationType,
     calibrationSuccess,
     calibrationData,
+    calibrationRebootRequired,
     error,
     isSaving,
     saveSuccess,
@@ -54,6 +71,26 @@ export function CalibrationCompleteStep() {
 
   const handleStartNew = () => {
     setStep('select');
+  };
+
+  const [isRebooting, setIsRebooting] = useState(false);
+  const [rebootError, setRebootError] = useState<string | null>(null);
+  const handleReboot = async () => {
+    setIsRebooting(true);
+    setRebootError(null);
+    try {
+      const ok = await window.electronAPI?.mavlinkReboot();
+      if (!ok) {
+        setRebootError('Reboot command failed — reboot from the connection panel instead.');
+        setIsRebooting(false);
+        return;
+      }
+      // Reboot + reconnect runs in the background; leave the wizard.
+      setStep('select');
+    } catch (err) {
+      setRebootError(err instanceof Error ? err.message : 'Unknown error');
+      setIsRebooting(false);
+    }
   };
 
   // Auto-redirect to select screen after persistent save completes
@@ -133,6 +170,51 @@ export function CalibrationCompleteStep() {
           </h4>
 
           <CalibrationResultCard data={calibrationData} type={calibrationType!} />
+        </div>
+      )}
+
+      {/* Per-compass fit quality (ArduPilot). Surfaces fitness + detected
+          orientation so a bad cal reads as a warning instead of a bare green. */}
+      {showSuccess && calibrationType === 'compass' && calibrationData?.compassResults?.length ? (
+        <div className="space-y-2">
+          <h4 className="text-sm font-medium text-content uppercase tracking-wide">Compass Fit</h4>
+          {calibrationData.compassResults.map((r) => {
+            const v = fitnessVerdict(r.fitness);
+            return (
+              <div key={r.compass} className="flex items-center justify-between bg-surface rounded-lg border border-subtle p-3">
+                <div className="text-sm text-content">Compass {r.compass}</div>
+                <div className="flex items-center gap-3 text-xs">
+                  <span className="text-content-secondary">orient <span className="text-content font-mono">{rotationName(r.orientation)}</span></span>
+                  <span className="text-content-secondary">fitness <span className="text-content font-mono">{r.fitness.toFixed(1)}</span></span>
+                  <span className={`px-2 py-0.5 rounded-full border text-[11px] font-medium ${v.cls}`}>{v.label}</span>
+                </div>
+              </div>
+            );
+          })}
+          {calibrationData.compassResults.some((r) => r.fitness >= 3.5) && (
+            <p className="text-xs text-amber-400/90">
+              A poor fit (&gt; 3.5) usually means magnetic interference or too little rotation. Move the compass away from power wiring and recalibrate.
+            </p>
+          )}
+        </div>
+      ) : null}
+
+      {/* Reboot required (compass on ArduPilot): offsets don't take effect and
+          the EKF reports yaw inconsistent until the FC restarts. */}
+      {showSuccess && calibrationRebootRequired && (
+        <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4">
+          <h4 className="text-sm font-medium text-content mb-1">Reboot required</h4>
+          <p className="text-xs text-content-secondary mb-3">
+            The new compass offsets only take effect after the flight controller reboots. Until then the EKF will report yaw inconsistent and arming will be blocked.
+          </p>
+          {rebootError && <p className="text-xs text-red-400 mb-2">{rebootError}</p>}
+          <button
+            onClick={handleReboot}
+            disabled={isRebooting}
+            className="px-4 py-2 bg-amber-500/20 hover:bg-amber-500/30 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-amber-400 text-sm font-medium transition-colors"
+          >
+            {isRebooting ? 'Rebooting…' : 'Reboot Now'}
+          </button>
         </div>
       )}
 

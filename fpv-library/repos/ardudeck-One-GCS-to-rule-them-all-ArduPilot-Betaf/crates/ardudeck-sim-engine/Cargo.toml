@@ -19,6 +19,7 @@ name = "ardudeck-sim-batch"
 path = "src/bin/batch.rs"
 
 [dependencies]
+ardudeck-frame = { path = "../ardudeck-frame" }
 tokio = { version = "1", features = ["full"] }
 tokio-tungstenite = "0.23"
 futures-util = "0.3"

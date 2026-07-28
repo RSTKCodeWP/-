@@ -19,6 +19,18 @@ export interface ParameterMetadata {
   bitmask?: Record<number, string>; // For bitmask params
 }
 
+/**
+ * Params that require an FC reboot to take effect but that ArduPilot's own
+ * metadata does NOT tag with @RebootRequired. Verified against ArduPilot source;
+ * OR'd with the metadata flag so ArduDeck warns where the raw metadata is silent.
+ * Keep additions verified (source annotation missing + reboot genuinely needed).
+ */
+export const REBOOT_REQUIRED_OVERRIDES: ReadonlySet<string> = new Set([
+  // AP_Logger backends are initialised at boot; changing type takes effect only
+  // after a reboot, but AP_Logger.cpp's _BACKEND_TYPE has no @RebootRequired.
+  'LOG_BACKEND_TYPE',
+]);
+
 export type VehicleType = 'copter' | 'plane' | 'rover' | 'sub' | 'tracker';
 
 export interface ParameterMetadataStore {

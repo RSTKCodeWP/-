@@ -1,0 +1,29 @@
+#!/system/bin/sh
+
+set -euo pipefail
+
+# Figure out which glasses service we have to toggle.
+
+DEVICE=$(getprop ro.product.device)
+
+if [[ $DEVICE == *"wm170_gls"* ]]; then
+  GLASSES_SERIVCE="dji.glasses_wm150_service"
+else
+  GLASSES_SERIVCE="dji.glasses_service"
+fi
+
+# Start the shim.
+
+function cleanup {
+  sleep 3
+  setprop $GLASSES_SERIVCE 1
+  exit 0
+}
+
+trap cleanup EXIT INT TERM
+
+setprop $GLASSES_SERIVCE 0
+sleep 3
+
+cd /opt/moonlight
+./dji-moonlight-shim

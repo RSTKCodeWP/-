@@ -24,6 +24,20 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { type ModelKey, FALLBACK_MODEL, CLASS_MODEL, modelKeyForClass } from './sim-models';
 import type { SimDiagnostics, SimLoad } from '../../stores/sim-state-store';
 import { createWaypointSymbology } from '../camera/hud3d/waypoint-symbology';
+import { buildTemplateFromBlueprint } from './sim-frame-builder';
+import type { FrameBlueprintProfile } from '../../../shared/ipc-channels';
+
+/** The real-build context used to generate frames: the active launched SITL
+    custom frame (for disc area / mass / motor count) and the selected vehicle
+    profile. Empty => the generator falls back to a per-class preset. */
+export interface SimBuildContext {
+  customFramePath?: string;
+  profile?: FrameBlueprintProfile;
+  /** Crate frame class/type from the selected SITL frame (e.g. 'octa_quad'/'x').
+      Authoritative over the motor-count guess so a coax frame renders as coax. */
+  frameClass?: string;
+  frameType?: string;
+}
 
 /** Per-airframe 3D models (Tripo-generated, textured). Each model's spinnable
     rotors are grouped under `prop_*` pivot nodes so they spin in place; the spin
@@ -73,6 +87,10 @@ export interface SimVehicleFrame {
       it drives prop spin - scaling the rate and turning props even while
       disarmed (compassmot, motor test). Omit to fall back to the armed flag. */
   throttle01?: number;
+  /** Motor count, when known (engine path only - from SimStateMessage.motors).
+      Drives the procedural ardudeck-frame blueprint request (see
+      USE_BLUEPRINT_FRAME); undefined falls back to a quad blueprint. */
+  motorCount?: number;
   /** Force-budget X-ray for this vehicle (engine-only). Rendered as thrust
       arrows + net-thrust vector + CG markers when the X-ray overlay is on. */
   diagnostics?: SimDiagnostics;
@@ -135,6 +153,10 @@ export interface SimWorldScene {
   /** Show/hide the conformal 3D waypoint markers (billboard target reticles at
       each waypoint's true position + altitude). Default on. */
   setWaypoints: (on: boolean) => void;
+  /** Supply the real build context (launched custom frame + vehicle profile) so
+      generated frames reflect the actual build. Changing it regenerates every
+      vehicle's frame. */
+  setBuildContext: (ctx: SimBuildContext) => void;
   /** Orbit-mode interaction: drag to orbit, wheel to zoom. */
   onPointerDown: (x: number, y: number) => void;
   onPointerMove: (x: number, y: number) => void;
@@ -153,6 +175,10 @@ const QUAD_SCALE = 2.2;
 /** Use the loaded GLB models (with spinning props); false falls back to the
     procedural quad for every vehicle. */
 const USE_VEHICLE_MODEL = true;
+/** Replace each vehicle's frame with an ardudeck-frame crate-generated
+    blueprint (fetched once per vehicle over IPC) instead of the static GLB,
+    once it arrives. Testing/review flag for the procedural frame generator. */
+const USE_BLUEPRINT_FRAME = true;
 /** Prop spin rate (rad/frame) when armed; alternate sign gives counter-rotation. */
 const PROP_SPIN = 1.1;
 
@@ -185,6 +211,9 @@ interface VehicleObjects {
   /** Sub-group holding the frame visual (model or primitives); child of `group`. */
   frame: THREE.Group;
   usesModel: boolean;
+  /** True once an ardudeck-frame blueprint frame has been installed. Blocks the
+      GLB pending-swap and per-frame model refinement from clobbering it. */
+  usesBlueprint: boolean;
   /** Model this vehicle's frame is currently showing (which template to swap in). */
   modelKey: ModelKey;
   /** Local axis the model's prop nodes spin about ('y' for the procedural quad). */
@@ -192,6 +221,10 @@ interface VehicleObjects {
   bodyMat: THREE.MeshStandardMaterial;
   ledMat: THREE.MeshStandardMaterial;
   props: THREE.Object3D[];
+  /** Blueprint prop blur-disc materials (per-vehicle clones). Faded by motor
+      activity in render() so discs are invisible at rest and a faint blur when
+      spinning. Empty for GLB/procedural frames. */
+  propDiscMats: THREE.Material[];
   shadow: THREE.Mesh;
   trail: THREE.Line;
   trailGeom: THREE.BufferGeometry;
@@ -231,11 +264,18 @@ interface VehicleObjects {
   /** Slung-load mesh (world-space), tinted by tension. */
   loadMesh: THREE.Mesh | null;
   loadMat: THREE.MeshStandardMaterial | null;
+  /** Smoothed payload mass estimate (kg) from cable tension (~m*g while hung),
+      held through release, so the payload mesh is sized by its real weight. */
+  loadMassEst: number;
   lastPos: THREE.Vector3;
   armed: boolean;
   /** Normalized motor activity 0..1 driving prop spin; -1 = unknown (fall back
       to the armed flag). Updated from telemetry each frame. */
   motorActivity: number;
+  /** True once the one-shot ardudeck-frame blueprint IPC request has fired for
+      this vehicle (see USE_BLUEPRINT_FRAME) - guards against re-requesting it
+      every frame. */
+  blueprintRequested: boolean;
 }
 
 /** Draw a vehicle's label text into its canvas texture (tinted to its colour). */
@@ -380,16 +420,43 @@ export function createSimWorldScene(canvas: HTMLCanvasElement): SimWorldScene {
     grid.visible = gridEnabled;
   }
 
-  // Concentric range rings + home pad at the origin.
+  // Concentric range rings + home pad at the origin. Rings are labelled with
+  // their radius (metres) and include near-field 5/10 m rings, so the true scale
+  // of a real-size vehicle reads at a glance against a metric reference.
   const ringGroup = new THREE.Group();
   const ringMat = new THREE.LineBasicMaterial({ color: 0xeef3ff, transparent: true, opacity: 0.28 });
-  for (const r of [25, 50, 100, 200]) {
+  const makeRingLabel = (radiusM: number): THREE.Sprite => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 128;
+    canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.font = 'bold 40px system-ui, -apple-system, sans-serif';
+      ctx.fillStyle = 'rgba(238,243,255,0.85)';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`${radiusM} m`, 64, 34);
+    }
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false }));
+    // Label size grows with the ring so distant rings stay readable.
+    const s = Math.max(1.5, radiusM * 0.085);
+    sprite.scale.set(s * 2, s, 1);
+    sprite.renderOrder = 998;
+    // Place on a fixed NE bearing so labels line up radially, lifted off the ground.
+    const bearing = -Math.PI * 0.25;
+    sprite.position.set(Math.cos(bearing) * radiusM, Math.max(1, radiusM * 0.02), Math.sin(bearing) * radiusM);
+    return sprite;
+  };
+  for (const r of [5, 10, 25, 50, 100, 200]) {
     const pts: THREE.Vector3[] = [];
     for (let a = 0; a <= 64; a++) {
       const t = (a / 64) * Math.PI * 2;
       pts.push(new THREE.Vector3(Math.cos(t) * r, 0.03, Math.sin(t) * r));
     }
     ringGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), ringMat));
+    ringGroup.add(makeRingLabel(r));
   }
   const padGeom = new THREE.CircleGeometry(3, 48);
   const padMat = new THREE.MeshStandardMaterial({ color: 0x1f2937, roughness: 0.9, transparent: true, opacity: 0.85 });
@@ -455,12 +522,19 @@ export function createSimWorldScene(canvas: HTMLCanvasElement): SimWorldScene {
       }
       props.push(o);
     });
-    // State beacon just above the model's top (scales with the model, not fixed).
+    // State beacon + underglow are built at a fixed size tuned for a
+    // MODEL_TARGET_SPAN (3 m) frame. Blueprint frames now render at TRUE metric
+    // scale, so shrink both proportionally for anything smaller than that (never
+    // enlarge) - otherwise the beacon dwarfs a real 2 m drone.
+    const mspan = Math.max(new THREE.Box3().setFromObject(model).getSize(new THREE.Vector3()).x, 1e-3);
+    const beaconScale = Math.min(1, mspan / MODEL_TARGET_SPAN);
     const led = new THREE.Mesh(stateLedGeom, ledMat);
-    led.position.set(0, template.topY + QUAD_SCALE * 0.12, 0);
+    led.scale.setScalar(beaconScale);
+    led.position.set(0, template.topY + QUAD_SCALE * 0.12 * beaconScale, 0);
     frame.add(led);
     // Identity underglow at the base (model rests on the ground plane).
     const glow = new THREE.Mesh(glowGeom, bodyMat);
+    glow.scale.setScalar(beaconScale);
     glow.rotation.x = -Math.PI / 2;
     glow.position.y = 0.05;
     frame.add(glow);
@@ -521,11 +595,52 @@ export function createSimWorldScene(canvas: HTMLCanvasElement): SimWorldScene {
     if (!tpl) return false;
     for (let i = v.frame.children.length - 1; i >= 0; i--) v.frame.remove(v.frame.children[i]!);
     v.props.length = 0;
+    v.propDiscMats = [];
     buildModelFrame(v.frame, v.bodyMat, v.ledMat, v.props, tpl);
     v.usesModel = true;
     v.spinAxis = tpl.spinAxis;
     v.modelKey = key;
     return true;
+  }
+
+  /** Swap a vehicle onto a one-off ardudeck-frame blueprint template (not kept
+      in `templates`, unlike the GLB models - it's built fresh per vehicle from
+      its own IPC response). Mirrors installModel. */
+  function installBlueprintFrame(v: VehicleObjects, template: Template): void {
+    for (let i = v.frame.children.length - 1; i >= 0; i--) v.frame.remove(v.frame.children[i]!);
+    v.props.length = 0;
+    buildModelFrame(v.frame, v.bodyMat, v.ledMat, v.props, template);
+    v.usesModel = true;
+    v.usesBlueprint = true;
+    v.spinAxis = template.spinAxis;
+    // Collect this frame's blur-disc materials (unique per-vehicle clones,
+    // shared by the model clone) so render() can fade them by motor activity.
+    const discMats = new Set<THREE.Material>();
+    v.frame.traverse((o) => {
+      if ((o as THREE.Mesh).isMesh && o.userData.propLayer === 'disc') {
+        const m = (o as THREE.Mesh).material;
+        if (Array.isArray(m)) m.forEach((mm) => discMats.add(mm));
+        else if (m) discMats.add(m);
+      }
+    });
+    v.propDiscMats = [...discMats];
+    // Drop any queued GLB swap-in for this vehicle so the pending loader can't
+    // overwrite the blueprint once the GLB finishes loading.
+    const pi = pendingModels.indexOf(v);
+    if (pi >= 0) pendingModels.splice(pi, 1);
+  }
+
+  /** Map a motor count to the nearest ardudeck-frame symmetric multirotor
+      class. Unknown/uncommon counts default to quad so a frame always shows. */
+  function classForMotorCount(n: number | undefined): string {
+    switch (n) {
+      case 4: return 'quad';
+      case 6: return 'hexa';
+      case 8: return 'octa';
+      case 10: return 'deca';
+      case 12: return 'dodeca_hexa';
+      default: return 'quad';
+    }
   }
 
   if (USE_VEHICLE_MODEL) {
@@ -553,7 +668,7 @@ export function createSimWorldScene(canvas: HTMLCanvasElement): SimWorldScene {
           // Swap this model into any vehicles that spawned before it loaded.
           for (let i = pendingModels.length - 1; i >= 0; i--) {
             const v = pendingModels[i]!;
-            if (v.modelKey !== key) continue;
+            if (v.modelKey !== key || v.usesBlueprint) continue;
             installModel(v, key);
             pendingModels.splice(i, 1);
           }
@@ -756,6 +871,19 @@ export function createSimWorldScene(canvas: HTMLCanvasElement): SimWorldScene {
     }
     v.loadMesh.position.copy(tmpLoad);
     v.loadMesh.visible = true;
+    // Size the payload by its real weight. While the load hangs, tension ~ m*g,
+    // so estimate the mass from tension (smoothed) and hold it through release
+    // (a released payload keeps its mass). Render it at a physical size from an
+    // assumed loose-cargo bulk density, so a heavier payload reads as bigger.
+    if (load.attached && load.tension > 0.1) {
+      const massTarget = load.tension / 9.81;
+      v.loadMassEst = v.loadMassEst > 0 ? v.loadMassEst + (massTarget - v.loadMassEst) * 0.05 : massTarget;
+    }
+    if (v.loadMassEst > 0) {
+      const CARGO_DENSITY = 250; // kg/m^3 (a loose crate/box, not solid metal)
+      const radiusM = Math.cbrt((3 * (v.loadMassEst / CARGO_DENSITY)) / (4 * Math.PI));
+      v.loadMesh.scale.setScalar(Math.max(0.04, radiusM / (QUAD_SCALE * 0.35)));
+    }
     // Tension tint: grey (slack/light) -> hot (heavily loaded). Normalise against
     // the load's own weight (tension ~ m*g at a straight hang) via cableLength as
     // a rough scale-free proxy; clamp so it reads without a calibrated limit.
@@ -851,7 +979,7 @@ export function createSimWorldScene(canvas: HTMLCanvasElement): SimWorldScene {
     scene.add(selRing);
 
     const v: VehicleObjects = {
-      group, frame, usesModel, modelKey, spinAxis, bodyMat, ledMat, props, shadow,
+      group, frame, usesModel, usesBlueprint: false, modelKey, spinAxis, bodyMat, ledMat, props, propDiscMats: [], shadow,
       trail, trailGeom, trailPositions, trailCount: 0, trailMat,
       dropLine, dropGeom,
       labelSprite, labelTexture, labelCanvas, labelText: label, colorHex,
@@ -869,10 +997,12 @@ export function createSimWorldScene(canvas: HTMLCanvasElement): SimWorldScene {
       cableGeom: null,
       cableMat: null,
       loadMesh: null,
+      loadMassEst: 0,
       loadMat: null,
       lastPos: new THREE.Vector3(),
       armed,
       motorActivity: -1,
+      blueprintRequested: false,
     };
     // If its model wasn't ready, keep the procedural frame and queue a swap-in.
     if (USE_VEHICLE_MODEL && !usesModel) pendingModels.push(v);
@@ -941,6 +1071,24 @@ export function createSimWorldScene(canvas: HTMLCanvasElement): SimWorldScene {
   function setWaypoints(on: boolean): void {
     waypointsEnabled = on;
     waypointSym.setVisible(on);
+  }
+
+  // Real-build context for the frame generator. Starts empty (generator uses a
+  // per-class preset); SimWorldView pushes the launched custom frame + profile.
+  let buildContext: SimBuildContext = {};
+
+  function setBuildContext(ctx: SimBuildContext): void {
+    const changed = ctx.customFramePath !== buildContext.customFramePath
+      || ctx.frameClass !== buildContext.frameClass
+      || ctx.frameType !== buildContext.frameType
+      || JSON.stringify(ctx.profile) !== JSON.stringify(buildContext.profile);
+    buildContext = ctx;
+    // Regenerate existing vehicles so a frame/profile change takes effect
+    // without a reconnect. They keep their current mesh until the new one
+    // arrives (installBlueprintFrame swaps it in).
+    if (changed) {
+      for (const v of vehicles.values()) v.blueprintRequested = false;
+    }
   }
 
   function rebuildOverlay(data: SimWorldUpdate): void {
@@ -1070,8 +1218,45 @@ export function createSimWorldScene(canvas: HTMLCanvasElement): SimWorldScene {
           // Class can arrive/refine after first sighting (mavType + Q_ENABLE settle
           // a beat after connect); upgrade the model in place when it changes.
           const wantKey = modelKeyForClass(f.vehicleClass);
-          if (v.modelKey !== wantKey && templates.has(wantKey)) installModel(v, wantKey);
+          if (!v.usesBlueprint && v.modelKey !== wantKey && templates.has(wantKey)) installModel(v, wantKey);
         }
+
+        // Fire the one-shot ardudeck-frame blueprint request for this vehicle.
+        // Fully async: the vehicle keeps rendering its GLB/procedural frame
+        // until the blueprint arrives, then installBlueprintFrame swaps it in.
+        // Only multirotors get a generated blueprint; fixed-wing and ground
+        // vehicles keep their dedicated GLB model (the generator has no
+        // fixed-wing / ground coverage). Without this gate a plane or rover
+        // would render as a generated quad.
+        const mk = modelKeyForClass(f.vehicleClass);
+        const generatorCovers = mk !== 'plane' && mk !== 'rover';
+        if (USE_BLUEPRINT_FRAME && generatorCovers && !v.blueprintRequested) {
+          v.blueprintRequested = true;
+          // The selected frame class (from the dropdown) wins; the motor-count
+          // guess is only a fallback (it can't distinguish octa from octaquad).
+          const frameClass = buildContext.frameClass ?? classForMotorCount(f.motorCount);
+          const frameType = buildContext.frameType ?? 'x';
+          const target = v;
+          // Capture the method first: `api?.method?.(...).then` throws if the
+          // method is missing (stale/partial preload), which would abort the
+          // update loop silently. Guard it instead.
+          const gen = window.electronAPI?.generateFrameBlueprint;
+          if (typeof gen !== 'function') {
+            console.warn('[sim-world] generateFrameBlueprint not exposed on electronAPI (restart dev to reload preload)');
+          } else {
+            gen({ frameClass, frameType, customFramePath: buildContext.customFramePath, profile: buildContext.profile })
+              .then((result) => {
+                if (!result || 'error' in result) {
+                  console.warn(`[sim-world] frame blueprint unavailable for ${f.id} (${frameClass}/${frameType}):`, result && 'error' in result ? result.error : 'no result');
+                  return;
+                }
+                const tpl = buildTemplateFromBlueprint(result.blueprint);
+                installBlueprintFrame(target, tpl);
+              })
+              .catch((err) => console.error(`[sim-world] frame blueprint IPC failed for ${f.id}`, err));
+          }
+        }
+
         if (f.active) activeId = f.id;
 
         nedToThree(f.position, posVec);
@@ -1151,15 +1336,26 @@ export function createSimWorldScene(canvas: HTMLCanvasElement): SimWorldScene {
       // signal we fall back to a fixed spin on armed vehicles (counter-rotate
       // alternates) for a sense of life.
       for (const v of vehicles.values()) {
-        let rate: number;
-        if (v.motorActivity >= 0) {
-          if (v.motorActivity <= 0.005) continue; // motors idle -> still props
-          // Floor keeps a slow idle spin visible; scales up to full at 100%.
-          rate = PROP_SPIN * (0.12 + 0.88 * v.motorActivity);
-        } else {
-          if (!v.armed) continue;
-          rate = PROP_SPIN;
+        // Normalized rotor speed 0..1: real motor activity when known, else a
+        // fixed value while armed. Drives both the blur-disc fade and spin rate.
+        let speed: number;
+        if (v.motorActivity >= 0) speed = v.motorActivity;
+        else speed = v.armed ? 1 : 0;
+
+        // Fade the blur disc in with speed (invisible at rest so blades read as
+        // solid props, a faint blur only when actually spinning fast). Runs even
+        // when stopped so a spun-down rotor clears its disc.
+        if (v.propDiscMats.length > 0) {
+          const discOpacity = speed <= 0.02 ? 0 : Math.min(0.22, 0.22 * speed);
+          for (const m of v.propDiscMats) {
+            const sm = m as THREE.Material & { opacity: number };
+            if (sm.opacity !== discOpacity) sm.opacity = discOpacity;
+          }
         }
+
+        if (speed <= 0.005) continue; // stopped -> no spin
+        // Floor keeps a slow idle spin visible; scales up to full at 100%.
+        const rate = PROP_SPIN * (0.12 + 0.88 * speed);
         for (let i = 0; i < v.props.length; i++) {
           v.props[i]!.rotation[v.spinAxis] += i % 2 === 0 ? rate : -rate;
         }
@@ -1178,6 +1374,8 @@ export function createSimWorldScene(canvas: HTMLCanvasElement): SimWorldScene {
 
     setWaypoints,
 
+    setBuildContext,
+
     onPointerDown(x: number, y: number) {
       if (cameraMode !== 'orbit') return;
       dragging = true;
@@ -1195,7 +1393,10 @@ export function createSimWorldScene(canvas: HTMLCanvasElement): SimWorldScene {
       dragging = false;
     },
     onWheel(deltaY: number) {
-      orbitDist = Math.max(5, Math.min(800, orbitDist + deltaY * 0.05));
+      // Multiplicative zoom so it stays smooth across the whole range: down to
+      // 1 m to inspect surface detail (carbon weave, PCB, motors) and out to
+      // 800 m. A fixed additive step crawls when far and jumps when near.
+      orbitDist = Math.max(1, Math.min(800, orbitDist * Math.exp(deltaY * 0.001)));
     },
 
     pickGround(ndcX: number, ndcY: number): [number, number] | null {

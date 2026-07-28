@@ -8,7 +8,38 @@
 
 import React from 'react';
 import type { FrameLayout } from '../../../../shared/motor-test-types';
-import { layoutToSvgPositions, testOrderToLabel } from './motor-layout-utils';
+import { layoutToSvgPositions, testOrderToLabel, frameTypeDisplayName } from './motor-layout-utils';
+
+// Build a circular rotation arrow (arc + arrowhead) centred on a motor.
+// θ is measured clockwise-on-screen from 12 o'clock: P(θ) = (cx+r·sinθ, cy−r·cosθ),
+// so increasing θ is a visual clockwise sweep and SVG sweep-flag 1 matches it.
+function rotationArrow(cx: number, cy: number, cw: boolean, r = 17) {
+  const pt = (deg: number): [number, number] => {
+    const t = (deg * Math.PI) / 180;
+    return [cx + r * Math.sin(t), cy - r * Math.cos(t)];
+  };
+  const startDeg = cw ? 45 : 315;
+  const endDeg = cw ? 300 : 60;
+  const [sx, sy] = pt(startDeg);
+  const [ex, ey] = pt(endDeg);
+  const d = `M ${sx.toFixed(1)} ${sy.toFixed(1)} A ${r} ${r} 0 1 ${cw ? 1 : 0} ${ex.toFixed(1)} ${ey.toFixed(1)}`;
+  // Arrowhead oriented along the tangent at the end of the sweep.
+  const t = (endDeg * Math.PI) / 180;
+  let tx = Math.cos(t);
+  let ty = Math.sin(t);
+  if (!cw) { tx = -tx; ty = -ty; }
+  const px = -ty;
+  const py = tx;
+  const ah = 5.5;
+  const head = ([
+    [ex + tx * ah, ey + ty * ah],
+    [ex + px * ah * 0.8, ey + py * ah * 0.8],
+    [ex - px * ah * 0.8, ey - py * ah * 0.8],
+  ] as [number, number][])
+    .map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`)
+    .join(' ');
+  return { d, head };
+}
 
 interface FrameDiagramProps {
   layout: FrameLayout;
@@ -38,7 +69,7 @@ export const FrameDiagram: React.FC<FrameDiagramProps> = ({
       <div className="text-center">
         <div className="text-xs uppercase tracking-wider text-content-secondary">Frame</div>
         <div className="text-sm text-content">
-          {layout.ClassName} <span className="text-content-secondary">·</span> {layout.TypeName}
+          {layout.ClassName} <span className="text-content-secondary">·</span> {frameTypeDisplayName(layout.TypeName)}
         </div>
       </div>
 
@@ -149,19 +180,17 @@ export const FrameDiagram: React.FC<FrameDiagramProps> = ({
                 strokeWidth={isActive ? 3 : 2}
               />
 
-              {/* Rotation arrow — small arc with arrowhead */}
-              <g opacity={0.7}>
-                <path
-                  d={
-                    isCw
-                      ? `M ${pos.cx - 14} ${pos.cy - 4} A 14 14 0 1 1 ${pos.cx + 14} ${pos.cy - 4}`
-                      : `M ${pos.cx + 14} ${pos.cy - 4} A 14 14 0 1 0 ${pos.cx - 14} ${pos.cy - 4}`
-                  }
-                  fill="none"
-                  stroke={color}
-                  strokeWidth={1.5}
-                />
-              </g>
+              {/* Rotation arrow — a real curved arrow (arc + arrowhead) so the
+                  spin direction reads at a glance without the colour legend. */}
+              {(() => {
+                const arrow = rotationArrow(pos.cx, pos.cy, isCw);
+                return (
+                  <g opacity={0.85} pointerEvents="none">
+                    <path d={arrow.d} fill="none" stroke={color} strokeWidth={2} />
+                    <polygon points={arrow.head} fill={color} />
+                  </g>
+                );
+              })()}
 
               {/* Motor number (large) */}
               <text
@@ -177,17 +206,17 @@ export const FrameDiagram: React.FC<FrameDiagramProps> = ({
                 {pos.number}
               </text>
 
-              {/* Test order label (A/B/C below motor) */}
+              {/* Test order + explicit spin direction (A · CW) below motor */}
               <text
                 x={pos.cx}
                 y={pos.cy + motorRadius + 14}
                 textAnchor="middle"
-                fill="var(--text-secondary)"
                 fontSize={11}
                 fontFamily="monospace"
                 pointerEvents="none"
               >
-                {testOrderToLabel(pos.testOrder)}
+                <tspan fill="var(--text-secondary)">{testOrderToLabel(pos.testOrder)}</tspan>
+                <tspan fill={color} fontWeight="bold"> {pos.rotation}</tspan>
               </text>
 
               {/* RPM (if available) */}

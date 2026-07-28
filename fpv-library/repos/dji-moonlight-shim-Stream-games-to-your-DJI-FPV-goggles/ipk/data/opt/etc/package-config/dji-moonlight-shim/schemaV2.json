@@ -1,0 +1,11 @@
+{
+    "description": "Configure dji-moonlight-shim",
+    "dependencies": {},
+    "properties": {},
+    "required": [],
+    "title": "dji-moonlight-shim",
+    "type": "object",
+    "units": [
+        "dji-moonlight-shim"
+    ]
+}

@@ -27,6 +27,7 @@ import {
   findFrameLayout,
   getFrameClassType,
   testOrderToLabel,
+  frameTypeDisplayName,
 } from './motor-layout-utils';
 
 const HIGH_THROTTLE_WARNING = 25;
@@ -324,7 +325,7 @@ export const MotorTestTab: React.FC = () => {
             </div>
             <div>
               <div className="text-sm font-semibold text-content">Motor Test</div>
-              <div className="text-[11px] text-content-secondary">{motorCount} motors · {layout.TypeName}</div>
+              <div className="text-[11px] text-content-secondary">{motorCount} motors · {frameTypeDisplayName(layout.TypeName)}</div>
             </div>
           </div>
 

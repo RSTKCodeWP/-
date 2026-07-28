@@ -23,6 +23,50 @@ import type { AuthoredObstacle, SimObstacleStoreSchema } from '../../shared/sim-
 import { ardupilotSitlDownloader } from './ardupilot-sitl-downloader.js';
 import { simEngineProcess } from '../sim/sim-engine-process.js';
 
+/** Motor count for a stock ArduPilot copter frame model name (octaquad -> 8, etc). */
+function motorCountForModel(model: string | undefined): number {
+  const m = (model ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (m.includes('octaquad') || m.includes('octoquad') || m.includes('x8')) return 8;
+  if (m.includes('dodeca')) return 12;
+  if (m.includes('deca')) return 10;
+  if (m.includes('octa') || m.includes('octo')) return 8;
+  if (m.includes('y6')) return 6;
+  if (m.includes('hexa') || m.includes('hex')) return 6;
+  if (m.includes('tri')) return 3;
+  return 4;
+}
+
+/**
+ * When the ArduDeck engine runs without a user custom frame it falls back to a
+ * hardcoded 4-motor quad model; on any non-quad vehicle that motor-count
+ * mismatch makes the aircraft oscillate ("wobbles hysterically"). Synthesize a
+ * matching default frame - correct `num_motors` plus mass / disc area / battery
+ * scaled proportionally so hover throttle stays balanced - and write it to a
+ * temp file for the engine's `--frame`.
+ */
+async function stageDefaultEngineFrame(model: string | undefined): Promise<string | undefined> {
+  const n = motorCountForModel(model);
+  const scale = n / 4;
+  const frame = {
+    mass: 1.5 * scale,
+    diagonal_size: 0.4 * Math.sqrt(scale),
+    refSpd: 15.0, refAngle: 45.0, refVoltage: 12.6, refCurrent: 30.0 * scale,
+    refAlt: 0, refTempC: 25, refBatRes: 0.025, maxVoltage: 12.6,
+    battCapacityAh: 5.0 * scale, propExpo: 0.65, refRotRate: 360,
+    hoverThrOut: 0.39, pwmMin: 1000, pwmMax: 2000,
+    spin_min: 0.15, spin_max: 0.95, slew_max: 150,
+    disc_area: 0.05 * scale, mdrag_coef: 0.10, num_motors: n,
+  };
+  try {
+    const file = path.join(app.getPath('temp'), `ardudeck-default-frame-${n}m.json`);
+    await writeFile(file, JSON.stringify(frame));
+    return file;
+  } catch (err) {
+    console.warn('[SITL] could not stage default engine frame:', err);
+    return undefined;
+  }
+}
+
 /**
  * Engine `--obstacles` schema: one geographic obstacle. Matches the engine's
  * serde struct `ObstacleFile` (crates/ardudeck-sim-engine/src/main.rs), which
@@ -518,6 +562,13 @@ class ArduPilotSitlProcessManager {
         const engineKind =
           config.vehicleType === 'plane' ? 'plane' :
           config.vehicleType === 'rover' ? 'rover' : 'copter';
+        // Without a user custom frame the engine defaults to a 4-motor quad,
+        // which oscillates on non-quad vehicles. Stage a default frame matching
+        // the selected copter model's motor count so the mixer/dynamics agree.
+        let engineFramePath = config.customFramePath;
+        if (!engineFramePath && engineKind === 'copter') {
+          engineFramePath = await stageDefaultEngineFrame(config.model);
+        }
         const windIntensity = config.simWindIntensity ?? 0;
         // Feed authored obstacles for the active site into the engine so it
         // models real wake turbulence around them. None => no arg (unchanged).
@@ -527,7 +578,7 @@ class ArduPilotSitlProcessManager {
         });
         const engineResult = await simEngineProcess.start({
           kind: engineKind,
-          framePath: config.customFramePath,
+          framePath: engineFramePath,
           home: config.homeLocation,
           noise: config.simSensorNoise ?? false,
           obstaclesPath,

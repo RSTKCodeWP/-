@@ -35,7 +35,12 @@ interface ActiveVehicleState {
    * Active leader-follower formations: leader key -> member keys (leader first,
    * then its wingmen). Several formations can run at once - the fleet strip nests
    * each group under its leader; vehicles in no formation stay free cards. A
-   * vehicle belongs to at most one formation (setFormation strips it elsewhere).
+   * vehicle belongs to at most one formation (adds strip it elsewhere).
+   *
+   * A fleet is a UI grouping first: it may hold just its leader (leader-only,
+   * "empty fleet") and only becomes an active follow loop once it has a wingman.
+   * Fleets are built explicitly (createFleet / addToFleet) and persist until
+   * disbanded; they never auto-dissolve when they shrink to leader-only.
    */
   formations: Record<string, string[]>;
 
@@ -49,7 +54,13 @@ interface ActiveVehicleState {
 
   /** Register/replace a formation. Members are removed from any other formation. */
   setFormation: (leaderKey: string, memberKeys: string[]) => void;
-  /** Drop one formation (its vehicles become free). */
+  /** Create a leader-only fleet ("empty fleet"). No-op if the key already leads one. */
+  createFleet: (leaderKey: string) => void;
+  /** Add one vehicle to a fleet, moving it out of any fleet it was in. */
+  addToFleet: (leaderKey: string, memberKey: string) => void;
+  /** Remove one vehicle from its fleet. Removing the leader disbands the fleet. */
+  removeFromFleet: (memberKey: string) => void;
+  /** Drop one formation (its vehicles become free). Disbands a whole fleet. */
   removeFormation: (leaderKey: string) => void;
   /** Drop every formation. */
   clearFormations: () => void;
@@ -89,14 +100,57 @@ export const useActiveVehicleStore = create<ActiveVehicleState>((set, get) => ({
   setFormation: (leaderKey, memberKeys) => {
     const members = new Set(memberKeys);
     const next: Record<string, string[]> = {};
-    // A vehicle flies in one formation: strip the new members from every other
-    // group; a group whose leader was stolen (or that shrinks below 2) dissolves.
+    // A vehicle flies in one fleet: strip the new members from every other fleet.
+    // A fleet whose leader was absorbed here (members.has(lead)) dissolves; one
+    // that merely loses wingmen persists, even down to leader-only.
     for (const [lead, keys] of Object.entries(get().formations)) {
       if (lead === leaderKey || members.has(lead)) continue;
       const kept = keys.filter((k) => !members.has(k));
-      if (kept.length >= 2) next[lead] = kept;
+      if (kept.length >= 1) next[lead] = kept;
     }
     next[leaderKey] = memberKeys;
+    set({ formations: next });
+  },
+
+  createFleet: (leaderKey) => {
+    if (get().formations[leaderKey]) return; // already leads a fleet
+    const next: Record<string, string[]> = {};
+    // Pull the new leader out of any fleet it flew in as a wingman; that fleet
+    // persists (its own leader always remains), possibly as leader-only.
+    for (const [lead, keys] of Object.entries(get().formations)) {
+      const kept = keys.filter((k) => k !== leaderKey);
+      if (kept.length >= 1) next[lead] = kept;
+    }
+    next[leaderKey] = [leaderKey];
+    set({ formations: next });
+  },
+
+  addToFleet: (leaderKey, memberKey) => {
+    if (memberKey === leaderKey) return;
+    const cur = get().formations;
+    const next: Record<string, string[]> = {};
+    for (const [lead, keys] of Object.entries(cur)) {
+      if (lead === leaderKey) continue; // target fleet rebuilt below
+      if (lead === memberKey) continue; // member led another fleet: it dissolves, wingmen freed
+      const kept = keys.filter((k) => k !== memberKey);
+      if (kept.length >= 1) next[lead] = kept;
+    }
+    const existing = cur[leaderKey] ?? [leaderKey];
+    next[leaderKey] = existing.includes(memberKey) ? existing : [...existing, memberKey];
+    set({ formations: next });
+  },
+
+  removeFromFleet: (memberKey) => {
+    const grp = formationOf(get().formations, memberKey);
+    if (!grp) return;
+    const next = { ...get().formations };
+    if (grp.leaderKey === memberKey) {
+      // Removing the leader disbands the fleet; its wingmen become free.
+      delete next[memberKey];
+    } else {
+      // A wingman leaves; the fleet persists, even as leader-only.
+      next[grp.leaderKey] = grp.memberKeys.filter((k) => k !== memberKey);
+    }
     set({ formations: next });
   },
 
@@ -134,13 +188,13 @@ export const useActiveVehicleStore = create<ActiveVehicleState>((set, get) => ({
     const next = { ...get().knownVehicles };
     delete next[vehicleKey];
     const wasActive = get().activeVehicleKey === vehicleKey;
-    // Drop the lost vehicle from its formation; a formation whose leader is lost
-    // (or that shrinks below leader+1) dissolves.
+    // Drop the lost vehicle from its fleet; a fleet whose leader is lost
+    // dissolves, one that loses a wingman persists (even as leader-only).
     const formations: Record<string, string[]> = {};
     for (const [lead, keys] of Object.entries(get().formations)) {
       if (lead === vehicleKey) continue;
       const kept = keys.filter((k) => k !== vehicleKey);
-      if (kept.length >= 2) formations[lead] = kept;
+      if (kept.length >= 1) formations[lead] = kept;
     }
     set({
       knownVehicles: next,
@@ -185,4 +239,29 @@ export function formationOf(
     if (memberKeys.includes(vehicleKey)) return { leaderKey, memberKeys };
   }
   return null;
+}
+
+// Cross-window formations sync. The formations map is renderer-only state, so mirror
+// it to every window (the fleet strip and the detached 3D world both group pills by
+// leader) through the main process. A window broadcasts whenever its own formations
+// change, applies inbound broadcasts without re-broadcasting, and hydrates the current
+// map on load so a window opened after fleets were built still shows the groups.
+if (typeof window !== 'undefined') {
+  let applyingRemote = false;
+  const applyRemote = (formations: Record<string, string[]>): void => {
+    applyingRemote = true;
+    try {
+      useActiveVehicleStore.setState({ formations });
+    } finally {
+      applyingRemote = false;
+    }
+  };
+  useActiveVehicleStore.subscribe((state, prev) => {
+    if (applyingRemote || state.formations === prev.formations) return;
+    void window.electronAPI?.setFormations?.(state.formations);
+  });
+  window.electronAPI?.onFormationsChanged?.((formations) => applyRemote(formations ?? {}));
+  void window.electronAPI?.getFormations?.().then((formations) => {
+    if (formations && Object.keys(formations).length > 0) applyRemote(formations);
+  }).catch(() => {});
 }

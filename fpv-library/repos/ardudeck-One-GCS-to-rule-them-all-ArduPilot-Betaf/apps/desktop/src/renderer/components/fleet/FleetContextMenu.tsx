@@ -1,8 +1,9 @@
 /**
  * Right-click menu for fleet vehicles - opened from a rail row (FleetStrip) or a map
  * marker (FleetMarkers), both writing the target into the formation store. Dark tactical
- * glass. Mirrors the rail/dock: "Command this vehicle", "Set as leader", a row of
- * one-click shape glyphs (form up on THIS vehicle), and Break formation.
+ * glass. Builds fleets explicitly: "Command this vehicle", "Create leader" (empty fleet),
+ * an "Add to fleet" flyout of existing fleets, a row of one-click shape glyphs (form up
+ * on THIS vehicle), and Disband / Leave fleet.
  */
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
@@ -10,7 +11,7 @@ import { createPortal } from 'react-dom';
 import { useFormationStore } from '../../stores/formation-store';
 import { formationOf } from '../../stores/active-vehicle-store';
 import { useFormationControl } from '../../hooks/useFormationControl';
-import { selectActiveVehicle } from '../../hooks/useFleet';
+import { selectActiveVehicle, type FleetVehicle } from '../../hooks/useFleet';
 import { SHAPE_OPTIONS, FormationGlyph } from './FormationGlyphs';
 import { TAC_GLASS, tacButton } from './tactical';
 
@@ -32,13 +33,19 @@ function NumChip({ label, value, min, max, onChange }: { label: string; value: n
 export function FleetContextMenu(): JSX.Element | null {
   const menu = useFormationStore((s) => s.contextMenu);
   const close = useFormationStore((s) => s.closeContextMenu);
-  const { canFollow, busy, leader, formations, shape, spacing, altStep, vehicles, setSpacing, setAltStep, formUp, releaseFromFormation } = useFormationControl();
+  const { canFollow, busy, leader, formations, shape, spacing, altStep, vehicles, setSpacing, setAltStep, formUp, reshapeFleet, createFleet, addToFleet, removeFromFleet, disbandFleet } = useFormationControl();
 
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+  const [subOpen, setSubOpen] = useState(false);
+  // Open immediately, close on a short delay so crossing the gap into the flyout (or a
+  // brief excursion off it) doesn't dismiss it mid-reach.
+  const subTimer = useRef<number | null>(null);
+  const openSub = () => { if (subTimer.current) window.clearTimeout(subTimer.current); subTimer.current = null; setSubOpen(true); };
+  const closeSub = () => { subTimer.current = window.setTimeout(() => setSubOpen(false), 220); };
 
   useLayoutEffect(() => {
-    if (!menu) { setPos(null); return; }
+    if (!menu) { setPos(null); setSubOpen(false); if (subTimer.current) window.clearTimeout(subTimer.current); return; }
     const h = ref.current?.offsetHeight ?? 220;
     const left = Math.min(menu.x, window.innerWidth - MENU_WIDTH - 8);
     const top = Math.min(menu.y, window.innerHeight - h - 8);
@@ -63,6 +70,16 @@ export function FleetContextMenu(): JSX.Element | null {
   const run = (fn: () => void) => () => { fn(); close(); };
   const item = 'w-full px-2 py-1 text-left text-xs rounded text-content-secondary hover:bg-surface-raised hover:text-content transition-colors disabled:opacity-40';
 
+  // Fleets this vehicle could join: every existing fleet except its own current one.
+  const joinable = Object.keys(formations)
+    .filter((lk) => lk !== v.key && lk !== group?.leaderKey)
+    .map((lk) => vehicles.find((x) => x.key === lk))
+    .filter((x): x is FleetVehicle => !!x)
+    .sort((a, b) => a.sysid - b.sysid);
+  const hasWingmen = isLeader && (group?.memberKeys.length ?? 0) >= 2;
+  const freeCount = vehicles.filter((x) => x.key !== v.key && formationOf(formations, x.key) === null).length;
+  const subOnLeft = (pos?.left ?? menu.x) + MENU_WIDTH + 180 > window.innerWidth;
+
   return createPortal(
     <>
       <div className="fixed inset-0 z-[2000]" onClick={() => close()} onContextMenu={(e) => { e.preventDefault(); close(); }} />
@@ -80,44 +97,86 @@ export function FleetContextMenu(): JSX.Element | null {
 
         {canFollow && (
           <>
-            <button type="button" disabled={busy || isLeader} onClick={run(() => { void formUp(undefined, v.key); })} className={item}>
-              {isLeader ? 'Leading formation' : 'Set as leader'}
+            <button type="button" disabled={busy || isLeader} onClick={run(() => { void createFleet(v.key); })} className={item}>
+              {isLeader ? 'Leads a fleet' : 'Create leader'}
             </button>
 
-            <div className="flex items-center justify-between gap-2 px-1.5 pt-1">
-              <span className="text-[9px] font-semibold uppercase tracking-[0.12em] text-content-tertiary">Form up</span>
-              <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                <NumChip label="gap" value={spacing} min={2} max={500} onChange={setSpacing} />
-                <NumChip label="alt" value={altStep} min={0} max={100} onChange={setAltStep} />
+            {joinable.length > 0 && (
+              <div
+                className="relative"
+                onMouseEnter={openSub}
+                onMouseLeave={closeSub}
+              >
+                <button type="button" disabled={busy} onClick={() => (subOpen ? setSubOpen(false) : openSub())} className={`${item} flex items-center justify-between`}>
+                  <span>Add to fleet</span>
+                  <span className="text-content-tertiary">{subOnLeft ? '◂' : '▸'}</span>
+                </button>
+                {subOpen && (
+                  // Flush against the item (left-full/right-full, no margin) with the gap
+                  // bridged by padding on this hoverable wrapper, so the pointer never
+                  // crosses dead space that would trigger onMouseLeave.
+                  <div className={`absolute top-0 z-[2002] ${subOnLeft ? 'right-full pr-1.5' : 'left-full pl-1.5'}`}>
+                    <div className={`w-44 py-1.5 px-1.5 rounded-lg flex flex-col gap-1 ${TAC_GLASS}`}>
+                      {joinable.map((f) => (
+                        <button key={f.key} type="button" disabled={busy} onClick={run(() => { void addToFleet(f.key, v.key); })} className={item}>
+                          Join {f.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
-            <div className="grid grid-cols-4 gap-1 px-0.5">
-              {SHAPE_OPTIONS.map((o) => {
-                const lit = isLeader && shape === o.value;
-                return (
-                  <button
-                    key={o.value}
-                    type="button"
-                    disabled={busy}
-                    onClick={run(() => { void formUp(o.value, v.key); })}
-                    data-tip={o.label}
-                    className={`grid place-items-center aspect-square rounded border transition-colors disabled:opacity-40 ${tacButton(lit)}`}
-                  >
-                    <FormationGlyph shape={o.value} size={20} />
-                  </button>
-                );
-              })}
-            </div>
+            )}
+
+            {/* Formation shape: only a leader WITH wingmen can be reshaped. Guarding the
+                glyphs to this case means a stray click in a free/wingman menu can never
+                command the fleet into motion; the lit current shape is a no-op. */}
+            {hasWingmen && (
+              <>
+                <div className="flex items-center justify-between gap-2 px-1.5 pt-1">
+                  <span className="text-[9px] font-semibold uppercase tracking-[0.12em] text-content-tertiary">Formation shape</span>
+                  <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                    <NumChip label="gap" value={spacing} min={2} max={500} onChange={setSpacing} />
+                    <NumChip label="alt" value={altStep} min={0} max={100} onChange={setAltStep} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-4 gap-1 px-0.5">
+                  {SHAPE_OPTIONS.map((o) => {
+                    const lit = shape === o.value;
+                    return (
+                      <button
+                        key={o.value}
+                        type="button"
+                        disabled={busy || lit}
+                        onClick={run(() => { void reshapeFleet(v.key, o.value); })}
+                        data-tip={lit ? `${o.label} (current)` : `Re-form: ${o.label}`}
+                        className={`grid place-items-center aspect-square rounded border transition-colors disabled:opacity-60 ${tacButton(lit)}`}
+                      >
+                        <FormationGlyph shape={o.value} size={20} />
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+
+            {/* Leader-only fleet: an explicit, labelled way to pull in the free drones -
+                no ambiguous icon that fires a maneuver on a stray click. */}
+            {isLeader && !hasWingmen && freeCount > 0 && (
+              <button type="button" disabled={busy} onClick={run(() => { void formUp(undefined, v.key); })} className={item}>
+                Form up {freeCount} free {freeCount === 1 ? 'drone' : 'drones'}
+              </button>
+            )}
 
             {isMember && (
               <button
                 type="button"
                 disabled={busy}
-                onClick={run(() => { void releaseFromFormation(v.key); })}
-                data-tip={isLeader ? 'Ends this formation - its wingmen return to manual control' : `Drop ${v.label} - the rest hold formation`}
+                onClick={run(() => { void (isLeader ? disbandFleet(v.key) : removeFromFleet(v.key)); })}
+                data-tip={isLeader ? 'Disbands this fleet - its wingmen return to manual control' : `Drop ${v.label} from the fleet - the rest hold formation`}
                 className="w-full mt-0.5 px-2 py-1 text-left text-xs rounded text-amber-500 hover:bg-amber-500/15 transition-colors disabled:opacity-40"
               >
-                {isLeader ? 'Break this formation' : 'Leave formation'}
+                {isLeader ? 'Disband fleet' : 'Leave fleet'}
               </button>
             )}
           </>

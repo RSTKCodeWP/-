@@ -11,6 +11,7 @@ import type {
   CalibrationTypeId,
   CalibrationProgressEvent,
   CalibrationCompleteEvent,
+  CalibrationData,
 } from '../../shared/calibration-types.js';
 
 // =============================================================================
@@ -18,6 +19,16 @@ import type {
 // =============================================================================
 
 const MAV_CMD_PREFLIGHT_CALIBRATION = 241;
+// ArduPilot onboard compass ("wave it around") calibration. NOT
+// PREFLIGHT_CALIBRATION param2 — AP dropped mag cal from that command and
+// answers MAV_RESULT_UNSUPPORTED, so the whole compass flow must use this.
+const MAV_CMD_DO_START_MAG_CAL = 42424;
+
+// MAG_CAL_STATUS enum (from MAG_CAL_PROGRESS / MAG_CAL_REPORT cal_status field)
+const MAG_CAL_SUCCESS = 4;
+const MAG_CAL_FAILED = 5;
+const MAG_CAL_BAD_ORIENTATION = 6;
+const MAG_CAL_BAD_RADIUS = 7;
 const MAV_CMD_ACCELCAL_VEHICLE_POS = 42429;
 const MAV_CMD_FIXED_MAG_CAL_YAW = 42006;
 
@@ -90,6 +101,28 @@ let deps: MavlinkCalibrationDeps | null = null;
 let activeCalType: CalibrationTypeId | null = null;
 let compassTimerId: ReturnType<typeof setInterval> | null = null;
 let compassStartTime = 0;
+// Fails the cal if it never converges (unhealthy compass / heavy interference /
+// insufficient rotation) instead of sitting at 95% forever. A healthy compass
+// finishes in 30-90s even rotating slowly.
+let compassCalTimeoutId: ReturnType<typeof setTimeout> | null = null;
+const COMPASS_CAL_TIMEOUT_MS = 150000;
+// DO_START_MAG_CAL calibrates every compass in the mask and emits one
+// MAG_CAL_REPORT per compass. Track which compass_ids reported SUCCESS so we
+// only complete once the whole batch is done (the report's cal_mask tells us
+// how many to expect).
+const magCalSuccesses = new Set<number>();
+
+// Per-compass fitness + orientation, keyed by 1-based compass number. Sourced
+// from MAG_CAL_REPORT and, more reliably on FCs that don't deliver 192, the
+// "Mag(N) ... orientation: X <fitness>" STATUSTEXT. Surfaced on completion so
+// the UI can flag a poor fit instead of a bare "success".
+const magCalResults = new Map<number, { fitness: number; orientation: number | null }>();
+
+function collectedCompassResults(): CalibrationData['compassResults'] {
+  return Array.from(magCalResults.entries())
+    .sort((a, b) => a[0] - b[0])
+    .map(([compass, r]) => ({ compass, fitness: r.fitness, orientation: r.orientation }));
+}
 
 // 6-point state
 let expectedPosition = -1; // ArduPilot position enum value from FC
@@ -325,6 +358,10 @@ export function cancelMavlinkCalibration(): void {
     clearInterval(compassTimerId);
     compassTimerId = null;
   }
+  if (compassCalTimeoutId) {
+    clearTimeout(compassCalTimeoutId);
+    compassCalTimeoutId = null;
+  }
   if (sixPointFallbackTimerId) {
     clearTimeout(sixPointFallbackTimerId);
     sixPointFallbackTimerId = null;
@@ -337,6 +374,8 @@ export function cancelMavlinkCalibration(): void {
   compassMotActive = false;
   expectedPosition = -1;
   positionStatus = [false, false, false, false, false, false];
+  magCalSuccesses.clear();
+  magCalResults.clear();
 }
 
 /**
@@ -441,27 +480,56 @@ export function handleCalibrationStatusText(text: string, severity: number): voi
     return;
   }
 
-  // Compass progress from STATUSTEXT
+  // Compass completion/progress from STATUSTEXT. This is the RELIABLE path:
+  // the MAG_CAL_REPORT (192) message is not always delivered, but ArduPilot
+  // always narrates the result. Strings below are what ArduCopter 4.6 actually
+  // emits (verified on a MatekH743): the old "compass cal complete" /
+  // "mag cal complete" matches never fired because AP emits no such text.
   if (activeCalType === 'compass') {
-    // ArduPilot sends "Compass N calibration X% complete" style messages
+    // Failure: "Compass N calibration FAILED" is caught by the generic failure
+    // matcher above; these two are compass-specific and are not.
+    if (lower.includes('bad orientation') || lower.includes('bad radius')) {
+      const reason = lower.includes('bad orientation')
+        ? 'bad orientation — check the board/compass mounting direction (COMPASS_ORIENT)'
+        : 'bad radius — strong magnetic interference near the compass';
+      deps.sendLog('error', `Compass calibration failed: ${text}`);
+      deps.sendComplete({ type: 'compass', success: false, error: `Compass calibration failed: ${reason}. Move away from metal/magnets/wiring and try again.` });
+      cancelMavlinkCalibration();
+      return;
+    }
+
+    // Per-compass fit result, e.g. "Mag(1) good orientation: 4 1.0" or
+    // "Mag(1) new orientation: 8 was 4 7.9". Capture compass number, detected
+    // orientation, and fitness (the trailing float) so we can surface quality.
+    const orientMatch = /mag\((\d+)\)\s+(?:new|good)\s+orientation:\s+(\d+)(?:\s+was\s+\d+)?\s+([\d.]+)/i.exec(text);
+    if (orientMatch) {
+      const compass = parseInt(orientMatch[1]!, 10);
+      const orientation = parseInt(orientMatch[2]!, 10);
+      const fitness = parseFloat(orientMatch[3]!);
+      magCalResults.set(compass, { fitness, orientation });
+      deps.sendLog('info', text);
+      return;
+    }
+
+    // Success: AP writes the offsets and, on the next prearm cycle, reports
+    // "Compass calibrated requires reboot". A reboot is mandatory for the new
+    // offsets to take effect (until then the EKF reports yaw inconsistent).
+    if (lower.includes('calibrated requires reboot') || lower.includes('compass cal successful')) {
+      deps.sendLog('info', 'Compass calibration complete — reboot required for the new offsets to take effect');
+      deps.sendComplete({ type: 'compass', success: true, rebootRequired: true, data: { compassResults: collectedCompassResults() } });
+      cancelMavlinkCalibration();
+      return;
+    }
+
+    // Live progress percentage, if the FC sends one.
     const compassMatch = /(\d+)%/.exec(text);
     if (compassMatch) {
       const pct = parseInt(compassMatch[1]!, 10);
       deps.sendProgress({
         type: 'compass',
-        progress: pct,
+        progress: Math.min(pct, 99),
         statusText: text,
       });
-      return;
-    }
-
-    if (lower.includes('compass cal complete') || lower.includes('mag cal complete')) {
-      deps.sendLog('info', `Compass calibration completed`);
-      deps.sendComplete({
-        type: 'compass',
-        success: true,
-      });
-      cancelMavlinkCalibration();
       return;
     }
   }
@@ -474,6 +542,68 @@ export function handleCalibrationStatusText(text: string, severity: number): voi
   // Forward all calibration-related STATUSTEXT as progress
   if (lower.includes('calibrat') || lower.includes('place vehicle') || lower.includes('accel') || lower.includes('gyro') || lower.includes('compass') || lower.includes('mag')) {
     deps.sendLog('info', text);
+  }
+}
+
+// =============================================================================
+// MAG_CAL_PROGRESS / MAG_CAL_REPORT handlers — DO_START_MAG_CAL feedback
+// =============================================================================
+
+function popcount(mask: number): number {
+  let m = mask & 0xff;
+  let count = 0;
+  while (m) {
+    count += m & 1;
+    m >>= 1;
+  }
+  return count;
+}
+
+/** MAG_CAL_PROGRESS (191): live completion percentage while rotating. */
+export function handleMagCalProgress(compassId: number, _calStatus: number, completionPct: number): void {
+  if (!deps || activeCalType !== 'compass') return;
+  // Cap below 100 until MAG_CAL_REPORT confirms the fit — the pct hits 100
+  // before the FC has judged fitness.
+  const pct = Math.max(0, Math.min(completionPct, 99));
+  deps.sendProgress({
+    type: 'compass',
+    progress: pct,
+    statusText: `Rotate the vehicle slowly through all orientations (compass ${compassId + 1}: ${pct}%)`,
+  });
+}
+
+/** MAG_CAL_REPORT (192): per-compass result. One arrives for each compass. */
+export function handleMagCalReport(compassId: number, calMask: number, calStatus: number, fitness: number): void {
+  if (!deps || activeCalType !== 'compass') return;
+
+  if (calStatus === MAG_CAL_SUCCESS) {
+    magCalSuccesses.add(compassId);
+    const prev = magCalResults.get(compassId + 1);
+    magCalResults.set(compassId + 1, { fitness, orientation: prev?.orientation ?? null });
+    deps.sendLog('info', `Compass ${compassId + 1} calibrated (fitness ${fitness.toFixed(1)} mGauss)`);
+    // Done once every compass in the batch has reported success.
+    const expected = popcount(calMask);
+    if (expected > 0 && magCalSuccesses.size >= expected) {
+      deps.sendComplete({ type: 'compass', success: true, rebootRequired: true, data: { compassResults: collectedCompassResults() } });
+      cancelMavlinkCalibration();
+    }
+    return;
+  }
+
+  if (calStatus === MAG_CAL_FAILED || calStatus === MAG_CAL_BAD_ORIENTATION || calStatus === MAG_CAL_BAD_RADIUS) {
+    const reason =
+      calStatus === MAG_CAL_BAD_ORIENTATION
+        ? 'bad orientation — check the board/compass mounting direction (COMPASS_ORIENT)'
+        : calStatus === MAG_CAL_BAD_RADIUS
+          ? 'bad radius — strong magnetic interference near the compass'
+          : 'the fit did not converge';
+    deps.sendLog('error', `Compass ${compassId + 1} calibration failed: ${reason}`);
+    deps.sendComplete({
+      type: 'compass',
+      success: false,
+      error: `Compass ${compassId + 1} calibration failed: ${reason}. Move away from metal/magnets/wiring and try again.`,
+    });
+    cancelMavlinkCalibration();
   }
 }
 
@@ -555,6 +685,26 @@ export function handleCalibrationCommandAck(command: number, result: number): vo
         type: activeCalType,
         success: false,
         error: userError,
+      });
+      cancelMavlinkCalibration();
+    }
+  }
+
+  if (command === MAV_CMD_DO_START_MAG_CAL && activeCalType === 'compass') {
+    if (result === 0 || result === 5) {
+      // ACCEPTED / IN_PROGRESS — calibration has started. Completion is driven
+      // by MAG_CAL_REPORT, not this ACK, so just log.
+      deps.sendLog('info', 'Compass calibration started — rotate the vehicle through all orientations');
+    } else {
+      const names = ['ACCEPTED', 'TEMPORARILY_REJECTED', 'DENIED', 'UNSUPPORTED', 'FAILED', 'IN_PROGRESS'];
+      const name = names[result] ?? `UNKNOWN(${result})`;
+      deps.sendLog('error', `Compass calibration rejected: ${name}`);
+      deps.sendComplete({
+        type: 'compass',
+        success: false,
+        error: result === 1
+          ? 'Flight controller is busy. Disarm, wait a few seconds, and try again.'
+          : `Flight controller rejected compass calibration: ${name}`,
       });
       cancelMavlinkCalibration();
     }
@@ -736,15 +886,16 @@ async function startGyro(): Promise<{ success: boolean; error?: string }> {
 async function startCompass(): Promise<{ success: boolean; error?: string }> {
   if (!deps) return { success: false, error: 'Not initialized' };
 
-  deps.sendLog('info', 'Starting MAVLink compass calibration (MAV_CMD_PREFLIGHT_CALIBRATION param2=1)');
+  deps.sendLog('info', 'Starting compass calibration (MAV_CMD_DO_START_MAG_CAL, all compasses)');
 
-  // param2=1 = compass calibration
-  const sent = await deps.sendCommandLong(MAV_CMD_PREFLIGHT_CALIBRATION, {
-    param1: 0,
-    param2: 1, // compass
-    param3: 0,
-    param4: 0,
-    param5: 0,
+  magCalSuccesses.clear();
+
+  const sent = await deps.sendCommandLong(MAV_CMD_DO_START_MAG_CAL, {
+    param1: 0, // mag_mask: 0 = calibrate all enabled compasses
+    param2: 1, // retry on failure
+    param3: 1, // autosave offsets when the fit succeeds
+    param4: 0, // delay before start (s)
+    param5: 0, // autoreboot
     param6: 0,
     param7: 0,
   });
@@ -755,6 +906,22 @@ async function startCompass(): Promise<{ success: boolean; error?: string }> {
   }
 
   compassStartTime = Date.now();
+
+  // Convergence timeout: if no MAG_CAL_REPORT / "calibrated" STATUSTEXT arrives
+  // in time, the fit isn't converging (unhealthy compass, interference, or too
+  // little rotation). Fail with a clear message instead of hanging at 95%.
+  if (compassCalTimeoutId) clearTimeout(compassCalTimeoutId);
+  compassCalTimeoutId = setTimeout(() => {
+    compassCalTimeoutId = null;
+    if (!deps || activeCalType !== 'compass') return;
+    deps.sendLog('error', 'Compass calibration did not converge within the time limit');
+    deps.sendComplete({
+      type: 'compass',
+      success: false,
+      error: 'Compass calibration is not converging. Check the compass is healthy (prearm "Compass not healthy" means it is not), move away from metal/magnets/wiring, and rotate through all axes. If this FC has no working compass, disable it (COMPASS_ENABLE=0) — Stabilize does not need one.',
+    });
+    cancelMavlinkCalibration();
+  }, COMPASS_CAL_TIMEOUT_MS);
 
   // Compass calibration can take 30-60s with user rotating vehicle
   deps.sendProgress({

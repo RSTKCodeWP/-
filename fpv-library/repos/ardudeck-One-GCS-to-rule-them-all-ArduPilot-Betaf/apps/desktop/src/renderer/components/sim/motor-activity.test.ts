@@ -1,3 +1,7 @@
+// @vitest-environment jsdom
+// motorActivity01 is a pure function, but importing it pulls in the SimWorldView ->
+// sim-world-scene -> sim-frame-builder chain, which builds three.js canvas textures at
+// module load. That needs a DOM (document.createElement('canvas')); node has none.
 import { describe, it, expect } from 'vitest';
 import { motorActivity01 } from './SimWorldView';
 

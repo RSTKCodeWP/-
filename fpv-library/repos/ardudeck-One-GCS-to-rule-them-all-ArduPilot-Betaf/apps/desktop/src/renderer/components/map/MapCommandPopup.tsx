@@ -12,6 +12,7 @@ import { useActiveVehicleStore } from '../../stores/active-vehicle-store';
 import { mavTypeToTacticalClass, type TacticalVehicleClass } from './tactical-icon-pool';
 import { ScriptInstallModal } from '../script-installer/ScriptInstallModal';
 import { fenceWarningForPoint } from '../../utils/fence-check';
+import type { AltReferenceFrame } from '../../../shared/mission-types.js';
 import {
   altitudeValueFromMeters,
   distanceValueFromMeters,
@@ -148,6 +149,18 @@ export const MapCommandPopup: React.FC<MapCommandPopupProps> = ({
   const [strafeLength, setStrafeLength] = useState(40);
   const [strafeSpeed, setStrafeSpeed] = useState(3);
 
+  // Altitude reference frame for the native commands (Fly here / Orbit).
+  // Seeded from the persisted default and sticky: choosing here writes the
+  // choice back so the operator picks once. Only the COMMAND_INT path honors
+  // it; the Lua-script commands stay home-relative (see label below).
+  const defaultCommandAltFrame = useSettingsStore(s => s.defaultCommandAltFrame);
+  const setDefaultCommandAltFrame = useSettingsStore(s => s.setDefaultCommandAltFrame);
+  const [altFrame, setAltFrame] = useState<AltReferenceFrame>(defaultCommandAltFrame);
+  const chooseAltFrame = useCallback((f: AltReferenceFrame) => {
+    setAltFrame(f);
+    setDefaultCommandAltFrame(f);
+  }, [setDefaultCommandAltFrame]);
+
   const [installModalOpen, setInstallModalOpen] = useState(false);
 
   const scriptHealth = useScriptHealth();
@@ -201,6 +214,10 @@ export const MapCommandPopup: React.FC<MapCommandPopupProps> = ({
   // reason. We know the fence GCS-side, so warn before the operator sends.
   // Applies to actions that fly to the clicked point (not Look/Climb+RTL).
   const usesClickedPoint = meta.id !== 'look' && meta.id !== 'climbRtl';
+  // Frame selector only for the native COMMAND_INT commands. The script-backed
+  // commands (watchtower/reveal/strafe) share the altitude row but have no
+  // frame field, so they stay home-relative and just say so.
+  const altFrameSelectable = meta.id === 'fly' || meta.id === 'orbit';
   const fenceWarning = useMemo(
     () => (usesClickedPoint ? fenceWarningForPoint(lat, lon) : null),
     [usesClickedPoint, lat, lon],
@@ -247,14 +264,14 @@ export const MapCommandPopup: React.FC<MapCommandPopupProps> = ({
     const signedYawRate = direction === 'cw' ? Math.abs(yawRate) : -Math.abs(yawRate);
     switch (id) {
       case 'fly':
-        onConfirm({ type: 'goto', lat, lon, alt: altitude });
+        onConfirm({ type: 'goto', lat, lon, alt: altitude, frame: altFrame });
         break;
       case 'look':
         onSetRoi?.(lat, lon);
         break;
       case 'orbit':
         onConfirm(
-          { type: 'orbit', lat, lon, alt: altitude, radius: signedRadius, revolutions },
+          { type: 'orbit', lat, lon, alt: altitude, radius: signedRadius, revolutions, frame: altFrame },
           { preferScript: scriptHealthy },
         );
         break;
@@ -288,7 +305,7 @@ export const MapCommandPopup: React.FC<MapCommandPopupProps> = ({
         break;
     }
   }, [
-    lat, lon, altitude, radius, direction, revolutions, spiralTargetAlt, climbRate,
+    lat, lon, altitude, altFrame, radius, direction, revolutions, spiralTargetAlt, climbRate,
     yawRate, climbRtlAlt, revealPullback, revealClimb, revealSpeed,
     strafeOffset, strafeLength, strafeSpeed, currentAltAgl, scriptHealthy,
     onConfirm, onSetRoi,
@@ -414,10 +431,18 @@ export const MapCommandPopup: React.FC<MapCommandPopupProps> = ({
             {/* Parameter rows: strict label rail + equal-width controls */}
             <div className="grid grid-cols-[62px_1fr] items-center gap-x-2.5 gap-y-1.5">
               {(meta.id === 'fly' || meta.id === 'orbit' || meta.id === 'watchtower' || meta.id === 'reveal' || meta.id === 'strafe') && (
-                <ParamRow label="Altitude">
-                  <Stepper value={displayAltitude(altitude)} onChange={(v) => setAltitude(nativeAltitude(v))}
-                    min={displayAltitude(2)} max={displayAltitude(5000)} step={altitudeStep} unit={altitudeLabel} autoFocus={meta.id === 'fly'} />
-                </ParamRow>
+                <>
+                  <ParamRow label="Altitude">
+                    <Stepper value={displayAltitude(altitude)} onChange={(v) => setAltitude(nativeAltitude(v))}
+                      min={displayAltitude(2)} max={displayAltitude(5000)} step={altitudeStep}
+                      unit={altFrameSelectable ? altitudeLabel : `${altitudeLabel} rel home`} autoFocus={meta.id === 'fly'} />
+                  </ParamRow>
+                  {altFrameSelectable && (
+                    <ParamRow label="Above">
+                      <FrameSeg value={altFrame} onChange={chooseAltFrame} />
+                    </ParamRow>
+                  )}
+                </>
               )}
               {(meta.id === 'orbit' || meta.id === 'spiral') && (
                 <ParamRow label="Radius">
@@ -522,6 +547,12 @@ export const MapCommandPopup: React.FC<MapCommandPopupProps> = ({
                   : 'Script not installed: native DO_ORBIT, orbit count ignored.'}
               </div>
             )}
+
+            {altFrameSelectable && altFrame === 'terrain' && (
+              <div className="mt-1.5 text-[9.5px] text-content-tertiary">
+                Terrain-relative needs terrain data (TERRAIN_ENABLE) or a rangefinder, or the vehicle will reject the command.
+              </div>
+            )}
           </>
         )}
       </div>
@@ -619,6 +650,33 @@ function Stepper({ value, onChange, min, max, step, unit, autoFocus, showInfinit
       >
         +
       </button>
+    </div>
+  );
+}
+
+/** Altitude reference picker: Home / Terrain / Sea. Tooltips carry the detail
+ *  so the labels stay short. Mirrors DirSeg geometry so the row lines up. */
+function FrameSeg({ value, onChange }: { value: AltReferenceFrame; onChange: (f: AltReferenceFrame) => void }) {
+  const opts: { id: AltReferenceFrame; label: string; tip: string }[] = [
+    { id: 'relative', label: 'Home', tip: 'Above the home / launch point (ArduPilot default)' },
+    { id: 'terrain', label: 'Terrain', tip: 'Above the ground below the vehicle. Needs terrain data or a rangefinder.' },
+    { id: 'asl', label: 'Sea', tip: 'Above mean sea level (AMSL)' },
+  ];
+  return (
+    <div className="flex h-7 items-stretch overflow-hidden rounded-lg border border-subtle">
+      {opts.map((o, i) => (
+        <button
+          key={o.id}
+          type="button"
+          data-tip={o.tip}
+          onClick={() => onChange(o.id)}
+          className={`flex-1 text-[10.5px] transition-colors ${i > 0 ? 'border-l border-subtle' : ''} ${
+            value === o.id ? 'bg-surface-raised font-semibold text-content' : 'bg-surface-input text-content-secondary hover:text-content'
+          }`}
+        >
+          {o.label}
+        </button>
+      ))}
     </div>
   );
 }

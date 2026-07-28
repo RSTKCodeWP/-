@@ -31,6 +31,13 @@
 
 #define TARGET_BOARD_IDENTIFIER "SITL"
 
+// SITL bridge selector. Configs that target legacy bridges (X-Plane,
+// RealFlight) define ENABLE_GAZEBO_BRIDGE=0 in config.h; otherwise default
+// to Gazebo so the bare TARGET=SITL build behaves like the SITL_GAZEBO config.
+#ifndef ENABLE_GAZEBO_BRIDGE
+#define ENABLE_GAZEBO_BRIDGE  1
+#endif
+
 #define ENABLE_SIMULATOR_MULTITHREAD 1
 
 #define SYSTEM_HSE_MHZ 0
@@ -45,9 +52,12 @@
 #define DMA_DATA
 #define STATIC_DMA_DATA_AUTO
 
-// use simulatior's attitude directly
-// disable this if wants to test AHRS algorithm
+// SITL runs the real attitude estimator (Mahony + mag/COG fusion) against the
+// virtual gyro/acc/mag feeds. Build with -DSITL_ATTITUDE_DIRECT to bypass it
+// and set attitude straight from the FDM quaternion (legacy behaviour).
+#if defined(SITL_ATTITUDE_DIRECT)
 #undef USE_IMU_CALC
+#endif
 
 //#define ENABLE_SIMULATOR_ACC_SYNC 1
 //#define ENABLE_SIMULATOR_GYRO_SYNC 1
@@ -68,6 +78,10 @@
 
 #undef SCHEDULER_DELAY_LIMIT
 #define SCHEDULER_DELAY_LIMIT           1
+
+// OS preemption spikes must not peak-hold task duration estimates
+// (see scheduler.h) or non-realtime tasks starve to a few hertz
+#define TASK_EXEC_TIME_CLAMP_US         100
 
 #define USE_VIRTUAL_LED
 
@@ -96,15 +110,15 @@
 
 #define ENABLE_RX_UDP           1
 
-#define DEFAULT_RX_FEATURE      FEATURE_RX_MSP
+// DEFAULT_RX_FEATURE is picked by config/feature.h: FEATURE_RX_UDP when
+// ENABLE_RX_UDP=1 (bare SITL / Gazebo), else FEATURE_RX_MSP. Configs that want
+// MSP RX as the default (e.g. SITL_X_PLANE) override DEFAULT_RX_FEATURE.
 #define DEFAULT_FEATURES        (FEATURE_GPS | FEATURE_TELEMETRY)
-
-// Gazebo Iris model uses "props in" motor directions (M0/M3=CW, M1/M2=CCW),
-// which is the "reversed" configuration in BF's convention.
-#define YAW_MOTORS_REVERSED     1
 
 #define USE_GPS
 #define USE_VIRTUAL_GPS
+#define USE_ALTITUDE_HOLD
+#define USE_POSITION_HOLD
 #define USE_FLIGHT_PLAN
 
 #define USE_PARAMETER_GROUPS
@@ -137,7 +151,6 @@
 #undef USE_TELEMETRY_FRSKY_HUB
 #undef USE_TELEMETRY_HOTT
 #undef USE_TELEMETRY_SMARTPORT
-#undef USE_TELEMETRY_MAVLINK
 #undef USE_RESOURCE_MGMT
 #undef USE_CMS
 #undef USE_TELEMETRY_CRSF

@@ -130,6 +130,28 @@ impl AuxEgress {
         }
     }
 
+    /// Production: a client connected directly to a UDP target port, skipping
+    /// the radio command-socket handshake. Used on a ground station where the
+    /// `wfb_tx -p3 -u<port>` process is already running (spawned by the
+    /// groundlink receive chain), so the aux TX ingress is a plain UDP port
+    /// with no `radio-aux.sock` command socket to negotiate through.
+    ///
+    /// The drone side still uses the command-socket path ([`Self::new`]) because
+    /// the radio service owns the open/close lifecycle there.
+    pub async fn connected_to_udp(target_port: u16) -> Result<Self, AuxEgressError> {
+        let sock = tokio::net::UdpSocket::bind("127.0.0.1:0")
+            .await
+            .map_err(|e| AuxEgressError::Unavailable(e.to_string()))?;
+        sock.connect(("127.0.0.1", target_port))
+            .await
+            .map_err(|e| AuxEgressError::Unavailable(e.to_string()))?;
+        Ok(Self {
+            cmd_sock: PathBuf::new(),
+            request_timeout: AUX_REQUEST_TIMEOUT,
+            conn: Mutex::new(Some(sock)),
+        })
+    }
+
     /// Whether the egress socket is currently held open by this client.
     pub async fn is_open(&self) -> bool {
         self.conn.lock().await.is_some()
@@ -214,6 +236,23 @@ impl AuxEgress {
         Ok(())
     }
 
+    /// One write attempt against the socket currently installed. `Ok(None)`
+    /// means there was none to write to.
+    async fn try_send_frame(&self, frame: &[u8]) -> Result<Option<()>, AuxEgressError> {
+        let mut guard = self.conn.lock().await;
+        let Some(sock) = guard.as_ref() else {
+            return Ok(None);
+        };
+        match sock.send(frame).await {
+            Ok(_) => Ok(Some(())),
+            Err(e) => {
+                // Self-heal: drop the dead socket so the next send re-opens.
+                *guard = None;
+                Err(AuxEgressError::Send(e.to_string()))
+            }
+        }
+    }
+
     /// Frame `payload` for `channel` and emit it as one aux datagram.
     ///
     /// An oversized payload is rejected BEFORE anything is opened, so a producer
@@ -223,20 +262,20 @@ impl AuxEgress {
     pub async fn send(&self, channel: AuxChannel, payload: &[u8]) -> Result<(), AuxEgressError> {
         let frame =
             aux_mux::encode(channel, payload).ok_or(AuxEgressError::TooLarge(payload.len()))?;
+        // `ensure_open` installs its socket under the same lock a write takes,
+        // so it cannot be called with that lock held. That leaves a window in
+        // which a SIBLING call's failed write nulls the socket between our open
+        // and our write. That is the sibling's self-heal working, not this
+        // call's failure, so re-open once rather than reporting a spurious
+        // `Unavailable("socket closed")` to a caller that did nothing wrong.
         self.ensure_open().await?;
-        let mut guard = self.conn.lock().await;
-        let result = match guard.as_ref() {
-            Some(sock) => sock.send(&frame).await,
-            None => return Err(AuxEgressError::Unavailable("socket closed".into())),
-        };
-        match result {
-            Ok(_) => Ok(()),
-            Err(e) => {
-                // Self-heal: drop the dead socket so the next send re-opens.
-                *guard = None;
-                Err(AuxEgressError::Send(e.to_string()))
-            }
+        if self.try_send_frame(&frame).await?.is_some() {
+            return Ok(());
         }
+        self.ensure_open().await?;
+        self.try_send_frame(&frame)
+            .await?
+            .ok_or_else(|| AuxEgressError::Unavailable("socket closed".into()))
     }
 }
 

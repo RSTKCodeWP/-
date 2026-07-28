@@ -12,6 +12,8 @@ function ctx(over: Partial<SurfaceContext>): SurfaceContext {
     isConnected: true,
     firmwareType: null,
     agentDeviceId: null,
+    agentIdentityKnown: false,
+    relayReach: null,
     fcLinking: false,
     radioPresent: false,
     visionPresent: false,

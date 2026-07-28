@@ -140,6 +140,12 @@ export default function ArduPilotSitlTab() {
   const altitudeUnit = unitPreferences.altitude;
   const homeAltitudeDisplay = altitudeValueFromMeters(homeLocation.alt, altitudeUnit);
   const [homeAltitudeDraft, setHomeAltitudeDraft] = useState(() => String(Number(homeAltitudeDisplay.toFixed(altitudeUnit === 'km' ? 3 : 1))));
+  // Editable drafts for the swarm number inputs so the field can be cleared and
+  // retyped freely; the store's hard clamp only applies on blur, not per keystroke.
+  const [swarmCountDraft, setSwarmCountDraft] = useState(String(swarmCount));
+  const [swarmSpacingDraft, setSwarmSpacingDraft] = useState(String(swarmSpacing));
+  useEffect(() => { setSwarmCountDraft(String(swarmCount)); }, [swarmCount]);
+  useEffect(() => { setSwarmSpacingDraft(String(swarmSpacing)); }, [swarmSpacing]);
   const outputRef = useRef<HTMLDivElement>(null);
 
   // Geolocation state
@@ -899,8 +905,15 @@ export default function ArduPilotSitlTab() {
                   type="number"
                   min={2}
                   max={20}
-                  value={swarmCount}
-                  onChange={(e) => setSwarmCount(parseInt(e.target.value, 10))}
+                  value={swarmCountDraft}
+                  onChange={(e) => setSwarmCountDraft(e.target.value)}
+                  onBlur={() => {
+                    const n = parseInt(swarmCountDraft, 10);
+                    const committed = Number.isFinite(n) ? Math.max(2, Math.min(20, n)) : swarmCount;
+                    setSwarmCount(committed);
+                    setSwarmCountDraft(String(committed));
+                  }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
                   disabled={swarmRunning || swarmStarting}
                   className="w-full px-2 py-1.5 text-sm bg-surface-raised text-content border border rounded-lg focus:outline-none focus:ring-1 focus:ring-purple-500/50 disabled:opacity-50"
                 />
@@ -910,8 +923,15 @@ export default function ArduPilotSitlTab() {
                 <input
                   type="number"
                   min={1}
-                  value={swarmSpacing}
-                  onChange={(e) => setSwarmSpacing(parseInt(e.target.value, 10))}
+                  value={swarmSpacingDraft}
+                  onChange={(e) => setSwarmSpacingDraft(e.target.value)}
+                  onBlur={() => {
+                    const n = parseInt(swarmSpacingDraft, 10);
+                    const committed = Number.isFinite(n) ? Math.max(1, n) : swarmSpacing;
+                    setSwarmSpacing(committed);
+                    setSwarmSpacingDraft(String(committed));
+                  }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
                   disabled={swarmRunning || swarmStarting}
                   className="w-full px-2 py-1.5 text-sm bg-surface-raised text-content border border rounded-lg focus:outline-none focus:ring-1 focus:ring-purple-500/50 disabled:opacity-50"
                 />

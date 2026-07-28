@@ -57,7 +57,6 @@ import { SitlAutoApplyWatcher } from './components/settings/vehicle-profile/Sitl
 import { ProfileApplyOverlay } from './components/settings/vehicle-profile/ProfileApplyOverlay';
 import { ParameterCompareModalRoot } from './components/parameters/ParameterCompareModalRoot';
 import { GlobalTooltip } from './components/GlobalTooltip';
-import { FleetMinimap } from './components/fleet/FleetMinimap';
 import { ActivityIndicator } from './components/ui/ActivityIndicator';
 import type { ElectronAPI } from '../main/preload';
 import logoImage from './assets/logo.png';
@@ -784,7 +783,7 @@ function App() {
       );
     });
     const unsubComplete = window.electronAPI?.onCalibrationComplete?.((event) => {
-      handleCalibrationComplete(event.success, event.data, event.error);
+      handleCalibrationComplete(event.success, event.data, event.error, event.rebootRequired);
     });
 
     return () => {
@@ -982,7 +981,6 @@ function App() {
     <AppTourProvider>
     <AppShell>
       <GlobalTooltip />
-      <FleetMinimap />
       <ActivityIndicator />
       <SitlAutoApplyWatcher />
       <ProfileApplyOverlay />

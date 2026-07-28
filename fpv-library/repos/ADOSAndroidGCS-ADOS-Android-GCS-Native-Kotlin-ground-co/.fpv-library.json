@@ -1,8 +1,8 @@
 {
   "source": "altnautica/ADOSAndroidGCS",
-  "upstream_commit": "6f79f0838d87d1e9ad232288bb5f82ccb573ac87",
-  "upstream_updated": "2026-05-07T16:12:23Z",
-  "synced_at": "2026-07-26T23:36:21+00:00",
+  "upstream_commit": "87d47c54ab1d113c986f820506ddafbb140e5cb4",
+  "upstream_updated": "2026-07-27T18:55:22Z",
+  "synced_at": "2026-07-28T08:51:14+00:00",
   "discovered_via": "owner:altnautica",
   "score": 6.5
 }

@@ -18,12 +18,20 @@ import { useSimObstaclesStore } from '../../stores/sim-obstacles-store';
 import { useMissionStore } from '../../stores/mission-store';
 import { useFenceStore } from '../../stores/fence-store';
 import { useConnectionStore } from '../../stores/connection-store';
-import { useActiveVehicleStore } from '../../stores/active-vehicle-store';
+import { useActiveVehicleStore, formationOf } from '../../stores/active-vehicle-store';
 import { useFleetTelemetryStore, type VehicleTelemetry } from '../../stores/fleet-telemetry-store';
 import { useVehicleAppearanceStore, resolveVehicleColor } from '../../stores/vehicle-appearance-store';
-import { useFleetVehicles, selectActiveVehicle, deselectActiveVehicle } from '../../hooks/useFleet';
+import { useFleetVehicles, selectActiveVehicle, deselectActiveVehicle, type FleetVehicle } from '../../hooks/useFleet';
 import { useOrchestrationStore } from '../../stores/orchestration-store';
+import { useArduPilotSitlStore } from '../../stores/ardupilot-sitl-store';
+import { useSettingsStore } from '../../stores/settings-store';
+import { useFormationStore } from '../../stores/formation-store';
+import { useFleetUiStore, isFleetExpanded } from '../../stores/fleet-ui-store';
+import { useFormationControl } from '../../hooks/useFormationControl';
 import { FleetCoordination } from '../fleet/FleetCoordination';
+import { FleetChevron, FleetCountHeader } from '../fleet/FleetDisclosure';
+import { FleetContextMenu } from '../fleet/FleetContextMenu';
+import { startVehicleDrag, readVehicleDrag, allowVehicleDrop, FREE_ZONE } from '../fleet/fleet-dnd';
 import { getVehicleClass } from '../../../shared/telemetry-types';
 import { latLngToLocal, localToLatLng } from '../survey/geo-math';
 import { loadElevationGrid, buildTerrainGeometry, sampleElevation } from '../camera/svt/svt-terrain';
@@ -120,10 +128,41 @@ export function motorActivity01(
   return throttleFrac;
 }
 
+/**
+ * Map the selected SITL copter frame model (e.g. 'octaquad', 'hexa', 'y6') to the
+ * ardudeck-frame crate's class/type so the generated frame matches the chosen
+ * layout - critically distinguishing coax classes (octaquad/y6/dodecahexa) from
+ * flat ones, which a motor count alone cannot. Returns undefined for non-copter
+ * vehicles (they keep their GLB model).
+ */
+function copterFrameClass(model: string | undefined, vehicleType: string): { frameClass: string; frameType: string } | undefined {
+  if (vehicleType !== 'copter') return undefined;
+  const m = (model ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (!m) return undefined;
+  if (m.includes('octaquad') || m.includes('octoquad') || m.includes('x8')) return { frameClass: 'octa_quad', frameType: 'x' };
+  if (m.includes('dodeca')) return { frameClass: 'dodeca_hexa', frameType: 'x' };
+  if (m.includes('y6')) return { frameClass: 'y6', frameType: 'y6_b' };
+  if (m.includes('octa') || m.includes('octo')) return { frameClass: 'octa', frameType: 'x' };
+  if (m.includes('deca')) return { frameClass: 'deca', frameType: 'x' };
+  if (m.includes('hexa') || m.includes('hex')) return { frameClass: 'hexa', frameType: 'x' };
+  if (m.includes('coax')) return { frameClass: 'coax_copter', frameType: 'plus' };
+  if (m.includes('tri')) return { frameClass: 'tri', frameType: 'x' };
+  if (m.includes('single')) return { frameClass: 'single_copter', frameType: 'plus' };
+  if (m.includes('quad')) return { frameClass: 'quad', frameType: m.includes('plus') ? 'plus' : 'x' };
+  return undefined;
+}
+
 export default function SimWorldView() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<SimWorldScene | null>(null);
+  // Real-build inputs for the procedural frame generator: the launched custom
+  // frame (disc area / mass / motor count read off disk in main) and the active
+  // vehicle profile. Subscribed so a frame/profile switch regenerates the mesh.
+  const customFramePath = useArduPilotSitlStore((s) => s.customFramePath);
+  const sitlModel = useArduPilotSitlStore((s) => s.model);
+  const sitlVehicleType = useArduPilotSitlStore((s) => s.vehicleType);
+  const activeVehicle = useSettingsStore((s) => s.getActiveVehicle());
   const rafRef = useRef<number | null>(null);
   // Geo origin (first valid fix) for converting MAVLink lat/lon to local metres
   // when driving the world from telemetry rather than the ArduDeck Sim engine.
@@ -137,15 +176,15 @@ export default function SimWorldView() {
   // so the 3D world picks the right per-airframe model.
   const qEnableRef = useRef<number | undefined>(undefined);
 
-  const [cameraMode, setCameraMode] = useState<SimCameraMode>('chase');
+  const [cameraMode, setCameraMode] = useState<SimCameraMode>('orbit');
   const [showTerrain, setShowTerrain] = useState(false);
   // Reference grid (spatial-perception aid over ground + SVT terrain). Default on.
   const [showGrid, setShowGrid] = useState(true);
   // Conformal 3D waypoint markers (billboard target reticles). Default on.
   const [showWaypoints, setShowWaypoints] = useState(true);
-  // FPV-goggles HUD overlay (crosshair + pitch/roll ladder + tapes). Default on;
-  // only rendered in FPV/Chase where a forward view makes it meaningful.
-  const [showHud, setShowHud] = useState(true);
+  // FPV-goggles HUD overlay (crosshair + pitch/roll ladder + tapes). Default OFF;
+  // only meaningful in FPV/Chase, and the toggle is disabled in Orbit/Top.
+  const [showHud, setShowHud] = useState(false);
   // Physics X-ray overlay: thrust arrows + net-lift vector + CG markers + load
   // readouts. Off by default so the flight view stays clean. The rAF loop reads
   // the ref (its closure is created once); the state drives the button + HUD.
@@ -257,6 +296,7 @@ export default function SimWorldView() {
           // (and treat any real throttle as "active" so they turn while flying).
           throttle01: m.throttle,
           armed: (m.throttle ?? 0) > 0.02,
+          motorCount: m.motors?.length,
           // Physics X-ray internals (engine-only; sticky in the store).
           diagnostics: m.diagnostics,
           // Slung-load cable + payload (engine-only).
@@ -442,6 +482,29 @@ export default function SimWorldView() {
     sceneRef.current?.setWaypoints(showWaypoints);
   }, [showWaypoints]);
 
+  // Feed the real-build context to the frame generator. The profile subset maps
+  // camelCase; main maps it plus the on-disk custom frame into the crate spec.
+  useEffect(() => {
+    const fc = copterFrameClass(sitlModel, sitlVehicleType);
+    sceneRef.current?.setBuildContext({
+      customFramePath: customFramePath || undefined,
+      frameClass: fc?.frameClass,
+      frameType: fc?.frameType,
+      profile: activeVehicle
+        ? {
+            weightG: activeVehicle.weight,
+            frameSizeMm: activeVehicle.frameSize,
+            motorCount: activeVehicle.motorCount,
+            motorKv: activeVehicle.motorKv,
+            propDiameterMm: activeVehicle.propDiameter,
+            escRatingA: activeVehicle.escRating,
+            batteryCells: activeVehicle.batteryCells,
+            cogOffsetMm: activeVehicle.cogOffset,
+          }
+        : undefined,
+    });
+  }, [customFramePath, activeVehicle, sitlModel, sitlVehicleType]);
+
   // Reactive trigger that changes once a position fix exists (and as the vehicle
   // moves), so the terrain effect can build as soon as the home origin is set.
   const fixSignal = useTelemetryStore((s) =>
@@ -520,6 +583,8 @@ export default function SimWorldView() {
 
   const altitude = hud ? -hud.position[2] : 0;
   const speed = hud ? groundSpeed(hud.velocity) : 0;
+  // The HUD only makes sense in a forward view; its toggle is disabled elsewhere.
+  const hudSupported = cameraMode === 'fpv' || cameraMode === 'chase';
 
   // Recognition is driven by the live MAVLink connection (standard SITL or real
   // hardware), not by the optional ArduDeck sim engine. A vehicle renders once
@@ -601,9 +666,16 @@ export default function SimWorldView() {
         </button>
         <button
           onClick={() => setShowHud((v) => !v)}
-          data-tip="FPV HUD overlay — boresight, pitch/roll horizon ladder, airspeed/altitude, heading and climb rate (FPV & Chase views)"
+          disabled={!hudSupported}
+          data-tip={hudSupported
+            ? 'FPV HUD overlay — boresight, pitch/roll horizon ladder, airspeed/altitude, heading and climb rate (FPV & Chase views)'
+            : 'HUD is only available in FPV & Chase views'}
           className={`rounded-lg border border-subtle px-3 py-1.5 text-xs font-medium shadow-lg transition-colors ${
-            showHud ? 'bg-blue-600 text-white' : 'bg-surface-raised text-content-secondary hover:text-content'
+            !hudSupported
+              ? 'bg-surface-raised text-content-tertiary opacity-40 cursor-not-allowed'
+              : showHud
+                ? 'bg-blue-600 text-white'
+                : 'bg-surface-raised text-content-secondary hover:text-content'
           }`}
         >
           HUD
@@ -778,40 +850,117 @@ export default function SimWorldView() {
   );
 }
 
+/** One vehicle pill in the picker rail: identity colour + SYS id, draggable between
+ *  fleets, right-click for orders. `role` gives the leader a gold ring + Lead tag. */
+function FleetPill({ v, role, count = 0 }: { v: FleetVehicle; role?: 'leader' | 'wingman'; count?: number }) {
+  const overrides = useVehicleAppearanceStore.getState().overrides;
+  const color = resolveVehicleColor(overrides, v.key, v.sysid);
+  const openContextMenu = useFormationStore((s) => s.openContextMenu);
+  return (
+    <button
+      draggable
+      onDragStart={(e) => { e.stopPropagation(); startVehicleDrag(e, v.key); }}
+      onClick={() => (v.isActive ? deselectActiveVehicle() : selectActiveVehicle(v.key, v.transportId))}
+      onContextMenu={(e) => { e.preventDefault(); openContextMenu({ x: e.clientX, y: e.clientY, vehicleKey: v.key }); }}
+      data-tip={v.isActive ? `${v.label} - click to deselect` : `${v.label} - ${v.mode}${v.armed ? ' - ARMED' : ''}`}
+      className={`flex items-center gap-2 pl-2 pr-2.5 py-1.5 rounded-lg border border-subtle text-xs font-medium text-content shadow-md cursor-grab active:cursor-grabbing transition-colors ${
+        v.isActive ? 'bg-surface-solid' : 'bg-surface-raised hover:bg-surface-solid'
+      }`}
+      style={{
+        ...(v.isActive ? { borderColor: color, boxShadow: `0 0 0 1px ${color}` } : {}),
+        ...(role === 'leader' ? { boxShadow: `0 0 0 1.5px #f59e0b` } : {}),
+      }}
+    >
+      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: color, boxShadow: v.position ? 'none' : '0 0 0 1px rgba(127,127,127,0.5)' }} />
+      <span className="font-mono">{v.label}</span>
+      {role === 'leader' && <span className="text-[7px] font-bold uppercase tracking-wide px-1 rounded-sm bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">Lead</span>}
+      {role === 'leader' && count > 0 && <span className="text-[9px] font-mono text-content-tertiary">+{count}</span>}
+      {!v.position && <span className="text-[9px] text-content-tertiary">no fix</span>}
+    </button>
+  );
+}
+
 /**
- * Vehicle picker rail (multi-vehicle only). Each chip is the vehicle's identity
- * colour + SYS id; tapping it makes that vehicle active so the camera follows it,
- * the HUD reads it, and flight commands retarget to it. Tapping the active chip
- * again deselects. Mirrors the fleet strip on the main telemetry view, which is
- * not present in this pop-out window.
+ * Vehicle picker rail (multi-vehicle only). Grouped by leader like the telemetry
+ * fleet strip: a leader pill with its wingmen indented under it, free vehicles below.
+ * Tapping a pill makes that vehicle active (camera, HUD, commands retarget); tapping
+ * the active pill deselects. Drag a pill onto a fleet to add it, onto the free zone to
+ * peel it out; right-click for orders (create leader, add to fleet, disband).
  */
 function FleetPicker() {
   const vehicles = useFleetVehicles();
+  const formations = useActiveVehicleStore((s) => s.formations);
+  const { addToFleet, removeFromFleet } = useFormationControl();
+  const uiOverrides = useFleetUiStore((s) => s.overrides);
+  const toggleFleet = useFleetUiStore((s) => s.toggle);
+  const [dropZone, setDropZone] = useState<string | null>(null);
   if (vehicles.length < 2) return null;
+
   const sorted = [...vehicles].sort((a, b) => a.sysid - b.sysid);
-  const overrides = useVehicleAppearanceStore.getState().overrides;
+  const inFormation = new Set(Object.values(formations).flat());
+  const groups = Object.entries(formations)
+    .map(([leaderKey, memberKeys]) => ({
+      leader: sorted.find((v) => v.key === leaderKey),
+      wingmen: sorted.filter((v) => v.key !== leaderKey && memberKeys.includes(v.key)),
+    }))
+    .filter((g): g is { leader: FleetVehicle; wingmen: FleetVehicle[] } => !!g.leader)
+    .sort((a, b) => a.leader.sysid - b.leader.sysid);
+  const others = sorted.filter((v) => !inFormation.has(v.key));
+
+  const dropOn = (zone: string) => ({
+    onDragOver: (e: React.DragEvent) => { allowVehicleDrop(e); setDropZone(zone); },
+    onDragLeave: () => setDropZone((z) => (z === zone ? null : z)),
+    onDrop: (e: React.DragEvent) => {
+      e.preventDefault();
+      setDropZone(null);
+      const key = readVehicleDrag(e);
+      if (!key) return;
+      if (zone === FREE_ZONE) void removeFromFleet(key);
+      else if (key !== zone) void addToFleet(zone, key);
+    },
+  });
+
+  const leaderKeys = groups.map((g) => g.leader.key);
+
   return (
-    <div className="absolute top-1/2 -translate-y-1/2 left-3 z-10 flex flex-col gap-1.5 max-h-[70%] overflow-y-auto pr-1">
-      {sorted.map((v) => {
-        const color = resolveVehicleColor(overrides, v.key, v.sysid);
+    <div className="absolute top-1/2 -translate-y-1/2 left-3 z-10 flex flex-col gap-1.5 max-h-[80%] overflow-y-auto pr-1">
+      <FleetCountHeader leaderKeys={leaderKeys} className="px-1 pb-0.5" />
+      {groups.map((g) => {
+        const expanded = isFleetExpanded(uiOverrides, g.leader.key, leaderKeys.length);
         return (
-          <button
-            key={v.key}
-            onClick={() => (v.isActive ? deselectActiveVehicle() : selectActiveVehicle(v.key, v.transportId))}
-            data-tip={v.isActive ? `${v.label} - click to deselect` : `${v.label} - ${v.mode}${v.armed ? ' - ARMED' : ''}`}
-            className={`flex items-center gap-2 pl-2 pr-2.5 py-1.5 rounded-lg border border-subtle text-xs font-medium text-content shadow-md transition-colors ${
-              v.isActive
-                ? 'bg-surface-solid'
-                : 'bg-surface-raised hover:bg-surface-solid'
-            }`}
-            style={v.isActive ? { borderColor: color, boxShadow: `0 0 0 1px ${color}` } : undefined}
+          <div
+            key={g.leader.key}
+            {...dropOn(g.leader.key)}
+            className={`flex flex-col gap-1.5 rounded-lg p-0.5 transition-colors ${dropZone === g.leader.key ? 'bg-cyan-500/10 ring-1 ring-cyan-500/40' : ''}`}
           >
-            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: color, boxShadow: v.position ? 'none' : '0 0 0 1px rgba(127,127,127,0.5)' }} />
-            <span className="font-mono">{v.label}</span>
-            {!v.position && <span className="text-[9px] text-content-tertiary">no fix</span>}
-          </button>
+            <div className="flex items-center gap-0.5">
+              {g.wingmen.length > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => toggleFleet(g.leader.key, expanded)}
+                  className="shrink-0 w-4 h-6 grid place-items-center text-content-tertiary hover:text-content"
+                  data-tip={expanded ? 'Collapse fleet' : 'Expand fleet'}
+                >
+                  <FleetChevron open={expanded} />
+                </button>
+              ) : <span className="w-4 shrink-0" />}
+              <div className="flex-1 min-w-0"><FleetPill v={g.leader} role="leader" count={g.wingmen.length} /></div>
+            </div>
+            {expanded && g.wingmen.length > 0 && (
+              <div className="ml-4 border-l border-subtle pl-1.5 flex flex-col gap-1.5">
+                {g.wingmen.map((v) => <FleetPill key={v.key} v={v} role="wingman" />)}
+              </div>
+            )}
+          </div>
         );
       })}
+      <div
+        {...dropOn(FREE_ZONE)}
+        className={`flex flex-col gap-1.5 rounded-lg p-0.5 transition-colors ${dropZone === FREE_ZONE ? 'ring-1 ring-subtle bg-surface-raised/40' : ''}`}
+      >
+        {others.map((v) => <FleetPill key={v.key} v={v} />)}
+      </div>
+      <FleetContextMenu />
     </div>
   );
 }

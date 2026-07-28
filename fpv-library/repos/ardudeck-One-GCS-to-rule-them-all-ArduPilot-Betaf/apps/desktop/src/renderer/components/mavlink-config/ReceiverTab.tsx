@@ -161,19 +161,23 @@ const ReceiverTab: React.FC = () => {
   const [channelBaseline, setChannelBaseline] = useState<number[]>([]);
   const [activeChannels, setActiveChannels] = useState<boolean[]>(Array(18).fill(false));
 
+  // Read fresh state inside the tick. If lastRcChannels/chancount were deps, the
+  // effect would recreate this interval on every RC frame (~5-10Hz), faster than
+  // its own 250ms period, so it would never fire and the badge would stay stuck
+  // at "No Signal" even while channels stream in.
   useEffect(() => {
     const interval = setInterval(() => {
-      const elapsed = Date.now() - lastRcChannels;
-      if (lastRcChannels === 0 || rcChannels.chancount === 0) {
+      const { lastRcChannels: last, rcChannels: rc } = useTelemetryStore.getState();
+      if (last === 0 || rc.chancount === 0) {
         setSignalStatus('none');
-      } else if (elapsed > 2000) {
+      } else if (Date.now() - last > 2000) {
         setSignalStatus('stale');
       } else {
         setSignalStatus('active');
       }
     }, 250);
     return () => clearInterval(interval);
-  }, [lastRcChannels, rcChannels.chancount]);
+  }, []);
 
   // Track active channels
   useEffect(() => {

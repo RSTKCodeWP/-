@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import type { Parameter, ParameterWithMeta, ParameterProgress, ParamValuePayload } from '../../shared/parameter-types.js';
 import { isReadOnlyParameter, generateFallbackDescription } from '../../shared/parameter-types.js';
 import { parameterBelongsToGroup } from '../../shared/parameter-groups.js';
-import { validateParameterValue, vehicleTypeToMavType, type ParameterMetadataStore, type ValidationResult, type VehicleType } from '../../shared/parameter-metadata.js';
+import { validateParameterValue, vehicleTypeToMavType, REBOOT_REQUIRED_OVERRIDES, type ParameterMetadataStore, type ValidationResult, type VehicleType } from '../../shared/parameter-metadata.js';
 import { createSearchRegex } from '../../shared/search-utils.js';
 
 export type SortColumn = 'name' | 'status';
@@ -334,7 +334,8 @@ export const useParameterStore = create<ParameterStore>((set, get) => ({
 
   isRebootRequired: (paramId: string) => {
     const { metadata } = get();
-    return metadata?.[paramId]?.rebootRequired === true;
+    // Metadata flag OR our curated list of params ArduPilot forgot to tag.
+    return metadata?.[paramId]?.rebootRequired === true || REBOOT_REQUIRED_OVERRIDES.has(paramId);
   },
 
   isFavourite: (paramId: string) => {
@@ -477,20 +478,25 @@ export const useParameterStore = create<ParameterStore>((set, get) => ({
       const existing = params.get(param.paramId);
       const readOnly = isReadOnlyParameter(param.paramId) || (state.metadata?.[param.paramId]?.readOnly === true);
 
+      // Normalize the FC's float32 readback here, at ingestion, so the raw IEEE
+      // noise (0.95 -> 0.949999988079071) never enters the store. Every consumer
+      // then sees a clean value whether or not it routes through formatParamValue.
+      const value = cleanFloat32(param.paramValue, param.paramType);
+
       // For user edits: preserve originalValue so the param shows as modified
       // For FC-initiated changes (e.g. MIS_TOTAL after mission upload): update baseline
       const originalValue = isUserEdit
-        ? (existing?.originalValue ?? param.paramValue)
-        : param.paramValue;
+        ? (existing?.originalValue ?? value)
+        : value;
 
       params.set(param.paramId, {
         id: param.paramId,
-        value: param.paramValue,
+        value,
         type: param.paramType,
         index: param.paramIndex,
         originalValue,
         defaultValue: param.defaultValue ?? existing?.defaultValue,
-        isModified: isUserEdit ? !f32Equal(originalValue, param.paramValue) : false,
+        isModified: isUserEdit ? !f32Equal(originalValue, value) : false,
         isReadOnly: readOnly,
       });
 
@@ -504,12 +510,13 @@ export const useParameterStore = create<ParameterStore>((set, get) => ({
     const { metadata } = get();
     const newParams = new Map<string, ParameterWithMeta>();
     for (const p of params) {
+      const value = cleanFloat32(p.paramValue, p.paramType);
       newParams.set(p.paramId, {
         id: p.paramId,
-        value: p.paramValue,
+        value,
         type: p.paramType,
         index: p.paramIndex,
-        originalValue: p.paramValue,
+        originalValue: value,
         defaultValue: p.defaultValue,
         isModified: false,
         isReadOnly: isReadOnlyParameter(p.paramId) || (metadata?.[p.paramId]?.readOnly === true),
@@ -833,10 +840,11 @@ export const useParameterStore = create<ParameterStore>((set, get) => ({
         for (const diff of selected) {
           const existing = params.get(diff.paramId);
           if (existing) {
+            const value = cleanFloat32(diff.fileValue, existing.type);
             params.set(diff.paramId, {
               ...existing,
-              value: diff.fileValue,
-              isModified: !f32Equal(existing.originalValue ?? existing.value, diff.fileValue),
+              value,
+              isModified: !f32Equal(existing.originalValue ?? existing.value, value),
             });
           }
         }
@@ -905,10 +913,11 @@ export const useParameterStore = create<ParameterStore>((set, get) => ({
         if (failedSet.has(diff.paramId)) continue;
         const existing = params.get(diff.paramId);
         if (existing) {
+          const value = cleanFloat32(diff.fileValue, existing.type);
           params.set(diff.paramId, {
             ...existing,
-            value: diff.fileValue,
-            isModified: !f32Equal(existing.originalValue ?? existing.value, diff.fileValue),
+            value,
+            isModified: !f32Equal(existing.originalValue ?? existing.value, value),
           });
         }
       }

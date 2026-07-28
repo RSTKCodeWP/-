@@ -12,6 +12,7 @@ import type { ReactNode } from "react";
 import type { FleetDrone } from "@/lib/types";
 import type { AgentRole } from "@/stores/agent-capabilities/types";
 import type { FirmwareType } from "@/lib/protocol/types/enums";
+import type { RelayReach } from "@/lib/nodes/relay-reach";
 
 export type NodeProfile = "drone" | "ground-station" | "workstation";
 
@@ -27,6 +28,18 @@ export interface SurfaceContext {
    * ArduPilot-only Scripts tab (`firmwareType?.startsWith("ardupilot")`). */
   firmwareType: FirmwareType | null;
   agentDeviceId: string | null;
+  /** OR of `agentDeviceId !== null` (direct reach) and
+   * `drone.agentIdentityKnown === true` (confirmed identity via relay).
+   * "Has a real companion agent" — never a replacement for `agentDeviceId`,
+   * which still answers "can the GCS reach it directly." */
+  agentIdentityKnown: boolean;
+  /** When the node is reached through a ground node's WFB relay but the
+   * ground station runs the relay-proxy route, this carries the ground
+   * node's host + API key + the linked drone's peer device id, so surfaces
+   * can route `/api/...` calls through the relay-proxy. `null` for a
+   * directly-paired node (use `agentDeviceId` instead) or when the relay-
+   * proxy is unavailable. */
+  relayReach: RelayReach | null;
   fcLinking: boolean;
   radioPresent: boolean;
   visionPresent: boolean;

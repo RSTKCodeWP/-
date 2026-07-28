@@ -6,6 +6,7 @@ import type { FirmwareSource } from '../../shared/firmware-types.js';
 import type { NonDefaultColorKey } from '../components/parameters/non-default-palette.js';
 import { DEFAULT_NON_DEFAULT_COLOR } from '../components/parameters/non-default-palette.js';
 import { DEFAULT_USER_UNIT_PREFERENCES, normalizeUserUnitPreferences, type UserUnitPreferences } from '../../shared/user-units.js';
+import type { AltReferenceFrame } from '../../shared/mission-types.js';
 
 /**
  * Vehicle type for visualization
@@ -303,6 +304,15 @@ interface SettingsStore {
    */
   advancedCommandsUnlocked: boolean;
   setAdvancedCommandsUnlocked: (enabled: boolean) => void;
+
+  /**
+   * Default altitude reference frame for map commands (Fly here / Orbit).
+   * 'relative' = above home (ArduPilot default, unchanged legacy behavior),
+   * 'terrain' = above ground, 'asl' = above mean sea level. Sticky: the popup
+   * writes the operator's last choice back here so they pick once.
+   */
+  defaultCommandAltFrame: AltReferenceFrame;
+  setDefaultCommandAltFrame: (frame: AltReferenceFrame) => void;
 
   // Console
   showDebugLogs: boolean;
@@ -760,6 +770,11 @@ export const useSettingsStore = create<SettingsStore>()(
     set({ advancedCommandsUnlocked: enabled });
   },
 
+  defaultCommandAltFrame: 'relative',
+  setDefaultCommandAltFrame: (frame: AltReferenceFrame) => {
+    set({ defaultCommandAltFrame: frame });
+  },
+
   showDebugLogs: false,
   setShowDebugLogs: (enabled: boolean) => {
     set({ showDebugLogs: enabled });
@@ -930,6 +945,9 @@ export const useSettingsStore = create<SettingsStore>()(
           },
           companionUnlocked: !!settingsRecord.companionUnlocked,
           advancedCommandsUnlocked: !!settingsRecord.advancedCommandsUnlocked,
+          defaultCommandAltFrame: (['relative', 'terrain', 'asl'].includes(settingsRecord.defaultCommandAltFrame as string)
+            ? settingsRecord.defaultCommandAltFrame as AltReferenceFrame
+            : 'relative'),
           showDebugLogs: !!settingsRecord.showDebugLogs,
           aiProvider: (settingsRecord.aiProvider as 'claude' | 'openai' | 'gemini' | null) ?? null,
           aiWarningDismissed: !!settingsRecord.aiWarningDismissed,
@@ -975,6 +993,7 @@ export const useSettingsStore = create<SettingsStore>()(
         uiVisibility: state.uiVisibility,
         companionUnlocked: state.companionUnlocked,
         advancedCommandsUnlocked: state.advancedCommandsUnlocked,
+        defaultCommandAltFrame: state.defaultCommandAltFrame,
         showDebugLogs: state.showDebugLogs,
         aiProvider: state.aiProvider,
         aiWarningDismissed: state.aiWarningDismissed,
@@ -1292,6 +1311,7 @@ useSettingsStore.subscribe(
     uiVisibility: state.uiVisibility,
     companionUnlocked: state.companionUnlocked,
     advancedCommandsUnlocked: state.advancedCommandsUnlocked,
+    defaultCommandAltFrame: state.defaultCommandAltFrame,
     showDebugLogs: state.showDebugLogs,
     aiProvider: state.aiProvider,
     aiWarningDismissed: state.aiWarningDismissed,
@@ -1323,6 +1343,7 @@ useSettingsStore.subscribe(
         curr.uiVisibility !== prev.uiVisibility ||
         curr.companionUnlocked !== prev.companionUnlocked ||
         curr.advancedCommandsUnlocked !== prev.advancedCommandsUnlocked ||
+        curr.defaultCommandAltFrame !== prev.defaultCommandAltFrame ||
         curr.showDebugLogs !== prev.showDebugLogs ||
         curr.aiProvider !== prev.aiProvider ||
         curr.aiWarningDismissed !== prev.aiWarningDismissed ||

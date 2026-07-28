@@ -1,0 +1,4 @@
+*.ipk
+**/ipk/tmp
+*/libs
+*/obj

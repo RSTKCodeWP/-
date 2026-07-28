@@ -5,9 +5,10 @@
  * Shows calibration status (green checkmark if calibrated, warning if needed).
  */
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useCalibrationStore, getAvailableCalibrationTypes, isCalibrationTypeAvailable } from '../../../stores/calibration-store';
 import { useTelemetryStore } from '../../../stores/telemetry-store';
+import { useParameterStore } from '../../../stores/parameter-store';
 import { type CalibrationTypeId } from '../../../../shared/calibration-types';
 import { LargeVehicleMagCalDialog } from '../LargeVehicleMagCalDialog';
 import { LoadCalibrationFromFileDialog } from '../LoadCalibrationFromFileDialog';
@@ -204,6 +205,21 @@ const BackgroundPatterns: Record<CalibrationTypeId, React.ReactNode> = {
 export function SelectCalibrationStep() {
   const { protocol, sensors, isSensorsLoading, selectCalibrationType, error, completedCalibrations } = useCalibrationStore();
   const flight = useTelemetryStore((s) => s.flight);
+  const parameters = useParameterStore((s) => s.parameters);
+
+  // A compass exists only if the FC reports a non-zero device id. getSensorConfig
+  // hardcodes hasCompass=true, so gate the compass cal here on real param data —
+  // otherwise boards with no mag (e.g. MatekF405-WING) let you "calibrate" nothing
+  // and hang. Only treat as absent once the ids are actually loaded.
+  const compassMissing = useMemo(() => {
+    const idKeys = ['COMPASS_PRIO1_ID', 'COMPASS_DEV_ID', 'COMPASS_DEV_ID2', 'COMPASS_DEV_ID3'];
+    const loaded = idKeys.some((k) => parameters.has(k));
+    if (!loaded) return false; // unknown yet — don't block
+    return !idKeys.some((k) => {
+      const v = parameters.get(k)?.value;
+      return typeof v === 'number' && v !== 0;
+    });
+  }, [parameters]);
   const [showLargeVehicleMagCal, setShowLargeVehicleMagCal] = useState(false);
   const [showLoadCalFromFile, setShowLoadCalFromFile] = useState(false);
   const [showCompassMot, setShowCompassMot] = useState(false);
@@ -244,7 +260,8 @@ export function SelectCalibrationStep() {
       {!isSensorsLoading && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {availableTypes.map((calType) => {
-            const isAvailable = isCalibrationTypeAvailable(calType, sensors);
+            const noCompass = calType.id === 'compass' && protocol === 'mavlink' && compassMissing;
+            const isAvailable = isCalibrationTypeAvailable(calType, sensors) && !noCompass;
             const theme = CalibrationThemes[calType.id];
             // If calibration was completed + saved this session, show OK regardless of arming flags
             // (iNav doesn't clear arming flags until reboot)
@@ -315,7 +332,9 @@ export function SelectCalibrationStep() {
                 <p className={`relative text-sm leading-relaxed ${
                   isAvailable ? 'text-content-secondary' : 'text-content-tertiary'
                 }`}>
-                  {calType.description}
+                  {noCompass
+                    ? 'No magnetometer detected on this flight controller. Add an external compass on I2C to enable it. Not required for Stabilize.'
+                    : calType.description}
                 </p>
 
                 {/* Duration badge */}
@@ -333,7 +352,7 @@ export function SelectCalibrationStep() {
                 {/* Unavailable indicator */}
                 {!isAvailable && (
                   <div className="absolute top-4 right-4 px-2 py-1 rounded-full bg-red-500/20 text-red-400 text-xs font-medium">
-                    Sensor Missing
+                    {noCompass ? 'No compass detected' : 'Sensor Missing'}
                   </div>
                 )}
               </button>
@@ -342,8 +361,8 @@ export function SelectCalibrationStep() {
         </div>
       )}
 
-      {/* Large Vehicle MagCal (ArduPilot only) */}
-      {protocol === 'mavlink' && !isSensorsLoading && (
+      {/* Large Vehicle MagCal + CompassMot (ArduPilot only) — both need a compass */}
+      {protocol === 'mavlink' && !isSensorsLoading && !compassMissing && (
         <div className="mt-2 space-y-2">
           <div className="flex items-center gap-3 p-4 rounded-xl border border-amber-500/20 bg-gradient-to-br from-amber-500/5 via-transparent to-orange-500/5">
             <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-amber-500/20 to-orange-500/20 text-amber-400 flex items-center justify-center shrink-0">

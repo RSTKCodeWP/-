@@ -1,8 +1,8 @@
 {
-  "source": "Just4Stan/betaflight",
-  "upstream_commit": "eb38847004954b4cd1bc566772e6449f209435b0",
-  "upstream_updated": "2026-05-11T13:08:12Z",
-  "synced_at": "2026-07-26T23:21:41+00:00",
-  "discovered_via": "owner:Just4Stan",
-  "score": 4.0
+  "source": "betaflight/betaflight",
+  "upstream_commit": "48f2887117e08e21e66c9e7d8a4bbe044732f398",
+  "upstream_updated": "2026-07-27T20:25:07Z",
+  "synced_at": "2026-07-28T08:54:22+00:00",
+  "discovered_via": "owner:betaflight",
+  "score": 6.5
 }

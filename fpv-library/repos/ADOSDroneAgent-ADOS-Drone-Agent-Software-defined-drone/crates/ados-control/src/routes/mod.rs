@@ -42,6 +42,7 @@ pub mod gs_pairing;
 pub mod gs_pic;
 pub mod gs_recording;
 pub mod gs_recording_list;
+pub mod gs_relay_proxy;
 pub mod gs_relayed_status;
 pub mod gs_status;
 pub mod gs_tunnel_config;
@@ -566,6 +567,21 @@ pub fn build_router(state: AppState, net_native: bool, hid_native: bool) -> Rout
         .route(
             "/api/v1/ground-station/relayed/status",
             get(gs_relayed_status::get_relayed_status),
+        )
+        // Relay-proxy: forward an HTTP-shaped request to a WFB-linked drone
+        // the ground station has no IP reach to. Profile-gated below.
+        //
+        // Registered as the four methods the handler actually supports rather
+        // than `any`, because `native_routes()` lists only those four: an
+        // `any` registration let a PATCH reach the handler through the
+        // proxied-auth branch with the front's rate limiter skipped. axum now
+        // 405s anything else before the handler runs.
+        .route(
+            "/api/v1/ground-station/relay-proxy/:peer_device_id/*path",
+            get(gs_relay_proxy::handle)
+                .post(gs_relay_proxy::handle)
+                .put(gs_relay_proxy::handle)
+                .delete(gs_relay_proxy::handle),
         );
 
     // Wi-Fi client writes (profile-agnostic) are served natively only where the

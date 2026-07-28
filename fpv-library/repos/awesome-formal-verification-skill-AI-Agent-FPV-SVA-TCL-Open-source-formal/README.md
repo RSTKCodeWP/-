@@ -1,5 +1,9 @@
 # Awesome Formal Verification Skill
 
+<p align="right">
+  <strong>English</strong> · <a href="README.zh.md">简体中文</a>
+</p>
+
 An open-source, AI-agent-agnostic knowledge base for formal verification, designed to supercharge your EDA workflow with any AI coding assistant.
 
 > 🎯 **Current Focus**: JasperGold Formal Property Verification (FPV)
@@ -14,6 +18,10 @@ This project packages deep formal verification expertise into structured "skills
 - **Tool-aware**: JasperGold and VC Formal have different quirks. Shared verification knowledge is separated from tool-specific details.
 - **Community-driven**: Each module has a maturity badge. Battle-tested by real engineers, not just extracted from docs.
 
+## Skill Development Method
+
+The methodology used to build this Skill comes from [liandan](https://github.com/gokeshenzhen/liandan), maintained by the author: distilling high-density formal verification materials into a traceable, portable, and verifiable Agent Skill.
+
 ## Project Introduction
 
 - [微信公众号文章：Awesome Formal Verification Skill 项目介绍](https://mp.weixin.qq.com/s/utIrVrACSNOdHx_XbMbazQ)
@@ -23,7 +31,7 @@ This project packages deep formal verification expertise into structured "skills
 Clone the repo, then run the installer once:
 
 ```bash
-git clone <this-repo-url>
+git clone https://github.com/gokeshenzhen/awesome-formal-verification-skill.git
 cd awesome-formal-verification-skill
 bash scripts/install.sh
 ```

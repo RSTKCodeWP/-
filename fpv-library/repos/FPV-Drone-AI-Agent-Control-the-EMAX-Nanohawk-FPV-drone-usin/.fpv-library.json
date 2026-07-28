@@ -1,8 +1,8 @@
 {
   "source": "kaffircatnumberonewood311/FPV-Drone-AI-Agent",
-  "upstream_commit": "848e2ccc298fa8c597c332c45a9317803ee1a824",
-  "upstream_updated": "2026-07-26T23:12:07Z",
-  "synced_at": "2026-07-26T23:33:02+00:00",
+  "upstream_commit": "3f66bb32d9479d75be24d134692a9c43f869431c",
+  "upstream_updated": "2026-07-27T10:41:38Z",
+  "synced_at": "2026-07-28T08:50:16+00:00",
   "discovered_via": "search:expresslrs mavlink:p1",
   "score": 10.3
 }

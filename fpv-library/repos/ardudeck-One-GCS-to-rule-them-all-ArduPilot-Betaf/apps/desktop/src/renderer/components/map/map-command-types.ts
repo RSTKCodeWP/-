@@ -6,9 +6,31 @@
  * `climbRate` / `targetAlt` (spiral only): script climbs at climbRate (m/s)
  *   while orbiting until targetAlt reached, then holds the orbit indefinitely.
  */
+import type { AltReferenceFrame } from '../../../shared/mission-types.js';
+
+/**
+ * COMMAND_INT frame code for an altitude reference. These are the *_INT
+ * variants (DO_REPOSITION / DO_ORBIT go out as COMMAND_INT):
+ *   relative → 6  (MAV_FRAME_GLOBAL_RELATIVE_ALT_INT) — above home, legacy default
+ *   terrain  → 11 (MAV_FRAME_GLOBAL_TERRAIN_ALT_INT)  — above ground
+ *   asl      → 5  (MAV_FRAME_GLOBAL_INT)              — above mean sea level
+ *
+ * NOTE: intentionally NOT reusing `altFrameToMavFrame` from mission-types —
+ * that map returns the non-INT frames and its `_INT` constants are off by one
+ * from the wire enum (GLOBAL_INT/GLOBAL_RELATIVE_ALT_INT are 5/6, not 4/5).
+ * Keep this table authoritative for the COMMAND_INT command path.
+ */
+export function altFrameToCommandIntFrame(frame: AltReferenceFrame | undefined): 5 | 6 | 11 {
+  switch (frame) {
+    case 'asl': return 5;
+    case 'terrain': return 11;
+    default: return 6;
+  }
+}
+
 export type MapCommand =
-  | { type: 'goto'; lat: number; lon: number; alt: number }
-  | { type: 'orbit'; lat: number; lon: number; alt: number; radius: number; revolutions: number }
+  | { type: 'goto'; lat: number; lon: number; alt: number; frame: AltReferenceFrame }
+  | { type: 'orbit'; lat: number; lon: number; alt: number; radius: number; revolutions: number; frame: AltReferenceFrame }
   | { type: 'spiral'; lat: number; lon: number; radius: number; startAlt: number; targetAlt: number; climbRate: number }
   | { type: 'watchtower'; lat: number; lon: number; alt: number; yawRate: number }
   | { type: 'climbRtl'; targetAlt: number }
@@ -103,12 +125,16 @@ export async function dispatchMapCommand(
   void SCRIPT_HOLDS_VEHICLE;
   switch (command.type) {
     case 'goto': {
-      const ok = await window.electronAPI.mavlinkGoto(command.lat, command.lon, command.alt);
+      const ok = await window.electronAPI.mavlinkGoto(
+        command.lat, command.lon, command.alt, altFrameToCommandIntFrame(command.frame),
+      );
       return { success: ok, path: 'native' };
     }
     case 'orbit': {
       if (options.preferScript && window.electronAPI.mavlinkUserCommand) {
-        // Script path: p1=radius(signed CW/CCW), p2=speed, p3=revolutions, p4=sub_id
+        // Script path: p1=radius(signed CW/CCW), p2=speed, p3=revolutions, p4=sub_id.
+        // The Lua script has no frame field; altitude is home-relative by
+        // convention, so a non-home frame only takes effect on the native path.
         const ok = await window.electronAPI.mavlinkUserCommand(
           USER_CMD_AD,
           command.lat, command.lon, command.alt,
@@ -119,6 +145,7 @@ export async function dispatchMapCommand(
       // Native fallback ignores revolutions (DO_ORBIT has no count param).
       const ok = await window.electronAPI.mavlinkOrbit(
         command.lat, command.lon, command.alt, command.radius,
+        altFrameToCommandIntFrame(command.frame),
       );
       return { success: ok, path: 'native' };
     }

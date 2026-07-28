@@ -1,0 +1,13 @@
+model: yolo11n.pt
+source: data/samples/sample_fpv.mp4
+imgsz: 640
+conf: 0.35
+iou: 0.45
+device: null
+half: false
+classes: null
+show: false
+output: outputs/videos/sample_fpv_detected.mp4
+save_csv: outputs/detections/sample_fpv_detections.csv
+save_json: outputs/detections/sample_fpv_summary.json
+max_frames: null

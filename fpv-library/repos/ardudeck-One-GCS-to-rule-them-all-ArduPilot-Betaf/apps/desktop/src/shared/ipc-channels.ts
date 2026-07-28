@@ -50,6 +50,13 @@ export const IPC_CHANNELS = {
   /** Main → renderer: the active vehicle changed (broadcast so every window,
       e.g. the 3D world pop-out, follows the same selection as the main view). */
   COMMS_ACTIVE_CHANGED: 'comms:active-changed',
+  /** Renderer → main: the fleet formations map changed; main relays it to every
+      window so the fleet strip and the 3D world pop-out show the same groups. */
+  COMMS_SET_FORMATIONS: 'comms:set-formations',
+  /** Main → renderer: the fleet formations map changed (broadcast to all windows). */
+  COMMS_FORMATIONS_CHANGED: 'comms:formations-changed',
+  /** Renderer → main: fetch the last-known formations map (hydrates a late window). */
+  COMMS_GET_FORMATIONS: 'comms:get-formations',
   /** Renderer → main: attach an extra background MAVLink transport. */
   COMMS_ADD_TRANSPORT: 'comms:add-transport',
   /** Renderer → main: detach a background transport (refuses the primary). */
@@ -780,9 +787,52 @@ export const IPC_CHANNELS = {
   CAMERA_GIMBAL_ATTITUDE: 'camera:gimbal-attitude',
   /** Main → renderer: GIMBAL_MANAGER_INFORMATION for a vehicle. */
   CAMERA_GIMBAL_INFO: 'camera:gimbal-info',
+
+  // Procedural frame generator (ardudeck-frame crate)
+  /** Renderer → main: build a FrameBlueprint for a given class/type via the native crate binary. */
+  FRAME_GENERATE_BLUEPRINT: 'frame:generate-blueprint',
 } as const;
 
 export type IpcChannels = typeof IPC_CHANNELS[keyof typeof IPC_CHANNELS];
+
+/**
+ * Result of FRAME_GENERATE_BLUEPRINT. `blueprint` is the ardudeck-frame
+ * crate's FrameBlueprint JSON (parts + bounds) - left as `unknown` here since
+ * only the renderer's sim-frame-builder knows/needs its shape.
+ */
+export type FrameBlueprintResult =
+  | { motorCount: number; blueprint: unknown }
+  | { error: string };
+
+/**
+ * The subset of the active vehicle profile that shapes the generated frame.
+ * Camel-cased here; the main process maps it to the crate's snake_case
+ * BuildInput before invoking the binary.
+ */
+export interface FrameBlueprintProfile {
+  weightG: number;
+  frameSizeMm?: number;
+  motorCount?: number;
+  motorKv?: number;
+  propDiameterMm?: number;
+  escRatingA?: number;
+  batteryCells: number;
+  cogOffsetMm?: { x: number; y: number; z: number };
+}
+
+/**
+ * Request for FRAME_GENERATE_BLUEPRINT. `frameClass`/`frameType` are always
+ * sent (they seed class/type). When `customFramePath` and/or `profile` are
+ * present the main process reads the real launched frame + profile so the
+ * render reflects the actual build (disc area, prop size, mass); otherwise it
+ * falls back to a preset for that class/type.
+ */
+export interface FrameBlueprintRequest {
+  frameClass: string;
+  frameType: string;
+  customFramePath?: string;
+  profile?: FrameBlueprintProfile;
+}
 
 // Camera/video feature types live in their own module; re-exported here so the
 // preload bridge and renderer can import them alongside the other IPC types.

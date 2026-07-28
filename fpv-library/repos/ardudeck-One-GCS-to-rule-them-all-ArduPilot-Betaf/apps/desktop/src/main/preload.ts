@@ -4,7 +4,7 @@
  */
 
 import { contextBridge, ipcRenderer } from 'electron';
-import { IPC_CHANNELS, type ConnectOptions, type ConnectionState, type ConsoleLogEntry, type SavedLayout, type SettingsStoreSchema, type MSPConnectOptions, type MSPConnectionState, type MSPTelemetryData, type SitlConfig, type SitlStatus, type SitlExitData, type VirtualRCState, type ArduPilotSitlConfig, type ArduPilotSitlStatus, type ArduPilotSitlExitData, type ArduPilotFlightGearConfig, type ArduPilotSitlDownloadProgress, type ArduPilotSitlBinaryInfo, type ArduPilotFrameCatalog, type ArduPilotVehicleType, type ArduPilotReleaseTrack, type SwarmSitlConfig, type SwarmSitlStatus, type SwarmInstanceStatus, type SwarmSitlLogLine, type AppUpdateInfo, type SigningStatus, type TelemetrySpeed, type StatusMessage, type TileCacheStats, type TileCacheDownloadProgress, type TileCacheSettings, type TileCacheDownloadRegion, type CompanionConnectOptions, type CompanionConnectionIpcState, type CompanionDiscoveryResult, type TransportInfoIpc, type VehicleInfoIpc, type SetActiveSelectionPayload, type VehicleCommand, type MissionVehicleProgress, type OrchestrationIntentIpc, type OrchestrationStatusIpc, type OrchestratorSource, type OrchestratorStatus, type CameraSourceConfig, type CameraStartResult, type CameraMediaActionResult, type MediaEngineStatus, type GimbalCommand, type CameraCommand, type VideoStreamInfoIpc, type GimbalAttitudeIpc, type GimbalInfoIpc } from '../shared/ipc-channels.js';
+import { IPC_CHANNELS, type ConnectOptions, type ConnectionState, type ConsoleLogEntry, type SavedLayout, type SettingsStoreSchema, type MSPConnectOptions, type MSPConnectionState, type MSPTelemetryData, type SitlConfig, type SitlStatus, type SitlExitData, type VirtualRCState, type ArduPilotSitlConfig, type ArduPilotSitlStatus, type ArduPilotSitlExitData, type ArduPilotFlightGearConfig, type ArduPilotSitlDownloadProgress, type ArduPilotSitlBinaryInfo, type ArduPilotFrameCatalog, type ArduPilotVehicleType, type ArduPilotReleaseTrack, type SwarmSitlConfig, type SwarmSitlStatus, type SwarmInstanceStatus, type SwarmSitlLogLine, type AppUpdateInfo, type SigningStatus, type TelemetrySpeed, type StatusMessage, type TileCacheStats, type TileCacheDownloadProgress, type TileCacheSettings, type TileCacheDownloadRegion, type CompanionConnectOptions, type CompanionConnectionIpcState, type CompanionDiscoveryResult, type TransportInfoIpc, type VehicleInfoIpc, type SetActiveSelectionPayload, type VehicleCommand, type MissionVehicleProgress, type OrchestrationIntentIpc, type OrchestrationStatusIpc, type OrchestratorSource, type OrchestratorStatus, type CameraSourceConfig, type CameraStartResult, type CameraMediaActionResult, type MediaEngineStatus, type GimbalCommand, type CameraCommand, type VideoStreamInfoIpc, type GimbalAttitudeIpc, type GimbalInfoIpc, type FrameBlueprintResult, type FrameBlueprintRequest } from '../shared/ipc-channels.js';
 import type { SigningAuditSnapshot } from '../shared/signing-audit-types.js';
 import type { StreamDiagnosis, ElrsModuleInfo, ElrsSetModeResult, ElrsProgressEvent } from '../shared/link-doctor-types.js';
 import type { WfbngStatus } from '../shared/camera-types.js';
@@ -114,6 +114,14 @@ const api = {
 
   setActiveVehicle: (payload: SetActiveSelectionPayload): Promise<void> =>
     ipcRenderer.invoke(IPC_CHANNELS.COMMS_SET_ACTIVE, payload),
+
+  /** Publish the fleet formations map so every window mirrors the same groups. */
+  setFormations: (formations: Record<string, string[]>): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.COMMS_SET_FORMATIONS, formations),
+
+  /** Fetch the last-known formations map (hydrates a window opened after fleets formed). */
+  getFormations: (): Promise<Record<string, string[]>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.COMMS_GET_FORMATIONS),
 
   addTransport: (options: ConnectOptions): Promise<string> =>
     ipcRenderer.invoke(IPC_CHANNELS.COMMS_ADD_TRANSPORT, options),
@@ -235,11 +243,11 @@ const api = {
   mavlinkVtolTakeoff: (altitude: number): Promise<boolean> =>
     ipcRenderer.invoke(IPC_CHANNELS.MAVLINK_COMMAND_VTOL_TAKEOFF, altitude),
 
-  mavlinkGoto: (lat: number, lon: number, alt: number): Promise<boolean> =>
-    ipcRenderer.invoke(IPC_CHANNELS.MAVLINK_GOTO, lat, lon, alt),
+  mavlinkGoto: (lat: number, lon: number, alt: number, frame?: number): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MAVLINK_GOTO, lat, lon, alt, frame),
 
-  mavlinkOrbit: (lat: number, lon: number, alt: number, radius: number): Promise<boolean> =>
-    ipcRenderer.invoke(IPC_CHANNELS.MAVLINK_ORBIT, lat, lon, alt, radius),
+  mavlinkOrbit: (lat: number, lon: number, alt: number, radius: number, frame?: number): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.MAVLINK_ORBIT, lat, lon, alt, radius, frame),
 
   mavlinkLand: (lat: number, lon: number): Promise<boolean> =>
     ipcRenderer.invoke(IPC_CHANNELS.MAVLINK_LAND, lat, lon),
@@ -426,6 +434,12 @@ const api = {
     const handler = (_: unknown, payload: SetActiveSelectionPayload) => callback(payload);
     ipcRenderer.on(IPC_CHANNELS.COMMS_ACTIVE_CHANGED, handler);
     return () => ipcRenderer.removeListener(IPC_CHANNELS.COMMS_ACTIVE_CHANGED, handler);
+  },
+
+  onFormationsChanged: (callback: (formations: Record<string, string[]>) => void) => {
+    const handler = (_: unknown, formations: Record<string, string[]>) => callback(formations);
+    ipcRenderer.on(IPC_CHANNELS.COMMS_FORMATIONS_CHANGED, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.COMMS_FORMATIONS_CHANGED, handler);
   },
 
   onScanProgress: (callback: (progress: { port: string; baudRate: number; status: string }) => void) => {
@@ -2320,6 +2334,10 @@ const api = {
 
   exportAreasKml: (areas: ExportArea[], format: 'kml' | 'kmz'): Promise<{ success: boolean; filePath?: string; error?: string }> =>
     ipcRenderer.invoke(IPC_CHANNELS.EXPORT_AREAS_KML, { areas, format }),
+
+  // Procedural frame generator (ardudeck-frame crate)
+  generateFrameBlueprint: (req: FrameBlueprintRequest): Promise<FrameBlueprintResult> =>
+    ipcRenderer.invoke(IPC_CHANNELS.FRAME_GENERATE_BLUEPRINT, req),
 };
 
 // Expose to renderer

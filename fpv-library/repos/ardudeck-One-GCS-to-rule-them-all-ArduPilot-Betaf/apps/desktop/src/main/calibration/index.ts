@@ -3,6 +3,8 @@ export {
   handleCalibrationStatusText,
   handleCalibrationCommandAck,
   handleIncomingCommandLong,
+  handleMagCalProgress,
+  handleMagCalReport,
   isMavlinkCalibrationActive,
 } from './mavlink-calibration.js';
 export type { MavlinkCalibrationDeps } from './mavlink-calibration.js';

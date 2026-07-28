@@ -125,6 +125,8 @@ export interface CalibrationState {
   // Results (after completion)
   calibrationData: CalibrationData | null;
   calibrationSuccess: boolean | null;
+  /** FC must be rebooted for this calibration to take effect (compass on ArduPilot) */
+  calibrationRebootRequired: boolean;
 
   // Error state
   error: string | null;
@@ -179,7 +181,7 @@ export interface CalibrationState {
 
   // Progress updates (called from IPC events)
   handleProgressUpdate: (progress: number, statusText: string, position?: AccelPosition, positionStatus?: boolean[], countdown?: number, compassProgress?: number[]) => void;
-  handleCalibrationComplete: (success: boolean, data?: CalibrationData, error?: string) => void;
+  handleCalibrationComplete: (success: boolean, data?: CalibrationData, error?: string, rebootRequired?: boolean) => void;
 
   // Force-accept calibration-from-file actions (#16)
   loadCalibrationFromFile: () => Promise<{ ok: boolean; error?: string; calCount?: number }>;
@@ -234,6 +236,7 @@ export const useCalibrationStore = create<CalibrationState>((set, get) => ({
 
   calibrationData: null,
   calibrationSuccess: null,
+  calibrationRebootRequired: false,
 
   error: null,
 
@@ -643,7 +646,7 @@ export const useCalibrationStore = create<CalibrationState>((set, get) => ({
     });
   },
 
-  handleCalibrationComplete: (success, data, error) => {
+  handleCalibrationComplete: (success, data, error, rebootRequired) => {
     const { calibrationType, protocol, paramSnapshot } = get();
 
     // Decide up front whether we'll run verification, so the initial state
@@ -664,6 +667,7 @@ export const useCalibrationStore = create<CalibrationState>((set, get) => ({
       currentStep: 'complete',
       calibrationSuccess: success,
       calibrationData: data || null,
+      calibrationRebootRequired: success ? !!rebootRequired : false,
       error: error || null,
       progress: success ? 100 : get().progress,
       verification: willVerify ? { status: 'pending', results: [] } : null,

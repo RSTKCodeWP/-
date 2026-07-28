@@ -1,4 +1,5 @@
 use crate::math::Vec3;
+use ardudeck_frame::{motor_factors, FrameClass, FrameType};
 
 #[derive(Debug, Clone, Copy)]
 pub struct MotorMount {
@@ -20,38 +21,21 @@ pub fn frame_geometry(num_motors: u32, diagonal_size: f64) -> Vec<MotorMount> {
     // half). Our previous diagonal_size/2 halved every moment arm, so roll/pitch
     // authority was 2x too low versus stock SITL. Use the full diagonal_size.
     let radius = diagonal_size;
-    // (angle_deg, yaw_factor) in ArduPilot motor-output order (MOT_1..MOT_N),
-    // copied verbatim from ArduPilot SITL SIM_Frame.cpp so the engine's physical
-    // motor layout matches the one ArduPilot's mixer commands. yaw_factor: CCW=+1,
-    // CW=-1 (ArduPilot's AP_MOTORS_MATRIX_YAW_FACTOR_CCW/CW). Any mismatch here
-    // sends ArduPilot's per-motor commands to the wrong physical motors and the
-    // attitude controller diverges. Do not "simplify" these tables.
-    let specs: Vec<(f64, f64)> = match num_motors {
-        // Quad X: MOT_1(45,CCW) MOT_2(-135,CCW) MOT_3(-45,CW) MOT_4(135,CW)
-        4 => vec![(45.0, 1.0), (-135.0, 1.0), (-45.0, -1.0), (135.0, -1.0)],
-        // Hexa X: 0/CW 180/CCW -120/CW 60/CCW -60/CCW 120/CW
-        6 => vec![
-            (0.0, -1.0),
-            (180.0, 1.0),
-            (-120.0, -1.0),
-            (60.0, 1.0),
-            (-60.0, 1.0),
-            (120.0, -1.0),
-        ],
-        // Octa: 0/CW 180/CW 45/CCW 135/CCW -45/CCW -135/CCW -90/CW 90/CW
-        8 => vec![
-            (0.0, -1.0),
-            (180.0, -1.0),
-            (45.0, 1.0),
-            (135.0, 1.0),
-            (-45.0, 1.0),
-            (-135.0, 1.0),
-            (-90.0, -1.0),
-            (90.0, -1.0),
-        ],
-        n => (0..n)
+    // The engine's original hardcoded "hexa X"/"octa X" tables were actually
+    // ArduPilot's PLUS (default) layouts, not true FRAME_TYPE_X - map 6/8 to
+    // Plus here so the delegated table reproduces the same angles byte-for-byte.
+    // Quad genuinely used X. Counts outside 4/6/8 keep the generic ring fallback.
+    let combo = match num_motors {
+        4 => Some((FrameClass::Quad, FrameType::X)),
+        6 => Some((FrameClass::Hexa, FrameType::Plus)),
+        8 => Some((FrameClass::Octa, FrameType::Plus)),
+        _ => None,
+    };
+    let specs: Vec<(f64, f64)> = match combo.and_then(|(c, t)| motor_factors(c, t).ok()) {
+        Some(factors) => factors.iter().map(|f| (f.angle_deg, f.yaw_factor)).collect(),
+        None => (0..num_motors)
             .map(|i| {
-                let angle_deg = (360.0 / n as f64) * i as f64 + 360.0 / (2.0 * n as f64);
+                let angle_deg = (360.0 / num_motors as f64) * i as f64 + 360.0 / (2.0 * num_motors as f64);
                 let yaw_factor = if i % 2 == 0 { 1.0 } else { -1.0 };
                 (angle_deg, yaw_factor)
             })

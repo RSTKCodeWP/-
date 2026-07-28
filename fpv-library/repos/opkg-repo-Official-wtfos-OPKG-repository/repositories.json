@@ -1,0 +1,115 @@
+[
+  {
+    "repo": "fpv-wtf/dinit",
+    "names": [
+      "dinit"
+    ]
+  },
+  {
+    "repo": "stylesuxx/dji-hd-fpv-led-matrix",
+    "names": [
+      "goggle-led-draw"
+    ]
+  },
+  {
+    "repo": "fpv-wtf/wtfos",
+    "names": [
+      "wtfos",
+      "wtfos-system",
+      "default-margerine-proxy"
+    ]
+  },
+  {
+    "repo": "fpv-wtf/wtfos-tweaks",
+    "names": [
+      "tweak-prevent-force-upgrade",
+      "tweak-fix-bind-loss"
+    ]
+  },
+  {
+    "repo": "fpv-wtf/wtfos-modloader",
+    "names": [
+      "wtfos-modloader",
+      "wtfos-modloader-o3",
+      "tweak-enable-debug-menu"
+    ]
+  },
+  {
+  "repo": "bri3d/msp-osd",
+  "names": [
+    "msp-osd"
+    ]
+  },
+  {
+    "repo": "fpv-wtf/wtfos-opkg-config",
+    "names": [
+      "wtfos-opkg-config"
+    ]
+  },
+  {
+  "repo": "bri3d/dji-fan-control",
+  "names": [
+    "fan-control"
+    ]
+  },
+  {
+    "repo": "fpv-wtf/wtfos-package-config",
+    "names": [
+      "wtfos-package-config"
+    ]
+  },
+  {
+    "repo": "shambler123/wtf_dji_fpv_live_audio",
+    "names": [
+      "live-audio"
+    ]
+  },
+  {
+    "repo": "d3vl/wtfos-auto-naco",
+    "names": [
+      "fcc-unlock"
+    ]
+  },
+  {
+    "repo": "d3vl/wtfos-avin-mods",
+    "names": [
+      "avin-mods"
+    ]
+  },
+  {
+    "repo": "loudnl/wtfos-auto-record",
+    "names": [
+      "auto-record"
+    ]
+  },
+  {
+    "repo": "d3vl/wtfos-image-changer",
+    "names": [
+      "image-changer"
+    ]
+  },
+  {
+    "repo": "d3vl/wtfos-image-configurator",
+    "names": [
+      "image-configurator"
+    ]
+  },
+  {
+    "repo": "fpv-wtf/dji-moonlight-shim",
+    "names": [
+      "dji-moonlight-shim"
+    ]
+  },
+  {
+    "repo": "emulamer/avin-startup",
+    "names": [
+      "avin-startup"
+    ]
+  },
+  {
+    "repo": "xNuclearSquirrel/o3-multipage-osd",
+    "names": [
+      "o3-multipage-osd"
+    ]
+  }
+]

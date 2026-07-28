@@ -2131,6 +2131,8 @@ function ExperimentalFeaturesSection() {
   const setCompanionUnlocked = useSettingsStore((s) => s.setCompanionUnlocked);
   const advancedCommandsUnlocked = useSettingsStore((s) => s.advancedCommandsUnlocked);
   const setAdvancedCommandsUnlocked = useSettingsStore((s) => s.setAdvancedCommandsUnlocked);
+  const defaultCommandAltFrame = useSettingsStore((s) => s.defaultCommandAltFrame);
+  const setDefaultCommandAltFrame = useSettingsStore((s) => s.setDefaultCommandAltFrame);
 
   return (
     <div className="mt-8">
@@ -2203,6 +2205,41 @@ function ExperimentalFeaturesSection() {
               </button>
             </div>
             {advancedCommandsUnlocked && <ScriptInstallerActions />}
+          </div>
+
+          {/* Default altitude reference for map commands (Fly here / Orbit).
+              The popup selector is sticky and writes back here; this row makes
+              the current default visible and resettable. */}
+          <div className="bg-surface-input rounded-lg p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex-1">
+                <div className="text-sm text-content font-medium mb-0.5">Default altitude reference</div>
+                <div className="text-xs text-content-secondary">
+                  What the altitude you enter in the map command popup is measured against. Terrain needs
+                  terrain data or a rangefinder on the vehicle.
+                </div>
+              </div>
+              <div className="flex items-stretch overflow-hidden rounded-lg border border-subtle flex-shrink-0 h-8">
+                {([
+                  { id: 'relative', label: 'Home' },
+                  { id: 'terrain', label: 'Terrain' },
+                  { id: 'asl', label: 'Sea' },
+                ] as const).map((o, i) => (
+                  <button
+                    key={o.id}
+                    type="button"
+                    onClick={() => setDefaultCommandAltFrame(o.id)}
+                    className={`px-3 text-xs transition-colors ${i > 0 ? 'border-l border-subtle' : ''} ${
+                      defaultCommandAltFrame === o.id
+                        ? 'bg-surface-raised font-semibold text-content'
+                        : 'bg-surface-input text-content-secondary hover:text-content'
+                    }`}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       </section>

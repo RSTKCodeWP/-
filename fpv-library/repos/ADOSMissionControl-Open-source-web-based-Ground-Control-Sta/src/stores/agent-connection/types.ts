@@ -58,6 +58,12 @@ export interface LocalState {
    * ping is unavailable). Null until the first successful measurement, or in
    * cloud-relay mode where there is no direct timing surface. */
   controlRttMs: number | null;
+  /** True when `agentUrl` is a ground station's relay-proxy prefix rather than
+   * the agent's own origin, i.e. every request crosses a half-duplex radio.
+   * Poll cadence, the consolidated-vs-fan-out endpoint choice and the
+   * fire-and-forget side reads all branch on it: what is free on the LAN is
+   * paid for in airtime here. Set by `connect()`, cleared by `disconnect()`. */
+  relay: boolean;
 }
 
 /**
@@ -100,6 +106,9 @@ export interface ClientManagerActions {
     url: string,
     apiKey?: string | null,
     deviceId?: string | null,
+    /** `relay: true` when `url` is a ground station's relay-proxy prefix
+     *  rather than the agent's own origin. */
+    opts?: { relay?: boolean },
   ) => Promise<void>;
   disconnect: () => void;
   startPolling: () => void;

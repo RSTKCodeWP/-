@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+venv/
+
+# Models and engines
+*.pt
+*.onnx
+*.engine
+*.torchscript
+*.tflite
+*.mlpackage
+*.xml
+*.bin
+
+# Outputs
+outputs/videos/*.mp4
+outputs/videos/*.avi
+outputs/detections/*.csv
+outputs/detections/*.json
+outputs/detections/*.jpg
+outputs/detections/raw_frames/
+outputs/benchmarks/*.json
+
+# Large media
+*.mp4
+*.mov
+*.avi
+*.mkv
+
+# OS/editor
+.DS_Store
+.vscode/
+.idea/

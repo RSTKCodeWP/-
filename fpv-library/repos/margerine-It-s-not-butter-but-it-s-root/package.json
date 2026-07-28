@@ -1,0 +1,50 @@
+{
+	"name": "margerine",
+	"version": "1.3.0",
+	"description": "It's not quite butter but it's root",
+	"main": "src/index.js",
+	"bin": {
+		"margerine": "margerine.js"
+	},
+	"scripts": {
+		"test": "echo \"Error: no test specified\" && exit 1"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/fpv-wtf/margerine.git"
+	},
+	"keywords": [
+		"dji",
+		"fpv",
+		"air",
+		"unit",
+		"goggles",
+		"vista",
+		"root",
+		"adb",
+		"wtfos"
+	],
+	"author": "fpv.wtf",
+	"license": "MIT",
+	"bugs": {
+		"url": "https://github.com/fpv-wtf/margerine/issues"
+	},
+	"homepage": "https://github.com/fpv-wtf/margerine#readme",
+	"dependencies": {
+		"@sentry/node": "^6.18.1",
+		"@sentry/tracing": "^6.18.1",
+		"add": "^2.0.6",
+		"chalk": "4.1.2",
+		"serialport": "^10.4.0",
+		"yargs": "^17.1.1"
+	},
+	"pkg": {
+		"outputPath": "dist",
+		"targets": [
+			"node18.5.0-win-x64"
+		],
+		"assets": [
+			"node_modules/@serialport/bindings-cpp/prebuilds"
+		]
+	}
+}

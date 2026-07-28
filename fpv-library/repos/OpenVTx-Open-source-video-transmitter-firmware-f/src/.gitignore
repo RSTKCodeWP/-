@@ -1,0 +1,6 @@
+.pio
+.vscode
+.vscode/*
+*.code-workspace
+firmware.map
+__pycache__

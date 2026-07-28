@@ -15,10 +15,12 @@ import { useVehicleColor, useVehicleAppearanceStore, VEHICLE_COLOR_PALETTE } fro
 import { useTelemMissionViewStore } from '../../stores/telem-mission-view-store';
 import { STATE_COLORS, getModeCategoryVar } from '../map/tactical-icon-pool';
 import { AirframeIcon, airframeLabel } from '../map/airframe-icon';
-import { FleetGroupActions } from './FleetGroupActions';
-import { FleetCoordination } from './FleetCoordination';
 import { FleetContextMenu } from './FleetContextMenu';
 import { useFormationStore } from '../../stores/formation-store';
+import { useFleetUiStore, isFleetExpanded } from '../../stores/fleet-ui-store';
+import { useFormationControl } from '../../hooks/useFormationControl';
+import { FleetChevron, FleetCountHeader } from './FleetDisclosure';
+import { startVehicleDrag, readVehicleDrag, allowVehicleDrop, FREE_ZONE } from './fleet-dnd';
 import { HeartbeatDot } from './HeartbeatDot';
 import { TAC_GLASS } from './tactical';
 
@@ -36,7 +38,7 @@ function BatteryPip({ pct }: { pct: number | null }) {
   );
 }
 
-function FleetCard({ v, role }: { v: FleetVehicle; role?: 'leader' | 'wingman' }) {
+function FleetCard({ v, role, count = 0 }: { v: FleetVehicle; role?: 'leader' | 'wingman'; count?: number }) {
   const toggleSelected = useActiveVehicleStore((s) => s.toggleSelected);
   const openContextMenu = useFormationStore((s) => s.openContextMenu);
   const setColor = useVehicleAppearanceStore((s) => s.setColor);
@@ -48,9 +50,11 @@ function FleetCard({ v, role }: { v: FleetVehicle; role?: 'leader' | 'wingman' }
 
   return (
     <div
+      draggable
+      onDragStart={(e) => { e.stopPropagation(); startVehicleDrag(e, v.key); }}
       onClick={() => (v.isActive ? deselectActiveVehicle() : selectActiveVehicle(v.key, v.transportId))}
       onContextMenu={(e) => { e.preventDefault(); openContextMenu({ x: e.clientX, y: e.clientY, vehicleKey: v.key }); }}
-      className={`group relative flex items-center gap-2 cursor-pointer rounded border pl-2 pr-1.5 py-1 transition-colors ${
+      className={`group relative flex items-center gap-2 cursor-grab active:cursor-grabbing rounded border pl-2 pr-1.5 py-1 transition-colors ${
         v.isActive ? 'border-cyan-500/50 bg-cyan-500/10' : 'border-subtle bg-surface hover:bg-surface-raised'
       }`}
       data-tip={v.isActive ? `${v.label} - click to deselect` : `${v.label} - ${v.mode}${v.armed ? ' - ARMED' : ''}`}
@@ -108,6 +112,9 @@ function FleetCard({ v, role }: { v: FleetVehicle; role?: 'leader' | 'wingman' }
           {role === 'leader' && (
             <span className="text-[7px] font-bold uppercase tracking-wide px-1 rounded-sm bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">Lead</span>
           )}
+          {role === 'leader' && count > 0 && (
+            <span className="text-[9px] font-mono text-content-tertiary">+{count}</span>
+          )}
           <span className="ml-auto font-mono text-[10px] font-semibold truncate" style={{ color: getModeCategoryVar(v.mode) }}>{v.mode}</span>
         </div>
         <div className="flex items-center gap-1.5 mt-0.5">
@@ -149,7 +156,24 @@ function FleetCard({ v, role }: { v: FleetVehicle; role?: 'leader' | 'wingman' }
 export function FleetStrip() {
   const vehicles = useFleetVehicles();
   const formations = useActiveVehicleStore((s) => s.formations);
+  const { addToFleet, removeFromFleet } = useFormationControl();
+  const uiOverrides = useFleetUiStore((s) => s.overrides);
+  const toggleFleet = useFleetUiStore((s) => s.toggle);
   const [collapsed, setCollapsed] = useState(false);
+  const [dropZone, setDropZone] = useState<string | null>(null);
+
+  const dropOn = (zone: string) => ({
+    onDragOver: (e: React.DragEvent) => { allowVehicleDrop(e); setDropZone(zone); },
+    onDragLeave: () => setDropZone((z) => (z === zone ? null : z)),
+    onDrop: (e: React.DragEvent) => {
+      e.preventDefault();
+      setDropZone(null);
+      const key = readVehicleDrag(e);
+      if (!key) return;
+      if (zone === FREE_ZONE) void removeFromFleet(key);
+      else if (key !== zone) void addToFleet(zone, key);
+    },
+  });
 
   // Single-vehicle (or none): render nothing, keep the classic layout.
   if (vehicles.length < 2) return null;
@@ -185,6 +209,7 @@ export function FleetStrip() {
     .filter((g): g is { leader: FleetVehicle; wingmen: FleetVehicle[] } => !!g.leader)
     .sort((a, b) => a.leader.sysid - b.leader.sysid);
   const others = sorted.filter((v) => !inFormation.has(v.key));
+  const leaderKeys = groups.map((g) => g.leader.key);
 
   return (
     <div className="shrink-0 w-52 border-r border-subtle bg-surface-nav flex flex-col text-content">
@@ -196,23 +221,59 @@ export function FleetStrip() {
       </div>
 
       <div className="flex-1 overflow-y-auto p-1.5 flex flex-col gap-1">
-        {groups.map((g) => (
-          <div key={g.leader.key} className="flex flex-col gap-1">
-            <FleetCard v={g.leader} role="leader" />
-            {g.wingmen.length > 0 && (
-              <div className="ml-1.5 border-l border-subtle pl-1.5 flex flex-col gap-1">
-                {g.wingmen.map((v) => (
-                  <FleetCard key={v.key} v={v} role="wingman" />
-                ))}
+        <FleetCountHeader leaderKeys={leaderKeys} className="px-1 pb-1" />
+        {groups.map((g) => {
+          const expanded = isFleetExpanded(uiOverrides, g.leader.key, leaderKeys.length);
+          return (
+            <div
+              key={g.leader.key}
+              {...dropOn(g.leader.key)}
+              className={`flex flex-col gap-1 rounded p-0.5 -m-0.5 transition-colors ${
+                dropZone === g.leader.key ? 'bg-cyan-500/10 ring-1 ring-cyan-500/40' : ''
+              }`}
+            >
+              <div className="flex items-center gap-0.5">
+                <button
+                  type="button"
+                  onClick={() => toggleFleet(g.leader.key, expanded)}
+                  className="shrink-0 w-4 h-6 grid place-items-center text-content-tertiary hover:text-content"
+                  data-tip={expanded ? 'Collapse fleet' : 'Expand fleet'}
+                >
+                  <FleetChevron open={expanded} />
+                </button>
+                <div className="flex-1 min-w-0"><FleetCard v={g.leader} role="leader" count={g.wingmen.length} /></div>
               </div>
-            )}
-          </div>
-        ))}
-        {others.map((v) => <FleetCard key={v.key} v={v} />)}
+              {expanded && (
+                <div className="ml-2.5 border-l border-subtle pl-1.5 flex flex-col gap-1">
+                  {g.wingmen.map((v) => (
+                    <FleetCard key={v.key} v={v} role="wingman" />
+                  ))}
+                  {g.wingmen.length === 0 && (
+                    <span className="text-[8px] uppercase tracking-wide text-content-tertiary italic py-0.5">Drag a vehicle here</span>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        {/* Unassigned / free vehicles - also the drop zone to peel one out of its fleet. */}
+        <div
+          {...dropOn(FREE_ZONE)}
+          className={`flex flex-col gap-1 rounded p-0.5 -m-0.5 transition-colors ${
+            dropZone === FREE_ZONE ? 'bg-surface-raised ring-1 ring-subtle' : ''
+          }`}
+        >
+          {groups.length > 0 && others.length > 0 && (
+            <span className="text-[8px] uppercase tracking-[0.14em] text-content-tertiary px-1 pt-1">Unassigned</span>
+          )}
+          {others.map((v) => <FleetCard key={v.key} v={v} />)}
+          {groups.length > 0 && others.length === 0 && dropZone === FREE_ZONE && (
+            <span className="text-[8px] uppercase tracking-wide text-content-tertiary italic py-1 px-1">Drop to remove from fleet</span>
+          )}
+        </div>
       </div>
 
-      <FleetCoordination />
-      <FleetGroupActions />
       <FleetContextMenu />
     </div>
   );

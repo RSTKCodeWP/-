@@ -1,0 +1,40 @@
+#!/system/bin/sh
+
+if ! mount | grep -q "/dev/loop"; then
+    echo "/system is not loopmounted. You shouldn't do this on your real /system."
+    exit 1
+fi
+
+DEVICE=$(getprop ro.product.device)
+
+cd /system/bin
+
+#this directory is required by modloader 
+#it's used during the find in /etc/preload.d/ for tmp storage(?)
+mkdir -p /data/local
+
+filename="dji_glasses"
+
+if [[ $DEVICE = "pigeon_wm170_gls" ]]; then
+    filename="dji_gls_wm150"
+fi
+
+if [[ ! -f ${filename}_original ]]
+then
+    cp ${filename} ${filename}_original
+fi    
+
+ln -sf /opt/bin/modloader ${filename}
+mkdir -p /opt/etc/preload.d/${filename}
+
+if [[ ! -f /system/gui/xml/racing_top_menu.xml.orig ]]
+then
+    cp /system/gui/xml/racing_top_menu.xml /system/gui/xml/racing_top_menu.xml.orig
+fi    
+
+if [[ $DEVICE = "pigeon_wm170_gls" ]]; then
+    ln -sf /opt/etc/preload.d/dji_gls_wm150 /opt/etc/preload.d/diy_glasses
+    ln -sf /opt/etc/preload.d/dji_glasses /opt/etc/preload.d/fpv_glasses  
+elif [[ $DEVICE = "pigeon_wm150_gls" ]]; then
+    ln -sf /opt/etc/preload.d/dji_glasses /opt/etc/preload.d/diy_glasses
+fi

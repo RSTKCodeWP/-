@@ -1,0 +1,56 @@
+on:
+  push:
+    branches: [ main ]
+    tags:
+      - '*'
+
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build .ipk packages
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v2
+
+      - uses: nttld/setup-ndk@v1
+        id: setup-ndk
+        with:
+          ndk-version: r23b
+
+      - name: Build .ipk
+        env:
+          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+        run: ./build_ipk.sh
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: built-ipk
+          path: ./ipk/build/*.ipk
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v2
+
+      - name: Download release artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: built-ipk
+          path: ./ipk/build
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ipk/build/*.ipk
+

@@ -1,0 +1,43 @@
+name: ardudeck-frame CI
+
+# Native tests and a wasm32-unknown-unknown build check for crates/ardudeck-frame.
+# Split out from ci.yml (Node/pnpm only) and the release workflows (build.yml,
+# sim-engine-release.yml), which only run on release/tag events, not on every
+# push or pull request. The crate has no root Cargo.toml (it declares its own
+# empty [workspace] table), so every cargo command targets it explicitly via
+# --manifest-path.
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+
+jobs:
+  test:
+    name: Test and wasm32 build
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            crates/ardudeck-frame/target
+          key: cargo-frame-${{ hashFiles('crates/ardudeck-frame/Cargo.toml') }}
+          restore-keys: cargo-frame-
+
+      - name: Test ardudeck-frame
+        run: cargo test --manifest-path crates/ardudeck-frame/Cargo.toml
+
+      - name: Add wasm target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Build ardudeck-frame (wasm)
+        run: cargo build --manifest-path crates/ardudeck-frame/Cargo.toml --features wasm --target wasm32-unknown-unknown

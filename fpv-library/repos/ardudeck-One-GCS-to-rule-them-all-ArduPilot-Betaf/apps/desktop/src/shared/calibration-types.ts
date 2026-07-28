@@ -141,6 +141,13 @@ export interface CalibrationData {
   magZero?: Vector3;
   magGain?: Vector3;
   compassFitness?: number; // MAVLink only (0-1, lower is better)
+  /**
+   * Per-compass calibration result (ArduPilot). fitness is RMS milligauss
+   * residual (< ~2 good, > ~3.5 poor); orientation is the detected rotation
+   * enum (null if not reported). Parsed from the "Mag(N) ... orientation: X
+   * <fitness>" STATUSTEXT and/or MAG_CAL_REPORT.
+   */
+  compassResults?: Array<{ compass: number; fitness: number; orientation: number | null }>;
 
   // Optical flow
   opflowScale?: number;
@@ -205,6 +212,9 @@ export interface CalibrationCompleteEvent {
 
   /** Calibration results if successful */
   data?: CalibrationData;
+
+  /** FC must be rebooted for the calibration to take effect (compass on ArduPilot) */
+  rebootRequired?: boolean;
 }
 
 // ============================================================================

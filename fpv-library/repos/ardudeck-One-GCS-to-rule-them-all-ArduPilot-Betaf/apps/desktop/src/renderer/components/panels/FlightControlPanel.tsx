@@ -523,7 +523,11 @@ function MavlinkFlightControl({ mavTypeOverride }: { mavTypeOverride?: number })
   // Fleet takeoff routing: when the active vehicle belongs to an orchestrator fleet, take off
   // via the engine's synchronized takeoff (squad if leading a formation, else just this one).
   const orchServers = useOrchestrationStore((s) => s.servers);
-  const orchServer = Object.values(orchServers).find((s) => s.capabilities.includes('takeoff.synchronized'));
+  // Prefer an engine that advertises the capability; fall back to any connected engine
+  // with empty caps (a stale build) so a fleet vehicle's takeoff never silently drops to
+  // the primary-connection client path. Mirrors useFormationControl's server resolution.
+  const orchServer = Object.values(orchServers).find((s) => s.capabilities.includes('takeoff.synchronized'))
+    ?? Object.values(orchServers).find((s) => s.capabilities.length === 0);
   const activeFleetVehicle = fleetVehicles.find((v) => v.key === activeVehicleKey);
   const fleetTakeoffSysids = orchServer && activeFleetVehicle
     ? (squadKeys
@@ -1020,9 +1024,9 @@ function MavlinkFlightControl({ mavTypeOverride }: { mavTypeOverride?: number })
               ) : capabilities.takeoff.supported && (
                 <button
                   onClick={() => setShowTakeoffDialog(true)}
-                  disabled={flight.armed}
+                  disabled={flight.armed && !fleetTakeoffSysids}
                   className="h-full px-4 text-xs font-medium rounded-lg bg-surface border border-subtle hover:bg-surface-raised hover:border-default disabled:opacity-40 disabled:cursor-not-allowed text-content transition-all"
-                  title={flight.armed ? 'Already armed — click disarm first' : takeoffPresentation.buttonHint}
+                  title={flight.armed && !fleetTakeoffSysids ? 'Already armed - click disarm first' : takeoffPresentation.buttonHint}
                 >
                   {takeoffPresentation.buttonLabel}
                 </button>
@@ -1129,9 +1133,9 @@ function MavlinkFlightControl({ mavTypeOverride }: { mavTypeOverride?: number })
             {capabilities.takeoff.supported && (
               <button
                 onClick={() => setShowTakeoffDialog(true)}
-                disabled={flight.armed}
+                disabled={flight.armed && !fleetTakeoffSysids}
                 className="w-full px-2 py-1.5 mb-2 text-xs font-medium rounded-lg bg-surface border border-subtle hover:bg-surface-raised hover:border-default disabled:opacity-40 disabled:cursor-not-allowed text-content transition-all"
-                title={flight.armed ? 'Already armed — click disarm first' : takeoffPresentation.buttonHint}
+                title={flight.armed && !fleetTakeoffSysids ? 'Already armed - click disarm first' : takeoffPresentation.buttonHint}
               >
                 {takeoffPresentation.buttonLabel}
               </button>

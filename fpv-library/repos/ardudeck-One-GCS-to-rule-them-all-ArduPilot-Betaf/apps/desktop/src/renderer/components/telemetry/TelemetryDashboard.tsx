@@ -13,6 +13,7 @@ import 'dockview-react/dist/styles/dockview.css';
 
 import { useTelemetryStore } from '../../stores/telemetry-store';
 import { FleetStrip } from '../fleet/FleetStrip';
+import { DraggableFleetActions } from '../fleet/DraggableFleetActions';
 import { useLayoutStore } from '../../stores/layout-store';
 import { useConnectionStore } from '../../stores/connection-store';
 import { useSettingsStore } from '../../stores/settings-store';
@@ -1129,6 +1130,7 @@ function TelemetryDashboardImpl() {
           />
         </div>
       </div>
+      <DraggableFleetActions />
     </div>
   );
 }

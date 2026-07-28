@@ -5,10 +5,13 @@ captures/
 *.dex
 
 # Local-only notes & dev tooling — not published
-PHASE*.md
 tools/
 poc/python/tests/test_integration_live.py
 poc/python/tests/test_webapp_verify.py
+
+# Internal process docs (status log, decision log, user feedback).
+# THIS REPO IS PUBLIC — working-process notes never get committed here.
+docs/internal/
 
 # Python PoC
 poc/python/.venv/
@@ -25,10 +28,8 @@ dist/
 
 # AI tooling (local only)
 .agents/
+.claude/
 .gemini/
 
 # Flutter mobile app lives in a separate location, not in this public repo
 walksnail_mobile/
-
-# Local planning doc
-PLAN.md

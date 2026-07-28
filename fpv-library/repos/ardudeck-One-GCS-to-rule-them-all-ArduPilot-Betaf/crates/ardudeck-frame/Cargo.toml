@@ -1,0 +1,23 @@
+[package]
+name = "ardudeck-frame"
+version = "0.1.0"
+edition = "2021"
+description = "ArduDeck procedural frame generator (build spec -> blueprint + physics geometry)"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+# float_roundtrip: without it, serde_json's f64 parser is not guaranteed bit-exact
+# on round trip (observed 1-ULP drift on quaternion values from blueprint JSON).
+serde_json = { version = "1", features = ["float_roundtrip"] }
+wasm-bindgen = { version = "0.2", optional = true }
+
+[features]
+default = []
+wasm = ["dep:wasm-bindgen"]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+# Self-contained: the monorepo has no root Cargo.toml, so declare our own
+# workspace root here to avoid being pulled into an unexpected parent.
+[workspace]

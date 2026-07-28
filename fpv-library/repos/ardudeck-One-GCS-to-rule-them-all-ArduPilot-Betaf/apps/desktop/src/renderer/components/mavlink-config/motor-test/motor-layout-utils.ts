@@ -99,6 +99,21 @@ export function testOrderToLabel(testOrder: number): string {
   return String.fromCharCode('A'.charCodeAt(0) + testOrder - 1);
 }
 
+// The layout data uses ArduPilot's short enum names (X_REV, CW_X, BF_X), but the
+// FC's FRAME_TYPE parameter dropdown shows friendlier names (BetaFlightXReversed,
+// ClockwiseX, BetaFlightX). Showing the short name made users think the diagram
+// disagreed with their FC. Map to the FC-facing name; unknown names pass through.
+const FRAME_TYPE_DISPLAY_NAMES: Record<string, string> = {
+  BF_X: 'BetaFlightX',
+  BF_X_REV: 'BetaFlightXReversed',
+  X_REV: 'BetaFlightXReversed',
+  DJI_X: 'DJIX',
+  CW_X: 'ClockwiseX',
+};
+export function frameTypeDisplayName(typeName: string): string {
+  return FRAME_TYPE_DISPLAY_NAMES[typeName] ?? typeName;
+}
+
 /**
  * Read FRAME_CLASS / FRAME_TYPE from a parameter map, checking both the
  * plain ArduPilot names and the Q_ prefixed QuadPlane versions.
