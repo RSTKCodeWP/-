@@ -462,15 +462,17 @@ const COMMON_MODES = [
 // AUTO + pause mode numbers per vehicle class. Pause mode is whichever holds
 // position cleanly without giving up the mission (BRAKE on copter, LOITER on
 // plane, HOLD on rover, POSHOLD on sub) — switching back to AUTO resumes.
-const MISSION_MODES: Record<ArduPilotVehicleClass, { auto: number; pause: number; pauseLabel: string }> = {
-  copter: { auto: 3,  pause: 17, pauseLabel: 'Brake'   },
-  plane:  { auto: 10, pause: 12, pauseLabel: 'Loiter'  },
+// `abort` is the mode a mission Abort drops into: a return-to-launch for the
+// vehicles that have one, and a clean position hold for Sub (ArduSub has no RTL).
+const MISSION_MODES: Record<ArduPilotVehicleClass, { auto: number; pause: number; pauseLabel: string; abort: number; abortLabel: string }> = {
+  copter: { auto: 3,  pause: 17, pauseLabel: 'Brake',   abort: 6,  abortLabel: 'RTL'     },
+  plane:  { auto: 10, pause: 12, pauseLabel: 'Loiter',  abort: 11, abortLabel: 'RTL'     },
   // VTOL pause = QLOITER (19): vertical position hold without giving up the
   // mission. Q-modes auto-disarm-tolerant in a way fixed-wing LOITER isn't
-  // for tailsitters.
-  vtol:   { auto: 10, pause: 19, pauseLabel: 'QLoiter' },
-  rover:  { auto: 10, pause: 4,  pauseLabel: 'Hold'    },
-  sub:    { auto: 3,  pause: 16, pauseLabel: 'PosHold' },
+  // for tailsitters. Abort = QRTL (21): a vertical return, safer than plane RTL.
+  vtol:   { auto: 10, pause: 19, pauseLabel: 'QLoiter', abort: 21, abortLabel: 'QRTL'    },
+  rover:  { auto: 10, pause: 4,  pauseLabel: 'Hold',    abort: 11, abortLabel: 'RTL'     },
+  sub:    { auto: 3,  pause: 16, pauseLabel: 'PosHold', abort: 16, abortLabel: 'PosHold' },
 };
 
 function MavlinkFlightControl({ mavTypeOverride }: { mavTypeOverride?: number }) {
@@ -545,6 +547,12 @@ function MavlinkFlightControl({ mavTypeOverride }: { mavTypeOverride?: number })
 
   const [isLoading, setIsLoading] = useState(false);
   const [forceArm, setForceArm] = useState(false);
+  // Jump-to-waypoint + destructive mission ops (restart/abort). `jumpSeq` is a
+  // display index into missionItems; null tracks the live target. `pendingOp`
+  // drives a two-click confirm (commanding a live aircraft), auto-clearing after
+  // a few seconds so a half-pressed Confirm never lingers.
+  const [jumpSeq, setJumpSeq] = useState<number | null>(null);
+  const [pendingOp, setPendingOp] = useState<'jump' | 'restart' | null>(null);
   const [statusMsg, setStatusMsg] = useState<{ text: string; type: 'info' | 'error' | 'success' } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [isHorizontal, setIsHorizontal] = useState(false);
@@ -784,6 +792,122 @@ function MavlinkFlightControl({ mavTypeOverride }: { mavTypeOverride?: number })
     if (!meta?.commit) setPickerOpen(false);
   }, [vehicleClass, requestMode]);
   const handleConfirmCommit = useCallback(() => { confirmCommit(); setPickerOpen(false); }, [confirmCommit]);
+
+  // A half-pressed two-click confirm shouldn't linger; drop it after 4s.
+  useEffect(() => {
+    if (!pendingOp) return;
+    const t = setTimeout(() => setPendingOp(null), 4000);
+    return () => clearTimeout(t);
+  }, [pendingOp]);
+
+  const fcSeqOffset = useMissionStore((s) => s.fcSeqOffset);
+  const setSelectedSeq = useMissionStore((s) => s.setSelectedSeq);
+  // Fly-to-waypoint: retarget the active WP on the live vehicle. The store shows
+  // renumbered indices (HOME stripped); the FC wants the raw seq, so add the
+  // offset back. In AUTO the vehicle diverts immediately; otherwise this just
+  // sets where AUTO will begin.
+  const handleJump = useCallback(async (displayIdx: number) => {
+    setStatusMsg(null);
+    try {
+      const res = await window.electronAPI.setCurrentWaypoint(displayIdx + fcSeqOffset);
+      if (res?.success) setStatusMsg({ text: `Flying to WP ${displayIdx + 1}`, type: 'success' });
+      else setStatusMsg({ text: res?.error ?? 'Jump failed', type: 'error' });
+    } catch {
+      setStatusMsg({ text: 'Jump failed', type: 'error' });
+    }
+    setTimeout(() => setStatusMsg(null), 4000);
+  }, [fcSeqOffset]);
+
+  // Restart from the first waypoint (display index 0 -> raw seq = offset), then
+  // (re)enter AUTO so it actually runs when the vehicle is armed.
+  const handleRestart = useCallback(async () => {
+    setStatusMsg(null);
+    try {
+      const res = await window.electronAPI.setCurrentWaypoint(fcSeqOffset);
+      if (!res?.success) {
+        setStatusMsg({ text: res?.error ?? 'Restart failed', type: 'error' });
+      } else {
+        if (flight.armed && !isInAuto) await sendMode(missionModes.auto);
+        setStatusMsg({ text: 'Mission restarted from WP 1', type: 'success' });
+      }
+    } catch {
+      setStatusMsg({ text: 'Restart failed', type: 'error' });
+    }
+    setTimeout(() => setStatusMsg(null), 4000);
+  }, [fcSeqOffset, flight.armed, isInAuto, sendMode, missionModes.auto]);
+
+  // Jump / Restart / Abort. Rendered inside the mission strip in both layouts.
+  // Jump works pre-launch (sets the AUTO start point) so it isn't armed-gated;
+  // Restart and Abort command flight, so they are.
+  const renderMissionExtras = () => {
+    const maxIdx = Math.max(0, missionItems.length - 1);
+    // Clamp so a mission reload (fewer waypoints) never strands the target.
+    const target = Math.min(Math.max(0, jumpSeq ?? currentSeq ?? 0), maxIdx);
+    // Stepping the target also selects it, so the flight map + waypoint table
+    // highlight WHERE it is before the user commits with Go.
+    const stepTo = (idx: number) => {
+      const clamped = Math.min(Math.max(0, idx), maxIdx);
+      setJumpSeq(clamped);
+      setSelectedSeq(clamped);
+      setPendingOp(null);
+    };
+    return (
+      <>
+        <div className="flex items-center gap-1">
+          <span className="text-[10px] text-content-tertiary shrink-0">Fly&nbsp;to</span>
+          {/* Stepper, not a dropdown: a native <select> over a 100+ waypoint
+              mission opened a full-height scroll of context-free numbers. */}
+          <div className="flex items-center rounded border border-subtle bg-surface-input overflow-hidden">
+            <button
+              onClick={() => stepTo(target - 1)}
+              disabled={target <= 0}
+              className="px-1.5 py-1 text-[11px] leading-none text-content-secondary hover:text-content hover:bg-surface-raised disabled:opacity-30 disabled:cursor-not-allowed"
+              title="Back a waypoint (repeat a section)"
+              aria-label="Previous waypoint"
+            >◀</button>
+            <input
+              type="number"
+              min={1}
+              max={missionItems.length}
+              value={target + 1}
+              onChange={(e) => { const v = Number(e.target.value); if (Number.isFinite(v) && e.target.value !== '') stepTo(v - 1); }}
+              className="w-9 px-1 py-1 text-[11px] font-mono text-center bg-transparent text-content border-x border-subtle outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+              aria-label="Waypoint to fly to"
+            />
+            <button
+              onClick={() => stepTo(target + 1)}
+              disabled={target >= maxIdx}
+              className="px-1.5 py-1 text-[11px] leading-none text-content-secondary hover:text-content hover:bg-surface-raised disabled:opacity-30 disabled:cursor-not-allowed"
+              title="Skip a waypoint (skip a section)"
+              aria-label="Next waypoint"
+            >▶</button>
+          </div>
+          <span className="text-[10px] text-content-tertiary shrink-0 font-mono">/&nbsp;{missionItems.length}</span>
+          <button
+            onClick={() => { if (pendingOp === 'jump') { void handleJump(target); setPendingOp(null); } else setPendingOp('jump'); }}
+            className={`px-2 py-1 text-[11px] font-medium rounded border transition-all ${pendingOp === 'jump'
+              ? 'bg-[var(--status-warn-bg)] border-[color:var(--status-warn)] text-[color:var(--status-warn-fg)]'
+              : 'bg-surface border-subtle hover:border-default text-content'}`}
+            title={`Fly to waypoint ${target + 1}`}
+          >{pendingOp === 'jump' ? 'Confirm →' : 'Go'}</button>
+        </div>
+        <button
+          onClick={() => { if (pendingOp === 'restart') { void handleRestart(); setPendingOp(null); } else setPendingOp('restart'); }}
+          disabled={!flight.armed}
+          className={`px-2 py-1 text-[11px] font-medium rounded border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${pendingOp === 'restart'
+            ? 'bg-[var(--status-warn-bg)] border-[color:var(--status-warn)] text-[color:var(--status-warn-fg)]'
+            : 'bg-surface border-subtle hover:border-default text-content'}`}
+          title={flight.armed ? 'Restart mission from the first waypoint' : 'Arm first'}
+        >{pendingOp === 'restart' ? 'Confirm ↺' : 'Restart'}</button>
+        <button
+          onClick={() => { setPendingOp(null); mode.requestMode(missionModes.abort); }}
+          disabled={!flight.armed}
+          className="px-2 py-1 text-[11px] font-medium rounded border border-subtle bg-[var(--status-danger-bg)] hover:border-[color:var(--status-danger)] disabled:opacity-40 disabled:cursor-not-allowed text-[color:var(--status-danger-fg)] transition-all"
+          title={flight.armed ? `Abort mission (switch to ${missionModes.abortLabel})` : 'Arm first'}
+        >Abort</button>
+      </>
+    );
+  };
 
   // Shared annunciator + picker block. `compact` = single-line pill for the
   // horizontal command bar (matches the other controls' height); the tall dock
@@ -1048,7 +1172,7 @@ function MavlinkFlightControl({ mavTypeOverride }: { mavTypeOverride?: number })
                 </span>
                 <button onClick={() => { void fetchMission(); }} className="text-content-tertiary hover:text-content shrink-0" title="Reload mission from FC">⟳</button>
                 {missionLoaded && (
-                  <div className="flex gap-1">
+                  <div className="flex items-center gap-1">
                     <button
                       onClick={() => mode.requestMode(missionModes.auto, { skipConfirm: true })}
                       disabled={!flight.armed || isInAuto}
@@ -1069,6 +1193,8 @@ function MavlinkFlightControl({ mavTypeOverride }: { mavTypeOverride?: number })
                         title={isInPause ? `Resume from ${missionModes.pauseLabel}` : `Pause first`}
                       >Resume</button>
                     )}
+                    <div className="w-px self-stretch bg-subtle/60 mx-0.5 my-0.5" />
+                    {renderMissionExtras()}
                   </div>
                 )}
               </div>
@@ -1191,6 +1317,11 @@ function MavlinkFlightControl({ mavTypeOverride }: { mavTypeOverride?: number })
                       title={isInPause ? `Resume from ${missionModes.pauseLabel}` : `Pause first`}
                     >Resume</button>
                   )}
+                </div>
+              )}
+              {missionLoaded && (
+                <div className="flex flex-wrap items-center gap-1 mt-1">
+                  {renderMissionExtras()}
                 </div>
               )}
             </div>

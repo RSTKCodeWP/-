@@ -8052,9 +8052,12 @@ export function setupIpcHandlers(mainWindow: BrowserWindow): void {
   });
 
   // Load parameters from file
-  ipcMain.handle(IPC_CHANNELS.MISSION_IMPORT_AREA, async (): Promise<{ success: boolean; error?: string; format?: 'kml' | 'geojson'; content?: string; fileName?: string }> => {
+  ipcMain.handle(IPC_CHANNELS.MISSION_IMPORT_AREA, async (event): Promise<{ success: boolean; error?: string; format?: 'kml' | 'geojson'; content?: string; fileName?: string }> => {
     try {
-      const result = await dialog.showOpenDialog(mainWindow, {
+      // Parent the dialog to the window that invoked it (the Area Editor is a
+      // separate window) so focus returns there, not to the main window.
+      const parentWindow = BrowserWindow.fromWebContents(event.sender) ?? mainWindow;
+      const result = await dialog.showOpenDialog(parentWindow, {
         title: 'Import Survey Area',
         filters: [
           { name: 'Boundary Files', extensions: ['kml', 'kmz', 'geojson', 'json', 'shp', 'zip'] },
@@ -11313,19 +11316,34 @@ function buildFrameSpecInput(args: FrameBlueprintRequest): Record<string, unknow
 }
 
 /**
- * Locate the release-built `frame_blueprint` binary from the ardudeck-frame
- * crate. `app.getAppPath()` isn't reliable in dev (it resolves inside
- * apps/desktop, not the monorepo root), so instead walk up from this file's
- * own location until we find a `crates/` directory, which only exists at the
- * repo root.
+ * Locate the `frame_blueprint` binary (ardudeck-frame crate), checking in order:
+ *   1. the packaged copy under Resources/frame-blueprint (electron-builder
+ *      extraResources: frame-bin -> frame-blueprint),
+ *   2. the CI/dev staging dir at apps/desktop/frame-bin (written by stage-frame.mjs),
+ *   3. a locally built cargo target, found by walking up to the repo root (the dir
+ *      holding `crates/`) since `app.getAppPath()` isn't reliable in dev.
+ * Returns null when no binary is present (dev builds without the generator staged).
  */
 function findFrameBlueprintBinary(): string | null {
+  const ext = process.platform === 'win32' ? '.exe' : '';
+  const exe = `frame_blueprint${ext}`;
+
+  // 1. Production: bundled under Resources/frame-blueprint.
+  const packaged = join(process.resourcesPath, 'frame-blueprint', exe);
+  if (existsSync(packaged)) return packaged;
+
   const here = dirname(fileURLToPath(import.meta.url));
+
+  // 2. CI/dev staging dir. This file compiles into out/main, so frame-bin is two
+  //    levels up (out/main -> out -> desktop).
+  const staged = join(here, '..', '..', 'frame-bin', exe);
+  if (existsSync(staged)) return staged;
+
+  // 3. Dev fallback: a locally built cargo target under the repo root.
   let dir = here;
   for (let i = 0; i < 10; i++) {
     if (existsSync(join(dir, 'crates'))) {
-      const ext = process.platform === 'win32' ? '.exe' : '';
-      const binPath = join(dir, 'crates', 'ardudeck-frame', 'target', 'release', `frame_blueprint${ext}`);
+      const binPath = join(dir, 'crates', 'ardudeck-frame', 'target', 'release', exe);
       return existsSync(binPath) ? binPath : null;
     }
     const parent = dirname(dir);

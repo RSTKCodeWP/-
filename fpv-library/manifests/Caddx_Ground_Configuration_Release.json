@@ -3,6 +3,78 @@
   "source": "CaddxFPV-Tech/Caddx_Ground_Configuration_Release",
   "releases": [
     {
+      "tag": "v0.3.5",
+      "version": "0.3.5",
+      "releaseDate": "2026-07-29",
+      "changelogUrl": "https://github.com/CaddxFPV-Tech/Caddx_Ground_Configuration_Release/releases/tag/v0.3.5",
+      "notes": "V0.3.5\r\nFeat：\r\n- Added OSD command switching and CRSF command switching;\r\n- OSD overlay now requires manually clicking to enable display. For HID CRSF transmission, you need to click \"Select HID\" and manually choose the HID device.",
+      "assets": [
+        {
+          "id": "delta",
+          "name": "CaddxGroundConfiguration-0.3.5-delta.nupkg",
+          "kind": "nupkg-delta",
+          "platform": "win",
+          "url": "https://github.com/CaddxFPV-Tech/Caddx_Ground_Configuration_Release/releases/download/v0.3.5/CaddxGroundConfiguration-0.3.5-delta.nupkg",
+          "size": 185909,
+          "sha256": "e659d79c4a4c2406e0c8982476218a68d25f950809abc74b05785c0d1ccec6f4"
+        },
+        {
+          "id": "full",
+          "name": "CaddxGroundConfiguration-0.3.5-full.nupkg",
+          "kind": "nupkg",
+          "platform": "win",
+          "url": "https://github.com/CaddxFPV-Tech/Caddx_Ground_Configuration_Release/releases/download/v0.3.5/CaddxGroundConfiguration-0.3.5-full.nupkg",
+          "size": 52061622,
+          "sha256": "aa14cd3a12f88b01914c1042e7a2ca9d72da5aac42abeb003f636fb111121148"
+        },
+        {
+          "id": "portable",
+          "name": "CaddxGroundConfiguration-win-Portable.zip",
+          "kind": "portable",
+          "platform": "win",
+          "url": "https://github.com/CaddxFPV-Tech/Caddx_Ground_Configuration_Release/releases/download/v0.3.5/CaddxGroundConfiguration-win-Portable.zip",
+          "size": 52046600,
+          "sha256": "02dba9b0314ac05e6db4a5f46801cf3ecfedd4d952f87c8c869e133d86064ed6"
+        },
+        {
+          "id": "setup",
+          "name": "CaddxGroundConfiguration-win-Setup.exe",
+          "kind": "installer",
+          "platform": "win",
+          "url": "https://github.com/CaddxFPV-Tech/Caddx_Ground_Configuration_Release/releases/download/v0.3.5/CaddxGroundConfiguration-win-Setup.exe",
+          "size": 56534454,
+          "sha256": "c4df89ac5f0b862a35adb28a275610ab5203e277266b5b219b536540761f6319"
+        },
+        {
+          "id": "caddxgroundconfiguration_setup_v0_3_5",
+          "name": "CaddxGroundConfiguration_Setup_V0.3.5.exe",
+          "kind": "other",
+          "platform": "win",
+          "url": "https://github.com/CaddxFPV-Tech/Caddx_Ground_Configuration_Release/releases/download/v0.3.5/CaddxGroundConfiguration_Setup_V0.3.5.exe",
+          "size": 221674110,
+          "sha256": "8f5a3dd28e1014f3ab62432c881764986a56b639a77aee9d7b1cc1ef6838ac39"
+        },
+        {
+          "id": "releases",
+          "name": "RELEASES",
+          "kind": "metadata",
+          "platform": "win",
+          "url": "https://github.com/CaddxFPV-Tech/Caddx_Ground_Configuration_Release/releases/download/v0.3.5/RELEASES",
+          "size": 94,
+          "sha256": "0428a39e924efbfda99398026dd7348fadb9a31de8c1f55e77be3096cce190f2"
+        },
+        {
+          "id": "releases_win_json",
+          "name": "releases.win.json",
+          "kind": "metadata",
+          "platform": "win",
+          "url": "https://github.com/CaddxFPV-Tech/Caddx_Ground_Configuration_Release/releases/download/v0.3.5/releases.win.json",
+          "size": 1644,
+          "sha256": "de04300dcf5895f17645edd2dcebbc1cc9d13c79a6fb8cae743507764ad5a2fb"
+        }
+      ]
+    },
+    {
       "tag": "v0.3.3",
       "version": "0.3.3",
       "releaseDate": "2026-07-24",

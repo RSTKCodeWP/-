@@ -34,9 +34,6 @@
   "dependencies": {},
   "deprecated": false,
   "description": "A Long class for representing a 64-bit two's-complement integer value.",
-  "devDependencies": {
-    "webpack": "^3.10.0"
-  },
   "files": [
     "index.js",
     "LICENSE",

@@ -203,7 +203,7 @@ function SaveMenu({
         <>
           <div className="fixed inset-0 z-[9998]" onClick={() => setOpen(false)} />
           <div
-            className="fixed z-[9999] min-w-[220px] bg-surface-raised border border-subtle rounded-lg shadow-2xl py-1"
+            className="fixed z-[9999] w-[260px] bg-surface-raised backdrop-blur-xl border border-default rounded-lg shadow-2xl py-1"
             style={{ top: pos.top, right: pos.right }}
           >
             <button

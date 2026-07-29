@@ -32,12 +32,6 @@
   "bundleDependencies": false,
   "deprecated": false,
   "description": "JavaScript library to pack primitives to octet arrays, including int64 support, packaged for NodeJS.",
-  "devDependencies": {
-    "long": "",
-    "mocha": "",
-    "should": "",
-    "sinon": ""
-  },
   "homepage": "https://github.com/birchroad/node-jspack",
   "main": "./jspack.js",
   "maintainers": [

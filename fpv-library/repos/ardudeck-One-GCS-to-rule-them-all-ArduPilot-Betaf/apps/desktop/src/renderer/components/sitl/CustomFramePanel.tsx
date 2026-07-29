@@ -6,8 +6,8 @@
  * mark a frame as the active one for the next SITL launch.
  */
 
-import { useEffect, useState, useCallback } from 'react';
-import { Pencil, Trash2, Download, Upload, X, ChevronDown, ChevronRight } from 'lucide-react';
+import { Fragment, useEffect, useState, useCallback } from 'react';
+import { Pencil, Copy, Trash2, Download, Upload, X, ChevronDown, ChevronRight } from 'lucide-react';
 import {
   SITL_FRAME_TEMPLATES,
   type SitlCustomFrame,
@@ -42,7 +42,9 @@ type EditorMode =
 type SitlNumericFieldKey = Exclude<keyof SitlCustomFrame, 'slungLoad'>;
 
 const FIELD_GROUPS: { title: string; fields: SitlNumericFieldKey[] }[] = [
-  { title: 'Physical', fields: ['mass', 'diagonal_size', 'num_motors', 'disc_area'] },
+  // disc_area is NOT in this grid: it's derived from prop diameter + motor count
+  // in a dedicated block (renderDiscBlock) right after the Physical group.
+  { title: 'Physical', fields: ['mass', 'diagonal_size', 'num_motors'] },
   { title: 'Battery', fields: ['maxVoltage', 'battCapacityAh', 'refBatRes'] },
   { title: 'Reference (tuning)', fields: ['refSpd', 'refAngle', 'refVoltage', 'refCurrent', 'refAlt', 'refTempC', 'refRotRate'] },
   { title: 'Motors', fields: ['hoverThrOut', 'pwmMin', 'pwmMax', 'spin_min', 'spin_max', 'slew_max', 'propExpo', 'mdrag_coef'] },
@@ -67,6 +69,25 @@ function parseNumberDraft(value: string): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+/** Total rotor-disc area (m²): the swept circle of every rotor, summed. */
+function discAreaFromProp(numMotors: number, propDiameterM: number): number {
+  return numMotors * Math.PI * (propDiameterM / 2) ** 2;
+}
+/** Inverse: the prop diameter (m) implied by a disc area + motor count. */
+function propDiameterFromDisc(numMotors: number, discArea: number): number {
+  return 2 * Math.sqrt(discArea / (numMotors * Math.PI));
+}
+/**
+ * Rough prop-Ø guess (m) for users who don't know their prop size: motors sit on
+ * a circle of diameter = the motor-to-motor size, and a real prop spans ~85% of
+ * the gap to its neighbour. Coaxial (X8) frames have half as many arms, so this
+ * under-guesses them - it's a starting point to refine, not a measurement.
+ */
+function estimatePropDiameter(diagonalM: number, numMotors: number): number {
+  const chord = diagonalM * Math.sin(Math.PI / Math.max(3, numMotors));
+  return Math.max(0.05, 0.85 * chord);
+}
+
 export function CustomFramePanel() {
   const customFramePath = useArduPilotSitlStore((s) => s.customFramePath);
   const customFrameMotors = useArduPilotSitlStore((s) => s.customFrameMotors);
@@ -85,6 +106,11 @@ export function CustomFramePanel() {
   const [editor, setEditor] = useState<EditorMode>({ kind: 'closed' });
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  // Prop diameter (m) is a UI helper, not a stored SITL field. It drives disc_area
+  // (motors × π × (Ø/2)²) so users enter a prop size they know instead of a disc
+  // area they'd have to compute. Seeded from the frame on open; kept in sync both
+  // ways with disc_area below.
+  const [propInputM, setPropInputM] = useState<number | null>(null);
 
   const refresh = useCallback(async () => {
     const items = await window.electronAPI?.ardupilotSitlCustomFrameList?.();
@@ -107,6 +133,23 @@ export function CustomFramePanel() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customFramePath, list]);
+
+  // Seed the prop-Ø helper whenever a different frame opens in the editor (keyed
+  // on identity so it doesn't clobber the user's typing on every field edit).
+  // Prefer the exact prop size implied by a real disc_area; fall back to a guess
+  // from the frame diagonal for a fresh/blank frame.
+  const editorKey =
+    editor.kind === 'edit' ? `edit:${editor.id}` :
+    editor.kind === 'new' ? `new:${editor.templateKey}` :
+    'closed';
+  useEffect(() => {
+    if (editor.kind === 'closed') { setPropInputM(null); return; }
+    const f = editor.frame;
+    if (f.disc_area > 0 && f.num_motors > 0) setPropInputM(propDiameterFromDisc(f.num_motors, f.disc_area));
+    else if (f.diagonal_size > 0 && f.num_motors > 0) setPropInputM(estimatePropDiameter(f.diagonal_size, f.num_motors));
+    else setPropInputM(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editorKey]);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -147,6 +190,31 @@ export function CustomFramePanel() {
         await refresh();
         setEditor({ kind: 'closed' });
         showToast('Saved');
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Duplicate a saved frame as a new, independently-editable copy. saveCustomFrame
+  // derives the on-disk id from slugify(name) and overwrites a colliding id, so we
+  // pick a "<name> copy [n]" that isn't already taken (case-insensitively).
+  const onDuplicate = async (id: string) => {
+    setBusy(true);
+    try {
+      const rec = await window.electronAPI?.ardupilotSitlCustomFrameLoad?.(id);
+      if (!rec) {
+        showToast('Failed to copy frame');
+        return;
+      }
+      const taken = new Set(list.map((f) => f.name.toLowerCase()));
+      let copyName = `${rec.name} copy`;
+      let n = 2;
+      while (taken.has(copyName.toLowerCase())) copyName = `${rec.name} copy ${n++}`;
+      const result = await window.electronAPI?.ardupilotSitlCustomFrameSave?.({ name: copyName, frame: rec.frame });
+      if (result) {
+        await refresh();
+        showToast(`Copied → "${copyName}"`);
       }
     } finally {
       setBusy(false);
@@ -209,7 +277,38 @@ export function CustomFramePanel() {
 
   const updateField = (key: SitlNumericFieldKey, value: number) => {
     if (editor.kind === 'closed') return;
-    setEditor({ ...editor, frame: { ...editor.frame, [key]: value } });
+    const frame = { ...editor.frame, [key]: value };
+    // Keep disc_area and the prop-Ø helper consistent: changing the motor count
+    // rescales the disc from the current prop size; a manual disc_area edit is an
+    // advanced override, so back-compute the prop-Ø it implies.
+    if (key === 'num_motors' && propInputM && propInputM > 0 && value > 0) {
+      frame.disc_area = discAreaFromProp(value, propInputM);
+    }
+    setEditor({ ...editor, frame });
+    if (key === 'disc_area' && value > 0 && frame.num_motors > 0) {
+      setPropInputM(propDiameterFromDisc(frame.num_motors, value));
+    }
+  };
+
+  // Prop-Ø helper -> disc_area. Not routed through updateField('disc_area') so it
+  // never fights its own back-compute.
+  const setPropDiameter = (m: number) => {
+    setPropInputM(m);
+    if (editor.kind === 'closed' || m <= 0) return;
+    const n = editor.frame.num_motors;
+    if (n > 0) setEditor({ ...editor, frame: { ...editor.frame, disc_area: discAreaFromProp(n, m) } });
+  };
+  // Props are labelled in inches (5", 15", 30") the world over, so this field is
+  // always inches regardless of the app's general dimension-unit preference.
+  const onPropInput = (raw: string) => {
+    const v = parseNumberDraft(raw.replace(',', '.'));
+    if (v === null) return;
+    setPropDiameter(v * 0.0254);
+  };
+  const onEstimateProp = () => {
+    if (editor.kind === 'closed') return;
+    const f = editor.frame;
+    if (f.diagonal_size > 0 && f.num_motors > 0) setPropDiameter(estimatePropDiameter(f.diagonal_size, f.num_motors));
   };
 
   const getFieldHint = (field: SitlNumericFieldKey): string | undefined => {
@@ -273,6 +372,62 @@ export function CustomFramePanel() {
       return;
     }
     updateField(field, v);
+  };
+
+  // Dedicated disc-area block: prop diameter (helper) <-> disc_area, so users who
+  // don't know their disc area just type the prop size they do know.
+  const renderDiscBlock = () => {
+    if (editor.kind === 'closed') return null;
+    const f = editor.frame;
+    // Prop diameter is shown in inches (the universal prop convention); the mm
+    // equivalent is a secondary hint for anyone who measured with a ruler.
+    const propDisplay = propInputM != null ? Number((propInputM * 39.3701).toFixed(1)) : '';
+    const propMm = propInputM != null ? propInputM * 1000 : null;
+    return (
+      <div className="rounded-lg border border-subtle bg-surface-raised/40 p-2 space-y-2">
+        <div className="flex items-center justify-between">
+          <div className="text-[10px] uppercase tracking-wide text-content-tertiary">Rotor disc area</div>
+          <button
+            type="button"
+            onClick={onEstimateProp}
+            className="text-[10px] text-blue-400 hover:text-blue-300 underline"
+            title="Guess the prop size from the frame diagonal + motor count (rough starting point)"
+          >
+            estimate from frame size
+          </button>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="block text-[11px] text-content-secondary">
+              prop diameter <span className="text-content-tertiary ml-1">(in{propMm != null ? ` · ${propMm.toFixed(0)} mm` : ''})</span>
+            </label>
+            <input
+              type="text"
+              inputMode="decimal"
+              value={propDisplay}
+              onChange={(e) => onPropInput(e.target.value)}
+              className="w-full px-2 py-1 text-xs bg-surface-input border border-subtle rounded text-content font-mono tabular-nums focus:outline-none focus:border-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-[11px] text-content-secondary">
+              disc_area <span className="text-content-tertiary ml-1">(m² total)</span>
+            </label>
+            <input
+              type="text"
+              inputMode="decimal"
+              value={getFieldDisplayValue('disc_area')}
+              onChange={(e) => updateFieldFromDisplay('disc_area', e.target.value)}
+              className="w-full px-2 py-1 text-xs bg-surface-input border border-subtle rounded text-content font-mono tabular-nums focus:outline-none focus:border-blue-500"
+            />
+          </div>
+        </div>
+        <p className="text-[10px] text-content-tertiary leading-relaxed">
+          Auto: {f.num_motors || 0} motors × π × (Ø/2)². Type your prop size in
+          inches and disc area fills in; edit disc area directly to override.
+        </p>
+      </div>
+    );
   };
 
   return (
@@ -362,6 +517,9 @@ export function CustomFramePanel() {
                     <button onClick={() => onEdit(item.id)} className="p-1 rounded hover:bg-surface text-content-secondary hover:text-blue-400" title="Edit">
                       <Pencil className="w-3.5 h-3.5" />
                     </button>
+                    <button onClick={() => onDuplicate(item.id)} disabled={busy} className="p-1 rounded hover:bg-surface text-content-secondary hover:text-blue-400 disabled:opacity-50" title="Duplicate this frame">
+                      <Copy className="w-3.5 h-3.5" />
+                    </button>
                     <button onClick={() => onExport(item.id)} className="p-1 rounded hover:bg-surface text-content-secondary hover:text-blue-400" title="Export JSON">
                       <Download className="w-3.5 h-3.5" />
                     </button>
@@ -407,28 +565,31 @@ export function CustomFramePanel() {
               </div>
 
               {FIELD_GROUPS.map((group) => (
-                <div key={group.title}>
-                  <div className="text-[10px] uppercase tracking-wide text-content-tertiary mb-1">
-                    {group.title}
+                <Fragment key={group.title}>
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wide text-content-tertiary mb-1">
+                      {group.title}
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {group.fields.map((field) => (
+                        <div key={field}>
+                          <label className="block text-[11px] text-content-secondary">
+                            {field}
+                            {getFieldHint(field) && <span className="text-content-tertiary ml-1">({getFieldHint(field)})</span>}
+                          </label>
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            value={getFieldDisplayValue(field)}
+                            onChange={(e) => updateFieldFromDisplay(field, e.target.value)}
+                            className="w-full px-2 py-1 text-xs bg-surface-input border border-subtle rounded text-content font-mono tabular-nums focus:outline-none focus:border-blue-500"
+                          />
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    {group.fields.map((field) => (
-                      <div key={field}>
-                        <label className="block text-[11px] text-content-secondary">
-                          {field}
-                          {getFieldHint(field) && <span className="text-content-tertiary ml-1">({getFieldHint(field)})</span>}
-                        </label>
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          value={getFieldDisplayValue(field)}
-                          onChange={(e) => updateFieldFromDisplay(field, e.target.value)}
-                          className="w-full px-2 py-1 text-xs bg-surface-input border border-subtle rounded text-content font-mono tabular-nums focus:outline-none focus:border-blue-500"
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                  {group.title === 'Physical' && renderDiscBlock()}
+                </Fragment>
               ))}
             </div>
           )}

@@ -31,6 +31,9 @@ export function MissionWaypointDotsLayer() {
   const map = useMap();
   const missionItems = useMissionStore((s) => s.missionItems);
   const currentSeq = useMissionStore((s) => s.currentSeq);
+  // Highlight the fly-to target the operator is stepping through in the flight
+  // controls, so a jump has spatial context on the map before it's committed.
+  const selectedSeq = useMissionStore((s) => s.selectedSeq);
 
   const waypoints = useMemo(
     () =>
@@ -92,11 +95,11 @@ export function MissionWaypointDotsLayer() {
       infos,
       meanSpacing,
       maxLabel,
-      selectedSeq: null,
+      selectedSeq,
       currentSeq,
       suppressed: EMPTY_SUPPRESSED,
     });
-  }, [index, infos, meanSpacing, maxLabel, currentSeq]);
+  }, [index, infos, meanSpacing, maxLabel, currentSeq, selectedSeq]);
 
   return null;
 }

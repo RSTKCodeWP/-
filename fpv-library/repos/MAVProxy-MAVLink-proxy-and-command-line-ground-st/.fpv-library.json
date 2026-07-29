@@ -1,8 +1,8 @@
 {
   "source": "ArduPilot/MAVProxy",
-  "upstream_commit": "09232e000ecedf4aab05a4fc7dbb16ef0147a975",
-  "upstream_updated": "2026-07-27T10:59:03Z",
-  "synced_at": "2026-07-28T08:51:07+00:00",
+  "upstream_commit": "a4cf806c8eb35b537e5541484f338b84e766b38b",
+  "upstream_updated": "2026-07-29T06:24:26Z",
+  "synced_at": "2026-07-29T08:51:00+00:00",
   "discovered_via": "owner:ArduPilot",
   "score": 6.0
 }

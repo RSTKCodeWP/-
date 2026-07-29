@@ -158,6 +158,13 @@ class SRTMDownloader():
                     conn.close()
                     tries += 1
                     continue
+                if r1.status != 200:
+                    # don't hand back an error page, as the caller may cache
+                    # it as if it were a tile
+                    if self.debug:
+                        print("fetch of %s failed with %u" % (url, r1.status))
+                    conn.close()
+                    return None
                 data = r1.read()
                 conn.close()
                 if sys.version_info.major < 3:
@@ -183,6 +190,10 @@ class SRTMDownloader():
         try:
             data = self.getURIWithRedirect(self.directory)
         except Exception:
+            return
+        if data is None:
+            if self.debug:
+                print("Failed to list %s" % self.directory)
             return
         parser = parseHTMLDirectoryListing()
         parser.feed(data)
@@ -211,6 +222,10 @@ class SRTMDownloader():
                     data = self.getURIWithRedirect(url)
                 except Exception as ex:
                     print("Failed to download %s : %s" % (url, ex))
+                    continue
+                if data is None:
+                    if self.debug:
+                        print("Failed to list %s" % url)
                     continue
                 parser = parseHTMLDirectoryListing()
                 parser.feed(data)

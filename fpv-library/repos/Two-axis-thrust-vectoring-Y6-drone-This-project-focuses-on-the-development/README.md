@@ -23,4 +23,4 @@ A custom transmitter/controller specifically designed for the platform will also
 
 ## Project Status
 
-Currently working on the Gimbal Design 7.1. This includes the CAD design, electronics assembly, and programming both the Teensy 4.1 and the ESP32-S3 SuperMini nodes for local sensor and actuator control, as well as real-time ESP-NOW communication.
+Currently working on the Gimbal Design 7.1. This includes the CAD design, electronics design and assembly, and programming both the Teensy 4.1 and the ESP32-S3 SuperMini nodes for local sensor and actuator control, as well as real-time ESP-NOW communication.

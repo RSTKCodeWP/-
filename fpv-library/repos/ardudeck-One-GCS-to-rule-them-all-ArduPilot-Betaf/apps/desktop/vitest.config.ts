@@ -8,5 +8,17 @@ import { defineConfig, configDefaults } from 'vitest/config';
 export default defineConfig({
   test: {
     exclude: [...configDefaults.exclude, '**/out/**'],
+    coverage: {
+      // `all: true` (the default) makes coverage-v8 glob every source file via
+      // test-exclude to report untested ones. That scan crashes on a transitive
+      // dep clash: test-exclude pulls minimatch@10 (needs brace-expansion@5's
+      // named `expand`) while its nested glob pulls minimatch@9 (needs
+      // brace-expansion@2's default export); the hoisted brace-expansion@5 has no
+      // `.default`, so getUntestedFiles throws `brace_expansion_1.default is not a
+      // function` AFTER every test passes. No single brace-expansion version fixes
+      // both, so we scope coverage to files the tests actually load, which skips
+      // that glob entirely.
+      all: false,
+    },
   },
 });

@@ -21,8 +21,9 @@
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "stage:sim-engine": "node scripts/stage-sim-engine.mjs",
+    "stage:frame": "node scripts/stage-frame.mjs",
     "fetch:engine": "node scripts/fetch-engine.mjs",
-    "package": "node scripts/fetch-engine.mjs && node scripts/fetch-sim-engine.mjs && electron-builder",
+    "package": "node scripts/stage-frame.mjs && node scripts/fetch-engine.mjs && node scripts/fetch-sim-engine.mjs && electron-builder",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
@@ -78,6 +79,7 @@
     "electron-builder": "^26.7.0",
     "electron-vite": "^2.0.0",
     "jimp": "0.22.12",
+    "jsdom": "^29.1.1",
     "png2icons": "^2.0.1",
     "postcss": "^8.4.32",
     "react": "^18.2.0",
@@ -125,6 +127,13 @@
         "filter": [
           "**/*"
         ]
+      },
+      {
+        "from": "frame-bin",
+        "to": "frame-blueprint",
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "files": [
@@ -168,7 +177,7 @@
       "gatekeeperAssess": false,
       "entitlements": "codesign/entitlements.mac.plist",
       "entitlementsInherit": "codesign/entitlements.mac.inherit.plist",
-      "notarize": true,
+      "notarize": false,
       "target": [
         "dmg",
         "zip"
@@ -176,6 +185,7 @@
     },
     "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
     "afterPack": "./afterPack.cjs",
+    "afterSign": "./scripts/notarize.cjs",
     "linux": {
       "icon": "resources/icon.png",
       "category": "Utility",

@@ -169,7 +169,7 @@ class MessageHub:
     """
 
     _broadcast_methods: list[FlockwaveMessageDispatcher] | None = None
-    _channel_type_registry: ChannelTypeRegistry | None = None
+    _channel_type_registry: ChannelTypeRegistry[FlockwaveMessage] | None = None
     _client_registry: ClientRegistry | None = None
     _handlers_by_type: defaultdict[str | None, list[MessageHandler]]
     _log_messages: bool = False
@@ -240,7 +240,7 @@ class MessageHub:
         return request
 
     @property
-    def channel_type_registry(self) -> ChannelTypeRegistry | None:
+    def channel_type_registry(self) -> ChannelTypeRegistry[FlockwaveMessage] | None:
         """Registry that keeps track of the different channel types that the
         app can handle. This is used by the message hub to figure out how to
         broadcast messages to all connected clients.
@@ -248,7 +248,9 @@ class MessageHub:
         return self._channel_type_registry
 
     @channel_type_registry.setter
-    def channel_type_registry(self, value: ChannelTypeRegistry | None) -> None:
+    def channel_type_registry(
+        self, value: ChannelTypeRegistry[FlockwaveMessage] | None
+    ) -> None:
         if self._channel_type_registry == value:
             return
 
@@ -427,7 +429,7 @@ class MessageHub:
                 log.warning("Outbound queue is full, dropping message")
 
     async def handle_incoming_message(
-        self, message: dict[str, Any], sender: Client
+        self, message: Mapping[str, Any], sender: Client
     ) -> bool:
         """Handles an incoming Flockwave message by calling the appropriate
         message handlers.
@@ -755,7 +757,7 @@ class MessageHub:
 
     def reject(
         self,
-        message: dict[str, Any] | FlockwaveMessage | None = None,
+        message: Mapping[str, Any] | FlockwaveMessage | None = None,
         reason: str | None = None,
     ) -> FlockwaveResponse:
         """Creates a new negative acknowledgment (i.e. rejection) of the given
@@ -979,7 +981,7 @@ class MessageHub:
         finally:
             disposer()
 
-    def _decode_incoming_message(self, message: dict[str, Any]) -> FlockwaveMessage:
+    def _decode_incoming_message(self, message: Mapping[str, Any]) -> FlockwaveMessage:
         """Decodes an incoming, raw JSON message that has already been
         decoded from the string representation into a dictionary on the
         Python side, but that has not been validated against the Flockwave

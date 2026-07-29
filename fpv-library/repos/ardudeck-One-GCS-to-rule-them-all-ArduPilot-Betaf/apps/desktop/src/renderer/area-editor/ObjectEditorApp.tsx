@@ -46,6 +46,7 @@ const IEdit = () => <svg {...S}><path d="M6 18L12 5l6 9z" /><rect x="4" y="16" w
 const IHole = () => <svg {...S}><rect x="3.5" y="3.5" width="17" height="17" rx="2" /><rect x="9.5" y="9.5" width="5" height="5" rx="1" /></svg>;
 const ISplit = () => <svg {...S}><circle cx="6" cy="6" r="2.5" /><circle cx="6" cy="18" r="2.5" /><path d="M8 7.5L20 16M8 16.5L20 8" /></svg>;
 const IRuler = () => <svg {...S}><path d="M3 16.5L16.5 3l4.5 4.5L7.5 21z" /><path d="M8 8l2 2M11 5l2 2M5 11l2 2" /></svg>;
+const IFit = () => <svg {...S}><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" /></svg>;
 const IImport = () => <svg {...S}><path d="M12 3v12M8 11l4 4 4-4M4 20h16" /></svg>;
 const IExportKml = () => <svg {...S}><path d="M12 21V9M8 13l4-4 4 4M4 5h16" /></svg>;
 const IExportKmz = () => <svg {...S}><rect x="4" y="8" width="16" height="12" rx="1" /><path d="M4 12h16M9 8V5h6v3" /></svg>;
@@ -273,6 +274,21 @@ export function ObjectEditorApp(): JSX.Element {
     }
   }, [loadWorldRings]);
 
+  const handleFit = useCallback(() => {
+    if (!map) return;
+    let minLat = Infinity, minLng = Infinity, maxLat = -Infinity, maxLng = -Infinity;
+    for (const o of validObjects) {
+      for (const p of objectWorldRing(o)) {
+        if (p.lat < minLat) minLat = p.lat;
+        if (p.lat > maxLat) maxLat = p.lat;
+        if (p.lng < minLng) minLng = p.lng;
+        if (p.lng > maxLng) maxLng = p.lng;
+      }
+    }
+    if (!Number.isFinite(minLat)) return;
+    map.fitBounds([[minLng, minLat], [maxLng, maxLat]], { padding: 60, maxZoom: 18 });
+  }, [map, validObjects]);
+
   const handleExport = useCallback(async (format: 'kml' | 'kmz') => {
     try {
       const exportAreas = useObjectsStore.getState().objects
@@ -371,6 +387,7 @@ export function ObjectEditorApp(): JSX.Element {
           <ActionButton tip="Undo (Ctrl+Z)" disabled={!canUndo} onClick={undo}><IUndo /></ActionButton>
           <ActionButton tip="Redo (Ctrl+Shift+Z)" disabled={!canRedo} onClick={redo}><IRedo /></ActionButton>
           <div className="w-px h-6 bg-subtle mx-1" />
+          <ActionButton tip="Zoom to fit all objects" disabled={!hasValid} onClick={handleFit}><IFit /></ActionButton>
           <ActionButton tip="Import KML / KMZ / GeoJSON / Shapefile" onClick={() => void handleImport()}><IImport /></ActionButton>
           <ActionButton tip="Export areas as KML" disabled={!hasValid} onClick={() => void handleExport('kml')}><IExportKml /></ActionButton>
           <ActionButton tip="Export areas as KMZ" disabled={!hasValid} onClick={() => void handleExport('kmz')}><IExportKmz /></ActionButton>

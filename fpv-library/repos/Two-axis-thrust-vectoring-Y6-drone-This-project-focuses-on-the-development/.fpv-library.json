@@ -1,8 +1,8 @@
 {
   "source": "Dierumox/Two-axis-thrust-vectoring-Y6-drone",
-  "upstream_commit": "df01931da5ccd84bfdfde639a1e704be43ea1a0e",
-  "upstream_updated": "2026-07-27T18:46:35Z",
-  "synced_at": "2026-07-28T08:49:21+00:00",
+  "upstream_commit": "c627739065ad8e87244d8c8c6002eb91ad4e36f3",
+  "upstream_updated": "2026-07-28T21:43:33Z",
+  "synced_at": "2026-07-29T08:48:48+00:00",
   "discovered_via": "search:Fpv:p4",
   "score": 6.0
 }

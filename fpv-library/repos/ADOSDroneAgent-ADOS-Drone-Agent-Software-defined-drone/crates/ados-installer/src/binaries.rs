@@ -199,6 +199,22 @@ pub const PREBUILT: &[PrebuiltBinary] = &[
         gate: Gate::BestEffort,
         profiles: DRONE,
     },
+    // The decentralized swarm state bus. Fetched on BOTH FC-bearing profiles,
+    // matching its supervisor gate: a drone broadcasts its beacon and a ground
+    // station listens so the operator's fleet view is local-first. Best-effort
+    // rather than Hard: the unit `ConditionPathExists`-gates on the binary, so a
+    // fetch miss leaves single-drone operation entirely intact — the bus adds fleet
+    // awareness and onboard separation input, and neither is on the C2 path. A
+    // missing binary on a node that is part of a real fleet is caught by the health
+    // gate, not by aborting every install.
+    PrebuiltBinary {
+        service: "ados-swarmbus",
+        asset: "ados-swarmbus-aarch64",
+        release_tag: "prebuilt-swarmbus",
+        dest: "/opt/ados/bin/ados-swarmbus",
+        gate: Gate::BestEffort,
+        profiles: BOTH,
+    },
     // The local logging and telemetry store. Best-effort: a missing store
     // degrades recordkeeping (the agent falls back to journald) without
     // aborting the install. The unit ships deployed-but-not-enabled, so the
@@ -344,9 +360,19 @@ pub const PREBUILT_VISION_ONNX_RUNTIME: PrebuiltBinary = PrebuiltBinary {
 /// case-insensitively against the device-tree model string, mirroring the board
 /// profiles that declare `compute.local_inference: onnx` (Cortex-A76-class,
 /// NPU-less boards a CPU YOLO runs usefully on). Keep this list in step with
-/// those YAML profiles. NPU-class boards are intentionally excluded — they run
-/// the accelerator sidecar, not the CPU ONNX build.
-const ONNX_VISION_BOARD_SUBSTRINGS: &[&str] = &["raspberry pi 5", "compute module 5", "cm5"];
+/// those YAML profiles. NPU-class boards are normally excluded — they run the
+/// accelerator sidecar, not the CPU ONNX build — but `sun60iw2` (Allwinner A733,
+/// Radxa Cubie A7S) is a deliberate exception: its VIP9000 NPU has no in-tree
+/// backend (no TIM-VX support yet — see `cubie-a7s.yaml`'s Rule-44 note), so it
+/// runs the CPU ONNX build like an NPU-less board until that backend lands.
+const ONNX_VISION_BOARD_SUBSTRINGS: &[&str] = &[
+    "raspberry pi 5",
+    "compute module 5",
+    "cm5",
+    "sun60iw2",
+    "cubie a7s",
+    "a733",
+];
 
 /// Whether the board model declares CPU-ONNX local inference and should fetch the
 /// onnx-enabled vision build. Pure, case-insensitive substring match.
@@ -379,8 +405,34 @@ mod tests {
     use super::*;
 
     #[test]
-    fn catalog_has_twenty_three_entries() {
-        assert_eq!(PREBUILT.len(), 23);
+    fn catalog_has_twenty_four_entries() {
+        assert_eq!(PREBUILT.len(), 24);
+    }
+
+    /// Both FC-bearing profiles fetch the swarm bus, matching its supervisor gate. A
+    /// ground station that fetched only the drone half would have no fleet view of its
+    /// own and would fall back to a cloud round-trip for something every node already
+    /// hears on the air.
+    #[test]
+    fn both_fc_profiles_fetch_the_swarm_bus() {
+        for profile in ["drone", "ground_station"] {
+            let svcs: Vec<&str> = for_profile(profile).iter().map(|b| b.service).collect();
+            assert!(
+                svcs.contains(&"ados-swarmbus"),
+                "{profile} must fetch ados-swarmbus"
+            );
+        }
+        // Best-effort, not Hard: a fetch miss must leave single-drone operation intact
+        // rather than abort the install. The bus is not on the C2 path.
+        let bus = PREBUILT
+            .iter()
+            .find(|b| b.service == "ados-swarmbus")
+            .expect("ados-swarmbus must be in the catalog");
+        assert_eq!(bus.gate, Gate::BestEffort);
+        // The path the unit's ConditionPathExists + ExecStart name, or the unit
+        // silently never starts.
+        assert_eq!(bus.dest, "/opt/ados/bin/ados-swarmbus");
+        assert_eq!(bus.asset, "ados-swarmbus-aarch64");
     }
 
     #[test]
@@ -622,9 +674,12 @@ mod tests {
         assert!(board_prefers_onnx_vision("Raspberry Pi 5 Model B Rev 1.0"));
         assert!(board_prefers_onnx_vision("Raspberry Pi Compute Module 5"));
         assert!(board_prefers_onnx_vision("Raspberry Pi CM5"));
-        // NPU boards run the sidecar, not the CPU ONNX build.
+        // A733/Cubie A7S: NPU present but no in-tree backend yet, so it is a
+        // deliberate exception to the "NPU boards run the sidecar" rule below.
+        assert!(board_prefers_onnx_vision("sun60iw2"));
+        assert!(board_prefers_onnx_vision("Radxa Cubie A7S"));
+        // NPU boards WITH an in-tree backend run the sidecar, not the CPU ONNX build.
         assert!(!board_prefers_onnx_vision("Radxa ROCK 5C Lite (RK3582)"));
-        assert!(!board_prefers_onnx_vision("NVIDIA Jetson Orin Nano"));
         // Weaker / unknown boards stay on the default build.
         assert!(!board_prefers_onnx_vision("Raspberry Pi 4 Model B"));
         assert!(!board_prefers_onnx_vision(""));

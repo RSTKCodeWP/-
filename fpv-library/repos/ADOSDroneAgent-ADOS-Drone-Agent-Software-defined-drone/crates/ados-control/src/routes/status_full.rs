@@ -128,10 +128,12 @@ pub async fn get_full_status(State(state): State<AppState>, headers: HeaderMap) 
     let capabilities: Value = json!({});
 
     // The perception capability + tier, before `board` is moved into the payload.
-    // Same canonical ados_offload::pick_tier decision the LAN /api/status uses so
-    // the GCS Perception hub reads a consistent tier from either route.
+    // Same canonical ados_offload::pick_tier decision the LAN /api/status uses,
+    // fed the same live backend-capability read, so the GCS Perception hub
+    // reads a consistent tier from either route.
+    let backend_inference_capable = crate::routes::status::live_backend_inference_capable().await;
     let (npu_tops, has_accelerator, perception_tier, offload_target) =
-        crate::routes::status::perception_fields(&board);
+        crate::routes::status::perception_fields(&board, backend_inference_capable);
 
     let mut payload = Map::new();
     payload.insert("version".to_string(), json!(state.agent_version()));
@@ -213,6 +215,17 @@ pub async fn get_full_status(State(state): State<AppState>, headers: HeaderMap) 
     // omitted) when the lane is down / stale, never a fabricated block.
     if let Some(crsf) = read_crsf_status() {
         payload.insert("crsf".to_string(), crsf);
+    }
+
+    // The swarm neighbour table, folded in only when `ados-swarmbus` has actually
+    // published one. PROFILE-AGNOSTIC: a drone carries its own fleet view over the
+    // LAN path, which is the whole point of a decentralized bus. The key is OMITTED
+    // rather than emitted as `[]` when the bus is silent, because an empty array
+    // would claim "this node hears no neighbours" — a different fact from "this node
+    // runs no swarm bus" (operating rule 44). A client that wants the counters, or
+    // the degraded shape explicitly, reads `/api/swarm/neighbors`.
+    if let Some(neighbors) = super::swarm::neighbors_for_full_status(&state) {
+        payload.insert("neighbors".to_string(), neighbors);
     }
 
     Json(Value::Object(payload))

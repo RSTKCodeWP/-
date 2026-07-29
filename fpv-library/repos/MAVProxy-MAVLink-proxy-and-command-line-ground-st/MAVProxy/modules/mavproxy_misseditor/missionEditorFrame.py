@@ -204,11 +204,23 @@ class MissionEditorFrame(wx.Frame):
         self.grid_mission = wx.grid.Grid(self, wx.ID_ANY, size=(1, 1))
         self.button_add_wp = wx.Button(self, wx.ID_ANY, "Add Below")
         self.button_split = wx.Button(self, wx.ID_ANY, "Split")
+        self.button_height_profile = wx.Button(self, wx.ID_ANY, "Height Profile")
 
         self.__set_properties()
         self.__do_layout()
 
         self.ElevationModel = mp_elevation.ElevationModel(database=elemodel)
+
+        # elevation models by database name, shared with the height profile
+        # window so that terrain tiles are only fetched once
+        self.elevation_models = {elemodel: self.ElevationModel}
+        self.height_profile_frame = None
+        self.height_profile_dirty = False
+        self.height_profile_last_draw = 0
+        # set when a terrain lookup came back empty, so the derived grid
+        # columns are recalculated once the tile has downloaded
+        self.terrain_pending = False
+        self.last_terrain_retry = 0
 
 
         self.Bind(wx.EVT_TEXT_ENTER, self.on_wp_radius_enter, self.text_ctrl_wp_radius)
@@ -227,6 +239,7 @@ class MissionEditorFrame(wx.Frame):
         self.Bind(wx.grid.EVT_GRID_CMD_SELECT_CELL, self.on_mission_grid_cell_select, self.grid_mission)
         self.Bind(wx.EVT_BUTTON, self.add_wp_below_pushed, self.button_add_wp)
         self.Bind(wx.EVT_BUTTON, self.split_pushed, self.button_split)
+        self.Bind(wx.EVT_BUTTON, self.height_profile_pushed, self.button_height_profile)
         # end wxGlade
 
         #use a timer to facilitate event an event handlers for events
@@ -363,6 +376,8 @@ class MissionEditorFrame(wx.Frame):
         sizer_3.Add(self.grid_mission, 1, wx.EXPAND, 0)
         sizer_16.Add(self.button_add_wp, 0, 0, 0)
         sizer_16.Add(self.button_split, 0, 0, 0)
+        sizer_16.Add((20, 20), 0, 0, 0)
+        sizer_16.Add(self.button_height_profile, 0, 0, 0)
         sizer_3.Add(sizer_16, 0, wx.EXPAND, 0)
         self.SetSizer(sizer_3)
         self.Layout()
@@ -402,6 +417,9 @@ class MissionEditorFrame(wx.Frame):
             self.Refresh()
             self.Update()
 
+        self.check_terrain_pending()
+        self.check_height_profile()
+
     def process_gui_event(self, event):
         if event.get_type() == me_event.MEGE_CLEAR_MISS_TABLE:
             self.grid_mission.ClearGrid()
@@ -418,6 +436,7 @@ class MissionEditorFrame(wx.Frame):
             self.grid_mission.SetColSize(ME_AGL_COL, 1)
 
             self.grid_mission.ForceRefresh()
+            self.height_profile_changed()
         elif event.get_type() == me_event.MEGE_ADD_MISS_TABLE_ROWS:
             num_new_rows = event.get_arg("num_rows")
             if (num_new_rows < 1):
@@ -438,6 +457,8 @@ class MissionEditorFrame(wx.Frame):
                         str(event.get_arg("lon")))
                 self.label_home_alt_value.SetLabel(
                         str(event.get_arg("alt")))
+                # home altitude is the reference for Rel frame items
+                self.height_profile_changed()
 
             else: #not the first mission item
                 if command in me_defines.miss_cmds:
@@ -904,6 +925,13 @@ class MissionEditorFrame(wx.Frame):
             return False
         return self.has_location_cmd(cmd_id)
 
+    def set_dist_only(self, row, lat, lon, prev_lat, prev_lon):
+        '''fill in the distance for a row whose gradient needs terrain we do
+           not have yet, so the column is not left showing a stale value'''
+        dist = mp_util.gps_distance(lat, lon, prev_lat, prev_lon)
+        self.grid_mission.SetCellValue(row, ME_DIST_COL, format(dist, '.1f'))
+        self.grid_mission.SetCellValue(row, ME_ANGLE_COL, "?")
+
     def set_grad_dist(self):
         '''fix up distance and gradient when changing cell values'''
         home_def_alt = float(self.label_home_alt_value.GetLabel())
@@ -928,7 +956,14 @@ class MissionEditorFrame(wx.Frame):
                 if (self.grid_mission.GetCellValue(row_prev, ME_FRAME_COL) == "Rel"):
                     prev_alt = prev_alt + home_def_alt
                 elif (self.grid_mission.GetCellValue(row_prev, ME_FRAME_COL) == "AGL"):
-                    prev_alt = self.ElevationModel.GetElevation(prev_lat, prev_lon) + prev_alt
+                    elevation = self.ElevationModel.GetElevation(prev_lat, prev_lon)
+                    if elevation is None:
+                        # terrain not in yet: the distance is still known, but
+                        # the gradient is not
+                        self.terrain_pending = True
+                        self.set_dist_only(row, lat, lon, prev_lat, prev_lon)
+                        continue
+                    prev_alt = elevation + prev_alt
                 while not self.has_location(prev_lat,prev_lon,command_prev) and (row_prev > 0):
                     prev_lat = float(self.grid_mission.GetCellValue(row_prev - 1, ME_LAT_COL))
                     prev_lon = float(self.grid_mission.GetCellValue(row_prev - 1, ME_LON_COL))
@@ -939,7 +974,14 @@ class MissionEditorFrame(wx.Frame):
                 if (self.grid_mission.GetCellValue(row, ME_FRAME_COL) == "Rel"):
                     curr_alt = curr_alt + home_def_alt
                 elif(self.grid_mission.GetCellValue(row, ME_FRAME_COL) == "AGL"):
-                    curr_alt = curr_alt + self.ElevationModel.GetElevation(lat, lon)
+                    elevation = self.ElevationModel.GetElevation(lat, lon)
+                    if elevation is None:
+                        # terrain not in yet: the distance is still known, but
+                        # the gradient is not
+                        self.terrain_pending = True
+                        self.set_dist_only(row, lat, lon, prev_lat, prev_lon)
+                        continue
+                    curr_alt = curr_alt + elevation
                 grad = math.atan2(curr_alt - prev_alt, dist) *180 / math.pi
               else:
                 grad = 0.0
@@ -959,7 +1001,8 @@ class MissionEditorFrame(wx.Frame):
             lon = float(self.grid_mission.GetCellValue(row, ME_LON_COL))
             agl = 0.0
             elevation = self.ElevationModel.GetElevation(lat, lon)
-            if elevation == None:
+            if elevation is None:
+                self.terrain_pending = True
                 continue
             if self.has_location(lat, lon, command) and "NAV" in command:
                 agl = float(self.grid_mission.GetCellValue(row, ME_ALT_COL))
@@ -972,6 +1015,123 @@ class MissionEditorFrame(wx.Frame):
                 continue
             agl = format(float(agl), '.1f')
             self.grid_mission.SetCellValue(row, ME_AGL_COL, agl)
+        self.height_profile_changed()
+
+    def check_terrain_pending(self):
+        '''recalculate the derived columns once terrain that was missing has
+           had a chance to download'''
+        if not self.terrain_pending:
+            return
+        now = time.time()
+        if now - self.last_terrain_retry < 2:
+            return
+        self.last_terrain_retry = now
+        self.terrain_pending = False
+        try:
+            self.set_grad_dist()
+            self.set_agl()
+        except Exception:
+            # a cell is mid-edit, try again on the next tick
+            self.terrain_pending = True
+
+    def height_profile_pushed(self, event):  # wxGlade: MissionEditorFrame.<event_handler>
+        '''open the height profile window, or raise it if already open'''
+        if self.height_profile_frame is not None:
+            self.height_profile_frame.Raise()
+            return
+        try:
+            from MAVProxy.modules.mavproxy_misseditor import height_profile
+            # matplotlib is an optional dependency and is not imported until
+            # the frame builds its canvas, so it has to be inside the try
+            frame = height_profile.HeightProfileFrame(
+                self, self.elevation_models, source=self.ElevationModel.database)
+        except ImportError as e:
+            print("Height profile needs matplotlib (%s)" % str(e))
+            return
+        self.height_profile_frame = frame
+        self.height_profile_frame.Show()
+        self.update_height_profile()
+
+    def height_profile_closed(self):
+        '''called by the height profile window as it closes'''
+        self.height_profile_frame = None
+
+    def mission_profile_points(self):
+        '''mission items as ProfilePoints, skipping items with no location.
+           Altitudes are left in their mission frame so that the profile can
+           resolve them against whichever terrain database it is showing.
+           Returns None for the points if the grid holds anything unparsable'''
+        from MAVProxy.modules.mavproxy_misseditor import height_profile
+        home_amsl = float(self.label_home_alt_value.GetLabel())
+        points = []
+        for row in range(self.grid_mission.GetNumberRows()):
+            command = self.grid_mission.GetCellValue(row, ME_COMMAND_COL)
+            if "NAV" not in command:
+                continue
+            try:
+                lat = float(self.grid_mission.GetCellValue(row, ME_LAT_COL))
+                lon = float(self.grid_mission.GetCellValue(row, ME_LON_COL))
+                alt = float(self.grid_mission.GetCellValue(row, ME_ALT_COL))
+            except ValueError:
+                # a cell is mid-edit, wait for the next update
+                return (None, home_amsl)
+            if not self.has_location(lat, lon, command):
+                continue
+            frame = self.grid_mission.GetCellValue(row, ME_FRAME_COL)
+            # row 0 of the grid is mission item 1, home is item 0
+            points.append(height_profile.ProfilePoint(row+1, lat, lon, alt, frame))
+        return (points, home_amsl)
+
+    def update_height_profile(self):
+        '''push the current mission to the height profile window. Returns
+           False if the mission could not be read, so the caller knows the
+           profile is still stale'''
+        if self.height_profile_frame is None:
+            return True
+        try:
+            (points, home_amsl) = self.mission_profile_points()
+        except Exception as e:
+            print("Height profile update failed (%s)" % str(e))
+            return False
+        if points is None:
+            return False
+        self.height_profile_frame.set_mission(points, home_amsl)
+        # the frame timestamps the end of its own draw, so a slow redraw does
+        # not immediately become due again
+        self.height_profile_last_draw = self.height_profile_frame.last_draw
+        return True
+
+    def height_profile_changed(self):
+        '''note that the mission has changed and the profile needs redrawing.
+           The redraw itself is deferred, as an edit or a mission load can
+           produce a burst of changes and each redraw samples terrain'''
+        self.height_profile_dirty = True
+
+    def check_height_profile(self):
+        '''redraw the height profile if it is stale. Called from the GUI
+           timer so a burst of edits only costs one redraw'''
+        if self.height_profile_frame is None:
+            return
+        now = time.time()
+        # the window redraws itself when its controls change, so take the
+        # later of the two as the last draw
+        self.height_profile_last_draw = max(self.height_profile_last_draw,
+                                            self.height_profile_frame.last_draw)
+        if now - self.height_profile_last_draw < 0.5:
+            return
+        if not self.height_profile_dirty:
+            # terrain tiles download in the background, so keep retrying
+            # while the profile has gaps in it
+            if not self.height_profile_frame.needs_redraw():
+                return
+            if now - self.height_profile_last_draw < 2:
+                return
+        # only drop the dirty flag once the redraw has actually happened, so
+        # that a mission we could not read is retried rather than lost
+        if self.update_height_profile():
+            self.height_profile_dirty = False
+        else:
+            self.height_profile_last_draw = now
 
     def on_idle(self, event):
         now = time.time()
