@@ -1,8 +1,8 @@
 {
   "source": "CaddxFPV-Tech/Caddx_vrx_udp_protocol",
-  "upstream_commit": "d843e6a137c750310b2de57689e855ad3c4cc321",
-  "upstream_updated": "2026-07-20T07:32:02Z",
-  "synced_at": "2026-07-27T00:12:28+00:00",
+  "upstream_commit": "80fc7dc7e6158b4b7ef9f72b2f40db164ebdb4d5",
+  "upstream_updated": "2026-07-29T09:17:10Z",
+  "synced_at": "2026-07-30T08:40:12+00:00",
   "discovered_via": "manual:user-url",
   "score": 5.0
 }

@@ -1,8 +1,8 @@
 {
   "source": "altnautica/ADOSMissionControl",
-  "upstream_commit": "3c185eda1d2f0753eba16068c8b9eb964a4edc6e",
-  "upstream_updated": "2026-07-29T08:38:39Z",
-  "synced_at": "2026-07-29T08:50:01+00:00",
+  "upstream_commit": "89a26a650387c276dc9f247c2a4329ff747bd508",
+  "upstream_updated": "2026-07-29T20:37:35Z",
+  "synced_at": "2026-07-30T08:37:02+00:00",
   "discovered_via": "search:drone ground station:p1",
   "score": 18.2
 }

@@ -1,8 +1,8 @@
 {
   "source": "OpenIPC/sbc-groundstations",
-  "upstream_commit": "6d33fd9bb12e39d3de6d63ef9aed134a7215779f",
-  "upstream_updated": "2026-07-15T21:05:58Z",
-  "synced_at": "2026-07-26T23:32:34+00:00",
+  "upstream_commit": "28113f398c722983df536275d4aa028483eb206f",
+  "upstream_updated": "2026-07-29T18:48:09Z",
+  "synced_at": "2026-07-30T08:37:26+00:00",
   "discovered_via": "owner:OpenIPC",
   "score": 7.0
 }

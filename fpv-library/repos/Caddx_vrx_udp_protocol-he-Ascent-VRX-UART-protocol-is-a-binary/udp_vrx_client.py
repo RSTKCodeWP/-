@@ -1,4 +1,4 @@
-"""Command-line UDP client for the Ascent VRX packet protocol."""
+"""Ctrl/OSD UDP command-line client for the Ascent VRX and MSP protocols."""
 
 from __future__ import annotations
 
@@ -6,10 +6,55 @@ import argparse
 import select
 import socket
 import sys
+import time
+from collections.abc import Callable
+from dataclasses import dataclass
+from enum import IntEnum
+
+from msp_osd import (
+    MspDisplayPortCommand,
+    MspDisplayPortSubcommand,
+    MspFrameReassembler,
+    MspOsdParser,
+)
 
 HEADER = bytes.fromhex("FE EF")
 TAIL = bytes.fromhex("0D 0A")
 MAX_PAYLOAD_LENGTH = 0xFFFF
+DEFAULT_CTRL_PORT = 9001
+DEFAULT_OSD_PORT = 9200
+PASSTHROUGH_COMMAND = 0x23
+SET_MODE_SUBCOMMAND = 0x02
+OSD_PROBE_BYTES = bytes.fromhex("31 32 33 34")
+MODE_SWITCH_DELAY_SECONDS = 0.5
+OSD_NO_DATA_TIMEOUT_SECONDS = 1.0
+
+
+class PassthroughMode(IntEnum):
+    """VRX passthrough modes accepted by the set-mode command."""
+
+    NONE = 0
+    MAVLINK = 1
+    CRSF = 2
+    SBUS = 3
+    USER = 4
+    OSD = 5
+
+
+@dataclass(frozen=True)
+class DeviceConnectionProfile:
+    """Resolved device address and the independent Ctrl/OSD UDP ports."""
+
+    name: str
+    host: str
+    ctrl_port: int = DEFAULT_CTRL_PORT
+    osd_port: int = DEFAULT_OSD_PORT
+
+
+DEVICE_CONNECTION_PROFILES = {
+    "rj45": DeviceConnectionProfile("rj45", "192.168.1.100"),
+    "usb-c": DeviceConnectionProfile("usb-c", "192.168.3.102"),
+}
 
 
 class ProtocolError(ValueError):
@@ -56,6 +101,19 @@ def assemble_packet(command: int, payload: bytes) -> bytes:
         + calculate_checksum(payload)
         + TAIL
     )
+
+
+def build_set_mode_packet(mode: PassthroughMode | int) -> bytes:
+    """Build a VRX passthrough-mode switch frame for Ctrl UDP port 9001."""
+    try:
+        resolved_mode = PassthroughMode(mode)
+    except ValueError as error:
+        raise ValueError("unsupported passthrough mode") from error
+
+    payload = bytes(
+        [SET_MODE_SUBCOMMAND, int(resolved_mode), 0x00, 0x00, 0x00]
+    )
+    return assemble_packet(PASSTHROUGH_COMMAND, payload)
 
 
 def parse_packet(data: bytes) -> tuple[int, bytes]:
@@ -197,16 +255,45 @@ def power_index(value: str) -> int:
     return index
 
 
-def create_argument_parser() -> argparse.ArgumentParser:
-    """Create and configure the command-line argument parser.
+def udp_port(value: str) -> int:
+    """Convert a command-line value into a valid non-zero UDP port."""
+    try:
+        port = int(value)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError("port must be an integer") from error
+    if not 1 <= port <= 65535:
+        raise argparse.ArgumentTypeError("port must be from 1 to 65535")
+    return port
 
-    Returns:
-        A parser containing the destination options and every supported VRX
-        operation, including interactive keyboard control.
-    """
+
+def create_argument_parser() -> argparse.ArgumentParser:
+    """Create the CLI parser for Ctrl-only and dual-channel operations."""
     parser = argparse.ArgumentParser(description="Ascent VRX UDP protocol client")
-    parser.add_argument("--host", default="192.168.1.100", help="UDP server address")
-    parser.add_argument("--port", default=9001, type=int, help="UDP server port")
+    parser.add_argument(
+        "--profile",
+        choices=sorted(DEVICE_CONNECTION_PROFILES),
+        default="rj45",
+        help="device connection profile",
+    )
+    parser.add_argument(
+        "--host",
+        default=None,
+        help="device address; overrides the selected profile",
+    )
+    parser.add_argument(
+        "--port",
+        "--ctrl-port",
+        dest="ctrl_port",
+        default=None,
+        type=udp_port,
+        help="Ctrl UDP port; --port is retained for compatibility",
+    )
+    parser.add_argument(
+        "--osd-port",
+        default=None,
+        type=udp_port,
+        help="OSD UDP port",
+    )
     subcommands = parser.add_subparsers(dest="operation", required=True)
 
     key_parser = subcommands.add_parser("key", help="simulate a VRX key press")
@@ -230,7 +317,34 @@ def create_argument_parser() -> argparse.ArgumentParser:
 
     power_parser = subcommands.add_parser("set-power", help="set power index")
     power_parser.add_argument("index", type=power_index)
+
+    mode_parser = subcommands.add_parser(
+        "set-mode", help="switch the VRX passthrough mode on Ctrl UDP"
+    )
+    mode_parser.add_argument("mode", choices=("crsf", "osd"))
+
+    osd_parser = subcommands.add_parser(
+        "osd", help="start Ctrl/OSD UDP channels and print parsed MSP frames"
+    )
+    osd_parser.add_argument(
+        "--no-mode-switch",
+        action="store_true",
+        help="send the OSD probe without first switching the VRX to OSD mode",
+    )
     return parser
+
+
+def resolve_connection_profile(
+    args: argparse.Namespace,
+) -> DeviceConnectionProfile:
+    """Resolve profile defaults and explicit CLI endpoint overrides."""
+    base = DEVICE_CONNECTION_PROFILES[args.profile]
+    return DeviceConnectionProfile(
+        name=base.name,
+        host=args.host or base.host,
+        ctrl_port=args.ctrl_port or base.ctrl_port,
+        osd_port=args.osd_port or base.osd_port,
+    )
 
 
 def build_command_payload(args: argparse.Namespace) -> tuple[int, bytes]:
@@ -260,6 +374,12 @@ def build_command_payload(args: argparse.Namespace) -> tuple[int, bytes]:
         return READ_COMMAND, bytes([0x53, 0, 0, 0, 0, 0, 0, 0])
     if args.operation == "set-power":
         return WRITE_COMMAND, bytes([0x54, args.index, 0, 0, 0, 0, 0, 0])
+    if args.operation == "set-mode":
+        mode = PassthroughMode.CRSF if args.mode == "crsf" else PassthroughMode.OSD
+        return (
+            PASSTHROUGH_COMMAND,
+            bytes([SET_MODE_SUBCOMMAND, int(mode), 0, 0, 0]),
+        )
     raise ValueError(f"unsupported operation: {args.operation}")
 
 
@@ -306,6 +426,261 @@ def decode_payload(payload: bytes) -> dict[str, object]:
             "power_index": values[0],
             "settable_indices": settable_indices,
         }
+    return {
+        "type": "unknown",
+        "command_type": command_type,
+        "data": bytes(values),
+    }
+
+
+class UdpChannel:
+    """Connected UDP channel with an explicit start/close lifecycle."""
+
+    def __init__(
+        self,
+        host: str,
+        port: int,
+        *,
+        label: str,
+        sock: socket.socket | None = None,
+    ):
+        if not 1 <= port <= 65535:
+            raise ValueError("port must be from 1 to 65535")
+        self.address = (host, port)
+        self.label = label
+        self.socket = sock
+        self._provided_socket = sock is not None
+        self.is_running = False
+
+    def start(self) -> None:
+        """Bind an ephemeral local port and connect to the remote endpoint."""
+        if self.is_running:
+            return
+        if self.socket is None:
+            self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            self.socket.bind(("", 0))
+            self.socket.connect(self.address)
+            self.is_running = True
+        except Exception:
+            self.socket.close()
+            if not self._provided_socket:
+                self.socket = None
+            raise
+
+    def send(self, data: bytes) -> None:
+        """Send one datagram through the connected channel."""
+        if not self.is_running or self.socket is None:
+            raise OSError(f"{self.label} UDP channel is not running")
+        self.socket.send(data)
+
+    def receive(self) -> tuple[bytes, tuple[str, int]]:
+        """Receive one datagram and its source endpoint."""
+        if not self.is_running or self.socket is None:
+            raise OSError(f"{self.label} UDP channel is not running")
+        return self.socket.recvfrom(MAX_PAYLOAD_LENGTH)
+
+    def close(self) -> None:
+        """Close the socket; repeated calls are safe."""
+        current_socket = self.socket
+        self.is_running = False
+        if current_socket is not None:
+            current_socket.close()
+        if not self._provided_socket:
+            self.socket = None
+
+
+class DualUdpVrxSession:
+    """Coordinate Ctrl UDP 9001 and OSD UDP 9200 for MSP diagnostics."""
+
+    def __init__(
+        self,
+        host: str,
+        ctrl_port: int = DEFAULT_CTRL_PORT,
+        osd_port: int = DEFAULT_OSD_PORT,
+        *,
+        control_channel: UdpChannel | None = None,
+        osd_channel: UdpChannel | None = None,
+        sleep_fn: Callable[[float], None] = time.sleep,
+        monotonic_fn: Callable[[], float] = time.monotonic,
+        select_fn: Callable[..., tuple[list[object], list[object], list[object]]] = (
+            select.select
+        ),
+        output: Callable[[str], None] = print,
+    ):
+        self.host = host
+        self.ctrl_port = ctrl_port
+        self.osd_port = osd_port
+        self.control_channel = control_channel or UdpChannel(
+            host, ctrl_port, label="Ctrl"
+        )
+        self.osd_channel = osd_channel or UdpChannel(
+            host, osd_port, label="OSD"
+        )
+        self.sleep_fn = sleep_fn
+        self.monotonic_fn = monotonic_fn
+        self.select_fn = select_fn
+        self.output = output
+        self.osd_reassembler = MspFrameReassembler()
+        self._last_osd_data_time: float | None = None
+        self._osd_status: str | None = None
+
+    def start(self, *, send_mode_switch: bool = True) -> None:
+        """Start both channels, switch mode, wait 500 ms, then probe OSD."""
+        try:
+            self.control_channel.start()
+            self.output(f"Ctrl UDP started: {self.host}:{self.ctrl_port}")
+            self.osd_channel.start()
+            self.output(f"OSD UDP started: {self.host}:{self.osd_port}")
+            self._set_osd_status("OSD=connect")
+
+            if send_mode_switch:
+                packet = build_set_mode_packet(PassthroughMode.OSD)
+                self.control_channel.send(packet)
+                self.output(
+                    "Ctrl TX OSD mode: " + packet.hex(" ").upper()
+                )
+                self.sleep_fn(MODE_SWITCH_DELAY_SECONDS)
+
+            self.osd_channel.send(OSD_PROBE_BYTES)
+            self.output(
+                "OSD TX probe: " + OSD_PROBE_BYTES.hex(" ").upper()
+            )
+            self._last_osd_data_time = self.monotonic_fn()
+        except Exception:
+            self.close()
+            raise
+
+    def handle_control_datagram(
+        self,
+        data: bytes,
+        source: tuple[str, int],
+    ) -> None:
+        """Print a Ctrl datagram and attempt VRX-frame decoding."""
+        self.output(
+            f"CTRL RX <- {source[0]}:{source[1]}  "
+            f"{data.hex(' ').upper()}"
+        )
+        try:
+            command, payload = parse_packet(data)
+            decoded = decode_payload(payload)
+            self.output(f"  command: 0x{command:02X}")
+            for key, value in decoded.items():
+                self.output(f"  {key}: {value}")
+        except ProtocolError as error:
+            self.output(f"  invalid VRX packet: {error}")
+
+    def handle_osd_datagram(
+        self,
+        data: bytes,
+        source: tuple[str, int],
+    ) -> None:
+        """Reassemble, parse, and print MSP frames received on OSD UDP."""
+        self._last_osd_data_time = self.monotonic_fn()
+        self._set_osd_status(f"OSD={source[1]}")
+        self.output(
+            f"OSD RX <- {source[0]}:{source[1]} len={len(data)}  "
+            f"{data.hex(' ').upper()}"
+        )
+
+        complete_frames = self.osd_reassembler.append(data)
+        if not complete_frames:
+            self.output(
+                "  MSP buffered: "
+                f"{self.osd_reassembler.buffered_byte_count} byte(s)"
+            )
+            return
+
+        parsed, result = MspOsdParser.try_parse(complete_frames)
+        for frame in result.frames:
+            self.output(
+                f"  MSP {frame.version.value} direction={frame.direction} "
+                f"command=0x{frame.command:04X} "
+                f"payload_len={len(frame.payload)} "
+                f"checksum=0x{frame.checksum:02X} "
+                f"calculated=0x{frame.calculated_checksum:02X} "
+                f"ok={frame.checksum_ok}"
+            )
+
+        for command in result.display_port_commands:
+            self.output(self._format_display_port_command(command))
+
+        for issue in result.issues:
+            self.output(
+                f"  MSP {issue.severity.value}: {issue.category} "
+                f"offset={issue.offset} message={issue.message}"
+            )
+
+        if not parsed and not result.issues:
+            self.output("  no MSP frame parsed")
+
+    @staticmethod
+    def _format_display_port_command(
+        command: MspDisplayPortCommand,
+    ) -> str:
+        name = command.subcommand.name
+        if command.subcommand is MspDisplayPortSubcommand.WRITE_STRING:
+            characters = (command.characters or b"").hex(" ").upper()
+            return (
+                f"  DISPLAYPORT {name} row={command.row} "
+                f"column={command.column} attribute=0x{command.attribute:02X} "
+                f"characters={characters}"
+            )
+        if command.subcommand is MspDisplayPortSubcommand.OPTIONS:
+            return (
+                f"  DISPLAYPORT {name} font={command.font} mode={command.mode}"
+            )
+        return f"  DISPLAYPORT {name}"
+
+    def listen_forever(self) -> None:
+        """Monitor both sockets until interrupted with Ctrl+C."""
+        control_socket = self.control_channel.socket
+        osd_socket = self.osd_channel.socket
+        if control_socket is None or osd_socket is None:
+            raise OSError("both UDP channels must be started before listening")
+
+        self.output("Listening on Ctrl and OSD UDP. Press Ctrl+C to stop.")
+        while True:
+            readable, _, _ = self.select_fn(
+                [control_socket, osd_socket], [], [], 0.5
+            )
+            for ready_socket in readable:
+                if ready_socket is control_socket:
+                    data, source = self.control_channel.receive()
+                    self.handle_control_datagram(data, source)
+                elif ready_socket is osd_socket:
+                    data, source = self.osd_channel.receive()
+                    self.handle_osd_datagram(data, source)
+
+            if (
+                self._last_osd_data_time is not None
+                and self.monotonic_fn() - self._last_osd_data_time
+                > OSD_NO_DATA_TIMEOUT_SECONDS
+            ):
+                self._set_osd_status("OSD=No rec")
+
+    def run(self, *, send_mode_switch: bool = True) -> None:
+        """Start, listen, and always close both UDP channels."""
+        try:
+            self.start(send_mode_switch=send_mode_switch)
+            self.listen_forever()
+        except KeyboardInterrupt:
+            self.output("Stopped dual UDP listener.")
+        finally:
+            self.close()
+
+    def _set_osd_status(self, status: str) -> None:
+        if status != self._osd_status:
+            self._osd_status = status
+            self.output(status)
+
+    def close(self) -> None:
+        """Close both sockets and discard an incomplete MSP tail."""
+        self.control_channel.close()
+        self.osd_channel.close()
+        self.osd_reassembler.reset()
+        self._last_osd_data_time = None
+        self._set_osd_status("OSD=disconnect")
 
 
 class UdpVrxClient:
@@ -439,8 +814,8 @@ def main(argv: list[str] | None = None) -> int:
         ``0`` after normal completion or ``1`` after a UDP/console error.
 
     When launched without arguments, the function prints command help and
-    exits successfully. Packet operations send one request and then listen for
-    responses; the keyboard operation enters interactive control mode.
+    exits successfully. Packet operations use Ctrl UDP, while the ``osd``
+    operation starts and monitors independent Ctrl and OSD channels.
     """
     parser = create_argument_parser()
     arguments = sys.argv[1:] if argv is None else argv
@@ -449,7 +824,22 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     args = parser.parse_args(arguments)
-    client = UdpVrxClient(args.host, args.port)
+    profile = resolve_connection_profile(args)
+
+    if args.operation == "osd":
+        session = DualUdpVrxSession(
+            profile.host,
+            profile.ctrl_port,
+            profile.osd_port,
+        )
+        try:
+            session.run(send_mode_switch=not args.no_mode_switch)
+        except OSError as error:
+            print(f"UDP error: {error}", file=sys.stderr)
+            return 1
+        return 0
+
+    client = UdpVrxClient(profile.host, profile.ctrl_port)
     try:
         if args.operation == "keyboard":
             client.control_from_keyboard()

@@ -1,12 +1,12 @@
 {
   "source": "CaddxFPV-Tech/Caddx_Ground_Configuration_Release",
-  "lastChecked": "2026-07-29T08:53:33+00:00",
+  "lastChecked": "2026-07-30T08:40:20+00:00",
   "latestTag": "v0.3.5",
   "releaseCount": 3,
   "releasesUrl": "https://github.com/CaddxFPV-Tech/Caddx_Ground_Configuration_Release/releases",
   "manifestPath": "fpv-library/manifests/Caddx_Ground_Configuration_Release.json",
   "downloadDir": "fpv-library/ground-config",
-  "manifestUpdated": true,
+  "manifestUpdated": false,
   "downloaded": false,
   "history": [
     {

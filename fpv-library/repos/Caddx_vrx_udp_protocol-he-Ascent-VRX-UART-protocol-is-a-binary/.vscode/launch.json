@@ -36,6 +36,18 @@
                 "keyboard"
             ],
             "justMyCode": true
+        },
+        {
+            "name": "osd",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/udp_vrx_client.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "args": [
+                "osd"
+            ],
+            "justMyCode": true
         }
     ]
 }

@@ -1,6 +1,6 @@
-# Ascent VRX UDP Protocol Client
+﻿# Ascent VRX UDP Protocol Client
 
-Python UDP client for the **Ascent VRX** binary frame protocol. Assemble and send control packets, receive and decode responses, and drive the VRX with either one-shot CLI commands or interactive keyboard input.
+Python UDP client for the **Ascent VRX** binary frame protocol. It supports the Ctrl UDP control channel, the independent OSD UDP channel, MSP frame diagnostics, one-shot CLI commands, and interactive keyboard input.
 
 This repository also includes protocol documentation and a troubleshooting guide for host–VRX communication over UDP.
 
@@ -12,6 +12,10 @@ This repository also includes protocol documentation and a troubleshooting guide
 - Wireless status query (RSSI, data rate, delay, connection state)
 - Power index set / get
 - Interactive keyboard control (Windows console)
+- Independent Ctrl UDP and OSD UDP channels with ordered OSD startup
+- MSP v1/v2 frame reassembly, checksum validation, and MSP_DISPLAYPORT parsing
+- OSD mode switching and command-line MSP frame/command output
+- Standard-library OSD PNG font loading, validation, page splitting, and glyph preparation
 - Continuous UDP response listener with human-readable decoding
 
 ## Requirements
@@ -20,44 +24,44 @@ This repository also includes protocol documentation and a troubleshooting guide
 - Network path to the VRX (Ethernet RJ45 or USB Type-C network)
 - Host IP in a compatible subnet (see [Network](#network))
 
-No third-party packages are required for the client itself. The unit tests use the standard library only.
+No third-party packages are required. The UDP client, MSP parser, and OSD PNG font pipeline use the Python standard library only.
 
 ## Project layout
 
 ```text
 .
 ├── udp_vrx_client.py                 # CLI client and protocol helpers
+├── msp_osd.py                        # MSP v1/v2 and MSP_DISPLAYPORT parser
+├── osd_png_font.py                   # Portable OSD PNG font loader and glyph cache
 ├── UART_Protocol_Packet_Summary.md   # Packet frame and command reference
 ├── VRX_Troubleshooting_Guide_EN_CN.md
 ├── startup.md                        # Quick start commands
 ├── tests/
-│   └── test_udp_vrx_client.py
+│   ├── test_udp_vrx_client.py
+│   ├── test_msp_osd.py
+│   └── test_osd_png_font.py
 └── README.md
 ```
 
 ## Network
 
-Default endpoint used by the client:
+The client provides two built-in connection profiles:
 
-| Setting | Default        |
-| ------- | -------------- |
-| Host    | `192.168.1.100` |
-| Port    | `9001`         |
+| Profile | Device IP | Ctrl UDP | OSD UDP |
+| ------- | --------- | -------: | ------: |
+| `rj45` | `192.168.1.100` | 9001 | 9200 |
+| `usb-c` | `192.168.3.102` | 9001 | 9200 |
 
-Typical VRX endpoints (see the troubleshooting guide for details):
+The `rj45` profile is the default. Ctrl and OSD use independent sockets and local ephemeral ports. Ensure the host is on a compatible subnet so UDP traffic can reach the VRX.
 
-| Connection             | Server IP       | Port |
-| ---------------------- | --------------- | ---- |
-| RJ45 Ethernet          | `192.168.1.100` | 9001 |
-| USB Type-C (USB net)   | `192.168.3.102` | 9001 |
-
-Ensure the host is on a compatible LAN segment (commonly `192.168.1.x`) so UDP traffic can reach the VRX.
-
-Override destination when needed:
+Override the selected profile when needed:
 
 ```bash
-python udp_vrx_client.py --host 192.168.1.100 --port 9001 status
+python udp_vrx_client.py --profile usb-c status
+python udp_vrx_client.py --host 192.168.1.50 --ctrl-port 9001 --osd-port 9200 osd
 ```
+
+The legacy `--port` option remains an alias for `--ctrl-port`.
 
 ## Quick start
 
@@ -70,14 +74,30 @@ python udp_vrx_client.py status
 
 # Interactive keyboard control (Windows; press Q to quit)
 python udp_vrx_client.py keyboard
+
+# Start Ctrl 9001 and OSD 9200, switch to OSD mode, and print MSP traffic
+python udp_vrx_client.py osd
 ```
 
 Stop continuous listening with `Ctrl+C`.
 
+### Real USB-C device validation
+
+For a VRX connected through the USB-C network profile, run:
+
+```powershell
+python udp_vrx_client.py --profile usb-c osd
+```
+
+This targets `192.168.3.102`, starts Ctrl UDP `9001` and OSD UDP `9200`,
+sends the OSD mode-switch frame, waits 500 ms, sends probe bytes `11 12 13 14`,
+and then prints both Ctrl responses and parsed MSP traffic. Press `Ctrl+C` to
+close both sockets.
+
 ## CLI usage
 
 ```text
-python udp_vrx_client.py [--host HOST] [--port PORT] <operation> ...
+python udp_vrx_client.py [--profile {rj45,usb-c}] [--host HOST] [--ctrl-port PORT] [--osd-port PORT] <operation> ...
 ```
 
 ### Operations
@@ -90,7 +110,9 @@ python udp_vrx_client.py [--host HOST] [--port PORT] <operation> ...
 | `status` | Request wireless status |
 | `get-power` | Request power index and settable bitmap |
 | `set-power <index>` | Set power index (`0`–`19`) |
-| `keyboard` | Interactive key control + UDP listener (Windows) |
+| `keyboard` | Interactive key control + Ctrl UDP listener (Windows) |
+| `set-mode {crsf,osd}` | Send a passthrough-mode switch on Ctrl UDP |
+| `osd [--no-mode-switch]` | Start both UDP channels and print reassembled/parsed MSP traffic |
 
 ### Key names
 
@@ -112,8 +134,20 @@ python udp_vrx_client.py get-power
 # Set power index 5
 python udp_vrx_client.py set-power 5
 
+# Switch the device to OSD mode on Ctrl UDP
+python udp_vrx_client.py set-mode osd
+
+# Run the complete dual-channel OSD diagnostic flow
+python udp_vrx_client.py osd
+
+# Use the USB-C profile
+python udp_vrx_client.py --profile usb-c osd
+
+# Listen/probe without sending the OSD mode-switch packet
+python udp_vrx_client.py osd --no-mode-switch
+
 # Point at another endpoint
-python udp_vrx_client.py --host 192.168.1.50 --port 9001 status
+python udp_vrx_client.py --host 192.168.1.50 --ctrl-port 9001 status
 ```
 
 ### Keyboard mode (Windows)
@@ -147,6 +181,7 @@ Header (FE EF) | Command (1 B) | Length (2 B BE) | Payload | Checksum (2 B BE) |
 
 - **Write commands** (host → VRX): command `0x22`
 - **Read commands** (request / response): command `0xA2`
+- **Passthrough mode command**: command `0x23`, set-mode subcommand `0x02`
 - **Checksum**: 16-bit sum of payload bytes only (`sum(payload) & 0xFFFF`), big-endian
 
 Common payload `cmd_type` values:
@@ -159,6 +194,12 @@ Common payload `cmd_type` values:
 | `0x52` | Wireless status |
 | `0x53` | Get power |
 | `0x54` | Set power |
+
+The OSD mode payload is `02 05 00 00 00`, producing this Ctrl frame:
+
+```text
+FE EF 23 00 05 02 05 00 00 00 00 07 0D 0A
+```
 
 Full packing / unpacking rules, key tables, and field layouts: [UART_Protocol_Packet_Summary.md](UART_Protocol_Packet_Summary.md).
 
@@ -191,13 +232,67 @@ finally:
     client.close()
 ```
 
+## MSP and MSP_DISPLAYPORT parsing
+
+`msp_osd.py` ports the parsing-only path described in
+[.md/MSP解析与OSD渲染说明.md](.md/MSP解析与OSD渲染说明.md). It provides:
+
+- stateful MSP v1/v2 frame reassembly across arbitrary UDP datagrams;
+- MSP v1 XOR and MSP v2 CRC-8/DVB-S2 validation;
+- structured frame, issue, and `MSP_DISPLAYPORT` command results;
+- standard DisplayPort subcommands and the device-specific `0x35` full-frame
+  format.
+
+The `msp_osd.py` module remains independent from network and console I/O. The
+`osd` CLI operation integrates it with the dual-channel session and prints MSP
+frames, checksums, parse issues, and decoded DisplayPort commands. This project
+does not maintain an OSD character screen or render an RTSP/transparent overlay.
+
+The `osd` startup order is fixed:
+
+1. start Ctrl UDP 9001;
+2. start OSD UDP 9200;
+3. send the OSD mode-switch frame on Ctrl;
+4. wait 500 ms;
+5. send probe bytes `11 12 13 14` on OSD;
+6. monitor both channels until `Ctrl+C`.
+
+```python
+from msp_osd import MspFrameReassembler, MspOsdParser
+
+reassembler = MspFrameReassembler()
+complete = reassembler.append(udp_datagram)
+if complete:
+    parsed, result = MspOsdParser.try_parse(complete)
+    if parsed:
+        frames = result.frames
+        display_port_commands = result.display_port_commands
+```
+
+Use `MspOsdParser.parse(data)` for strict parsing. It raises `MspParseError`
+when the byte stream contains any warning or error.
+
+## OSD PNG font pipeline
+
+`osd_png_font.py` ports the non-rendering portion of the GroundConfiguration OSD font path described in [.md/OSD-PNG字体加载与切割说明.md](.md/OSD-PNG字体加载与切割说明.md):
+
+- infer character dimensions from the filename and PNG dimensions;
+- decode PNG pixels to row-major RGBA bytes without Pillow;
+- validate and split up to 16 pages of 256 glyphs;
+- convert individual glyphs to premultiplied BGRA lazily through `OsdGlyphCache`.
+
+The transparent WinForms/GDI+ drawing layer is intentionally not included, as this project does not need OSD drawing.
+
 ## Tests
 
 ```bash
 python -m unittest tests.test_udp_vrx_client -v
+python -m unittest tests.test_osd_png_font -v
+python -m unittest tests.test_msp_osd -v
+python -m unittest discover -s tests -v
 ```
 
-Tests cover framing, checksum validation, payload builders, and decoding without requiring a live VRX.
+Tests cover VRX framing, profile resolution, mode switching, ordered dual-channel startup, fake-socket behavior, MSP v1/v2 reassembly and validation, MSP_DISPLAYPORT decoding, PNG decoding, font-page splitting, pixel conversion, and glyph caching without requiring a live VRX.
 
 ## Troubleshooting
 

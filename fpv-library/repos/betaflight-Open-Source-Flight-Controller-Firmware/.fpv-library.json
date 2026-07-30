@@ -1,8 +1,8 @@
 {
   "source": "betaflight/betaflight",
-  "upstream_commit": "852a86b415877dadb16e2b7fee45a691fe34626e",
-  "upstream_updated": "2026-07-28T18:53:22Z",
-  "synced_at": "2026-07-29T08:50:42+00:00",
+  "upstream_commit": "884229e95f7f41dc2bb20eff2644355d228770cb",
+  "upstream_updated": "2026-07-29T10:41:39Z",
+  "synced_at": "2026-07-30T08:37:40+00:00",
   "discovered_via": "owner:betaflight",
   "score": 6.5
 }

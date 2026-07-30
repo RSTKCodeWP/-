@@ -1,8 +1,8 @@
 {
   "source": "OpenIPC/firmware",
-  "upstream_commit": "0010f73cbb4aaee358308e659107d5d3dd681846",
-  "upstream_updated": "2026-07-29T00:26:02Z",
-  "synced_at": "2026-07-29T08:49:40+00:00",
+  "upstream_commit": "764105bf90a8178d80fd4d31d810fad7d8969b31",
+  "upstream_updated": "2026-07-30T00:43:27Z",
+  "synced_at": "2026-07-30T08:36:43+00:00",
   "discovered_via": "search:openipc fpv:p1",
   "score": 7.0
 }
