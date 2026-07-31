@@ -3,5 +3,6 @@
 /home/rscott/Desktop/Flight_Controller/Build/CMakeFiles/scheduler_library.dir
 /home/rscott/Desktop/Flight_Controller/Build/CMakeFiles/UNITTEST_library.dir
 /home/rscott/Desktop/Flight_Controller/Build/CMakeFiles/FlightController_FW.elf.dir
+/home/rscott/Desktop/Flight_Controller/Build/CMakeFiles/flash.dir
 /home/rscott/Desktop/Flight_Controller/Build/CMakeFiles/edit_cache.dir
 /home/rscott/Desktop/Flight_Controller/Build/CMakeFiles/rebuild_cache.dir

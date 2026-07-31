@@ -1,8 +1,6 @@
 /*#########################################################################################################################
 
-NOTICE: First get Quadcopter.ino to fly before attempting this program. 
-
-You can copy madflight_config.h from Quadcopter.ino to keep your settings.
+Minimal quadcopter demo program for madflight Arduino ESP32-S3 / ESP32 / RP2350 / RP2040 / STM32 Flight Controller
 
 ###########################################################################################################################
 
@@ -11,14 +9,14 @@ See http://madflight.com for detailed description
 Required Hardware
 
     IMU sensor (SPI or I2C)
-    RC receiver with 6 channels (CRSF/ELRS preferred)
+    RC receiver with 5 channels (CRSF/ELRS preferred)
     4 brushless motors with ESCs
 
 Connecting Hardware
 
     SPI IMU: connect pin_imu_int, pin_imu_cs, pin_spi0_miso, pin_spi0_mosi, pin_spi0_sclk
     or for I2C IMU: connect pin_imu_int, pin_i2c1_scl, pin_i2c1_sda
-    RC receiver: connect pin_ser0_rx to receiver TX pin, and pin_ser0_tx to receiver RX pin
+    RC receiver: connect pin_ser0_rx to receiver TX pin
     ESCs: pin_out0 ... pin_out3 to the ESC inputs of motor1 ... motor4
 
 Arming/disarming with dedicated switch
@@ -40,16 +38,8 @@ Blinking long ON short OFF (red)       ARMED
 Blink interval longer than 1 second    imu_loop() is taking too much time
 Fast blinking                          Something is wrong, connect USB serial for info
 
-MIT license
 MIT license - Copyright (c) 2023-2026 https://madflight.com
 ##########################################################################################################################*/
-
-//Vehicle specific madflight configuration
-#define VEH_TYPE VEH_TYPE_COPTER //set the vehicle type for logging and mavlink
-#define VEH_FLIGHTMODE_AP_IDS {AP_COPTER_FLIGHTMODE_ACRO, AP_COPTER_FLIGHTMODE_STABILIZE} //mapping of fightmode index to ArduPilot code for logging and mavlink
-#define VEH_FLIGHTMODE_NAMES {"RATE", "ANGLE"} //fightmode names for telemetry
-enum flightmode_enum { RATE, ANGLE };  //the available flightmode indexes
-flightmode_enum rcl_to_flightmode_map[6] {RATE, RATE, RATE, RATE, ANGLE, ANGLE}; //flightmode mapping from 2/3/6 pos switch to flight mode (simulates a 2-pos switch: RATE/ANGLE)
 
 #include "madflight_config.h" //Edit this header file to setup the pins, hardware, radio, etc. for madflight
 #include <madflight.h>
@@ -69,6 +59,10 @@ void out_Mixer();
 //IMPORTANT: This is a safety feature which keeps props spinning when armed, and hopefully reminds the pilot to disarm!!! 
 const float armed_min_throttle = 0.20; //Minimum throttle when armed, set to a value between ~0.10 and ~0.25 which keeps the props spinning at minimum speed.
 
+//Flight Mode: Uncommment only one
+#define FLIGHTMODE_RATE   //control rate - stick centered will keep current roll/pitch angle
+//#define FLIGHTMODE_ANGLE  //control angle - stick centered will return to horizontal - IMPORTANT: execute CLI 'calimu' and 'save' before using this!!!
+
 //Controller parameters
 const float maxRoll        = 30.0;   //Max roll angle in deg for angle mode - DO NOT INCREASE OVER 70 OR YOU WILL CRASH DUE TO GIMBAL-LOCKS
 const float maxPitch       = 30.0;   //Max pitch angle in deg for angle mode - DO NOT INCREASE OVER 70 OR YOU WILL CRASH DUE TO GIMBAL-LOCKS
@@ -78,7 +72,7 @@ const float maxYawRate     = 160.0;  //Max yaw rate in deg/sec for angle and rat
 const float i_limit        = 25.0;   //Integrator saturation level, mostly for safety (default 25.0)
 
 //PID Angle Mode 
-const float Kp_ro_pi_angle = 0.2;    //Roll/Pitch P-gain
+const float Kp_ro_pi_angle = 0.4;    //Roll/Pitch P-gain
 const float Ki_ro_pi_angle = 0.1;    //Roll/Pitch I-gain
 const float Kd_ro_pi_angle = 0.05;   //Roll/Pitch D-gain
 const float Kp_yaw_angle   = 0.6;    //Yaw P-gain
@@ -95,6 +89,23 @@ const float Kd_yaw_rate    = 0.00015;//Yaw rate D-gain (be careful when increasi
 //Yaw to keep in ANGLE mode when yaw stick is centered
 float yaw_desired = 0;
 
+//Motor Setup
+
+//Define motor outputs, for example 6 means use the GPIO pin defined with the `out6_pin` parameter
+const int motor_outputs[4] = {0, 1, 2, 3}; //right-rear, right-front, left-rear, left-front
+
+void setup_motors() {
+  // Uncomment ONE line - select output type
+  bool success = out.setup_motors     (4, motor_outputs, 400, 950, 2000); // Standard PWM: 400Hz, 950-2000 us
+  //bool success = out.setup_motors     (4, motor_outputs, 2000, 125, 250); // Oneshot125: 2000Hz, 125-250 us
+  //bool success = out.setup_dshot      (4, motor_outputs, 300);            // Dshot300
+  //bool success = out.setup_dshot_bidir(4, motor_outputs, 300);            // Dshot300 Bi-Directional
+  //bool success = out.setup_brushed    (4, motor_outputs, 5000);           // Brushed motors: 5000Hz with 0-100% duty cycle
+
+  out.print(); //print motor configuration
+  if(!success) madflight_panic("Motor init failed.");
+}
+
 //========================================================================================================================//
 //                                                       SETUP()                                                          //
 //========================================================================================================================//
@@ -106,20 +117,9 @@ void setup() {
   // STOP if imu is not installed
   if(!imu.installed()) madflight_panic("This program needs an IMU.");
 
-  // Enter here the 4 output indices for the motors (default is {0, 1, 2, 3} i.e. pin_out0, pin_out1, pin_out2, pin_out3)
-  int motor_outputs[] = {0, 1, 2, 3}; //right-rear, right-front, left-rear, left-front motor
+  setup_motors();
 
-  // Uncomment ONE line - select output type
-  bool success = out.setup_motors(4, motor_outputs, 400, 950, 2000);   // Standard PWM: 400Hz, 950-2000 us
-  //bool success = out.setup_motors(4, motor_outputs, 2000, 125, 250); // Oneshot125: 2000Hz, 125-250 us
-  //bool success = out.setup_dshot(4, motor_outputs, 300);             // Dshot300
-  //bool success = out.setup_dshot_bidir(4, motor_outputs, 300);       // Dshot300 Bi-Directional
-  //bool success = out.setup_brushed(4, motor_outputs, 5000);          // Brushed motors: 5000Hz with 0-100% duty cycle
-
-  out.print(); //print motor configuration
-  if(!success) madflight_panic("Motor init failed.");
-
-  // Set initial desired yaw
+  //set initial desired yaw
   yaw_desired = ahr.yaw;
 
   Serial.println("Setup completed, CLI started - Type 'help' for help, or 'diff' to debug");
@@ -138,27 +138,20 @@ void loop() {
 //                                                   IMU UPDATE LOOP                                                      //
 //========================================================================================================================//
 
-// This is the __MAIN__ part of this program. It is called from the IMU FreeRTOS task when new IMU data is available.
+//This is __MAIN__ function of this program. It is called when new IMU data is available.
 void imu_loop() {
-  // Blink LED
+  //Blink LED
   led_Blink();
 
-  // Sensor fusion: update ahr.roll, ahr.pitch, and ahr.yaw angle estimates (degrees) from IMU data
+  //Sensor fusion: update ahr.roll, ahr.pitch, and ahr.yaw angle estimates (degrees) from IMU data
   ahr.update(); 
 
-  // Update flight mode
-  if(rcl.connected() && veh.setFlightmode( rcl_to_flightmode_map[rcl.flightmode] )) { //map rcl.flightmode (0 to 5) to vehicle flightmode
-    Serial.printf("Flightmode:%s\n",veh.flightmode_name());
-  }
-
-  //PID Controller
-  switch( veh.getFlightmode() ) {
-    case ANGLE: 
-      control_Angle(rcl.throttle == 0); //Stabilize on pitch/roll angle setpoint, stabilize yaw on rate setpoint
-      break;
-    default: //RATE 
-      control_Rate(rcl.throttle == 0); //Stabilize on rate setpoint
-  }
+  //PID Controller RATE or ANGLE
+  #ifdef FLIGHTMODE_ANGLE
+    control_Angle(rcl.throttle == 0); //Stabilize on pitch/roll angle setpoint, stabilize yaw on rate setpoint  //control_Angle2(rcin_thro_is_low); //Stabilize on pitch/roll setpoint using cascaded method. Rate controller must be tuned well first!
+  #else
+    control_Rate(rcl.throttle == 0); //Stabilize on rate setpoint
+  #endif
 
   //Updates out.arm, the output armed flag
   out_KillSwitchAndFailsafe(); //Cut all motor outputs if DISARMED or failsafe triggered.
@@ -198,12 +191,12 @@ void control_Angle(bool zero_integrators) {
    * excessive buildup. This can be seen by holding the vehicle at an angle and seeing the motors ramp up on one side until
    * they've maxed out throttle... saturating I to a specified limit fixes this. The second feature defaults the I terms to 0
    * if the throttle is at the minimum setting. This means the motors will not start spooling up on the ground, and the I 
-   * terms will always start from 0 on takeoff. This function updates the variables PIDroll.PID, PIDpitch.PID, and PIDyaw.PID which
+   * terms will always start from 0 on takeoff. This function updates the variables pid.roll, pid.pitch, and pid.yaw which
    * can be thought of as 1-D stablized signals. They are mixed to the configuration of the vehicle in out_Mixer().
    */ 
 
   //inputs: roll_des, pitch_des, yawRate_des
-  //outputs: PIDroll.PID, PIDpitch.PID, PIDyaw.PID
+  //outputs: pid.roll, pid.pitch, pid.yaw
 
   //desired values
   float roll_des = rcl.roll * maxRoll; //Between -maxRoll and +maxRoll
@@ -268,7 +261,7 @@ void control_Rate(bool zero_integrators) {
   //See explanation for control_Angle(). Everything is the same here except the error is now: desired rate - raw gyro reading.
 
   //inputs: roll_des, pitch_des, yawRate_des
-  //outputs: PIDroll.PID, PIDpitch.PID, PIDyaw.PID
+  //outputs: pid.roll, pid.pitch, pid.yaw
 
   //desired values
   float rollRate_des = rcl.roll * maxRollRate; //Between -maxRoll and +maxRoll
@@ -319,7 +312,6 @@ void out_KillSwitchAndFailsafe() {
   if (!out.armed() && rcl.armed) {
     out.set_armed(true);
     Serial.println("OUT: ARMED");
-    bbx.start(); //start blackbox logging
   }
 
   //Change to DISARMED when rcl is disarmed, or if radio lost connection
@@ -327,10 +319,8 @@ void out_KillSwitchAndFailsafe() {
     out.set_armed(false);
     if(!rcl.armed) {
       Serial.println("OUT: DISARMED");
-      bbx.stop(); //stop blackbox logging
     }else{
       Serial.println("OUT: DISARMED due to lost radio connection");
-      //keep on logging to document the crash...
     }
   }
 }
@@ -338,17 +328,16 @@ void out_KillSwitchAndFailsafe() {
 void out_Mixer() {
   //DESCRIPTION: Mixes scaled commands from PID controller to actuator outputs based on vehicle configuration
   /*
-   * Takes PIDroll.PID, PIDpitch.PID, and PIDyaw.PID computed from the PID controller and appropriately mixes them for the desired
-   * vehicle configuration. For example on a quadcopter, the left two motors should have +PIDroll.PID while the right two motors
-   * should have -PIDroll.PID. Front two should have +PIDpitch.PID and the back two should have -PIDpitch.PID etc... every motor has
+   * Takes pid.roll, pid.pitch, and pid.yaw computed from the PID controller and appropriately mixes them for the desired
+   * vehicle configuration. For example on a quadcopter, the left two motors should have +pid.roll while the right two motors
+   * should have -pid.roll. Front two should have +pid.pitch and the back two should have -pid.pitch etc... every motor has
    * normalized (0 to 1) rcl.throttle command for throttle control. Can also apply direct unstabilized commands from the transmitter with 
    * rcl.xxx variables are to be sent to the motor ESCs and servos.
    * 
    *Relevant variables:
    *rcl.throtle - direct thottle control
-   *PIDroll.PID, PIDpitch.PID, PIDyaw.PID - stabilized axis variables
+   *pid.roll, pid.pitch, pid.yaw - stabilized axis variables
    *rcl.roll, rcl.pitch, rcl.yaw - direct unstabilized command passthrough
-   *rcl.flight_mode - can be used to toggle things with an 'if' statement
    */
 /*
 Motor order diagram (Betaflight order)

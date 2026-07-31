@@ -80,6 +80,7 @@ clean: CMakeFiles/periph_library.dir/clean
 clean: CMakeFiles/scheduler_library.dir/clean
 clean: CMakeFiles/UNITTEST_library.dir/clean
 clean: CMakeFiles/FlightController_FW.elf.dir/clean
+clean: CMakeFiles/flash.dir/clean
 .PHONY : clean
 
 #=============================================================================
@@ -115,7 +116,7 @@ CMakeFiles/clock_library.dir/clean:
 CMakeFiles/periph_library.dir/all:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/periph_library.dir/build.make CMakeFiles/periph_library.dir/depend
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/periph_library.dir/build.make CMakeFiles/periph_library.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --progress-dir=/home/rscott/Desktop/Flight_Controller/Build/CMakeFiles --progress-num=11,12,13 "Built target periph_library"
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --progress-dir=/home/rscott/Desktop/Flight_Controller/Build/CMakeFiles --progress-num=12,13,14 "Built target periph_library"
 .PHONY : CMakeFiles/periph_library.dir/all
 
 # Build rule for subdir invocation for target.
@@ -141,7 +142,7 @@ CMakeFiles/periph_library.dir/clean:
 CMakeFiles/scheduler_library.dir/all: CMakeFiles/UNITTEST_library.dir/all
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/scheduler_library.dir/build.make CMakeFiles/scheduler_library.dir/depend
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/scheduler_library.dir/build.make CMakeFiles/scheduler_library.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --progress-dir=/home/rscott/Desktop/Flight_Controller/Build/CMakeFiles --progress-num=14,15 "Built target scheduler_library"
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --progress-dir=/home/rscott/Desktop/Flight_Controller/Build/CMakeFiles --progress-num=15,16 "Built target scheduler_library"
 .PHONY : CMakeFiles/scheduler_library.dir/all
 
 # Build rule for subdir invocation for target.
@@ -212,6 +213,32 @@ FlightController_FW.elf: CMakeFiles/FlightController_FW.elf.dir/rule
 CMakeFiles/FlightController_FW.elf.dir/clean:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/FlightController_FW.elf.dir/build.make CMakeFiles/FlightController_FW.elf.dir/clean
 .PHONY : CMakeFiles/FlightController_FW.elf.dir/clean
+
+#=============================================================================
+# Target rules for target CMakeFiles/flash.dir
+
+# All Build rule for target.
+CMakeFiles/flash.dir/all: CMakeFiles/FlightController_FW.elf.dir/all
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/flash.dir/build.make CMakeFiles/flash.dir/depend
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/flash.dir/build.make CMakeFiles/flash.dir/build
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --progress-dir=/home/rscott/Desktop/Flight_Controller/Build/CMakeFiles --progress-num=11 "Built target flash"
+.PHONY : CMakeFiles/flash.dir/all
+
+# Build rule for subdir invocation for target.
+CMakeFiles/flash.dir/rule: cmake_check_build_system
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/rscott/Desktop/Flight_Controller/Build/CMakeFiles 16
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/flash.dir/all
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/rscott/Desktop/Flight_Controller/Build/CMakeFiles 0
+.PHONY : CMakeFiles/flash.dir/rule
+
+# Convenience name for target.
+flash: CMakeFiles/flash.dir/rule
+.PHONY : flash
+
+# clean rule for target.
+CMakeFiles/flash.dir/clean:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/flash.dir/build.make CMakeFiles/flash.dir/clean
+.PHONY : CMakeFiles/flash.dir/clean
 
 #=============================================================================
 # Special targets to cleanup operation of make.

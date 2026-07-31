@@ -1,8 +1,8 @@
 {
   "source": "ramiss/FPVRaceOne",
-  "upstream_commit": "6a4badf9b906521739d1205998fe22957fdd8d7a",
-  "upstream_updated": "2026-07-23T23:58:48Z",
-  "synced_at": "2026-07-26T23:21:12+00:00",
+  "upstream_commit": "61b375c8ce94c80cbd3a55ec4a37ca90e3afca19",
+  "upstream_updated": "2026-07-31T01:04:51Z",
+  "synced_at": "2026-07-31T09:03:55+00:00",
   "discovered_via": "search:Fpv:p4",
   "score": 5.0
 }

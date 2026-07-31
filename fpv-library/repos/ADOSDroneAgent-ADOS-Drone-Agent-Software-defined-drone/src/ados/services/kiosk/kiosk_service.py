@@ -74,7 +74,10 @@ _URL_WAIT_SECONDS = 90.0
 _URL_POLL_SECONDS = 1.0
 _URL_PROBE_TIMEOUT = 3.0
 
-_DEFAULT_URL = "http://localhost:8080/cockpit"
+# Trailing slash on purpose: it is the path the static mount actually serves,
+# so the kiosk never pays a redirect on boot and the query string this module
+# appends is not at the mercy of one.
+_DEFAULT_URL = "http://localhost:8080/cockpit/"
 _ENV_URL_KEY = "ADOS_KIOSK_URL"
 _ENV_MINIMAL_KEY = "ADOS_KIOSK_MINIMAL_LAYER"
 _ENV_RENDERER_KEY = "ADOS_KIOSK_RENDERER"
@@ -97,7 +100,10 @@ _RENDER_MARKER_PATH = Path("/etc/ados/kiosk-render.conf")
 _RENDERER_GPU = "gpu"
 _RENDERER_SOFTWARE = "software"
 
-# The DRM device cage should own in the appliance (no-desktop) case.
+# Fallback DRM device for the appliance (no-desktop) case when the connected
+# card cannot be determined. Prefer `_resolve_drm_device()`, which finds the
+# card that actually drives a display — `_hdmi_present` already knows these can
+# differ, and handing cage the wrong one leaves it with no connector to modeset.
 _DRM_DEVICE = "/dev/dri/card0"
 
 # Substrings in a child's stderr that mark a GPU/EGL/renderer init failure,
@@ -161,6 +167,36 @@ def _hdmi_present() -> bool:
         return any(_DRM_DIR.glob("card*"))
     except OSError:
         return False
+
+
+def _resolve_drm_device() -> str:
+    """The DRM card that actually drives a display.
+
+    On a Raspberry Pi 4 the render node is ``card0`` (v3d, no connectors) and
+    the display is ``card1`` (vc4). Pinning cage to a hardcoded ``card0`` there
+    hands it a device with nothing to modeset, so the appliance path comes up
+    with no picture on a board where the browser path works fine.
+
+    Derived from the same connected-connector scan `_hdmi_present` uses, so the
+    two cannot disagree about which card is the display. Falls back to
+    [`_DRM_DEVICE`] when no connector reports connected, which keeps the
+    previous behaviour on a board whose sysfs we cannot read.
+    """
+    try:
+        for status in sorted(_DRM_SYSFS.glob("card*-*/status")):
+            try:
+                if status.read_text().strip() != "connected":
+                    continue
+            except OSError:
+                continue
+            # ".../card1-HDMI-A-1/status" -> "card1"
+            card = status.parent.name.split("-", 1)[0]
+            node = _DRM_DIR / card
+            if node.exists():
+                return str(node)
+    except OSError:
+        pass
+    return _DRM_DEVICE
 
 
 async def _wait_for_display() -> bool:
@@ -377,7 +413,7 @@ def _cage_env(renderer: str, mali_lib_dir: str | None) -> dict[str, str]:
     wlr = "gles2" if renderer == _RENDERER_GPU else "pixman"
     env = {
         "WLR_RENDERER": wlr,
-        "WLR_DRM_DEVICES": _DRM_DEVICE,
+        "WLR_DRM_DEVICES": _resolve_drm_device(),
     }
     if renderer == _RENDERER_GPU and mali_lib_dir:
         # Scope libmali to this process tree only (cage + Chromium), so the GPU
@@ -989,16 +1025,30 @@ def _make_supervisor(
     """Build the supervisor for the current (session, renderer) combination.
 
     Windowed (a live desktop is present) attaches to that session's display
-    server and renders in SOFTWARE: a desktop owns its own GL stack and our
-    scoped GPU userspace does not touch it, so ``--disable-gpu`` is the safe
-    match (a desktop on a board with no GPU userspace is on llvmpipe anyway).
+    server and honours the resolved ``renderer``, exactly as the cage path does.
+
+    This deliberately does NOT force software any more. It used to, on the
+    reasoning that a desktop owns its own GL stack which our scoped GPU
+    userspace does not provision, so a desktop on a GPU-less board is on
+    llvmpipe anyway. That holds for the boards the argument was written for — a
+    Rockchip whose GL comes from our scoped libmali — but not for a board whose
+    distro ships a real GL and video stack of its own. On a Raspberry Pi the
+    desktop runs Mesa v3d with hardware decode on /dev/video10, and forcing
+    ``--disable-gpu`` there threw all of it away: the ground station's HDMI
+    cockpit software-decoded H.264 at ~113% CPU across four Chromium processes
+    on four cores, which presents to the operator as a frozen picture while the
+    stream underneath is perfectly healthy.
+
+    Passing the resolved renderer is safe because the GPU choice is not final:
+    a child that fails to bring up GL is downgraded to software by the
+    supervisor's existing GPU-failure path, so a board that genuinely cannot
+    drive a GPU still ends up rendering rather than crash-looping.
+
     cage (the appliance case) owns the display, with DISPLAY / WAYLAND_DISPLAY
     stripped and the renderer / DRM device / scoped libmali pinned. Raises
     ``FileNotFoundError`` when no Chromium is installed."""
     if session is not None:
-        argv = _build_windowed_chromium_argv(
-            url, session.session_type, _RENDERER_SOFTWARE
-        )
+        argv = _build_windowed_chromium_argv(url, session.session_type, renderer)
         # Run the browser AS the logged-in desktop user (not root): Chromium
         # refuses to run as root without --no-sandbox, and dropping to the user
         # keeps its sandbox and gives it a writable profile (HOME from

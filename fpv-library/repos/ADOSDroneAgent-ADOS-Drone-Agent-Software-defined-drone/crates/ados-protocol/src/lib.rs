@@ -42,9 +42,11 @@
 //!   node's own frame fan-out. The mirror of the MAVLink socket's inbound path,
 //!   which travels toward a flight controller rather than away from one.
 
+pub mod ap_country;
 pub mod atlas;
 pub mod aux_egress;
 pub mod aux_mux;
+pub mod aux_ports;
 pub mod aux_rpc;
 pub mod aux_rpc_proxy;
 pub mod capabilities;
@@ -57,6 +59,7 @@ pub mod frame;
 pub mod framebus;
 pub mod hwcaps;
 pub mod ipc;
+pub mod link_feedback;
 pub mod logd;
 #[cfg(feature = "mavlink")]
 pub mod mavlink;
@@ -68,6 +71,7 @@ pub mod offload_link;
 pub mod pairing_posture;
 pub mod plugin;
 pub mod rest;
+pub mod secret_gen;
 pub mod sidecar;
 pub mod state;
 pub mod tap;

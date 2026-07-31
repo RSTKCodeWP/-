@@ -172,9 +172,19 @@ ack_at: null\n"
     }
 }
 
-/// Build the `profile.conf` body (pure): the canonical YAML `profile: <p>` form.
-pub fn profile_conf_body(profile: &str) -> String {
-    format!("profile: {profile}\n")
+/// Build the `profile.conf` body (pure).
+///
+/// Carries the install identity an upgrade must preserve: the profile, the
+/// release channel, and, on a pinned channel, the version. Recording the
+/// channel is what stops a device installed on `stable` defecting to
+/// tip-of-main on its first update and losing signature enforcement with it,
+/// which is channel-gated.
+pub fn profile_conf_body(profile: &str, channel: &str, version: Option<&str>) -> String {
+    let mut body = format!("profile: {profile}\nchannel: {channel}\n");
+    if let Some(v) = version {
+        body.push_str(&format!("version: {v}\n"));
+    }
+    body
 }
 
 /// Build the `pairing.json` body (pure). Mirrors `write_pairing`: the code is
@@ -200,8 +210,7 @@ fn ensure_device_id() -> anyhow::Result<String> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    std::fs::write(path, format!("{id}\n"))?;
-    set_mode(path, 0o644);
+    crate::env::write_atomic_durable(path, format!("{id}\n").as_bytes(), Some(0o644))?;
     tracing::info!(device_id = %id, "device identity generated");
     Ok(id)
 }
@@ -298,22 +307,25 @@ fn write_default_config(
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
-    if let Err(e) = std::fs::write(path, body) {
+    if let Err(e) = crate::env::write_atomic_durable(path, body.as_bytes(), Some(0o600)) {
         tracing::warn!(error = %e, "writing default config failed");
         return;
     }
-    set_mode(path, 0o600);
     tracing::info!("default config written");
 }
 
 /// Persist the resolved profile to `/etc/ados/profile.conf` so it survives
 /// reboots and a later `--upgrade`. Idempotent overwrite of the one-line file.
-fn write_profile_conf(profile: &str) {
+fn write_profile_conf(profile: &str, channel: &str, version: Option<&str>) {
     let path = Path::new(PROFILE_CONF);
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
-    if let Err(e) = std::fs::write(path, profile_conf_body(profile)) {
+    if let Err(e) = crate::env::write_atomic_durable(
+        path,
+        profile_conf_body(profile, channel, version).as_bytes(),
+        Some(0o644),
+    ) {
         tracing::warn!(error = %e, "writing profile.conf failed");
     }
 }
@@ -340,7 +352,11 @@ fn set_hostname(name: &str) {
     // hostnamectl is the canonical setter; fall back to /etc/hostname.
     if !exec::run_ok("hostnamectl", &["set-hostname", &slug]) {
         tracing::warn!(slug = %slug, "hostnamectl failed; writing /etc/hostname directly");
-        let _ = std::fs::write("/etc/hostname", format!("{slug}\n"));
+        let _ = crate::env::write_atomic_durable(
+            Path::new("/etc/hostname"),
+            format!("{slug}\n").as_bytes(),
+            Some(0o644),
+        );
     } else {
         tracing::info!(slug = %slug, "hostname set");
     }
@@ -399,11 +415,10 @@ fn write_pairing(code: &str) {
         let _ = std::fs::create_dir_all(parent);
     }
     let body = pairing_json(code, now_epoch());
-    if let Err(e) = std::fs::write(path, body) {
+    if let Err(e) = crate::env::write_atomic_durable(path, body.as_bytes(), Some(0o600)) {
         tracing::warn!(error = %e, "writing pairing.json failed");
         return;
     }
-    set_mode(path, 0o600);
     tracing::info!(code = %code.to_ascii_uppercase(), "pairing code written");
 }
 
@@ -638,7 +653,7 @@ impl Step for ConfigIdentity {
         // 2. Persist the resolved profile + the default config. The server mode
         //    and operating region come from the operator's onboarding choices
         //    (local-first + unrestricted by default).
-        write_profile_conf(&ctx.profile);
+        write_profile_conf(&ctx.profile, &ctx.channel, ctx.args.version.as_deref());
         let server_mode = if ctx.cloud_from_anywhere {
             "cloud"
         } else {
@@ -818,8 +833,8 @@ mod tests {
     #[test]
     fn profile_conf_body_is_yaml_line() {
         assert_eq!(
-            profile_conf_body("ground_station"),
-            "profile: ground_station\n"
+            profile_conf_body("ground_station", "edge", None),
+            "profile: ground_station\nchannel: edge\n"
         );
     }
 

@@ -1,6 +1,6 @@
 # FPV Library — discovery hooks
 
-Updated: 2026-07-30 09:11 UTC
+Updated: 2026-07-31 09:40 UTC
 
 ## Interesting (auto-flagged)
 
@@ -62,10 +62,10 @@ Updated: 2026-07-30 09:11 UTC
 | [Setuav/mavlink2grpc](https://github.com/Setuav/mavlink2grpc) | keep | 11.0 | bridge, fc | Ultra-fast, schema-first MAVLink to gRPC bridge and code gen |
 | [cleanflight/cleanflight](https://github.com/cleanflight/cleanflight) | keep | 11.0 | fc | Clean-code version of the baseflight flight controller firmw |
 | [pydys/rasberry-inav-fpv-osd](https://github.com/pydys/rasberry-inav-fpv-osd) | keep | 11.0 | osd, fc | Simple Python library witch allows to render graphical OSD u |
+| [ibrahimsn98/fpv-ground-station](https://github.com/ibrahimsn98/fpv-ground-station) | keep | 11.0 | fc | FPV LTM Ground Telemetry Client for INAV and Betaflight |
 | [ExperimentalDesignBureau-1571/fpv-ground-control-station](https://github.com/ExperimentalDesignBureau-1571/fpv-ground-control-station) | keep | 10.7 | gcs | Modular Ground Control Station for FPV Drones |
 | [m-heidary/ApexControl](https://github.com/m-heidary/ApexControl) | keep | 10.7 | gcs, fc | ApexControl Ground Station is a cross-platform MAVLink groun |
 | [learnsyslab/gym-pybullet-drones](https://github.com/learnsyslab/gym-pybullet-drones) | keep | 10.7 | fc, tools | PyBullet Gymnasium environments for single and multi-agent r |
-| [JacopoPan/aerial-autonomy-stack](https://github.com/JacopoPan/aerial-autonomy-stack) | keep | 10.5 | fc, ai | An open framework to simulate and deploy perception-based PX |
 
 ## Watch list (weak hook — review manually)
 
@@ -109,5 +109,5 @@ Updated: 2026-07-30 09:11 UTC
 | [carlo-abalos/react-fpv-build-calc](https://github.com/carlo-abalos/react-fpv-build-calc) | 3.8 | weak-hook |
 | [texas112/IMD](https://github.com/texas112/IMD) | 3.8 | weak-hook |
 | [godstargod/inav-osd](https://github.com/godstargod/inav-osd) | 3.8 | weak-hook |
+| [DIII-SDU-Group/MP4D-AI-Acceleration](https://github.com/DIII-SDU-Group/MP4D-AI-Acceleration) | 3.8 | weak-hook |
 | [TigeyJewellAlibhai/uav-control](https://github.com/TigeyJewellAlibhai/uav-control) | 3.7 | weak-hook |
-| [alireza787b/PX4_Simulink_Custom_Telemetry_Demo](https://github.com/alireza787b/PX4_Simulink_Custom_Telemetry_Demo) | 3.7 | weak-hook |

@@ -173,6 +173,69 @@ async fn tcp_edge(State(edge): State<EdgeAuth>, mut request: Request, next: Next
         .any(|h| request.headers().contains_key(*h));
     let on_box = auth::is_on_box(peer_is_loopback, has_forwarding_header);
 
+    // A request that crossed the radio relay arrives on loopback, so it is
+    // on-box by the check above. That is deliberate and load-bearing — a fleet
+    // shares one radio key and distributes no per-node API credential, so the
+    // relay has nothing to present and refusing the posture would break the lane
+    // outright. But it means radio range carries the node's full authority, and
+    // a handful of paths turn that into a credential the caller keeps: unpair
+    // clears the pairing, the public claim route then hands back a fresh key,
+    // and the caller walks away with API access that outlives the radio link.
+    //
+    // Refuse those paths here, before the posture is applied. Trusting the
+    // marker is safe because it can only ever REMOVE authority: a caller who
+    // sets it on a local request loses access to these paths, which is no
+    // attack, and a caller who omits it off-box was never on-box to begin with.
+    let is_relayed = request.headers().contains_key(auth::RELAYED_HEADER);
+    if is_relayed && auth::relay_forbidden(&path) {
+        tracing::warn!(
+            path = %path,
+            method = %request.method(),
+            "relay_forbidden_path_refused"
+        );
+        return detail(
+            StatusCode::FORBIDDEN,
+            "This path cannot be reached over the radio relay.",
+        );
+    }
+
+    // While UNPAIRED the node answers every route to anyone, flight control
+    // included, for as long as it stays unpaired. Narrow that to the peers a
+    // fresh device is actually reached from.
+    //
+    // Public paths stay open to everyone deliberately: `/api/pairing/{info,code,
+    // claim}` is how a device is claimed over the LAN, which is the documented
+    // local-first flow. Refusing those would trade an exposure for an
+    // unpairable device. So the LAN can still discover and claim; what it can no
+    // longer do while unpaired is fly the aircraft or rewrite its config.
+    //
+    // Checked before the native/proxied split so it covers both surfaces, and
+    // read per request through the TTL-cached pairing state, so the posture
+    // widens the moment the device is paired and narrows again on unpair with no
+    // restart — which a bind-time decision cannot do. See
+    // `pairing_posture::unpaired_peer_allowed` for why this is not a bind.
+    if !auth::is_public(&path)
+        && matches!(
+            edge.pairing.current(),
+            ados_protocol::pairing_posture::Pairing::Unpaired
+        )
+    {
+        let peer_ip = request.extensions().get::<PeerAddr>().map(|p| p.0.ip());
+        let allowed =
+            peer_ip.is_some_and(|ip| ados_protocol::pairing_posture::unpaired_peer_allowed(&ip));
+        if !allowed {
+            tracing::warn!(
+                path = %path,
+                peer = ?peer_ip,
+                "unpaired_peer_refused"
+            );
+            return detail(
+                StatusCode::FORBIDDEN,
+                "This device is not paired yet. Pair it first, or reach it over its hotspot or USB connection.",
+            );
+        }
+    }
+
     // Strip any client-supplied on-box header first (it cannot be trusted), then
     // set it only when the front's own check passes — for every request, native
     // or proxied, so the forwarded value is always trustworthy.

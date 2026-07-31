@@ -127,6 +127,42 @@ def test_hdmi_present_true_when_a_connector_is_connected(tmp_path: Any) -> None:
         assert _hdmi_present() is True
 
 
+def test_resolve_drm_device_picks_the_card_that_drives_the_display(tmp_path: Any) -> None:
+    # On a Pi 4 card0 is the render node (v3d, no connectors) and card1 is the
+    # display (vc4). Handing cage a hardcoded card0 there gives it nothing to
+    # modeset, so the appliance path comes up blank on a board where the
+    # windowed path works.
+    sysfs, dev = _drm_dirs(
+        tmp_path,
+        {"card1-HDMI-A-1": "connected", "card1-HDMI-A-2": "disconnected"},
+        ["card0", "card1"],
+    )
+    with patch.object(ks, "_DRM_SYSFS", sysfs), patch.object(ks, "_DRM_DIR", dev):
+        assert ks._resolve_drm_device() == str(dev / "card1")
+
+
+def test_resolve_drm_device_falls_back_when_nothing_is_connected(tmp_path: Any) -> None:
+    sysfs, dev = _drm_dirs(tmp_path, {"card0-HDMI-A-1": "disconnected"}, ["card0"])
+    with patch.object(ks, "_DRM_SYSFS", sysfs), patch.object(ks, "_DRM_DIR", dev):
+        assert ks._resolve_drm_device() == ks._DRM_DEVICE
+
+
+def test_resolve_drm_device_ignores_a_connector_whose_card_node_is_absent(
+    tmp_path: Any,
+) -> None:
+    # A connected connector on a card with no /dev/dri node is not a device we
+    # can hand to a compositor.
+    sysfs, dev = _drm_dirs(tmp_path, {"card9-HDMI-A-1": "connected"}, ["card0"])
+    with patch.object(ks, "_DRM_SYSFS", sysfs), patch.object(ks, "_DRM_DIR", dev):
+        assert ks._resolve_drm_device() == ks._DRM_DEVICE
+
+
+def test_default_cockpit_url_is_the_served_path(tmp_path: Any) -> None:
+    # The static mount serves /cockpit/. Targeting the bare path costs a
+    # redirect on every kiosk boot and puts the appended query at its mercy.
+    assert ks._DEFAULT_URL.endswith("/cockpit/")
+
+
 def test_hdmi_present_true_fallback_when_card_node_exists(tmp_path: Any) -> None:
     # No connector status readable, but a DRM card node exists -> the subsystem
     # is up, so proceed (fallback).
@@ -313,7 +349,9 @@ def test_resolve_target_url_defaults_when_nothing_set(monkeypatch: pytest.Monkey
     monkeypatch.delenv("ADOS_KIOSK_MINIMAL_LAYER", raising=False)
     with patch.object(ks, "_low_ram_board", return_value=False):
         url, minimal = _resolve_target_url(SimpleNamespace())
-    assert url == "http://localhost:8080/cockpit"
+    # Trailing slash: the path the static mount actually serves, so no redirect
+    # stands between the kiosk and the page (and none can drop the query).
+    assert url == "http://localhost:8080/cockpit/"
     assert minimal is False
 
 
@@ -456,6 +494,49 @@ def test_windowed_argv_x11_uses_x11_platform() -> None:
         )
     assert "--ozone-platform=x11" in argv
     assert "cage" not in argv
+
+
+def test_windowed_supervisor_honours_the_resolved_gpu_renderer() -> None:
+    """A live desktop must not force software rendering.
+
+    This branch used to pass `_RENDERER_SOFTWARE` regardless of what was
+    resolved, so Chromium launched with `--disable-gpu` on every board that had
+    a desktop session. On a board whose distro ships a real GL and video stack
+    that threw away hardware decode: the ground station's HDMI cockpit
+    software-decoded H.264 at ~113% CPU across four processes on four cores,
+    which the operator sees as a frozen picture while the stream underneath is
+    healthy.
+    """
+    session = ks.DesktopSession(
+        uid=1000, session_type="wayland", display=None, wayland_display="wayland-0"
+    )
+    with patch.object(ks, "_resolve_browser_binary", return_value="/usr/bin/chromium"):
+        with patch.object(ks, "_session_env", return_value={}):
+            sup = ks._make_supervisor(
+                "http://target/cockpit", session, ks._RENDERER_GPU, None
+            )
+    argv = sup._argv
+    assert "--disable-gpu" not in argv, (
+        "a desktop session must not force software when GPU was resolved"
+    )
+    assert "--use-gl=egl" in argv
+    assert "--enable-gpu-rasterization" in argv
+
+
+def test_windowed_supervisor_still_passes_software_when_resolved_software() -> None:
+    """The downgrade path is unchanged: a board resolved to software still gets
+    `--disable-gpu`, so a box that genuinely cannot drive a GPU is unaffected."""
+    session = ks.DesktopSession(
+        uid=1000, session_type="wayland", display=None, wayland_display="wayland-0"
+    )
+    with patch.object(ks, "_resolve_browser_binary", return_value="/usr/bin/chromium"):
+        with patch.object(ks, "_session_env", return_value={}):
+            sup = ks._make_supervisor(
+                "http://target/cockpit", session, ks._RENDERER_SOFTWARE, None
+            )
+    argv = sup._argv
+    assert "--disable-gpu" in argv
+    assert "--use-gl=egl" not in argv
 
 
 def test_detect_desktop_session_returns_active_wayland_session() -> None:
@@ -791,10 +872,24 @@ def test_resolve_render_plan_marker_gpu_stale_lib_dir_falls_back(
         assert ks._resolve_render_plan() == (ks._RENDERER_SOFTWARE, None)
 
 
-def test_cage_env_software_uses_pixman_no_ld_path() -> None:
+@pytest.fixture
+def pinned_drm(tmp_path: Any):
+    """Pin /sys/class/drm + /dev/dri for tests that assert on the cage env.
+
+    `_cage_env` derives the compositor's DRM device from a connected-connector
+    scan, so an unpinned test asserts against whatever hardware the runner has
+    — it passed on a developer laptop with no DRM and failed on a CI runner
+    that has one.
+    """
+    sysfs, dev = _drm_dirs(tmp_path, {"card0-HDMI-A-1": "connected"}, ["card0"])
+    with patch.object(ks, "_DRM_SYSFS", sysfs), patch.object(ks, "_DRM_DIR", dev):
+        yield dev
+
+
+def test_cage_env_software_uses_pixman_no_ld_path(pinned_drm: Any) -> None:
     env = ks._cage_env(ks._RENDERER_SOFTWARE, None)
     assert env["WLR_RENDERER"] == "pixman"
-    assert env["WLR_DRM_DEVICES"] == ks._DRM_DEVICE
+    assert env["WLR_DRM_DEVICES"] == str(pinned_drm / "card0")
     assert env["WLR_NO_HARDWARE_CURSORS"] == "1"
     assert "LD_LIBRARY_PATH" not in env
 
@@ -879,19 +974,26 @@ def test_make_supervisor_cage_gpu_strips_display_and_scopes_libmali() -> None:
     assert sup._sweep_orphans_enabled is True
 
 
-def test_make_supervisor_windowed_forces_software_even_when_gpu_requested() -> None:
-    """A live desktop owns its own GL; our scoped GPU userspace does not touch
-    it, so the windowed browser renders in software regardless of the marker."""
+def test_make_supervisor_windowed_keeps_running_as_the_session_user() -> None:
+    """The windowed path still drops to the desktop user and does not sweep
+    orphans, independently of the renderer choice.
+
+    This replaces a test that asserted the windowed path forces software
+    rendering regardless of the marker. That policy was correct for a board
+    whose GL comes from our own scoped userspace, and wrong for one whose distro
+    ships a real GL and video stack -- see
+    `test_windowed_supervisor_honours_the_resolved_gpu_renderer`.
+    """
     session = ks.DesktopSession(
         uid=1000, session_type="wayland", display=None, wayland_display="wayland-0"
     )
     with patch.object(ks, "_resolve_browser_binary", return_value="/usr/bin/chromium"):
-        with patch.object(ks, "_session_env", return_value={"XDG_RUNTIME_DIR": "/run/user/1000"}):
+        with patch.object(
+            ks, "_session_env", return_value={"XDG_RUNTIME_DIR": "/run/user/1000"}
+        ):
             sup = ks._make_supervisor(
                 "http://x", session, ks._RENDERER_GPU, "/opt/ados/gpu/mali"
             )
-    assert "--disable-gpu" in sup._argv
-    assert "--use-gl=egl" not in sup._argv
     assert sup._sweep_orphans_enabled is False
 
 

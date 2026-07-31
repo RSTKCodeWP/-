@@ -42,6 +42,7 @@ STM32H7/CMSIS/Device/ST/STM32H7xx/Include
 )
 target_link_libraries(clock_library PUBLIC 
 scheduler_library
+UNITTEST_library
 )
 
 target_compile_options(clock_library PRIVATE ${ARCH_FLAGS} -Wall -Wextra -O2 -std=c11)
@@ -149,3 +150,27 @@ add_custom_command(TARGET ${PROJECT_NAME}.elf POST_BUILD
     COMMAND arm-none-eabi-objcopy -O binary ${PROJECT_NAME}.elf "${CMAKE_SOURCE_DIR}/${PROJECT_NAME}.bin"
     COMMENT "Generating flashable binary image at project root: ${PROJECT_NAME}.bin"
 )
+################################################################################################################################
+## =========================================================================== #
+# Connect STM32H23 with USB OpenOCD  
+# ============================================================================ #
+add_custom_target(flash
+    COMMAND openocd
+        -f interface/stlink.cfg
+        -f target/stm32h7x.cfg
+        -c "program ${PROJECT_NAME}.elf verify reset exit"
+    DEPENDS ${PROJECT_NAME}.elf
+    COMMENT "Flashing via ST-Link V3"
+)
+
+
+
+
+
+
+
+
+
+
+
+

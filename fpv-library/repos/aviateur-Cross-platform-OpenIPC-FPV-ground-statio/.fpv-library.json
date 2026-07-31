@@ -1,8 +1,8 @@
 {
   "source": "OpenIPC/aviateur",
-  "upstream_commit": "fa9e2cc6d7c6b5eb78d1815f3519c6c3a65f8abd",
-  "upstream_updated": "2026-07-22T14:29:21Z",
-  "synced_at": "2026-07-26T23:32:43+00:00",
+  "upstream_commit": "0274206d6c48fcdd8a309b9de3bf3fbd81c4694b",
+  "upstream_updated": "2026-07-31T07:31:36Z",
+  "synced_at": "2026-07-31T09:04:26+00:00",
   "discovered_via": "search:openipc fpv:p1",
   "score": 6.0
 }

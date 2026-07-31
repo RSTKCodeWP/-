@@ -22,13 +22,15 @@ typedef struct
     uint16_t taskperiod; /* amount of time each task will execute*/ 
     uint8_t taskpriority; /* 0 = highest priority*/ 
     bool isTaskEnabled; /* false = task is registered but execution is skipped*/ 
-    volatile uint16_t last_tick;
+    volatile uint32_t last_tick;
     volatile bool isTaskPending;
-    uint32_t current_ticks;
+    uint32_t TaskCount;
     uint32_t overruns;
     uint32_t MaxTaskTime;
     bool flaggedstuck;
 }Scheduler_Tasks;
+extern Scheduler_Tasks SchedulerList[MAX_SCH_CNT];
+extern uint8_t SchedulerList_Length;
 
 typedef struct
 {
@@ -39,14 +41,11 @@ typedef struct
     const char *currentFlightMode; /* must allocate memory on init */ 
 
 }Scheduler_health;
+extern Scheduler_health healthStatus;
 
 void Scheduler_Init(void);
+void SchedulerRun(void);
 uint32_t Scheduler_get_us(void);
-void sysTickConfig_1KHz(void);
-void SysTick_Handler(void);
-void delay_ms(uint32_t ms);
-void DebugLed(void);
-uint32_t millis(void);
 
 
 #endif

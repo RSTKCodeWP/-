@@ -53,4 +53,5 @@ set(CMAKE_DEPEND_INFO_FILES
   "CMakeFiles/scheduler_library.dir/DependInfo.cmake"
   "CMakeFiles/UNITTEST_library.dir/DependInfo.cmake"
   "CMakeFiles/FlightController_FW.elf.dir/DependInfo.cmake"
+  "CMakeFiles/flash.dir/DependInfo.cmake"
   )

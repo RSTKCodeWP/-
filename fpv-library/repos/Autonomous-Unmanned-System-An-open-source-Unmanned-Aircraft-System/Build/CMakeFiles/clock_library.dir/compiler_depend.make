@@ -33,7 +33,8 @@ CMakeFiles/clock_library.dir/Clocks/Clocks.c.o: ../Clocks/Clocks.c \
   /usr/include/newlib/sys/_pthreadtypes.h \
   /usr/include/newlib/machine/types.h \
   /usr/include/newlib/sys/stdio.h \
-  /usr/lib/gcc/arm-none-eabi/10.3.1/include/stdbool.h
+  /usr/lib/gcc/arm-none-eabi/10.3.1/include/stdbool.h \
+  ../headers/scheduler.h
 
 CMakeFiles/clock_library.dir/Clocks/DWT_Clock.c.o: ../Clocks/DWT_Clock.c \
   ../headers/DWT_Clock.h \
@@ -46,7 +47,6 @@ CMakeFiles/clock_library.dir/Clocks/DWT_Clock.c.o: ../Clocks/DWT_Clock.c \
   ../STM32H7/CMSIS/Include/mpu_armv7.h \
   ../STM32H7/CMSIS/Include/cachel1_armv7.h \
   ../headers/system_stm32h7xx.h \
-  ../headers/stm32h723xx.h \
   /usr/include/newlib/stdio.h \
   /usr/include/newlib/_ansi.h \
   /usr/include/newlib/newlib.h \
@@ -113,6 +113,8 @@ CMakeFiles/clock_library.dir/Clocks/DWT_Clock.c.o: ../Clocks/DWT_Clock.c \
 /usr/lib/gcc/arm-none-eabi/10.3.1/include/stddef.h:
 
 ../headers/system_stm32h7xx.h:
+
+../headers/scheduler.h:
 
 ../Clocks/Clocks.c:
 

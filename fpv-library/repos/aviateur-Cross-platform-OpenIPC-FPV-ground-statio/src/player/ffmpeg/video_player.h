@@ -16,7 +16,8 @@ struct SDL_AudioStream;
 
 class VideoPlayerFfmpeg final : public VideoPlayer {
 public:
-    VideoPlayerFfmpeg(std::shared_ptr<Pathfinder::Device> device, std::shared_ptr<Pathfinder::Queue> queue);
+    VideoPlayerFfmpeg(const std::shared_ptr<Pathfinder::Device> &device,
+                      const std::shared_ptr<Pathfinder::Queue> &queue);
 
     ~VideoPlayerFfmpeg() override;
 
@@ -49,14 +50,6 @@ protected:
 
     SDL_AudioStream *stream{};
 
-    std::mutex mtx;
-
-    std::thread decodeThread;
-    std::mutex decodeResMtx; // Resource mutex
-
-    std::thread analysisThread;
-    std::mutex analysisResMtx; // Resource mutex
-
     std::shared_ptr<AVFrame> lastFrame_;
 
     bool enableAudio();
@@ -68,4 +61,7 @@ protected:
     std::shared_ptr<GifEncoder> gifEncoder_;
 
     bool hasAudio() const;
+
+    std::atomic<bool> has_emitted_ready_ = false;
+    std::string current_decoder_name;
 };

@@ -1099,8 +1099,13 @@ async fn run_service(cfg: &WfbConfig, mut shutdown: watch::Receiver<bool>) {
 
         let recvq_cancel = task_cancel.clone();
         let recvq_counters = counters.clone();
-        let mut watchdog2 =
-            tokio::spawn(async move { video_recvq_watchdog(recvq_counters, recvq_cancel).await });
+        // Same shared process handle as watchdog1, and for the same reason: the
+        // queue watchdog now cross-checks read progress on the live data-tx PID
+        // before calling a deep queue a wedge, so it must follow respawns too.
+        let recvq_proc = proc.clone();
+        let mut watchdog2 = tokio::spawn(async move {
+            video_recvq_watchdog(recvq_proc, recvq_counters, recvq_cancel).await
+        });
 
         // Auxiliary application-stream liveness watchdog. Idles while the aux pair
         // is closed (the safe-by-default boot state) and, when a plugin has opened
@@ -1158,9 +1163,13 @@ async fn run_service(cfg: &WfbConfig, mut shutdown: watch::Receiver<bool>) {
         // so the ladder starts believing reality rather than its own default.
         let bc_mcs_cap = cfg.adaptive_mcs_max;
         let bc_mcs_start = cfg.mcs_index;
+        // The watchdog counters carry the transmit-queue congestion flag, which
+        // is the ladder's only feedback on a drone: it cannot hear its own
+        // downlink, so it never gets a link sample to fold in.
+        let bc_counters = counters.clone();
         let bitrate_ctrl = tokio::spawn(async move {
             BitrateController::new(bc_enabled, bc_mcs_cap, bc_mcs_start)
-                .run(bc_link, bc_proc, bc_snapshot, bc_cancel)
+                .run(bc_link, bc_proc, bc_snapshot, bc_counters, bc_cancel)
                 .await;
         });
 

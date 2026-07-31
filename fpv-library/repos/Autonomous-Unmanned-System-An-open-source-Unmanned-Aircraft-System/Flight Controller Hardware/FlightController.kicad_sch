@@ -7320,6 +7320,16 @@
 		)
 		(uuid "4396affe-f775-432f-8006-197a19a0e810")
 	)
+	(text "<--- BEING USED AS INTERNAL TIMER 10ms timeout"
+		(exclude_from_sim no)
+		(at 275.336 109.474 0)
+		(effects
+			(font
+				(size 0.508 0.508)
+			)
+		)
+		(uuid "91e2c0d4-b261-42e1-adfc-89887981e805")
+	)
 	(text "USB-c & JTAG"
 		(exclude_from_sim no)
 		(at 373.634 138.43 0)

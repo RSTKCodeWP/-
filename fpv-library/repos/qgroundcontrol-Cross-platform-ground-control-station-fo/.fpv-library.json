@@ -1,8 +1,8 @@
 {
   "source": "mavlink/qgroundcontrol",
-  "upstream_commit": "68787ab7df5d9bd8c6556d473e92f2120cf0c035",
-  "upstream_updated": "2026-07-30T00:29:50Z",
-  "synced_at": "2026-07-30T08:37:06+00:00",
+  "upstream_commit": "ed09a05e9dd354a6691513d33194847216e32a4d",
+  "upstream_updated": "2026-07-30T22:29:18Z",
+  "synced_at": "2026-07-31T09:04:49+00:00",
   "discovered_via": "search:drone ground station:p1",
   "score": 9.2
 }

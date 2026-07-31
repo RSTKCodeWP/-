@@ -11,10 +11,10 @@
 
 #define DEFAULT_GIF_FRAMERATE 10
 
-VideoPlayerFfmpeg::VideoPlayerFfmpeg(std::shared_ptr<Pathfinder::Device> device,
-                                     std::shared_ptr<Pathfinder::Queue> queue)
+VideoPlayerFfmpeg::VideoPlayerFfmpeg(const std::shared_ptr<Pathfinder::Device> &device,
+                                     const std::shared_ptr<Pathfinder::Queue> &queue)
     : VideoPlayer(device, queue) {
-    if (!SDL_Init(SDL_INIT_AUDIO)) {
+    if (!SDL_InitSubSystem(SDL_INIT_AUDIO)) {
         GuiInterface::Instance().PutLog(LogLevel::Warn, "SDL init audio failed!");
     }
 }
@@ -59,59 +59,79 @@ std::shared_ptr<AVFrame> VideoPlayerFfmpeg::getFrame() {
 }
 
 void VideoPlayerFfmpeg::play(const std::string &playUrl, bool forceSoftwareDecoding) {
+    stop(); // Ensure previous threads are joined and resources released
+
     should_stop_playing_ = false;
-
-    if (analysisThread.joinable()) {
-        analysisThread.join();
-    }
-
+    has_emitted_ready_ = false;
     url = playUrl;
 
     decoder = std::make_shared<FfmpegDecoder>();
 
-    analysisThread = std::thread([this, forceSoftwareDecoding] {
-        // Indicate we are using ffmpeg resources in a detached thread.
-        analysisResMtx.lock();
-
-        bool ok = decoder->OpenInput(url, forceSoftwareDecoding);
+    analysisThread = std::thread([this, forceSoftwareDecoding, localDecoder = decoder] {
+        bool ok = localDecoder->OpenInput(url, forceSoftwareDecoding);
         if (!ok) {
-            GuiInterface::Instance().PutLog(LogLevel::Error, "Loading URL failed");
-            analysisResMtx.unlock();
+            GuiInterface::Instance().PutLog(LogLevel::Error, "Loading URL failed: {}", url);
+            GuiInterface::Instance().ShowTip(FTR("failed to connect"), true);
+            GuiInterface::Instance().EmitUrlStreamShouldStop();
             return;
         }
 
-        std::string decoder_name = decoder->hwDecoderName.has_value() ? decoder->hwDecoderName.value() : "Software";
+        current_decoder_name = localDecoder->hwDecoderName.has_value() ? localDecoder->hwDecoderName.value() : "Software";
 
-        GuiInterface::Instance().EmitDecoderReady(decoder->GetWidth(),
-                                                  decoder->GetHeight(),
-                                                  decoder->GetFramerate(),
-                                                  decoder_name);
-
-        if (!isMuted && decoder->HasAudio()) {
+        if (!isMuted && localDecoder->HasAudio()) {
             enableAudio();
         }
 
-        if (decoder->HasVideo()) {
-            update_video_info(decoder->GetWidth(), decoder->GetHeight(), decoder->GetVideoFrameFormat());
-        }
-
         // Bitrate callback.
-        decoder->bitrateUpdateCallback = [](uint64_t bitrate) { GuiInterface::Instance().EmitBitrateUpdate(bitrate); };
+        localDecoder->bitrateUpdateCallback = [](uint64_t bitrate) { GuiInterface::Instance().EmitBitrateUpdate(bitrate); };
 
         // Handle dynamic resolution change
-        decoder->videoConfigChangedCallback = [this](int w, int h, AVPixelFormat fmt) {
-            update_video_info(w, h, fmt);
+        localDecoder->videoConfigChangedCallback = [this](int w, int h, AVPixelFormat fmt) {
+            if (w > 0 && h > 0) {
+                // If resolution changed, re-emit ready signal to update UI labels
+                if (!has_emitted_ready_ || w != video_width() || h != video_height()) {
+                    GuiInterface::Instance().EmitDecoderReady(w, h, decoder->GetFramerate(), current_decoder_name);
+                    has_emitted_ready_ = true;
+                }
+                update_video_info(w, h, fmt);
+            }
         };
 
-        decodeThread = std::thread([this] {
-            decodeResMtx.lock();
+        decodeThread = std::thread([this, forceSoftwareDecoding, localDecoder] {
+            int readRetryCount = 0;
+            int sendPacketErrorCount = 0;
+            int consecutiveFrameCount = 0;
+            bool isSignalLostNotified = false;
 
             while (!should_stop_playing_) {
                 try {
                     // Getting frame.
-                    auto frame = decoder->GetNextFrame();
+                    auto frame = localDecoder->GetNextFrame();
                     if (!frame) {
+                        consecutiveFrameCount = 0;
                         continue;
+                    }
+
+                    consecutiveFrameCount++;
+
+                    // Success path: notify recovery only if we previously lost signal AND we have stable frames
+                    if (consecutiveFrameCount >= 5) {
+                        if (isSignalLostNotified) {
+                            GuiInterface::Instance().ShowTip(FTR("signal restored"), false);
+                            isSignalLostNotified = false;
+                        }
+                        readRetryCount = 0;
+                        sendPacketErrorCount = 0;
+                    }
+
+                    // Sync video info and emit ready signal if not done yet
+                    if (!has_emitted_ready_ && frame->width > 0 && frame->height > 0) {
+                        GuiInterface::Instance().EmitDecoderReady(frame->width,
+                                                                  frame->height,
+                                                                  localDecoder->GetFramerate(),
+                                                                  current_decoder_name);
+                        update_video_info(frame->width, frame->height, localDecoder->GetVideoFrameFormat());
+                        has_emitted_ready_ = true;
                     }
 
                     // Push frame to the buffer queue.
@@ -121,56 +141,70 @@ void VideoPlayerFfmpeg::play(const std::string &playUrl, bool forceSoftwareDecod
                     }
                     videoFrameQueue.push(frame);
                 }
-                // Decoder error. But continue.
+                // Decoder error.
                 catch (const SendPacketException &e) {
-                    GuiInterface::Instance().PutLog(LogLevel::Error, e.what());
-                    GuiInterface::Instance().ShowTip(FTR("invalid input data"));
+                    consecutiveFrameCount = 0;
+                    has_emitted_ready_ = false;
+                    GuiInterface::Instance().PutLog(LogLevel::Error, "Send packet failed: {}", e.what());
+
+                    if (++sendPacketErrorCount > 10) {
+                        GuiInterface::Instance().ShowTip(FTR("codec error, reconnecting..."), true);
+                        isSignalLostNotified = true;
+
+                        localDecoder->CloseInput();
+                        std::this_thread::sleep_for(std::chrono::seconds(1));
+                        if (localDecoder->OpenInput(url, forceSoftwareDecoding)) {
+                            sendPacketErrorCount = 0;
+                            readRetryCount = 0;
+                        }
+                    }
                 }
-                // Read frame error, mostly due to a lost signal. But continue.
+                // Read frame error, mostly due to a lost signal.
                 catch (const ReadFrameException &e) {
-                    GuiInterface::Instance().PutLog(LogLevel::Error, e.what());
-                    GuiInterface::Instance().ShowTip(FTR("signal lost"));
+                    consecutiveFrameCount = 0;
+                    has_emitted_ready_ = false;
+                    GuiInterface::Instance().PutLog(LogLevel::Error, "Read frame failed: {}", e.what());
+
+                    readRetryCount++;
+
+                    if (!isSignalLostNotified) {
+                        GuiInterface::Instance().ShowTip(FTR("no signal"), true);
+                        isSignalLostNotified = true;
+                    }
+
+                    if (readRetryCount >= 2) {
+                        // Re-open input to reset FFmpeg RTP state (SSRC, sequence numbers, etc.)
+                        localDecoder->CloseInput();
+                        std::this_thread::sleep_for(std::chrono::seconds(1));
+
+                        if (localDecoder->OpenInput(url, forceSoftwareDecoding)) {
+                            GuiInterface::Instance().PutLog(LogLevel::Info, "Input reopened successfully, waiting for data...");
+                        }
+                    }
+                    std::this_thread::sleep_for(std::chrono::milliseconds(200));
                 }
                 // Break on other unknown errors.
                 catch (const std::exception &e) {
-                    GuiInterface::Instance().PutLog(LogLevel::Error, e.what());
+                    GuiInterface::Instance().PutLog(LogLevel::Error, "Unknown error in decode thread: {}", e.what());
                     break;
                 }
             }
-
-            decodeResMtx.unlock();
         });
-
-        // Start decode thread.
-        decodeThread.detach();
-
-        // We are done with ffmpeg resources.
-        analysisResMtx.unlock();
     });
-
-    // Start analysis thread.
-    analysisThread.detach();
 }
 
 void VideoPlayerFfmpeg::stop() {
     should_stop_playing_ = true;
 
-    if (decoder && decoder->pFormatCtx) {
-        decoder->pFormatCtx->interrupt_callback.callback = [](void *) { return 1; };
+    if (decoder) {
+        decoder->abortRequest = true;
     }
 
-    // The thread will be unjoinable after calling detach().
-    // if (analysisThread.joinable()) {
-    //     analysisThread.join();
-    // }
-    // if (decodeThread.joinable()) {
-    //     decodeThread.join();
-    // }
-
-    // Wait until the detached threads finish.
-    {
-        std::lock_guard lck1(analysisResMtx);
-        std::lock_guard lck2(decodeResMtx);
+    if (analysisThread.joinable()) {
+        analysisThread.join();
+    }
+    if (decodeThread.joinable()) {
+        decodeThread.join();
     }
 
     {
@@ -209,7 +243,7 @@ void VideoPlayerFfmpeg::set_muted(bool muted) {
 VideoPlayerFfmpeg::~VideoPlayerFfmpeg() {
     stop();
 
-    SDL_Quit();
+    SDL_QuitSubSystem(SDL_INIT_AUDIO);
 }
 
 std::string VideoPlayerFfmpeg::capture_jpeg() {
@@ -369,7 +403,7 @@ void SDLCALL audio_callback(void *userdata, SDL_AudioStream *stream, int additio
         if (data) {
             auto *player = static_cast<VideoPlayerFfmpeg *>(userdata);
 
-            int ret = player->getDecoder()->ReadAudioBuff(data, additional_amount);
+            const bool ret = player->getDecoder()->ReadAudioBuff(data, additional_amount);
 
             if (ret) {
                 SDL_PutAudioStreamData(stream, data, additional_amount);

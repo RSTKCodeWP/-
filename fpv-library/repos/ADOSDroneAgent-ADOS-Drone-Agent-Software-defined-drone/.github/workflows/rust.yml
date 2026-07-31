@@ -325,6 +325,61 @@ jobs:
           name: "Prebuilt ados-radio (rolling)"
           files: crates/rel/*
 
+  # The swarm bus. This job was missing entirely until now: the crate, its
+  # systemd unit and its supervisor registration all shipped, but nothing ever
+  # published the binary, so every install fetched a release that did not exist,
+  # 404'd, and continued degraded because the gate is best-effort. The unit's
+  # ConditionPathExists then skipped it silently and the swarm control loop spun
+  # against a socket that was never bound.
+  publish-swarmbus:
+    needs: build-test
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain (musl target)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-unknown-linux-musl
+
+      - name: Install musl tools
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+
+      - name: Build static ados-swarmbus
+        run: cargo build --release --target aarch64-unknown-linux-musl -p ados-swarmbus
+
+      - name: Stage artifact + checksum
+        run: |
+          set -euo pipefail
+          mkdir -p rel
+          cp target/aarch64-unknown-linux-musl/release/ados-swarmbus rel/ados-swarmbus-aarch64
+          ( cd rel && sha256sum ados-swarmbus-aarch64 > ados-swarmbus-aarch64.sha256 )
+
+      - name: Sign artifact (only when the signing key is present)
+        env:
+          SIGNING_KEY: ${{ secrets.ADOS_DRIVER_SIGNING_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SIGNING_KEY}" ]; then
+            echo "No ADOS_DRIVER_SIGNING_KEY set; publishing SHA256-only (dev posture)."
+            exit 0
+          fi
+          sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y minisign
+          printf '%s' "${SIGNING_KEY}" > /tmp/sign.key
+          minisign -S -s /tmp/sign.key -m rel/ados-swarmbus-aarch64 -x rel/ados-swarmbus-aarch64.minisig
+          rm -f /tmp/sign.key
+
+      - name: Publish rolling prerelease
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: prebuilt-swarmbus
+          prerelease: true
+          name: "Prebuilt ados-swarmbus (rolling)"
+          files: crates/rel/*
+
   publish-gpio:
     needs: build-test
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
@@ -1134,6 +1189,40 @@ jobs:
           ( cd rel && sha256sum ados-vision-onnx-aarch64 > ados-vision-onnx-aarch64.sha256 )
           ( cd rel && sha256sum libonnxruntime-aarch64.so > libonnxruntime-aarch64.so.sha256 )
 
+      - name: Hand the staged artifacts to the signing job
+        uses: actions/upload-artifact@v4
+        with:
+          name: vision-onnx-rel
+          path: crates/rel/
+          retention-days: 1
+          if-no-files-found: error
+
+  # Signing is split out of the build deliberately. The build must run on the
+  # older-glibc runner so the artifact loads on the Bookworm target boards, but
+  # minisign is genuinely not packaged for that runner's apt — verified: an
+  # explicit `add-apt-repository universe` still yields "Unable to locate package
+  # minisign". Previously the job swallowed that and published unsigned, which
+  # left these two artifacts as the only unsigned files in the catalog and
+  # silently blocked ever enforcing signatures.
+  #
+  # The glibc constraint applies to the BUILD, not to the signature. So the built
+  # artifacts move to the same runner every other publish job already signs on,
+  # and are signed and published there. A signing failure now fails the job
+  # rather than degrading, because an artifact that is present but unsigned is
+  # indistinguishable downstream from one that was verified.
+  publish-vision-onnx-sign:
+    needs: publish-vision-onnx
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: write
+    steps:
+      - name: Collect the staged artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: vision-onnx-rel
+          path: crates/rel
+
       - name: Sign artifacts (only when the signing key is present)
         env:
           SIGNING_KEY: ${{ secrets.ADOS_DRIVER_SIGNING_KEY }}
@@ -1143,16 +1232,7 @@ jobs:
             echo "No ADOS_DRIVER_SIGNING_KEY set; publishing SHA256-only (dev posture)."
             exit 0
           fi
-          # This job builds on the older-glibc runner (so the binary runs on the
-          # Bookworm target boards); minisign is not packaged for that runner's
-          # apt, so signing degrades to SHA256-only there rather than failing the
-          # publish. On edge (the default channel) the installer accepts SHA256;
-          # the signed artifacts on the newer-glibc jobs are unaffected.
-          sudo apt-get update || true
-          if ! sudo DEBIAN_FRONTEND=noninteractive apt-get install -y minisign; then
-            echo "minisign unavailable on this runner; publishing SHA256-only."
-            exit 0
-          fi
+          sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y minisign
           printf '%s' "${SIGNING_KEY}" > /tmp/sign.key
           minisign -S -s /tmp/sign.key -m rel/ados-vision-onnx-aarch64 -x rel/ados-vision-onnx-aarch64.minisig
           minisign -S -s /tmp/sign.key -m rel/libonnxruntime-aarch64.so -x rel/libonnxruntime-aarch64.so.minisig
@@ -1166,10 +1246,6 @@ jobs:
           name: "Prebuilt ados-vision (onnx, rolling)"
           files: crates/rel/*
 
-  # Build the installer as a static arm64 binary and publish it to a rolling
-  # prerelease the bootstrap fetches. Static (musl) so one binary runs on every
-  # supported board regardless of its glibc. Runs only on pushes to main, not
-  # pull requests. Artifact carries a SHA256; a minisign .minisig is signed when ADOS_DRIVER_SIGNING_KEY is set.
   publish-installer:
     needs: build-test
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}

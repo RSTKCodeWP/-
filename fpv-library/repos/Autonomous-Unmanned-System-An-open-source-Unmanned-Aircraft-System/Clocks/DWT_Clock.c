@@ -8,20 +8,28 @@
 
 
 
-
-void DWT_Init(void)
+void DWT_us_TickInit(void)
 {
-    DEM_CR |= (1U << 24);
-    DWT_CYCCNT = 0U;
-    DWT_CTRL |= (1U << 0);
+    CoreDebug->DEMCR |= (1 << 24);
+    DWT->LAR = 0xC5ACCE55;
+    DWT->CYCCNT = 0;
+    DWT->CTRL |= (1 << 0);
 }
 
+uint32_t DWT_Get_us_Ticks(void)
+{
+    return DWT->CYCCNT;
+}
 
+uint32_t DWT_GetCurrentTimeIn_us(void)
+{
+    return DWT_Get_us_Ticks() / CORE_MHZ;
+}
 
-
-
-
-
+uint32_t DWT_CyclesTo_us(uint32_t cycles)
+{
+    return cycles / CORE_MHZ;
+}
 
 
 

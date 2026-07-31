@@ -23,4 +23,5 @@ CMakeFiles/clock_library.dir/Clocks/Clocks.c.o: \
  /usr/include/newlib/sys/_stdint.h \
  /usr/include/newlib/sys/_pthreadtypes.h \
  /usr/include/newlib/machine/types.h /usr/include/newlib/sys/stdio.h \
- /usr/lib/gcc/arm-none-eabi/10.3.1/include/stdbool.h
+ /usr/lib/gcc/arm-none-eabi/10.3.1/include/stdbool.h \
+ /home/rscott/Desktop/Flight_Controller/headers/scheduler.h

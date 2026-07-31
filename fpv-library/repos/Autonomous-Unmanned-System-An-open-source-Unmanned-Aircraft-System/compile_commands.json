@@ -1,6 +1,21 @@
 [
 {
   "directory": "/home/rscott/Desktop/Flight_Controller/Build",
+  "command": "arm-none-eabi-gcc -DSTM32H723xx -I/home/rscott/Desktop/Flight_Controller/headers -I/home/rscott/Desktop/Flight_Controller/STM32H7/CMSIS/Include -I/home/rscott/Desktop/Flight_Controller/STM32H7/CMSIS/Device/ST/STM32H7xx/Include -mcpu=cortex-m7 -mthumb -mfpu=fpv5-d16 -mfloat-abi=hard -Wall -Wextra -O2 -std=c11 -o CMakeFiles/UNITTEST_library.dir/HIL_UNIT_TEST/HIL_Clock_test.c.o -c /home/rscott/Desktop/Flight_Controller/HIL_UNIT_TEST/HIL_Clock_test.c",
+  "file": "/home/rscott/Desktop/Flight_Controller/HIL_UNIT_TEST/HIL_Clock_test.c"
+},
+{
+  "directory": "/home/rscott/Desktop/Flight_Controller/Build",
+  "command": "arm-none-eabi-gcc -DSTM32H723xx -I/home/rscott/Desktop/Flight_Controller/headers -I/home/rscott/Desktop/Flight_Controller/STM32H7/CMSIS/Include -I/home/rscott/Desktop/Flight_Controller/STM32H7/CMSIS/Device/ST/STM32H7xx/Include -mcpu=cortex-m7 -mthumb -mfpu=fpv5-d16 -mfloat-abi=hard -Wall -Wextra -O2 -std=c11 -o CMakeFiles/UNITTEST_library.dir/HIL_UNIT_TEST/Mock_task.c.o -c /home/rscott/Desktop/Flight_Controller/HIL_UNIT_TEST/Mock_task.c",
+  "file": "/home/rscott/Desktop/Flight_Controller/HIL_UNIT_TEST/Mock_task.c"
+},
+{
+  "directory": "/home/rscott/Desktop/Flight_Controller/Build",
+  "command": "arm-none-eabi-gcc -DSTM32H723xx -I/home/rscott/Desktop/Flight_Controller/headers -I/home/rscott/Desktop/Flight_Controller/STM32H7/CMSIS/Include -I/home/rscott/Desktop/Flight_Controller/STM32H7/CMSIS/Device/ST/STM32H7xx/Include -mcpu=cortex-m7 -mthumb -mfpu=fpv5-d16 -mfloat-abi=hard -Wall -Wextra -O2 -std=c11 -o CMakeFiles/scheduler_library.dir/scheduler/scheduler.c.o -c /home/rscott/Desktop/Flight_Controller/scheduler/scheduler.c",
+  "file": "/home/rscott/Desktop/Flight_Controller/scheduler/scheduler.c"
+},
+{
+  "directory": "/home/rscott/Desktop/Flight_Controller/Build",
   "command": "arm-none-eabi-gcc -DSTM32H723xx -I/home/rscott/Desktop/Flight_Controller/headers -I/home/rscott/Desktop/Flight_Controller/STM32H7/CMSIS/Include -I/home/rscott/Desktop/Flight_Controller/STM32H7/CMSIS/Device/ST/STM32H7xx/Include -mcpu=cortex-m7 -mthumb -mfpu=fpv5-d16 -mfloat-abi=hard -Wall -Wextra -O2 -std=c11 -o CMakeFiles/clock_library.dir/Clocks/Clocks.c.o -c /home/rscott/Desktop/Flight_Controller/Clocks/Clocks.c",
   "file": "/home/rscott/Desktop/Flight_Controller/Clocks/Clocks.c"
 },
@@ -18,21 +33,6 @@
   "directory": "/home/rscott/Desktop/Flight_Controller/Build",
   "command": "arm-none-eabi-gcc -DSTM32H723xx -I/home/rscott/Desktop/Flight_Controller/headers -I/home/rscott/Desktop/Flight_Controller/STM32H7/CMSIS/Include -I/home/rscott/Desktop/Flight_Controller/STM32H7/CMSIS/Device/ST/STM32H7xx/Include -mcpu=cortex-m7 -mthumb -mfpu=fpv5-d16 -mfloat-abi=hard -Wall -Wextra -O2 -std=c11 -o CMakeFiles/periph_library.dir/PeriphDrivers/SPI.c.o -c /home/rscott/Desktop/Flight_Controller/PeriphDrivers/SPI.c",
   "file": "/home/rscott/Desktop/Flight_Controller/PeriphDrivers/SPI.c"
-},
-{
-  "directory": "/home/rscott/Desktop/Flight_Controller/Build",
-  "command": "arm-none-eabi-gcc -DSTM32H723xx -I/home/rscott/Desktop/Flight_Controller/headers -I/home/rscott/Desktop/Flight_Controller/STM32H7/CMSIS/Include -I/home/rscott/Desktop/Flight_Controller/STM32H7/CMSIS/Device/ST/STM32H7xx/Include -mcpu=cortex-m7 -mthumb -mfpu=fpv5-d16 -mfloat-abi=hard -Wall -Wextra -O2 -std=c11 -o CMakeFiles/UNITTEST_library.dir/HIL_UNIT_TEST/HIL_Clock_test.c.o -c /home/rscott/Desktop/Flight_Controller/HIL_UNIT_TEST/HIL_Clock_test.c",
-  "file": "/home/rscott/Desktop/Flight_Controller/HIL_UNIT_TEST/HIL_Clock_test.c"
-},
-{
-  "directory": "/home/rscott/Desktop/Flight_Controller/Build",
-  "command": "arm-none-eabi-gcc -DSTM32H723xx -I/home/rscott/Desktop/Flight_Controller/headers -I/home/rscott/Desktop/Flight_Controller/STM32H7/CMSIS/Include -I/home/rscott/Desktop/Flight_Controller/STM32H7/CMSIS/Device/ST/STM32H7xx/Include -mcpu=cortex-m7 -mthumb -mfpu=fpv5-d16 -mfloat-abi=hard -Wall -Wextra -O2 -std=c11 -o CMakeFiles/UNITTEST_library.dir/HIL_UNIT_TEST/Mock_task.c.o -c /home/rscott/Desktop/Flight_Controller/HIL_UNIT_TEST/Mock_task.c",
-  "file": "/home/rscott/Desktop/Flight_Controller/HIL_UNIT_TEST/Mock_task.c"
-},
-{
-  "directory": "/home/rscott/Desktop/Flight_Controller/Build",
-  "command": "arm-none-eabi-gcc -DSTM32H723xx -I/home/rscott/Desktop/Flight_Controller/headers -I/home/rscott/Desktop/Flight_Controller/STM32H7/CMSIS/Include -I/home/rscott/Desktop/Flight_Controller/STM32H7/CMSIS/Device/ST/STM32H7xx/Include -mcpu=cortex-m7 -mthumb -mfpu=fpv5-d16 -mfloat-abi=hard -Wall -Wextra -O2 -std=c11 -o CMakeFiles/scheduler_library.dir/scheduler/scheduler.c.o -c /home/rscott/Desktop/Flight_Controller/scheduler/scheduler.c",
-  "file": "/home/rscott/Desktop/Flight_Controller/scheduler/scheduler.c"
 },
 {
   "directory": "/home/rscott/Desktop/Flight_Controller/Build",

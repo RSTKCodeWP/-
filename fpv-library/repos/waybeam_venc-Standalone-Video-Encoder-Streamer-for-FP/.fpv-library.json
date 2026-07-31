@@ -1,8 +1,8 @@
 {
   "source": "OpenIPC/waybeam_venc",
-  "upstream_commit": "9c8d83c5db8e7e76aa063546d1d1970446b66d12",
-  "upstream_updated": "2026-07-24T05:59:44Z",
-  "synced_at": "2026-07-26T23:21:06+00:00",
+  "upstream_commit": "01654541c97e4b0728ff67669e4db1aceb63ad49",
+  "upstream_updated": "2026-07-30T15:11:07Z",
+  "synced_at": "2026-07-31T09:03:48+00:00",
   "discovered_via": "search:Fpv:p4",
   "score": 7.5
 }

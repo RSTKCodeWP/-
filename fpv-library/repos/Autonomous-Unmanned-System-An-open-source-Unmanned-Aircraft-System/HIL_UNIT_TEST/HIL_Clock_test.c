@@ -12,7 +12,7 @@ void UT_Cloct_Test(void)
 {
 
     /* configure prescale */ 
-    testclocks(MCO1_Prescaler_DIV_BY_1, MCO2_prescaler_DIV_BY_10);
+    testclocks(MCO1_Prescaler_DIV_BY_1,MCO1_PLL1_Q_CLK_OUT,MCO2_prescaler_DIV_BY_4,MCO2_PLL2_P_CLK_OUT);
     systemClockConfig_480Mhz();
     DebugLed();
     sysTickConfig_1KHz();

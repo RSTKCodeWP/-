@@ -20,6 +20,11 @@ pub const PORTABLE_PYTHON_DIR: &str = "/opt/ados/python";
 pub const CONFIG_DIR: &str = "/etc/ados";
 /// Mutable agent state (install-result, checkpoints, peripherals).
 pub const STATE_DIR: &str = "/var/lib/ados";
+
+/// The persisted access-point passphrase. Read by the closing summary so the
+/// operator learns a value that is now generated per unit rather than being
+/// one published default across every box.
+pub const AP_PASSPHRASE_PATH: &str = "/etc/ados/ap-passphrase";
 /// Per-step `<name>.done` markers so an interrupted install resumes.
 pub const CHECKPOINT_DIR: &str = "/var/lib/ados/install-checkpoints";
 /// The machine-readable install outcome the heartbeat + GCS consume.
@@ -212,17 +217,98 @@ pub fn is_supported_arch() -> bool {
     arch() == "aarch64"
 }
 
-/// Extract the profile name from a `profile.conf` body (pure). The file is the
-/// single `profile: <name>` line `config_identity::profile_conf_body` writes;
-/// tolerate a quoted value and surrounding whitespace. Returns `None` when the
-/// body carries no non-empty profile line.
+/// Write `contents` to `path` atomically AND durably: a temp sibling, written,
+/// flushed, `fsync`ed, then renamed over the destination.
+///
+/// The `fsync` is the load-bearing part, and the part the other ad-hoc copies of
+/// this helper in the tree omit. Without it the rename can reach the disk before
+/// the data blocks do, so a board losing power mid-write can still come back to
+/// a zero-length file behind a rename that looked like it succeeded. First-run
+/// install is precisely when a board is most likely to lose power — it is often
+/// the first time the operator has it powered at all — and a truncated
+/// `config.yaml` or `pairing.json` is not something a customer can recover from
+/// in the field.
+///
+/// `mode` is applied to the temp file BEFORE the rename, so the file is never
+/// briefly world-readable at its final path.
+pub fn write_atomic_durable(
+    path: &std::path::Path,
+    contents: &[u8],
+    mode: Option<u32>,
+) -> std::io::Result<()> {
+    use std::io::Write as _;
+
+    let parent = path.parent().unwrap_or_else(|| std::path::Path::new("."));
+    std::fs::create_dir_all(parent)?;
+    let file_name = path
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| "ados".to_string());
+    let tmp = parent.join(format!("{file_name}.{}.tmp", std::process::id()));
+
+    let write = (|| -> std::io::Result<()> {
+        let mut opts = std::fs::OpenOptions::new();
+        opts.write(true).create(true).truncate(true);
+        #[cfg(unix)]
+        if let Some(m) = mode {
+            use std::os::unix::fs::OpenOptionsExt as _;
+            opts.mode(m);
+        }
+        let mut f = opts.open(&tmp)?;
+        f.write_all(contents)?;
+        f.flush()?;
+        f.sync_all()?;
+        Ok(())
+    })();
+    if write.is_err() {
+        let _ = std::fs::remove_file(&tmp);
+        return write;
+    }
+
+    // Belt and braces: the open mode does not stick under every umask.
+    #[cfg(unix)]
+    if let Some(m) = mode {
+        use std::os::unix::fs::PermissionsExt as _;
+        let _ = std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(m));
+    }
+
+    if let Err(e) = std::fs::rename(&tmp, path) {
+        let _ = std::fs::remove_file(&tmp);
+        return Err(e);
+    }
+    Ok(())
+}
+
+/// Extract the profile name from a `profile.conf` body (pure).
+///
+/// Accepts BOTH the `profile: <name>` line `config_identity::profile_conf_body`
+/// writes and the legacy `profile=<name>` form the older bash installer wrote,
+/// because the runtime parser in `ados-control` accepts both and this one must
+/// not disagree with it. When it did, a device provisioned by the older
+/// installer read its profile correctly at runtime but returned `None` here, so
+/// an `--upgrade` invoked with no `--profile` fell through to the `drone`
+/// default and tore down that device's ground-station units — the failure this
+/// function exists to prevent, still reachable on every box installed before the
+/// Rust installer landed.
+///
+/// Comments and blank lines are skipped and either quote style is tolerated, so
+/// the two parsers agree on the whole file, not just the happy line.
 pub fn parse_profile_conf(body: &str) -> Option<String> {
     for line in body.lines() {
-        if let Some(rest) = line.trim().strip_prefix("profile:") {
-            let v = rest.trim().trim_matches('"');
-            if !v.is_empty() {
-                return Some(v.to_string());
-            }
+        let stripped = line.trim();
+        if stripped.is_empty() || stripped.starts_with('#') {
+            continue;
+        }
+        let raw = if let Some(rest) = stripped.strip_prefix("profile:") {
+            rest
+        } else if let Some(rest) = stripped.strip_prefix("profile=") {
+            rest
+        } else {
+            continue;
+        };
+        let v = raw.trim().trim_matches(|c| c == '"' || c == '\'');
+        if !v.is_empty() {
+            return Some(v.to_string());
         }
     }
     None
@@ -237,6 +323,55 @@ pub fn parse_profile_conf(body: &str) -> Option<String> {
 pub fn read_persisted_profile() -> Option<String> {
     let body = std::fs::read_to_string(PROFILE_CONF).ok()?;
     parse_profile_conf(&body)
+}
+
+/// Extract an arbitrary `key: value` / `key=value` line from a conf body,
+/// with the same tolerance [`parse_profile_conf`] applies.
+pub fn parse_conf_value(body: &str, key: &str) -> Option<String> {
+    let yaml = format!("{key}:");
+    let kv = format!("{key}=");
+    for line in body.lines() {
+        let stripped = line.trim();
+        if stripped.is_empty() || stripped.starts_with('#') {
+            continue;
+        }
+        let raw = if let Some(rest) = stripped.strip_prefix(&yaml) {
+            rest
+        } else if let Some(rest) = stripped.strip_prefix(&kv) {
+            rest
+        } else {
+            continue;
+        };
+        let v = raw.trim().trim_matches(|c| c == '"' || c == '\'');
+        if !v.is_empty() {
+            return Some(v.to_string());
+        }
+    }
+    None
+}
+
+/// Read the persisted release channel from `/etc/ados/profile.conf`.
+///
+/// The same preservation problem as the profile, with a sharper consequence. An
+/// upgrade invoked with no `--channel` used to fall back to the compiled-in
+/// `edge` default, so a device deliberately installed on `stable` silently
+/// defected to tip-of-main on its first update — and took its signature
+/// enforcement with it, since verification is channel-gated. Updating is one
+/// keystroke from the status screen, so that happened without anyone choosing
+/// it.
+///
+/// `None` on a fresh box or a conf with no channel line, in which case the
+/// caller keeps its own default.
+pub fn read_persisted_channel() -> Option<String> {
+    let body = std::fs::read_to_string(PROFILE_CONF).ok()?;
+    parse_conf_value(&body, "channel")
+}
+
+/// Read the persisted pinned version from `/etc/ados/profile.conf`. Only
+/// meaningful on the `stable` channel, which installs an explicit release.
+pub fn read_persisted_version() -> Option<String> {
+    let body = std::fs::read_to_string(PROFILE_CONF).ok()?;
+    parse_conf_value(&body, "version")
 }
 
 #[cfg(test)]
@@ -267,8 +402,105 @@ mod tests {
     }
 
     #[test]
+    fn write_atomic_durable_lands_content_mode_and_no_residue() {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static COUNTER: AtomicU64 = AtomicU64::new(0);
+        let dir = std::env::temp_dir().join(format!(
+            "ados-installer-env-{}-{}",
+            std::process::id(),
+            COUNTER.fetch_add(1, Ordering::Relaxed)
+        ));
+        let path = dir.join("nested").join("config.yaml");
+
+        write_atomic_durable(&path, b"first: value\n", Some(0o600)).unwrap();
+        assert_eq!(std::fs::read(&path).unwrap(), b"first: value\n");
+
+        // An overwrite is complete, not appended or partial.
+        write_atomic_durable(&path, b"second\n", Some(0o600)).unwrap();
+        assert_eq!(std::fs::read(&path).unwrap(), b"second\n");
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt as _;
+            let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+            assert_eq!(mode, 0o600, "a credential file must not be world-readable");
+        }
+
+        // No temp sibling is left behind for either write.
+        let leftovers: Vec<_> = std::fs::read_dir(path.parent().unwrap())
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_name().to_string_lossy().contains(".tmp"))
+            .collect();
+        assert!(leftovers.is_empty(), "temp files must not survive");
+    }
+
+    #[test]
+    fn a_persisted_channel_survives_an_upgrade_with_no_flag() {
+        // The install identity an upgrade must preserve. Losing the channel is
+        // what silently moved a stable device to tip-of-main and dropped its
+        // signature enforcement, which is channel-gated.
+        let body = "profile: ground_station\nchannel: stable\nversion: 1.2.3\n";
+        assert_eq!(parse_conf_value(body, "channel").as_deref(), Some("stable"));
+        assert_eq!(parse_conf_value(body, "version").as_deref(), Some("1.2.3"));
+        assert_eq!(
+            parse_conf_value(body, "profile").as_deref(),
+            Some("ground_station")
+        );
+
+        // An older conf carries no channel, so the caller keeps its default
+        // rather than inventing one.
+        assert_eq!(parse_conf_value("profile: drone\n", "channel"), None);
+
+        // Same tolerance as the profile line: legacy form, quotes, comments.
+        assert_eq!(
+            parse_conf_value("channel=stable\n", "channel").as_deref(),
+            Some("stable")
+        );
+        assert_eq!(
+            parse_conf_value("channel: \"edge\"\n", "channel").as_deref(),
+            Some("edge")
+        );
+        assert_eq!(parse_conf_value("# channel: stable\n", "channel"), None);
+
+        // A key must not match a longer key that starts with it.
+        assert_eq!(parse_conf_value("channel_extra: x\n", "channel"), None);
+    }
+
+    #[test]
+    fn parse_profile_conf_reads_the_legacy_key_value_form() {
+        // The older bash installer wrote `profile=X`. The runtime parser in
+        // `ados-control` accepts it; this one must too. When it did not, a
+        // ground station provisioned by that installer read `None` here, so an
+        // upgrade with no explicit profile fell through to the drone default
+        // and tore its own units down.
+        assert_eq!(
+            parse_profile_conf("profile=ground_station\n").as_deref(),
+            Some("ground_station")
+        );
+        assert_eq!(
+            parse_profile_conf("profile='ground-station'\n").as_deref(),
+            Some("ground-station"),
+            "the legacy form also appeared single-quoted"
+        );
+        assert_eq!(
+            parse_profile_conf("  profile=  workstation  \n").as_deref(),
+            Some("workstation")
+        );
+        // A commented-out line is not a value, in either form.
+        assert_eq!(parse_profile_conf("# profile=drone\n"), None);
+        assert_eq!(parse_profile_conf("# profile: drone\n"), None);
+        // A real value below a comment is still found.
+        assert_eq!(
+            parse_profile_conf("# written by the installer\nprofile=compute\n").as_deref(),
+            Some("compute")
+        );
+    }
+
+    #[test]
     fn parse_profile_conf_none_when_absent_or_empty() {
         assert_eq!(parse_profile_conf(""), None);
+        assert_eq!(parse_profile_conf("profile=\n"), None);
         assert_eq!(parse_profile_conf("profile:\n"), None);
         assert_eq!(parse_profile_conf("profile: \"\"\n"), None);
         assert_eq!(parse_profile_conf("other: value\n"), None);

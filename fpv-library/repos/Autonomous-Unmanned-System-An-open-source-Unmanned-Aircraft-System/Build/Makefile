@@ -182,6 +182,19 @@ FlightController_FW.elf/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/FlightController_FW.elf.dir/build.make CMakeFiles/FlightController_FW.elf.dir/build
 .PHONY : FlightController_FW.elf/fast
 
+#=============================================================================
+# Target rules for targets named flash
+
+# Build rule for target.
+flash: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 flash
+.PHONY : flash
+
+# fast build rule for target.
+flash/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/flash.dir/build.make CMakeFiles/flash.dir/build
+.PHONY : flash/fast
+
 Clocks/Clocks.o: Clocks/Clocks.c.o
 .PHONY : Clocks/Clocks.o
 
@@ -414,6 +427,7 @@ help:
 	@echo "... depend"
 	@echo "... edit_cache"
 	@echo "... rebuild_cache"
+	@echo "... flash"
 	@echo "... FlightController_FW.elf"
 	@echo "... UNITTEST_library"
 	@echo "... clock_library"

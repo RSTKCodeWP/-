@@ -19,6 +19,11 @@ public:
     SendPacketException(const std::string &msg) : runtime_error(msg.c_str()) {}
 };
 
+struct SdpReadState {
+    const uint8_t *ptr;
+    size_t sizeLeft;
+};
+
 class FfmpegDecoder {
     friend class VideoPlayerFfmpeg;
 
@@ -58,7 +63,7 @@ public:
         return hasVideoStream;
     }
 
-    int ReadAudioBuff(uint8_t *aSample, size_t aSize);
+    bool ReadAudioBuff(uint8_t *aSample, size_t aSize);
 
     void ClearAudioBuff();
 
@@ -81,8 +86,17 @@ public:
         return pVideoCodecCtx->pix_fmt;
     }
 
+    // 每帧音频样本数估算:按 25fps 视频每帧时长预分配,*2 为安全余量
     int GetAudioFrameSamples() const {
         return pAudioCodecCtx->sample_rate * 2 / 25;
+    }
+
+    void ResetHeaderState() {
+        hasSps = false;
+        hasPps = false;
+        isWaitingForKeyframe = true;
+        width = 0;
+        height = 0;
     }
 
 private:
@@ -121,12 +135,16 @@ private:
 
     // ffmpeg 音频样本格式转换
     std::shared_ptr<SwrContext> swrCtx;
+    AVSampleFormat lastAudioFrameFormat = AV_SAMPLE_FMT_NONE;
+
+    // 音频解码中间缓冲区(复用,避免每包重新分配)
+    std::vector<uint8_t> audioDecodeBuffer;
 
     int videoStreamIndex = -1;
 
     int audioStreamIndex = -1;
 
-    volatile bool sourceIsOpened = false;
+    std::atomic<bool> sourceIsOpened = false;
 
     float videoFramerate = 0;
 
@@ -135,6 +153,7 @@ private:
     double audioBaseTime = 0;
 
     std::mutex _releaseLock;
+    std::mutex _readMtx;
 
     bool hasVideoStream{};
 
@@ -145,8 +164,8 @@ private:
     int height{};
 
     std::atomic<uint64_t> bytesSecond = 0;
-    uint64_t bitrate = 0;
-    uint64_t lastCountBitrateTime = 0;
+    std::atomic<uint64_t> bitrate = 0;
+    std::chrono::steady_clock::time_point lastCountBitrateTime;
     std::function<void(uint64_t bitrate)> bitrateUpdateCallback;
 
     // Audio buffer
@@ -160,6 +179,24 @@ private:
     bool forceSwDecoder = false;
     AVPixelFormat hwPixFmt;
     AVBufferRef *hwDeviceCtx = nullptr;
-    volatile bool dropCurrentVideoFrame = false;
+    std::atomic<bool> dropCurrentVideoFrame = false;
     std::shared_ptr<AVFrame> hwFrame;
+
+    // Custom I/O for in-memory SDP
+    AVIOContext *pAvioCtx = nullptr;
+    std::vector<uint8_t> sdpBuffer;
+    SdpReadState sdpReadState{};
+
+    // NALU State machine for stability
+    bool hasSps = false;
+    bool hasPps = false;
+    bool isWaitingForKeyframe = true;
+
+    std::atomic<bool> abortRequest = false;
+
+    /**
+     * @brief Parse NAL units in the packet to detect SPS/PPS/IDR
+     * @return true if the packet should be fed to the decoder, false if it should be dropped.
+     */
+    bool parseNalUnits(const AVPacket *pkt);
 };

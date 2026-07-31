@@ -12,7 +12,6 @@ CMakeFiles/scheduler_library.dir/scheduler/scheduler.c.o: ../scheduler/scheduler
   ../STM32H7/CMSIS/Include/mpu_armv7.h \
   ../STM32H7/CMSIS/Include/cachel1_armv7.h \
   ../headers/system_stm32h7xx.h \
-  ../headers/stm32h723xx.h \
   ../headers/scheduler.h \
   /usr/lib/gcc/arm-none-eabi/10.3.1/include/stdbool.h \
   ../headers/Clocks.h \

@@ -12,10 +12,13 @@ int main() {
     GuiInterface::Instance().init();
     GuiInterface::Instance().PutLog(LogLevel::Info, "App started");
 
-    auto app = std::make_shared<vecgui::App>(vecgui::Vec2I{1280, 720},
-                                               GuiInterface::Instance().dark_mode_,
-                                               GuiInterface::Instance().use_vulkan_);
+    auto app = std::make_shared<vecgui::App>(vecgui::Vec2I{1280, 720}, GuiInterface::Instance().use_vulkan_);
     app->set_window_title("Aviateur - OpenIPC FPV Ground Station");
+
+    const auto theme =
+        GuiInterface::Instance().dark_mode_ ? vecgui::Theme::default_dark() : vecgui::Theme::default_light();
+    theme->load_font("zcool_canger_yuyang.ttf");
+    vecgui::DefaultResource::get_singleton()->set_default_theme(theme);
 
     vecgui::TranslationServer::get_singleton()->load_translations(vecgui::get_asset_dir("translations.csv"));
 
@@ -44,7 +47,6 @@ int main() {
         auto on_wifi_stopped = [control_panel_weak, player_rect_weak] {
             if (!control_panel_weak.expired() && !player_rect_weak.expired()) {
                 player_rect_weak.lock()->stop_playing();
-                player_rect_weak.lock()->show_red_tip(FTR("wi-fi stopped msg"));
                 control_panel_weak.lock()->update_adapter_start_button_looking(true);
             }
         };
