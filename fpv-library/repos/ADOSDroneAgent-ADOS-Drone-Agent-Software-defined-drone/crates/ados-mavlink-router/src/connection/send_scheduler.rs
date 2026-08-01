@@ -57,6 +57,24 @@ const STREAM_GROUPS: &[(u8, u16)] = &[
 const PARAM_RATE_LIMIT: Duration = Duration::from_secs(10);
 const PARAM_DEADLINE: Duration = Duration::from_secs(30);
 
+/// Where a client's bytes came from, as far as the socket that accepted them
+/// could tell.
+///
+/// Only two answers are possible on a raw MAVLink socket, because there is no
+/// header to carry a credential and no handshake to hang one on: either the
+/// peer address cleared the posture check, or it did not. This is not a
+/// permission — it is provenance, recorded so the one path that amplifies a
+/// client's reach can say when it is amplifying an anonymous one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ClientOrigin {
+    /// The peer cleared the posture check, or arrived on a trusted local
+    /// transport (an on-box IPC socket, which is not reachable off the node).
+    Trusted,
+    /// The peer did not clear the posture check. Admitted today, because these
+    /// ports are advertised for third-party ground stations, but recorded.
+    Unauthenticated,
+}
+
 impl FcConnection {
     pub(super) fn next_seq(&self) -> u8 {
         self.seq.fetch_add(1, Ordering::Relaxed)
@@ -155,18 +173,37 @@ impl FcConnection {
     /// open. Authority is settled at the relay's authentication boundary
     /// instead, which is the only place that can actually decide it.
     ///
+    /// **That rationale holds for the HTTP lane and did not hold here.** The
+    /// raw MAVLink sockets had no authentication boundary at all: they accepted
+    /// the peer address and discarded it. So on a node with no local flight
+    /// controller, bytes from an unauthenticated caller took the fallback below
+    /// and were radiated to a *remote, possibly airborne* aircraft — a longer
+    /// reach than the local case, since it needs no proximity to the vehicle.
+    ///
+    /// `caller` now carries the classification the socket made, so the fallback
+    /// can tell an authorised relay client from an anonymous one. It is
+    /// reported rather than refused for the same reason the socket gates are
+    /// observation-only: this port is advertised as the path for a third-party
+    /// ground station, and a ground station relaying a linked drone is exactly
+    /// the shape that takes this fallback.
+    ///
     /// Deliberately distinct from `send_bytes`, which this router's own
     /// heartbeat/stream-interval/param-sweep housekeeping also calls: those
     /// exist to talk to a directly-attached FC and must stay a silent no-op
     /// with none installed, not start radiating this router's own internal
     /// traffic onto a client's uplink.
-    pub async fn send_client_bytes(&self, data: &[u8]) {
+    pub async fn send_client_bytes(&self, data: &[u8], caller: ClientOrigin) {
         let has_writer = { self.writer.lock().await.is_some() };
         if has_writer {
             self.send_bytes(data).await;
             return;
         }
         if let Some(uplink) = self.aux_uplink.lock().await.as_ref() {
+            if caller == ClientOrigin::Unauthenticated {
+                // The amplifying case: no local vehicle, so these bytes leave
+                // over the radio to one that may be flying.
+                tracing::warn!(len = data.len(), "relay_uplink_from_unauthenticated_client");
+            }
             uplink.send(data);
         }
     }
@@ -657,13 +694,48 @@ mod tests {
     /// so it filtered one door and left the other open. Authority now belongs
     /// to the relay's authentication boundary.
     #[tokio::test]
+    async fn an_anonymous_client_still_reaches_the_uplink_but_is_recorded() {
+        // The amplifying case. With no local vehicle these bytes leave over the
+        // radio to one that may be flying, so the reach is longer than the
+        // local-controller case: it needs no proximity to the aircraft.
+        //
+        // Still delivered, deliberately. A ground station relaying a linked
+        // drone is exactly the shape that takes this fallback, and these ports
+        // are advertised for third-party ground stations, so refusing here
+        // would break the workflow at the operator rather than at install. The
+        // provenance is what changes.
+        let conn = test_connection();
+        let (sender, listener) = test_uplink().await;
+        conn.set_aux_uplink(sender).await;
+
+        let frame = command_long_bytes();
+        conn.send_client_bytes(&frame, ClientOrigin::Unauthenticated)
+            .await;
+
+        let mut buf = [0u8; 256];
+        let (n, _) = tokio::time::timeout(Duration::from_millis(300), listener.recv_from(&mut buf))
+            .await
+            .expect("an anonymous client's frame still reaches the uplink today")
+            .unwrap();
+        let (_, payload) = ados_protocol::aux_mux::decode(&buf[..n]).unwrap();
+        assert_eq!(payload, frame, "the exact bytes still cross");
+    }
+
+    #[test]
+    fn the_two_origins_are_distinguishable() {
+        // If these ever compare equal the recording is silently useless, which
+        // is worse than not recording at all.
+        assert_ne!(ClientOrigin::Trusted, ClientOrigin::Unauthenticated);
+    }
+
+    #[tokio::test]
     async fn a_command_frame_reaches_the_uplink() {
         let conn = test_connection();
         let (sender, listener) = test_uplink().await;
         conn.set_aux_uplink(sender).await;
 
         let frame = command_long_bytes();
-        conn.send_client_bytes(&frame).await;
+        conn.send_client_bytes(&frame, ClientOrigin::Trusted).await;
 
         let mut buf = [0u8; 256];
         let (n, _) = tokio::time::timeout(Duration::from_millis(300), listener.recv_from(&mut buf))
@@ -681,7 +753,7 @@ mod tests {
         conn.set_aux_uplink(sender).await;
 
         let frame = param_request_list_bytes();
-        conn.send_client_bytes(&frame).await;
+        conn.send_client_bytes(&frame, ClientOrigin::Trusted).await;
 
         let mut buf = [0u8; 256];
         let (n, _) = tokio::time::timeout(Duration::from_millis(300), listener.recv_from(&mut buf))
@@ -704,7 +776,8 @@ mod tests {
         let mut concatenated = param_request_list_bytes();
         concatenated.extend_from_slice(&command_long_bytes());
 
-        conn.send_client_bytes(&concatenated).await;
+        conn.send_client_bytes(&concatenated, ClientOrigin::Trusted)
+            .await;
 
         let mut buf = [0u8; 256];
         let (n, _) = tokio::time::timeout(Duration::from_millis(300), listener.recv_from(&mut buf))

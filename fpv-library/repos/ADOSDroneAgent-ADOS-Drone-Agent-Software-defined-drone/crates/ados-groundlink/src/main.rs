@@ -418,6 +418,7 @@ async fn run_direct(
         let aux_shutdown = aux_shutdown.clone();
         move |slot: u8| -> tokio::task::JoinHandle<()> {
             tokio::spawn(ados_groundlink::supervise_aux_consumer(
+                slot,
                 wfb_rx::aux_rx_port(slot),
                 mavlink_ingest.clone(),
                 aux_counters.clone(),
@@ -798,11 +799,14 @@ async fn receive_loop(
         // values instead of hardcoded zeros.
         let rx_health = wfb_rx::SharedRxHealth::new();
 
-        // Fan-out as a sub-service (the primary slot's video egress → 5600
-        // mediamtx + 5605 LCD), aborted with the generation. The shared counters
-        // are read by the stats reader so the wfb-stats sidecar surfaces the
-        // forwarded/drop totals (the fan-out hop, otherwise blind to the
-        // cross-process diagnostics).
+        // Fan-out as a sub-service (the HERO slot's video egress → 5600 mediamtx
+        // + 5605 LCD), aborted with the generation. It follows the operator's
+        // hero selection, published as a sidecar by the hero route, and re-points
+        // itself when that changes; the primary slot is what it serves when no
+        // live selection exists, which is the boot state and the permanent state
+        // of a single-drone fleet. The shared counters are read by the stats
+        // reader so the wfb-stats sidecar surfaces the forwarded/drop totals (the
+        // fan-out hop, otherwise blind to the cross-process diagnostics).
         let fanout_counters = fanout::FanoutCounters::new();
         let fanout_task = tokio::spawn(fanout::run_default_fanout(
             primary_slot,
@@ -867,7 +871,11 @@ async fn receive_loop(
         let feedback_task = {
             let link = link.clone();
             let port = config.aux_tx_port;
-            tokio::spawn(ados_groundlink::link_feedback::run(link, port))
+            tokio::spawn(ados_groundlink::link_feedback::run(
+                link,
+                port,
+                primary_slot,
+            ))
         };
 
         // Stats reader: feeds the counter + LinkStats + the sidecar. Carries the

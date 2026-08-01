@@ -1,8 +1,8 @@
 {
   "source": "asv-soft/asv-drones",
-  "upstream_commit": "c4b04cabd6f3dee5bd9f89fdd59338506eee9b63",
-  "upstream_updated": "2026-07-27T21:29:58Z",
-  "synced_at": "2026-07-28T08:50:35+00:00",
+  "upstream_commit": "a641d4f8ea922583e753e1f1fafe48d73ef2539b",
+  "upstream_updated": "2026-07-31T14:13:15Z",
+  "synced_at": "2026-08-01T08:26:01+00:00",
   "discovered_via": "search:drone ground station:p1",
   "score": 7.5
 }

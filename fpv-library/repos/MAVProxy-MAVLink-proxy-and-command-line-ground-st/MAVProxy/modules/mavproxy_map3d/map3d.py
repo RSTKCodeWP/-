@@ -3,10 +3,35 @@ Parent-side handle for the 3D map. Spawns the VTK/wx viewer in a child process
 (mirrors mp_slipmap) and pushes element/camera updates over a queue.
 '''
 
+import importlib.util
 import time
 import queue
+import traceback
 
 from MAVProxy.modules.lib import multiproc
+
+PACKAGES = ('vtk', 'quantized_mesh_tile')
+
+
+def missing_packages():
+    '''optional 3D map packages that are not installed. The viewer imports them
+    in a child process, where an ImportError would go unseen, so callers check
+    before starting a viewer. find_spec avoids importing VTK into the parent.'''
+    missing = []
+    for name in PACKAGES:
+        try:
+            if importlib.util.find_spec(name) is None:
+                missing.append(name)
+        except Exception:
+            missing.append(name)
+    return missing
+
+
+def missing_packages_message(missing):
+    # install via the extra, not 'pip install vtk quantized-mesh-tile': the
+    # latter pulls numpy>=2 without the opencv/matplotlib builds to match
+    return ("map3d needs extra packages: pip install 'MAVProxy[map3d]' "
+            "(missing %s)" % ', '.join(missing))
 
 
 class Map3D:
@@ -38,14 +63,22 @@ class Map3D:
     def child_task(self):
         from MAVProxy.modules.lib import mp_util
         mp_util.child_close_fds()
-        from MAVProxy.modules.lib import wx_processguard  # noqa: F401
-        from MAVProxy.modules.lib.wx_loader import wx
-        from MAVProxy.modules.mavproxy_map3d.map3d_ui import Map3DFrame
+        try:
+            from MAVProxy.modules.lib import wx_processguard  # noqa: F401
+            from MAVProxy.modules.lib.wx_loader import wx
+            from MAVProxy.modules.mavproxy_map3d.map3d_ui import Map3DFrame
 
-        app = wx.App(False)
-        app.SetExitOnFrameDelete(True)
-        frame = Map3DFrame(self)
-        frame.Show()
+            app = wx.App(False)
+            app.SetExitOnFrameDelete(True)
+            frame = Map3DFrame(self)
+            frame.Show()
+        except (Exception, SystemExit):
+            # our stderr goes nowhere when MAVProxy is started from a GUI, so
+            # hand the failure to the parent rather than dying unexplained.
+            # wx exits rather than raising when it cannot open the display,
+            # hence SystemExit
+            self.event_queue.put(('startup_error', traceback.format_exc()))
+            return
         self.app_ready.set()
         app.MainLoop()
 

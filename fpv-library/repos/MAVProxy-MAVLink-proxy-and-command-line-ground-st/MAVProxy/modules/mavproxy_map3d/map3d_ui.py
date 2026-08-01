@@ -9,7 +9,7 @@ import queue
 import time
 
 from MAVProxy.modules.lib.wx_loader import wx
-from vtk.wx.wxVTKRenderWindowInteractor import wxVTKRenderWindowInteractor
+from vtkmodules.wx.wxVTKRenderWindowInteractor import wxVTKRenderWindowInteractor
 
 from MAVProxy.modules.mavproxy_map import mp_tile
 from MAVProxy.modules.mavproxy_map3d.camera import TerrainCamera, TerrainStyle
@@ -135,6 +135,9 @@ class Map3DFrame(wx.Frame):
         sizer.Add(controls, 0, wx.EXPAND)
         sizer.Add(self.widget, 1, wx.EXPAND)
         self.SetSizer(sizer)
+        # without this the children keep their default position and the VTK
+        # canvas sits over the controls. Only MSW lays out on its own.
+        self.Layout()
 
         self.timer = wx.Timer(self)
         self.Bind(wx.EVT_TIMER, self.on_timer, self.timer)
@@ -170,6 +173,7 @@ class Map3DFrame(wx.Frame):
                                    self.tc.yaw, self.tc.pitch,
                                    camera.GetViewAngle())
             self.style.interaction_enabled = False
+            self.style.cancel_drag()
             self.elements.set_vehicle_visible(False)
             camera.SetViewAngle(self.fpv_fov)
         self.terrain.update(self.tc)
@@ -236,6 +240,7 @@ class Map3DFrame(wx.Frame):
                                    self.tc.yaw, self.tc.pitch,
                                    camera.GetViewAngle())
             self.style.interaction_enabled = False
+            self.style.cancel_drag()
             camera.SetViewAngle(self.fpv_fov)
             self.update_fpv_camera()
         else:

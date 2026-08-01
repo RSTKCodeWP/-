@@ -26,7 +26,6 @@ import os
 import pathlib
 import string
 import time
-import cv2
 import numpy as np
 
 from math import log, tan, radians, degrees, sin, cos, exp, pi, asin, atan
@@ -43,6 +42,8 @@ else:
     url_error = (RemoteDisconnected, actual_url_error)
 
 from MAVProxy.modules.lib import mp_util
+
+cv2 = mp_util.import_cv2()
 
 
 class TileException(Exception):
@@ -218,6 +219,17 @@ class TileInfoScaled(TileInfo):
         (self.dstx, self.dsty) = dst
 
 
+def default_cache_path():
+    '''default root of the on-disk tile cache. HOME is not set on native
+    Windows, where the cwd may well be unwritable (eg. Program Files)'''
+    if 'HOME' in os.environ:
+        return os.path.join(os.environ['HOME'], '.tilecache')
+    if 'LOCALAPPDATA' in os.environ:
+        return os.path.join(os.environ['LOCALAPPDATA'], '.tilecache')
+    import tempfile
+    return os.path.join(tempfile.gettempdir(), '.tilecache')
+
+
 class MPTile:
     '''map tile object'''
     def __init__(self, cache_path=None, download=True, cache_size=500,
@@ -225,14 +237,7 @@ class MPTile:
                  max_zoom=19, refresh_age=30*24*60*60):
 
         if cache_path is None:
-            try:
-                cache_path = os.path.join(os.environ['HOME'], '.tilecache')
-            except Exception:
-                if 'LOCALAPPDATA' in os.environ:
-                    cache_path = os.path.join(os.environ['LOCALAPPDATA'], '.tilecache')
-                else:
-                    import tempfile
-                    cache_path = os.path.join(tempfile.gettempdir(), '.tilecache')
+            cache_path = default_cache_path()
 
         if not os.path.exists(cache_path):
             mp_util.mkdir_p(cache_path)
@@ -696,7 +701,7 @@ def mp_icon(filename):
         with importlib.resources.open_binary(package, filename) as stream:
             raw = np.frombuffer(stream.read(), dtype=np.uint8)
     except Exception:
-        with open(os.path.join(os.path.dirname(__file__), 'data', filename)).read() as stream:
+        with open(os.path.join(os.path.dirname(__file__), 'data', filename), 'rb') as stream:
             raw = np.frombuffer(stream.read(), dtype=np.uint8)
     img = cv2.imdecode(raw, cv2.IMREAD_COLOR)
     return img

@@ -1,8 +1,8 @@
 {
   "source": "asv-soft/asv-mavlink",
-  "upstream_commit": "388a10777ba3cbae36d56cf53680770c44f98c99",
-  "upstream_updated": "2026-07-21T09:54:47Z",
-  "synced_at": "2026-07-26T23:36:22+00:00",
+  "upstream_commit": "1d35bb10e004fb64b28f5fbef43f9d9454b31ca7",
+  "upstream_updated": "2026-07-31T14:11:27Z",
+  "synced_at": "2026-08-01T08:26:47+00:00",
   "discovered_via": "owner:asv-soft",
   "score": 6.2
 }

@@ -84,13 +84,6 @@ fn is_ground_station() -> bool {
 // Path seams.
 // ---------------------------------------------------------------------------
 
-/// The agent config path (`ADOS_CONFIG`, default `/etc/ados/config.yaml`).
-fn config_yaml_path() -> std::path::PathBuf {
-    std::path::PathBuf::from(
-        std::env::var("ADOS_CONFIG").unwrap_or_else(|_| crate::config::CONFIG_YAML.to_string()),
-    )
-}
-
 /// The GS rx-side key file (`<wfb key dir>/rx.key`), honouring `ADOS_WFB_KEY_DIR`
 /// (the same override the pair-state writer uses) for tests, else the canonical
 /// `/etc/ados/wfb` dir.
@@ -107,20 +100,15 @@ fn rx_key_path() -> std::path::PathBuf {
 
 /// The ground station's pair status.
 ///
-/// `paired` + `peer` are the legacy single-peer view (the rx.key exists, is
-/// exactly 64 bytes, and yields a readable fingerprint; the peer comes from the
-/// persisted config). `slots` is the fleet truth: the whole registry, which is
-/// what a 24-drone fleet actually is. The single-peer keys are kept because the
-/// heartbeat and the GCS pairing card still read them, but they describe only
-/// the most recently persisted peer, not the fleet.
+/// Whether a fleet key is installed: the rx.key exists, is exactly 64 bytes,
+/// and yields a readable fingerprint. The fleet's composition is the registry,
+/// read where it is actually returned rather than carried here.
 struct GsPairStatus {
     paired: bool,
-    peer: Option<String>,
-    slots: Vec<Value>,
 }
 
 /// Read the GS pair status. Mirrors the bits of `PairManager.status("gs")` the
-/// FastAPI route consulted, plus the fleet slot table. A status read fault is
+/// FastAPI route consulted. A status read fault is
 /// treated as not-paired (the FastAPI route's
 /// `except Exception: current = {"paired": False}`); an unreadable registry is
 /// an empty slot table, never a failure.
@@ -134,21 +122,22 @@ fn gs_pair_status() -> GsPairStatus {
         // matching the Python `except (OSError, ValueError): paired = False`.
         paired = false;
     }
-    GsPairStatus {
-        paired,
-        peer: read_persisted_peer(&config_yaml_path()),
-        slots: slot_table(&load_registry()),
-    }
+    GsPairStatus { paired }
 }
 
 /// Load the fleet registry from its canonical path. A missing or unparseable
 /// file is an empty fleet — `FleetRegistry::load` already has that contract.
-fn load_registry() -> FleetRegistry {
+pub(crate) fn load_registry() -> FleetRegistry {
     FleetRegistry::load(std::path::Path::new(FLEET_REGISTRY_PATH))
 }
 
-/// Render the registry as the `slots` array the route returns, in slot order.
-fn slot_table(registry: &FleetRegistry) -> Vec<Value> {
+/// Render the registry as the `slots` array, in slot order.
+///
+/// The ONE place the roster is rendered, deliberately. It is served by both the
+/// pair write and the pair read, and it picks its fields explicitly so a
+/// `FleetSlot` growing a field — the per-pair relay secret already did — cannot
+/// leak onto the wire through either of them. A test pins that.
+pub(crate) fn slot_table(registry: &FleetRegistry) -> Vec<Value> {
     registry
         .slots()
         .map(|s| {
@@ -177,44 +166,71 @@ fn read_public_fingerprint(path: &std::path::Path) -> Option<String> {
     Some(hex::encode(out))
 }
 
-/// Read the persisted peer device-id from `video.wfb.paired_with_device_id`,
-/// falling back to `ground_station.paired_drone_id` (the GS legacy mirror), the
-/// same precedence `PairManager.status("gs")` uses for the `paired_with_device_id`
-/// the already-paired 409 echoes.
-fn read_persisted_peer(config_path: &std::path::Path) -> Option<String> {
-    let text = std::fs::read_to_string(config_path).ok()?;
-    let doc: serde_norway::Value = serde_norway::from_str(&text).ok()?;
-    let canon = doc
-        .get("video")
-        .and_then(|v| v.get("wfb"))
-        .and_then(|w| w.get("paired_with_device_id"))
-        .and_then(|v| v.as_str())
-        .filter(|p| !p.is_empty());
-    if let Some(p) = canon {
-        return Some(p.to_string());
-    }
-    doc.get("ground_station")
-        .and_then(|g| g.get("paired_drone_id"))
-        .and_then(|v| v.as_str())
-        .filter(|p| !p.is_empty())
-        .map(str::to_string)
-}
-
 // ---------------------------------------------------------------------------
 // POST /api/v1/ground-station/wfb/pair — install the GS rx-side key.
 // ---------------------------------------------------------------------------
 
 /// The `POST .../wfb/pair` body. Mirrors the FastAPI `PairRequest`: a base64
-/// `blob_b64` (the 64-byte wfb-ng key), an optional `drone_device_id`, and the
-/// legacy `pair_key` kept only so an old client gets a clear 400 instead of a 422.
+/// `blob_b64` (the 64-byte wfb-ng key), an optional `drone_device_id`, an
+/// optional `shared_key_b64`, and the legacy `pair_key` kept only so an old
+/// client gets a clear 400 instead of a 422.
 #[derive(Debug, Default, Deserialize)]
 pub struct PairRequest {
     #[serde(default)]
     pub blob_b64: Option<String>,
     #[serde(default)]
     pub drone_device_id: Option<String>,
+    /// The OTHER half of the generated pair, base64-encoded.
+    ///
+    /// `wfb_keygen` produces two files and the radio bind distributes the
+    /// drone's half to both ends, so after a bind both rigs hold it
+    /// byte-identically. That shared copy is what the presence beacon's HMAC
+    /// key is derived from, and deriving it from anything else was tried once
+    /// and silently dropped every beacon, which is why the resolver carries a
+    /// standing warning against it.
+    ///
+    /// This route only ever received the ground station's own half, so a fleet
+    /// paired through the API had no shared copy at all: the hop supervisor
+    /// found no key, could not parse a beacon, and the ground never began
+    /// receiving. Supplying this closes that. Absent, the route behaves exactly
+    /// as before -- the radio bind remains the path that distributes it.
+    #[serde(default)]
+    pub shared_key_b64: Option<String>,
     #[serde(default)]
     pub pair_key: Option<String>,
+}
+
+/// Where the shared half lives, and the only file the beacon HMAC is derived
+/// from.
+const SHARED_KEY_PATH: &str = "/etc/drone.key";
+
+/// Persist the shared half so the presence beacon can be parsed.
+///
+/// Written only when the caller supplies it and only when it is exactly the
+/// expected size, because a short or truncated key would derive a wrong HMAC
+/// and reproduce the silent beacon-drop this exists to prevent -- and a wrong
+/// key is harder to notice than a missing one, since the resolver at least
+/// warns about missing.
+///
+/// A write failure is reported and not fatal: the pair itself has succeeded by
+/// this point, and refusing it would leave the caller with no radio at all
+/// rather than a radio whose hop supervisor is degraded.
+fn install_shared_key(b64: &str) -> Result<(), String> {
+    use base64::Engine as _;
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(b64.as_bytes())
+        .map_err(|e| format!("shared key is not valid base64: {e}"))?;
+    if bytes.len() as u64 != WFB_KEY_FILE_BYTES {
+        return Err(format!(
+            "shared key is {} bytes, expected {WFB_KEY_FILE_BYTES}",
+            bytes.len()
+        ));
+    }
+    let path = std::path::Path::new(SHARED_KEY_PATH);
+    let tmp = path.with_extension("key.tmp");
+    std::fs::write(&tmp, &bytes).map_err(|e| e.to_string())?;
+    std::fs::rename(&tmp, path).map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 /// `POST .../wfb/pair` →
@@ -313,13 +329,18 @@ pub async fn post_wfb_pair(
         .flatten();
     let mut body = match installed {
         Some(existing) if existing != blob => {
+            // A caller presenting a DIFFERENT key has just proved it does not
+            // belong to this fleet, so it learns only that the key does not
+            // match. This used to answer with the peer device id and the whole
+            // slot table — every member's device id, slot and pairing time —
+            // handing the fleet's roster to the one caller shown not to hold
+            // its key. The successful path still returns the table, because a
+            // caller with the right key is in the fleet already.
             return nested_detail(
                 StatusCode::CONFLICT,
                 json!({
                     "code": "E_FLEET_KEY_MISMATCH",
                     "message": "this ground station already holds a different fleet key; unpair before pairing a different fleet",
-                    "paired_with_device_id": status.peer,
-                    "slots": status.slots,
                 }),
             );
         }
@@ -348,6 +369,16 @@ pub async fn post_wfb_pair(
 
     // Issue the slot. Idempotent by device id, so a re-pair returns the slot the
     // drone already holds and never renumbers one that may be airborne.
+    // Persist the shared half before the slot is issued, so a caller that
+    // supplies it gets a ground station whose hop supervisor can actually parse
+    // a beacon rather than one that pairs and then stays deaf.
+    if let Some(shared) = req.shared_key_b64.as_deref() {
+        match install_shared_key(shared) {
+            Ok(()) => tracing::info!("wfb_shared_key_installed"),
+            Err(e) => tracing::warn!(error = %e, "wfb_shared_key_install_failed"),
+        }
+    }
+
     let mut registry = load_registry();
     let Some(slot) = registry.allocate(&device_id) else {
         return nested_detail(
@@ -604,22 +635,56 @@ mod tests {
     }
 
     #[test]
-    fn read_persisted_peer_prefers_canonical_then_mirror() {
-        let dir = tempfile::tempdir().unwrap();
-        let cfg = dir.path().join("config.yaml");
-        // Canonical wins.
-        std::fs::write(
-            &cfg,
-            "video:\n  wfb:\n    paired_with_device_id: drone-canon\nground_station:\n  paired_drone_id: drone-mirror\n",
-        )
-        .unwrap();
-        assert_eq!(read_persisted_peer(&cfg).as_deref(), Some("drone-canon"));
-        // Mirror fallback when canonical absent.
-        std::fs::write(&cfg, "ground_station:\n  paired_drone_id: drone-mirror\n").unwrap();
-        assert_eq!(read_persisted_peer(&cfg).as_deref(), Some("drone-mirror"));
-        // Neither → None.
-        std::fs::write(&cfg, "agent:\n  name: x\n").unwrap();
-        assert_eq!(read_persisted_peer(&cfg), None);
+    fn the_slot_table_never_carries_a_relay_secret() {
+        // The roster IS returned to a caller holding the fleet key. The
+        // per-pair relay secret must not ride along: it is the one thing that
+        // distinguishes a drone's own ground station from anything else that
+        // can reach the air, and handing it to every fleet member would undo
+        // exactly what it is for. `slot_table` picks fields explicitly today —
+        // this fails if anyone replaces it with a whole-struct serialization.
+        let mut registry = FleetRegistry::default();
+        registry.allocate("aaaa");
+        let rendered = serde_json::to_string(&slot_table(&registry)).unwrap();
+
+        let secret = registry
+            .slots()
+            .next()
+            .unwrap()
+            .relay_secret
+            .clone()
+            .expect("allocation issues a secret");
+        assert!(!secret.is_empty());
+        assert!(
+            !rendered.contains(&secret),
+            "the relay secret leaked into the slot table: {rendered}"
+        );
+        assert!(!rendered.contains("relay_secret"));
+        // The fields it SHOULD carry are still there.
+        assert!(rendered.contains("device_id") && rendered.contains("slot"));
+    }
+
+    #[test]
+    fn a_foreign_key_is_refused_without_naming_the_fleet() {
+        // A caller presenting a DIFFERENT key has just proved it is not part of
+        // this fleet. It used to be answered with the peer device id and the
+        // whole slot table — every member's device id, slot and pairing time —
+        // so the one caller shown not to hold the key learned the roster.
+        let body = json!({
+            "code": "E_FLEET_KEY_MISMATCH",
+            "message": "this ground station already holds a different fleet key; unpair before pairing a different fleet",
+        });
+        let obj = body.as_object().unwrap();
+        assert!(
+            !obj.contains_key("slots"),
+            "the fleet roster must not ride a refusal"
+        );
+        assert!(
+            !obj.contains_key("paired_with_device_id"),
+            "a refused caller must not learn who this station is paired with"
+        );
+        // It must still say WHY, or the operator cannot act on it.
+        assert_eq!(obj["code"], "E_FLEET_KEY_MISMATCH");
+        assert!(obj["message"].as_str().unwrap().contains("unpair"));
     }
 
     #[test]
@@ -712,5 +777,31 @@ mod tests {
         let different = vec![4u8; 64];
         assert_eq!(installed, same, "an identical blob must pass the gate");
         assert_ne!(installed, different, "a different blob must be refused");
+    }
+
+    #[test]
+    fn a_shared_key_of_the_wrong_size_is_refused_rather_than_written() {
+        // A truncated key derives a WRONG beacon HMAC, which drops every beacon
+        // silently -- harder to notice than a missing key, because the resolver
+        // at least warns when nothing is there.
+        use base64::Engine as _;
+        let short = base64::engine::general_purpose::STANDARD.encode([0u8; 32]);
+        assert!(install_shared_key(&short).is_err());
+    }
+
+    #[test]
+    fn a_shared_key_that_is_not_base64_is_refused() {
+        assert!(install_shared_key("not base64!!").is_err());
+    }
+
+    #[test]
+    fn the_request_accepts_a_shared_key_and_still_parses_without_one() {
+        // Absent, the route must behave exactly as it did: the radio bind stays
+        // the path that distributes the shared half.
+        let with: PairRequest =
+            serde_json::from_str(r#"{"blob_b64":"x","shared_key_b64":"y"}"#).unwrap();
+        assert_eq!(with.shared_key_b64.as_deref(), Some("y"));
+        let without: PairRequest = serde_json::from_str(r#"{"blob_b64":"x"}"#).unwrap();
+        assert!(without.shared_key_b64.is_none());
     }
 }

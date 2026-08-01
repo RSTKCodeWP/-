@@ -41,8 +41,9 @@
 
 mod framing;
 mod send_scheduler;
+pub use send_scheduler::ClientOrigin;
 pub mod swarm_setpoint;
-mod transport;
+pub(crate) mod transport;
 
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU8, AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
@@ -106,6 +107,15 @@ const PARAM_SAVE_DEBOUNCE: Duration = Duration::from_secs(2);
 /// The FC serial link plus its shared state. Cheap to wrap in an `Arc`; every
 /// method takes `&self` and uses interior mutability so the run loop and the
 /// periodic sender tasks share one connection.
+/// The inter-arrival gap above which an ATTITUDE counts as late.
+///
+/// Chosen as the period of the slowest cadence a rate loop could be closed at
+/// rather than as a target: at 20 Hz a gap past 50 ms means a frame was
+/// genuinely skipped, not merely jittered. It bounds a COUNTER, so a value that
+/// turns out to be wrong makes the count less interesting, never the aircraft
+/// less safe.
+const ATTITUDE_DEADLINE: std::time::Duration = std::time::Duration::from_millis(50);
+
 pub struct FcConnection {
     cfg: MavlinkConfig,
     state: std::sync::Arc<Mutex<VehicleState>>,
@@ -154,6 +164,15 @@ pub struct FcConnection {
     fc_variant: Mutex<Option<String>>,
     baud: AtomicU32,
     last_msg_at: Mutex<Instant>,
+    /// How evenly ATTITUDE arrives from the flight controller.
+    ///
+    /// ATTITUDE specifically because it is the fastest thing the autopilot
+    /// volunteers and the one a rate loop would have to close against, so its
+    /// cadence -- not the aggregate message rate -- is what decides whether a
+    /// loop over this link is viable. Measured always rather than behind a
+    /// flag: the numbers are needed before anything is built on them, and a
+    /// measurement taken only once someone remembers to ask has no history.
+    attitude_cadence: Mutex<crate::cadence::InboundCadence>,
     /// Monotonic clock of the last decoded HEARTBEAT, distinct from
     /// `last_msg_at` (which bumps on ANY inbound frame bytes, including garbage
     /// that happens to form a frame). `None` until the first HEARTBEAT decodes
@@ -218,6 +237,7 @@ impl FcConnection {
             fc_variant: Mutex::new(None),
             baud: AtomicU32::new(0),
             last_msg_at: Mutex::new(Instant::now()),
+            attitude_cadence: Mutex::new(crate::cadence::InboundCadence::new(ATTITUDE_DEADLINE)),
             last_heartbeat_at: Mutex::new(None),
             last_msp_at: Mutex::new(None),
             msp_warned: AtomicBool::new(false),
@@ -280,6 +300,23 @@ impl FcConnection {
     }
     /// Seconds since the last decoded HEARTBEAT, or `None` when none has been
     /// seen on the current process. The freshness signal the alive gate reads.
+    /// The current attitude-arrival cadence.
+    ///
+    /// Exposed so the measurement can be read by whatever is asking -- a
+    /// periodic emitter, a diagnostic, or a test -- rather than only existing
+    /// inside the read loop that produces it.
+    pub async fn attitude_cadence(&self) -> crate::cadence::CadenceSnapshot {
+        self.attitude_cadence.lock().await.snapshot()
+    }
+
+    /// Forget the attitude timing history, keeping the cumulative counters.
+    ///
+    /// Called when the link drops so the gap spanning an outage does not land
+    /// in a distribution that otherwise describes milliseconds.
+    pub async fn reset_attitude_cadence(&self) {
+        self.attitude_cadence.lock().await.reset_stream();
+    }
+
     pub async fn heartbeat_age_s(&self) -> Option<f64> {
         self.last_heartbeat_at
             .lock()
@@ -783,6 +820,15 @@ impl FcConnection {
                         }
                     }
                     let now = now_iso();
+                    // Timestamp the arrival before the state lock, so the
+                    // measurement describes when the frame reached this process
+                    // rather than when it won a contended mutex. The writer
+                    // mutex is fair, not priority-ordered, so that wait is
+                    // exactly the thing a loop-rate question is asking about and
+                    // must not be folded into the answer.
+                    if matches!(msg, MavMessage::ATTITUDE(_)) {
+                        self.attitude_cadence.lock().await.record(Instant::now());
+                    }
                     let persist = {
                         let mut st = self.state.lock().await;
                         st.update_from_message(&msg, &now)

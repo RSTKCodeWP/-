@@ -98,6 +98,11 @@ struct AuxCountersInner {
     status_frames: AtomicU64,
     identity_frames: AtomicU64,
     mavlink_republished: AtomicU64,
+    /// Frames whose MAVLink system id was already being presented by a
+    /// DIFFERENT fleet slot. Non-zero means two aircraft are one vehicle to
+    /// anything downstream, and a command addressed to that id is accepted by
+    /// both -- so this is a safety signal, not a statistic.
+    system_id_collisions: AtomicU64,
     republish_errors: AtomicU64,
     republish_lane_down: AtomicU64,
     decode_foreign: AtomicU64,
@@ -160,6 +165,7 @@ impl AuxCounters {
             status_frames: c.status_frames.load(Ordering::Relaxed),
             identity_frames: c.identity_frames.load(Ordering::Relaxed),
             mavlink_republished: c.mavlink_republished.load(Ordering::Relaxed),
+            system_id_collisions: c.system_id_collisions.load(Ordering::Relaxed),
             republish_errors: c.republish_errors.load(Ordering::Relaxed),
             republish_lane_down: c.republish_lane_down.load(Ordering::Relaxed),
             decode_foreign: c.decode_foreign.load(Ordering::Relaxed),
@@ -211,6 +217,7 @@ pub struct AuxCountersSnapshot {
     /// MAVLink frames the republish seam accepted. Not proof a ground control
     /// station was connected or rendered them.
     pub mavlink_republished: u64,
+    pub system_id_collisions: u64,
     /// MAVLink frames the republish seam rejected or failed to take.
     pub republish_errors: u64,
     /// MAVLink frames dropped without an attempt because the seam was known to
@@ -382,9 +389,21 @@ fn report(counters: &AuxCounters, last: AuxCountersSnapshot) -> AuxCountersSnaps
 /// Decode one datagram and act on it, updating exactly one received-path
 /// counter.
 ///
+/// The system id a MAVLink frame carries, for v1 and v2 alike.
+///
+/// Both versions place the system id at byte 5, after their differing headers
+/// begin with a magic this build does not need to interpret further -- the
+/// offset is the same, so no dialect knowledge is required to read who sent a
+/// frame. `None` when the buffer is too short to hold one, which is a runt
+/// rather than a vehicle.
+fn mavlink_system_id(frame: &[u8]) -> Option<u8> {
+    frame.get(5).copied()
+}
+
 /// Split from the read loop so the whole decode-and-dispatch decision is
 /// testable without a socket.
 async fn dispatch(
+    slot: u8,
     datagram: &[u8],
     ingest: &MavlinkIngest,
     counters: &AuxCounters,
@@ -457,6 +476,30 @@ async fn dispatch(
             }
             for frame in frames {
                 counters.bump(&c.mavlink_frames);
+                // Read who this frame claims to be from, and say so when two
+                // slots claim the same identity. Until now the slot was known
+                // at the bind and thrown away before the send, so a fleet whose
+                // aircraft shared a system id looked exactly like a fleet whose
+                // aircraft did not -- the frames are byte-identical downstream
+                // and the counters are fleet aggregates.
+                if let Some(system_id) = mavlink_system_id(frame) {
+                    let colliding = peers.observe_system_id(slot, system_id);
+                    if !colliding.is_empty() {
+                        counters.bump(&c.system_id_collisions);
+                        // Name what the aircraft SHOULD be carrying alongside
+                        // what it is. A collision report that only says two
+                        // aircraft clash leaves the operator to work out the
+                        // remedy; the slot already determines the answer.
+                        let expected = crate::fleet_identity_policy::system_id_for_slot(slot);
+                        tracing::warn!(
+                            slot,
+                            system_id,
+                            also_on = ?colliding,
+                            expected_system_id = ?expected,
+                            "ground_aux_system_id_collision"
+                        );
+                    }
+                }
                 match ingest.send_frame(frame).await {
                     Ok(()) => {
                         gate.on_success();
@@ -548,7 +591,44 @@ async fn dispatch(
 /// consumer at a stand-in seam. `proxy` is `None` on a rig with no relay-
 /// proxy caller registered — Response datagrams it receives anyway are
 /// counted and dropped rather than silently swallowed.
+/// Receive-buffer size asked of the kernel for an aux consumer socket.
+///
+/// The drone end of this same lane already asks for this; the ground end did
+/// not, so the two ends of one lane disagreed about how much burst they could
+/// absorb. A batched datagram or a response-fragment burst arriving while the
+/// single read loop is mid-dispatch survives only if the kernel holds it, and a
+/// drop there happens below the application: `recv_errors` never sees it, so
+/// the loss is invisible on both sides.
+const AUX_RECV_BUFFER_BYTES: usize = 4 * 1024 * 1024;
+
+/// Ask the kernel for a larger receive buffer, and log what it actually gave.
+///
+/// The kernel clamps the request to `rmem_max` and reports back double what it
+/// kept (its own bookkeeping overhead), so the obtained value is logged rather
+/// than assumed. Failure is non-fatal: the default buffer still works, it just
+/// tolerates a smaller burst.
+fn set_recv_buffer(sock: &UdpSocket) {
+    let opts = socket2::SockRef::from(sock);
+    if let Err(e) = opts.set_recv_buffer_size(AUX_RECV_BUFFER_BYTES) {
+        tracing::warn!(
+            error = %e,
+            requested = AUX_RECV_BUFFER_BYTES,
+            "ground_aux_consumer_rcvbuf_set_failed"
+        );
+        return;
+    }
+    match opts.recv_buffer_size() {
+        Ok(actual) => tracing::info!(
+            requested = AUX_RECV_BUFFER_BYTES,
+            actual,
+            "ground_aux_consumer_rcvbuf"
+        ),
+        Err(e) => tracing::warn!(error = %e, "ground_aux_consumer_rcvbuf_read_failed"),
+    }
+}
+
 pub async fn run_aux_consumer(
+    slot: u8,
     listen_port: u16,
     ingest: Arc<MavlinkIngest>,
     counters: AuxCounters,
@@ -558,7 +638,8 @@ pub async fn run_aux_consumer(
 ) -> std::io::Result<()> {
     let addr = SocketAddr::from((Ipv4Addr::LOCALHOST, listen_port));
     let sock = UdpSocket::bind(addr).await?;
-    tracing::info!(port = listen_port, "ground_aux_consumer_listening");
+    set_recv_buffer(&sock);
+    tracing::info!(slot, port = listen_port, "ground_aux_consumer_listening");
 
     let mut gate = SeamGate::default();
     let mut buf = vec![0u8; BUF_SIZE];
@@ -585,7 +666,7 @@ pub async fn run_aux_consumer(
             received = sock.recv_from(&mut buf) => match received {
                 Ok((n, _from)) => {
                     consecutive_errors = 0;
-                    dispatch(&buf[..n], &ingest, &counters, &mut gate, &peers, response_ingest.as_ref()).await;
+                    dispatch(slot, &buf[..n], &ingest, &counters, &mut gate, &peers, response_ingest.as_ref()).await;
                 }
                 Err(e) => {
                     counters.bump(&counters.0.recv_errors);
@@ -618,6 +699,7 @@ pub async fn run_aux_consumer(
 /// failure is counted, so a consumer that never started listening is visible on
 /// the sidecar rather than merely absent from it.
 pub async fn supervise_aux_consumer(
+    slot: u8,
     listen_port: u16,
     ingest: Arc<MavlinkIngest>,
     counters: AuxCounters,
@@ -628,6 +710,7 @@ pub async fn supervise_aux_consumer(
     let mut backoff = BIND_BACKOFF_MIN;
     loop {
         match run_aux_consumer(
+            slot,
             listen_port,
             ingest.clone(),
             counters.clone(),
@@ -660,6 +743,30 @@ pub async fn supervise_aux_consumer(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn the_consumer_asks_for_a_larger_receive_buffer() {
+        // The drone end of this same lane already asked for one and the ground
+        // end did not, so the two ends disagreed about how much burst they
+        // could absorb. A drop from a short buffer happens below the
+        // application: `recv_errors` never sees it, so the loss is invisible on
+        // both sides.
+        let sock = UdpSocket::bind("127.0.0.1:0").await.unwrap();
+        let before = socket2::SockRef::from(&sock).recv_buffer_size().unwrap();
+        set_recv_buffer(&sock);
+        let after = socket2::SockRef::from(&sock).recv_buffer_size().unwrap();
+        assert!(
+            after >= before,
+            "the request shrank the buffer: {before} -> {after}"
+        );
+    }
+
+    #[test]
+    fn the_two_ends_of_the_lane_ask_for_the_same_buffer() {
+        // Stated as a number rather than a comment, so a change on one side
+        // that forgets the other is visible here.
+        assert_eq!(AUX_RECV_BUFFER_BYTES, 4 * 1024 * 1024);
+    }
     use ados_protocol::frame::HEADER_SIZE;
     use std::path::PathBuf;
     use tokio::io::AsyncReadExt;
@@ -716,7 +823,10 @@ mod tests {
 
         let frame = heartbeat();
         let datagram = aux_mux::encode(AuxChannel::Mavlink, &frame).unwrap();
-        dispatch(&datagram, &ingest, &counters, &mut gate, &peers, None).await;
+        dispatch(
+            TEST_SLOT, &datagram, &ingest, &counters, &mut gate, &peers, None,
+        )
+        .await;
 
         assert_eq!(seam.recv().await.unwrap(), frame);
         let snap = counters.snapshot();
@@ -724,6 +834,93 @@ mod tests {
         assert_eq!(snap.mavlink_frames, 1);
         assert_eq!(snap.mavlink_republished, 1);
         assert_eq!(snap.republish_errors, 0);
+        server.abort();
+    }
+
+    /// A MAVLink v2 heartbeat with an explicit system id, so two drones can be
+    /// given the SAME one — which is the shipped default.
+    fn heartbeat_from(system_id: u8) -> Vec<u8> {
+        let mut f = heartbeat();
+        f[5] = system_id;
+        f
+    }
+
+    /// The slot every single-drone test dispatches on. Collision tests name
+    /// their slots explicitly instead.
+    const TEST_SLOT: u8 = 1;
+
+    #[tokio::test]
+    async fn two_drones_on_one_system_id_are_reported_as_a_collision() {
+        // Was a characterisation test: it pinned the fact that two aircraft on
+        // the shipped default system id arrived as ONE vehicle and that nothing
+        // downstream could tell them apart. The frames are still byte-identical
+        // at the seam -- rewriting a system id in flight would change what every
+        // ground station and flight controller sees, and that is the aircraft's
+        // own decision to make, not this consumer's.
+        //
+        // What has changed is that the collision is now OBSERVABLE. The slot is
+        // threaded to the dispatch that was already binding a per-slot port and
+        // discarding the number, so a second slot presenting an identity the
+        // first already claimed is counted and named rather than passing
+        // silently.
+        let dir = tempfile::tempdir().unwrap();
+        let sock = dir.path().join("mavlink-ingest.sock");
+        let (mut seam, server) = fake_seam(sock.clone());
+        tokio::time::sleep(Duration::from_millis(20)).await;
+
+        let ingest = MavlinkIngest::new(&sock);
+        let counters = AuxCounters::new();
+        let mut gate = SeamGate::default();
+        let peers = AuxPeerCache::new();
+
+        // Two DIFFERENT slots, both presenting the shipped default system id.
+        let frame = heartbeat_from(1);
+        let datagram = aux_mux::encode(AuxChannel::Mavlink, &frame).unwrap();
+        dispatch(1, &datagram, &ingest, &counters, &mut gate, &peers, None).await;
+        dispatch(2, &datagram, &ingest, &counters, &mut gate, &peers, None).await;
+
+        let first = seam.recv().await.unwrap();
+        let second = seam.recv().await.unwrap();
+        assert_eq!(
+            first, second,
+            "the frames themselves are still forwarded verbatim"
+        );
+
+        let snap = counters.snapshot();
+        assert_eq!(snap.mavlink_republished, 2, "both were still delivered");
+        assert_eq!(
+            snap.system_id_collisions, 1,
+            "and the second slot claiming the first slot's identity is reported"
+        );
+        assert_eq!(
+            peers.system_ids_by_slot(),
+            vec![(1, 1), (2, 1)],
+            "with both slots' claimed identities readable"
+        );
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn two_drones_on_distinct_system_ids_are_not_a_collision() {
+        // The steady state a correctly-addressed fleet is in, which must stay
+        // silent: a warning that fires for every healthy fleet is one nobody
+        // reads when it matters.
+        let dir = tempfile::tempdir().unwrap();
+        let sock = dir.path().join("mavlink-ingest.sock");
+        let (_seam, server) = fake_seam(sock.clone());
+        tokio::time::sleep(Duration::from_millis(20)).await;
+
+        let ingest = MavlinkIngest::new(&sock);
+        let counters = AuxCounters::new();
+        let mut gate = SeamGate::default();
+        let peers = AuxPeerCache::new();
+
+        for (slot, system_id) in [(1u8, 1u8), (2, 2)] {
+            let d = aux_mux::encode(AuxChannel::Mavlink, &heartbeat_from(system_id)).unwrap();
+            dispatch(slot, &d, &ingest, &counters, &mut gate, &peers, None).await;
+        }
+
+        assert_eq!(counters.snapshot().system_id_collisions, 0);
         server.abort();
     }
 
@@ -744,7 +941,10 @@ mod tests {
 
         let mut truncated = aux_mux::encode(AuxChannel::Mavlink, &heartbeat()).unwrap();
         truncated.truncate(truncated.len() - 3);
-        dispatch(&truncated, &ingest, &counters, &mut gate, &peers, None).await;
+        dispatch(
+            TEST_SLOT, &truncated, &ingest, &counters, &mut gate, &peers, None,
+        )
+        .await;
 
         let snap = counters.snapshot();
         assert_eq!(snap.datagrams_received, 1);
@@ -755,7 +955,10 @@ mod tests {
         // A healthy frame after the damaged one still gets through: the lane
         // does not latch shut on one bad datagram.
         let good = aux_mux::encode(AuxChannel::Mavlink, &heartbeat()).unwrap();
-        dispatch(&good, &ingest, &counters, &mut gate, &peers, None).await;
+        dispatch(
+            TEST_SLOT, &good, &ingest, &counters, &mut gate, &peers, None,
+        )
+        .await;
         assert_eq!(seam.recv().await.unwrap(), heartbeat());
         server.abort();
     }
@@ -790,7 +993,10 @@ mod tests {
             batch.extend_from_slice(&frame);
         }
         let datagram = aux_mux::encode(AuxChannel::Mavlink, &batch).unwrap();
-        dispatch(&datagram, &ingest, &counters, &mut gate, &peers, None).await;
+        dispatch(
+            TEST_SLOT, &datagram, &ingest, &counters, &mut gate, &peers, None,
+        )
+        .await;
 
         for _ in 0..3 {
             assert_eq!(seam.recv().await.unwrap(), frame);
@@ -819,7 +1025,10 @@ mod tests {
 
         let opaque = b"not-a-mavlink-frame".to_vec();
         let datagram = aux_mux::encode(AuxChannel::Mavlink, &opaque).unwrap();
-        dispatch(&datagram, &ingest, &counters, &mut gate, &peers, None).await;
+        dispatch(
+            TEST_SLOT, &datagram, &ingest, &counters, &mut gate, &peers, None,
+        )
+        .await;
 
         assert_eq!(seam.recv().await.unwrap(), opaque);
         assert_eq!(counters.snapshot().mavlink_republished, 1);
@@ -836,6 +1045,7 @@ mod tests {
         let peers = AuxPeerCache::new();
 
         dispatch(
+            TEST_SLOT,
             b"some other application's datagram",
             &ingest,
             &counters,
@@ -844,7 +1054,10 @@ mod tests {
             None,
         )
         .await;
-        dispatch(b"\xAD", &ingest, &counters, &mut gate, &peers, None).await;
+        dispatch(
+            TEST_SLOT, b"\xAD", &ingest, &counters, &mut gate, &peers, None,
+        )
+        .await;
 
         let snap = counters.snapshot();
         assert_eq!(snap.decode_foreign, 1);
@@ -865,11 +1078,21 @@ mod tests {
 
         let mut wrong_version = aux_mux::encode(AuxChannel::Mavlink, b"x").unwrap();
         wrong_version[2] = 0x99;
-        dispatch(&wrong_version, &ingest, &counters, &mut gate, &peers, None).await;
+        dispatch(
+            TEST_SLOT,
+            &wrong_version,
+            &ingest,
+            &counters,
+            &mut gate,
+            &peers,
+            None,
+        )
+        .await;
 
         let mut unknown_channel = aux_mux::encode(AuxChannel::Mavlink, b"x").unwrap();
         unknown_channel[3] = 0x7F;
         dispatch(
+            TEST_SLOT,
             &unknown_channel,
             &ingest,
             &counters,
@@ -882,7 +1105,10 @@ mod tests {
         let mut overlong = aux_mux::encode(AuxChannel::Mavlink, b"x").unwrap();
         overlong[4] = 0xFF;
         overlong[5] = 0xFF;
-        dispatch(&overlong, &ingest, &counters, &mut gate, &peers, None).await;
+        dispatch(
+            TEST_SLOT, &overlong, &ingest, &counters, &mut gate, &peers, None,
+        )
+        .await;
 
         let snap = counters.snapshot();
         assert_eq!(snap.decode_unsupported_version, 1);
@@ -905,12 +1131,12 @@ mod tests {
 
         for ch in [AuxChannel::Status, AuxChannel::Identity] {
             let d = aux_mux::encode(ch, b"a compact snapshot").unwrap();
-            dispatch(&d, &ingest, &counters, &mut gate, &peers, None).await;
+            dispatch(TEST_SLOT, &d, &ingest, &counters, &mut gate, &peers, None).await;
         }
         // The MAVLink one after them still republishes, proving the ignore is
         // per-channel and not a lane that stopped.
         let d = aux_mux::encode(AuxChannel::Mavlink, &heartbeat()).unwrap();
-        dispatch(&d, &ingest, &counters, &mut gate, &peers, None).await;
+        dispatch(TEST_SLOT, &d, &ingest, &counters, &mut gate, &peers, None).await;
 
         assert_eq!(seam.recv().await.unwrap(), heartbeat());
         let snap = counters.snapshot();
@@ -935,7 +1161,7 @@ mod tests {
 
         let d = aux_mux::encode(AuxChannel::Mavlink, &heartbeat()).unwrap();
         for _ in 0..5 {
-            dispatch(&d, &ingest, &counters, &mut gate, &peers, None).await;
+            dispatch(TEST_SLOT, &d, &ingest, &counters, &mut gate, &peers, None).await;
         }
 
         let snap = counters.snapshot();
@@ -989,7 +1215,7 @@ mod tests {
         ];
         let sent = datagrams.len() as u64;
         for d in &datagrams {
-            dispatch(d, &ingest, &counters, &mut gate, &peers, None).await;
+            dispatch(TEST_SLOT, d, &ingest, &counters, &mut gate, &peers, None).await;
         }
 
         let snap = counters.snapshot();
@@ -1025,6 +1251,7 @@ mod tests {
         let counters = AuxCounters::new();
         let cancel = Arc::new(Notify::new());
         let task = tokio::spawn(run_aux_consumer(
+            TEST_SLOT,
             port,
             Arc::new(MavlinkIngest::new(&sock)),
             counters.clone(),
@@ -1083,6 +1310,7 @@ mod tests {
 
         assert!(
             run_aux_consumer(
+                TEST_SLOT,
                 port,
                 ingest.clone(),
                 counters.clone(),
@@ -1101,6 +1329,7 @@ mod tests {
         // full-loop test above, and racing a notification against a task that
         // is between its two await points would only make this one flaky.
         let task = tokio::spawn(supervise_aux_consumer(
+            TEST_SLOT,
             port,
             ingest,
             counters.clone(),
@@ -1148,7 +1377,10 @@ mod tests {
             (AuxChannel::Identity, identity_body),
         ] {
             let framed = aux_mux::encode(channel, &body).unwrap();
-            dispatch(&framed, &ingest, &counters, &mut gate, &peers, None).await;
+            dispatch(
+                TEST_SLOT, &framed, &ingest, &counters, &mut gate, &peers, None,
+            )
+            .await;
         }
 
         let snap = counters.snapshot();
@@ -1174,7 +1406,10 @@ mod tests {
         let peers = AuxPeerCache::new();
 
         let framed = aux_mux::encode(AuxChannel::Status, b"not msgpack").unwrap();
-        dispatch(&framed, &ingest, &counters, &mut gate, &peers, None).await;
+        dispatch(
+            TEST_SLOT, &framed, &ingest, &counters, &mut gate, &peers, None,
+        )
+        .await;
 
         let snap = counters.snapshot();
         assert_eq!(snap.status_frames, 1, "the datagram is still accounted for");
@@ -1201,7 +1436,16 @@ mod tests {
         let fragment =
             encode_response_fragment(b"77735cd38937", 9, 200, 0, 1, 11, br#"{"ok":true}"#).unwrap();
         let framed = aux_mux::encode(AuxChannel::Response, &fragment).unwrap();
-        dispatch(&framed, &ingest, &counters, &mut gate, &peers, Some(&proxy)).await;
+        dispatch(
+            TEST_SLOT,
+            &framed,
+            &ingest,
+            &counters,
+            &mut gate,
+            &peers,
+            Some(&proxy),
+        )
+        .await;
 
         let snap = counters.snapshot();
         assert_eq!(snap.response_frames, 1);

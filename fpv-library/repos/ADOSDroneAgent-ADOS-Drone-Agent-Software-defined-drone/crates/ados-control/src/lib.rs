@@ -377,14 +377,18 @@ where
         match ados_protocol::aux_egress::AuxEgress::connected_to_udp(aux_tx).await {
             Ok(aux_egress) => {
                 let proxy = Arc::new(ados_protocol::aux_rpc_proxy::AuxRpcProxy::new(aux_egress));
+                // The listener spawns its own task, so wrapping the call in
+                // another `tokio::spawn` only moved the cancel handle into a
+                // future that dropped it immediately — nothing could ever
+                // signal a shutdown, and the returned join handle went the same
+                // way. Hold both on the router handle instead, so the shutdown
+                // path this process will eventually grow has something to hold.
                 let reader_cancel = Arc::new(tokio::sync::Notify::new());
-                let proxy_clone = Arc::clone(&proxy);
-                tokio::spawn(async move {
-                    proxy_clone.spawn_response_listener(
-                        ados_protocol::aux_rpc_proxy::DEFAULT_RESPONSE_SOCK,
-                        reader_cancel,
-                    );
-                });
+                let reader_task = proxy.spawn_response_listener(
+                    ados_protocol::aux_rpc_proxy::DEFAULT_RESPONSE_SOCK,
+                    Arc::clone(&reader_cancel),
+                );
+                let listener = crate::state::AuxResponseListener::new(reader_cancel, reader_task);
                 // Fleet attention reconciler: auto-promotes a one-drone fleet to
                 // the full video profile (every drone boots to thumbnail, so the
                 // existing single-drone product would otherwise sit at 320x180)
@@ -393,7 +397,27 @@ where
                 tokio::spawn(crate::routes::gs_fleet_hero::run_hero_reconciler(
                     Arc::clone(&proxy),
                 ));
-                state.with_aux_rpc_proxy(proxy)
+                // Fleet slot delivery: the ground station allocates a slot at
+                // pair time and, until now, told only the caller. A drone
+                // learned its own fleet address only from a hand-edit or a
+                // cloud push. Reachable even when the drone holds the wrong
+                // slot, because the aux uplink is addressed on the ground
+                // station's link id rather than the drone's. Idle once the
+                // fleet agrees.
+                tokio::spawn(crate::routes::gs_fleet_slot::run_slot_reconciler(
+                    Arc::clone(&proxy),
+                ));
+                // Fleet enrolment: a slot was only ever issued by the pair
+                // route, but the unattended auto-bind that pairs a rig in the
+                // field has no device id to allocate against and never called
+                // it. Both reconcilers above therefore had an empty registry to
+                // work from on every auto-bound fleet, and the per-pair relay
+                // secret they key on was never minted. Registers each drone the
+                // ground station can actually hear.
+                tokio::spawn(crate::routes::gs_fleet_enroll::run_enroll_reconciler());
+                state
+                    .with_aux_rpc_proxy(proxy)
+                    .with_aux_response_listener(listener)
             }
             Err(e) => {
                 tracing::warn!(error = %e, "aux_egress_connect_failed_relay_proxy_unavailable");

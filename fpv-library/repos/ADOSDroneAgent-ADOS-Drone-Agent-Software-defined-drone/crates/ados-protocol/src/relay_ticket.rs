@@ -1,0 +1,556 @@
+//! A per-pair credential for relayed requests.
+//!
+//! ## What this closes
+//!
+//! A request that crosses the radio relay arrives on the drone's loopback and
+//! is therefore treated as on-box — the highest trust level the agent has.
+//! `ados_control::serve` says so in its own words: a fleet shares one radio key
+//! and distributes no per-node credential, so the relay has nothing to present.
+//! Radio range consequently carries a node's full authority, bounded only by
+//! the `relay_forbidden` path denylist.
+//!
+//! This gives the relay something to present.
+//!
+//! ## Why the fleet key cannot be the key
+//!
+//! The obvious shortcut — derive the ticket key from the shared 64-byte fleet
+//! keypair both ends already hold — is theatre. Every member of the fleet holds
+//! that key; it is what *makes* them a member. A token derived from it proves
+//! only that the caller is on the radio, which is exactly what the caller
+//! already demonstrated by being on the radio. It would authenticate nothing
+//! and would read, on a status page, as though it did.
+//!
+//! So the key is a secret generated **per pairing** by the ground station and
+//! delivered to that one drone. A second ground station holding the fleet radio
+//! key cannot mint a ticket the drone accepts, because it does not hold the
+//! per-pair secret.
+//!
+//! ## Bootstrap, stated plainly
+//!
+//! The secret is delivered over the same relay it will later protect, at pair
+//! time. That is trust-on-first-use: an attacker already positioned on the
+//! radio at the moment of pairing can observe the delivery. It is a real
+//! limitation and not a hidden one — the alternative is an out-of-band channel
+//! that does not exist on a headless aircraft, and the window is one exchange
+//! at pair time rather than every request forever, which is the situation
+//! today.
+//!
+//! ## Shape
+//!
+//! Deliberately the same self-contained HMAC as [`crate::ws_ticket`]: no store,
+//! no lookup, no IPC between the minting process and the verifying one. They
+//! share only the secret. Domain-separated by its own label, so a ticket minted
+//! for one purpose can never be replayed as the other even though both derive
+//! from HMAC-SHA256.
+
+use hmac::{Hmac, Mac};
+use sha2::Sha256;
+use thiserror::Error;
+
+type HmacSha256 = Hmac<Sha256>;
+
+/// Domain-separation label mixed into the per-pair secret.
+///
+/// Distinct from the WS ticket's label on purpose: the two credentials protect
+/// different surfaces, and a token minted for one must not verify against the
+/// other even if a caller obtains it.
+pub const RELAY_KEY_LABEL: &[u8] = b"ados-relay-ticket-v1";
+
+/// Where the drone keeps the secret its ground station gave it. 0600, beside
+/// the plugin token secret, which is the established home for material like
+/// this.
+pub const RELAY_SECRET_PATH: &str = "/etc/ados/secrets/relay-peer-secret";
+
+/// Secret length in bytes.
+pub const RELAY_SECRET_LEN: usize = 32;
+
+/// Default ticket lifetime.
+///
+/// Short because a relayed request is a round trip over a radio, not a session:
+/// the ticket only has to outlive the call it accompanies. Long enough to
+/// tolerate the retransmit schedule, which can carry a request for several
+/// seconds on a lossy lane.
+pub const DEFAULT_TTL_SECONDS: i64 = 30;
+
+/// Hard cap on a requested lifetime, so a caller cannot mint a long-lived
+/// bearer by asking for one.
+pub const MAX_TTL_SECONDS: i64 = 120;
+
+/// The scope a relayed HTTP call carries.
+pub const SCOPE_RELAY: &str = "relay.http";
+
+#[derive(Debug, Error, PartialEq, Eq)]
+pub enum RelayTicketError {
+    #[error("malformed relay ticket")]
+    Malformed,
+    #[error("relay ticket timestamp is not an integer")]
+    BadTimestamp,
+    #[error("relay ticket signature is not valid hex")]
+    BadSignature,
+    #[error("relay ticket HMAC mismatch")]
+    HmacMismatch,
+    #[error("relay ticket scope mismatch")]
+    ScopeMismatch,
+    #[error("relay ticket expired")]
+    Expired,
+}
+
+/// Mints and verifies relay tickets from a per-pair secret.
+#[derive(Clone)]
+pub struct RelayTicketIssuer {
+    key: Vec<u8>,
+}
+
+impl RelayTicketIssuer {
+    /// Derive the ticket key from the per-pair secret under the relay label.
+    ///
+    /// Takes bytes rather than a string: the secret is random material, not
+    /// text, and hex-decoding it at the boundary keeps that explicit.
+    pub fn from_secret(secret: &[u8]) -> Self {
+        let mut mac = HmacSha256::new_from_slice(secret).expect("HMAC accepts any key length");
+        mac.update(RELAY_KEY_LABEL);
+        Self {
+            key: mac.finalize().into_bytes().to_vec(),
+        }
+    }
+
+    /// Mint a ticket naming the drone it is for, valid for `ttl_seconds`.
+    ///
+    /// The target device id is signed, not merely carried, so a ticket minted
+    /// for one drone cannot be lifted and replayed against another — which
+    /// matters precisely because the uplink is a broadcast every drone hears.
+    pub fn mint_at(&self, target: &str, ttl_seconds: i64, now: i64) -> String {
+        let ttl = ttl_seconds.clamp(1, MAX_TTL_SECONDS);
+        let expires_at = now.saturating_add(ttl);
+        let payload = sign_payload(SCOPE_RELAY, target, now, expires_at);
+        let signature = self.sign(&payload);
+        format!("{payload}|{signature}")
+    }
+
+    /// Verify a ticket: authenticity first, then who it names, then expiry.
+    ///
+    /// Order matters. Checking the target or the clock before the HMAC would
+    /// answer questions about a string nobody has shown to be ours.
+    pub fn verify(
+        &self,
+        token: &str,
+        expected_target: &str,
+        now: i64,
+    ) -> Result<(), RelayTicketError> {
+        let parts: Vec<&str> = token.split('|').collect();
+        if parts.len() != 6 || parts[0] != "v1" {
+            return Err(RelayTicketError::Malformed);
+        }
+        let scope = parts[1];
+        let target = parts[2];
+        let _issued: i64 = parts[3]
+            .parse()
+            .map_err(|_| RelayTicketError::BadTimestamp)?;
+        let expires_at: i64 = parts[4]
+            .parse()
+            .map_err(|_| RelayTicketError::BadTimestamp)?;
+        let sig = hex::decode(parts[5]).map_err(|_| RelayTicketError::BadSignature)?;
+
+        // Recompute over the exact signed substring, so reformatting can never
+        // drift from what was signed.
+        let payload = parts[..5].join("|");
+        let mut mac = HmacSha256::new_from_slice(&self.key).expect("HMAC accepts any key length");
+        mac.update(payload.as_bytes());
+        // Constant-time.
+        mac.verify_slice(&sig)
+            .map_err(|_| RelayTicketError::HmacMismatch)?;
+
+        if scope != SCOPE_RELAY {
+            return Err(RelayTicketError::ScopeMismatch);
+        }
+        if target != expected_target {
+            return Err(RelayTicketError::ScopeMismatch);
+        }
+        if now >= expires_at {
+            return Err(RelayTicketError::Expired);
+        }
+        Ok(())
+    }
+
+    fn sign(&self, payload: &str) -> String {
+        let mut mac = HmacSha256::new_from_slice(&self.key).expect("HMAC accepts any key length");
+        mac.update(payload.as_bytes());
+        hex::encode(mac.finalize().into_bytes())
+    }
+}
+
+/// The signed substring: `v1|<scope>|<target>|<issued_at>|<expires_at>`.
+fn sign_payload(scope: &str, target: &str, issued_at: i64, expires_at: i64) -> String {
+    format!("v1|{scope}|{target}|{issued_at}|{expires_at}")
+}
+
+/// Why a secret may or may not be accepted from the relay.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AcceptDecision {
+    /// No secret held: take this one. Trust-on-first-use.
+    Accept,
+    /// Already holding this exact secret. A no-op, not a conflict — the ground
+    /// station restates it on every reconcile tick.
+    AlreadyHeld,
+    /// Holding a DIFFERENT secret. Refused.
+    RefusedWouldOverwrite,
+    /// The offered value is not a usable secret.
+    RefusedMalformed,
+}
+
+/// Decide whether to accept a relay secret offered over the relay itself.
+///
+/// **This is the security decision in the whole scheme, so it is a pure
+/// function with its own tests rather than a branch inside an HTTP handler.**
+///
+/// The delivery necessarily rides the very channel the credential will later
+/// protect, which today is unauthenticated. If the drone simply took whatever
+/// it was handed, anyone within radio range could overwrite the secret with
+/// their own and then mint tickets the drone accepts — leaving a credential
+/// that looks like protection on every status surface while granting exactly
+/// the access it was built to deny. That is strictly worse than having none.
+///
+/// So: **first write wins.** An unset drone takes the first secret it is
+/// offered; a drone already holding one refuses to replace it over the relay.
+/// The exposure is the pairing moment rather than every request forever, which
+/// is the honest statement of what trust-on-first-use buys.
+///
+/// Replacing a secret deliberately — a re-pair to a different ground station —
+/// goes through unpair, which clears it locally, rather than through a write
+/// that a stranger could also make.
+pub fn decide_accept(held: Option<&str>, offered: &str) -> AcceptDecision {
+    if offered.len() != RELAY_SECRET_LEN * 2 || !offered.chars().all(|c| c.is_ascii_hexdigit()) {
+        return AcceptDecision::RefusedMalformed;
+    }
+    match held {
+        None => AcceptDecision::Accept,
+        Some(existing) if existing.eq_ignore_ascii_case(offered) => AcceptDecision::AlreadyHeld,
+        Some(_) => AcceptDecision::RefusedWouldOverwrite,
+    }
+}
+
+/// The secret this drone currently holds, or `None` when it holds none.
+///
+/// A missing file and an unreadable one are both "none": the drone then has no
+/// credential to verify against and, per the inert posture, admits the call as
+/// it always did. Failing closed on an unreadable secret would take a working
+/// relay offline over a permissions slip, which is a worse outcome than the
+/// exposure that exists today anyway.
+pub fn load_secret_at(path: &std::path::Path) -> Option<String> {
+    let raw = std::fs::read_to_string(path).ok()?;
+    let trimmed = raw.trim().to_string();
+    (!trimmed.is_empty()).then_some(trimmed)
+}
+
+/// Store a relay secret at `path` with owner-only permissions.
+///
+/// The mode is set explicitly AFTER writing as well as at open time, because
+/// the open-time mode applies only on creation: an existing file left
+/// group-readable by an earlier build would otherwise keep that mode and leave
+/// the material readable to anything on the box. Mirrors the plugin token
+/// secret's write, which is owner-only for the same reason.
+pub fn store_secret_at(path: &std::path::Path, secret: &str) -> std::io::Result<()> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            if let Ok(meta) = std::fs::metadata(parent) {
+                let mut perms = meta.permissions();
+                perms.set_mode(0o700);
+                let _ = std::fs::set_permissions(parent, perms);
+            }
+        }
+    }
+    #[cfg(unix)]
+    {
+        use std::io::Write;
+        use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+        let mut f = std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .mode(0o600)
+            .open(path)?;
+        f.write_all(secret.as_bytes())?;
+        f.flush()?;
+        f.set_permissions(std::fs::Permissions::from_mode(0o600))?;
+        Ok(())
+    }
+    #[cfg(not(unix))]
+    {
+        std::fs::write(path, secret.as_bytes())
+    }
+}
+
+/// Apply an offered secret under the [`decide_accept`] rule, storing it only on
+/// [`AcceptDecision::Accept`].
+///
+/// The decision and the write are joined here so no caller can reach the write
+/// without going through the rule -- the whole scheme rests on first-write-wins,
+/// and a handler that stored first and asked afterwards would defeat it.
+pub fn apply_offered_secret(
+    path: &std::path::Path,
+    offered: &str,
+) -> Result<AcceptDecision, std::io::Error> {
+    let decision = decide_accept(load_secret_at(path).as_deref(), offered);
+    if decision == AcceptDecision::Accept {
+        store_secret_at(path, offered)?;
+    }
+    Ok(decision)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const SECRET: &[u8] = b"0123456789abcdef0123456789abcdef";
+    const DRONE: &str = "40bb1a5a";
+
+    fn issuer() -> RelayTicketIssuer {
+        RelayTicketIssuer::from_secret(SECRET)
+    }
+
+    const HEX32: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
+    #[test]
+    fn an_unset_drone_takes_the_first_secret_it_is_offered() {
+        // Trust-on-first-use: at pair time there is nothing better available on
+        // a headless aircraft.
+        assert_eq!(decide_accept(None, HEX32), AcceptDecision::Accept);
+    }
+
+    #[test]
+    fn a_drone_already_holding_a_secret_refuses_to_be_re_keyed_over_the_air() {
+        // The delivery rides the channel the credential protects, and that
+        // channel is unauthenticated. Without this, anyone in radio range
+        // overwrites the secret and then mints tickets the drone accepts — a
+        // credential that reads as protection while granting the access it
+        // exists to deny. Deliberate replacement goes through unpair.
+        let other = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
+        assert_eq!(
+            decide_accept(Some(HEX32), other),
+            AcceptDecision::RefusedWouldOverwrite
+        );
+    }
+
+    #[test]
+    fn restating_the_same_secret_is_a_no_op_not_a_conflict() {
+        // The ground station restates it on every reconcile tick, so the
+        // steady state must not look like an attack.
+        assert_eq!(
+            decide_accept(Some(HEX32), HEX32),
+            AcceptDecision::AlreadyHeld
+        );
+        // Case differences in hex are the same secret.
+        assert_eq!(
+            decide_accept(Some(&HEX32.to_uppercase()), HEX32),
+            AcceptDecision::AlreadyHeld
+        );
+    }
+
+    #[test]
+    fn a_malformed_offer_is_refused_before_anything_is_stored() {
+        // Storing a short or non-hex value would leave the drone holding
+        // something credential-shaped that authenticates nothing, and would
+        // then block the real secret via first-write-wins.
+        for bad in ["", "abc", "zzzz", &"a".repeat(63), &"a".repeat(65)] {
+            assert_eq!(
+                decide_accept(None, bad),
+                AcceptDecision::RefusedMalformed,
+                "{bad:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_malformed_offer_cannot_displace_a_held_secret() {
+        assert_eq!(
+            decide_accept(Some(HEX32), "nope"),
+            AcceptDecision::RefusedMalformed
+        );
+    }
+
+    #[test]
+    fn a_freshly_minted_ticket_verifies_for_its_target() {
+        let t = issuer().mint_at(DRONE, 30, 1_000);
+        assert_eq!(issuer().verify(&t, DRONE, 1_005), Ok(()));
+    }
+
+    #[test]
+    fn a_ticket_for_one_drone_does_not_verify_at_another() {
+        // The uplink is a broadcast every drone hears, so a ticket that named
+        // its target only in an unsigned field could be lifted off the air and
+        // replayed against a different aircraft.
+        let t = issuer().mint_at(DRONE, 30, 1_000);
+        assert_eq!(
+            issuer().verify(&t, "f6aa0aa4", 1_005),
+            Err(RelayTicketError::ScopeMismatch)
+        );
+    }
+
+    #[test]
+    fn a_different_pair_secret_does_not_verify() {
+        // The whole point: a second ground station holding the shared fleet
+        // radio key still cannot mint a ticket this drone accepts.
+        let t = issuer().mint_at(DRONE, 30, 1_000);
+        let other = RelayTicketIssuer::from_secret(b"ffffffffffffffffffffffffffffffff");
+        assert_eq!(
+            other.verify(&t, DRONE, 1_005),
+            Err(RelayTicketError::HmacMismatch)
+        );
+    }
+
+    #[test]
+    fn a_ws_ticket_key_derivation_does_not_verify_a_relay_ticket() {
+        // Domain separation. Both credentials are HMAC-SHA256 over the same
+        // shape; only the label keeps one from being replayed as the other.
+        let relay = RelayTicketIssuer::from_secret(SECRET);
+        let t = relay.mint_at(DRONE, 30, 1_000);
+
+        // Derive a key the WS way from the same material and check it rejects.
+        let mut mac = HmacSha256::new_from_slice(SECRET).unwrap();
+        mac.update(crate::ws_ticket::TICKET_KEY_LABEL);
+        let ws_keyed = RelayTicketIssuer {
+            key: mac.finalize().into_bytes().to_vec(),
+        };
+        assert_eq!(
+            ws_keyed.verify(&t, DRONE, 1_005),
+            Err(RelayTicketError::HmacMismatch)
+        );
+        assert_ne!(RELAY_KEY_LABEL, crate::ws_ticket::TICKET_KEY_LABEL);
+    }
+
+    #[test]
+    fn an_expired_ticket_is_refused() {
+        let t = issuer().mint_at(DRONE, 30, 1_000);
+        assert_eq!(
+            issuer().verify(&t, DRONE, 1_030),
+            Err(RelayTicketError::Expired)
+        );
+    }
+
+    #[test]
+    fn a_tampered_field_is_refused_before_anything_else_is_read() {
+        let t = issuer().mint_at(DRONE, 30, 1_000);
+        // Push the expiry far out. Without an HMAC over the exact substring
+        // this would simply extend the ticket's life.
+        let parts: Vec<&str> = t.split('|').collect();
+        let forged = format!(
+            "{}|{}|{}|{}|{}|{}",
+            parts[0], parts[1], parts[2], parts[3], "99999999999", parts[5]
+        );
+        assert_eq!(
+            issuer().verify(&forged, DRONE, 1_005),
+            Err(RelayTicketError::HmacMismatch)
+        );
+    }
+
+    #[test]
+    fn a_malformed_token_is_refused_rather_than_panicking() {
+        for bad in [
+            "",
+            "v1",
+            "v2|relay.http|d|1|2|ff",
+            "not-a-ticket",
+            "v1|a|b|c|d|e",
+        ] {
+            assert!(issuer().verify(bad, DRONE, 1_000).is_err(), "{bad}");
+        }
+    }
+
+    #[test]
+    fn a_requested_lifetime_cannot_exceed_the_cap() {
+        // Otherwise a caller mints a long-lived bearer just by asking.
+        let t = issuer().mint_at(DRONE, 86_400, 1_000);
+        let expires: i64 = t.split('|').nth(4).unwrap().parse().unwrap();
+        assert_eq!(expires, 1_000 + MAX_TTL_SECONDS);
+    }
+
+    // Checked at compile time: a shorter secret would weaken every ticket,
+    // and a runtime assertion on a constant is not a test.
+    const _: () = assert!(RELAY_SECRET_LEN >= 32);
+
+    #[test]
+    fn applying_an_offer_to_an_unset_drone_stores_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("secrets/relay-peer-secret");
+
+        assert_eq!(
+            apply_offered_secret(&path, HEX32).unwrap(),
+            AcceptDecision::Accept
+        );
+        assert_eq!(load_secret_at(&path).as_deref(), Some(HEX32));
+    }
+
+    #[test]
+    fn applying_a_restated_secret_leaves_the_stored_value_alone() {
+        // The ground station restates on every reconcile tick, so the ordinary
+        // steady state must not read as a refusal.
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("secrets/relay-peer-secret");
+        apply_offered_secret(&path, HEX32).unwrap();
+
+        assert_eq!(
+            apply_offered_secret(&path, HEX32).unwrap(),
+            AcceptDecision::AlreadyHeld
+        );
+    }
+
+    #[test]
+    fn applying_a_stranger_offer_leaves_the_stored_secret_intact() {
+        // The attack the first-write-wins rule exists to stop: anyone in radio
+        // range replacing the credential with their own would leave something
+        // that reads as protection while granting exactly what it denies.
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("secrets/relay-peer-secret");
+        apply_offered_secret(&path, HEX32).unwrap();
+
+        let attacker = "f".repeat(64);
+        assert_eq!(
+            apply_offered_secret(&path, &attacker).unwrap(),
+            AcceptDecision::RefusedWouldOverwrite
+        );
+        assert_eq!(
+            load_secret_at(&path).as_deref(),
+            Some(HEX32),
+            "the held secret is untouched"
+        );
+    }
+
+    #[test]
+    fn applying_a_malformed_offer_reaches_no_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("secrets/relay-peer-secret");
+
+        assert_eq!(
+            apply_offered_secret(&path, "nonsense").unwrap(),
+            AcceptDecision::RefusedMalformed
+        );
+        assert!(load_secret_at(&path).is_none());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_stored_secret_is_owner_only_even_over_a_looser_existing_file() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("relay-peer-secret");
+        // An earlier build could have left this world-readable; the open-time
+        // mode alone would not repair it.
+        std::fs::write(&path, "old").unwrap();
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).unwrap();
+
+        store_secret_at(&path, HEX32).unwrap();
+
+        let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600, "got {mode:o}");
+    }
+
+    #[test]
+    fn an_absent_secret_reads_as_none_rather_than_an_error() {
+        // Which is what keeps the drone inert until one is delivered.
+        let dir = tempfile::tempdir().unwrap();
+        assert!(load_secret_at(&dir.path().join("nope")).is_none());
+    }
+}

@@ -23,7 +23,7 @@
 //! runs in its own spawned task, and a timeout returns a 503 to the ground so
 //! the operator sees the wedge rather than a silent stall.
 
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use ados_protocol::aux_egress::AuxEgress;
 use ados_protocol::aux_mux::AuxChannel;
@@ -34,6 +34,46 @@ use tokio::net::TcpStream;
 use crate::aux_rpc_dedupe::{Admit, RequestDedupe};
 use crate::aux_uplink_consumer::AuxUplinkConsumerCounters;
 
+/// Decide whether a relayed request may proceed to the local HTTP API.
+///
+/// Pure over its inputs so the decision can be tested without a radio, a
+/// secret file or a running server -- this is the boundary the whole relay
+/// credential exists to defend, and a branch buried inside the request handler
+/// would only ever be exercised end to end.
+///
+/// `held` is the secret this drone was given, or `None` when it has none. None
+/// admits everything, unchanged from the behaviour before the credential
+/// existed. That is deliberate: the gate must be able to ship before the
+/// delivery path does, without the lane going dark in between.
+pub fn authorize(
+    held: Option<&str>,
+    ticket: &[u8],
+    own_device_id: &str,
+    now: i64,
+) -> Result<(), ados_protocol::relay_ticket::RelayTicketError> {
+    let Some(secret) = held else {
+        return Ok(());
+    };
+    let issuer = ados_protocol::relay_ticket::RelayTicketIssuer::from_secret(secret.as_bytes());
+    // A ticket that is not valid UTF-8 cannot be one we minted, and reads as a
+    // malformed one rather than being allowed to panic a decode.
+    let presented = std::str::from_utf8(ticket).unwrap_or("");
+    issuer.verify(presented, own_device_id, now)
+}
+
+/// Wall-clock unix seconds, for the relay ticket's expiry check.
+///
+/// Wall clock rather than a monotonic instant because the ticket's expiry was
+/// stamped by the ground station against its own wall clock; a monotonic
+/// reading here would be comparing two unrelated origins.
+fn now_unix_secs() -> i64 {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0)
+}
+
 /// The drone's HTTP API is always on localhost.
 const HTTP_HOST: &str = "127.0.0.1";
 const HTTP_PORT: u16 = 8080;
@@ -42,6 +82,10 @@ const HTTP_PORT: u16 = 8080;
 /// milliseconds for most endpoints; 5 seconds is enough for heavier calls
 /// (config writes, param loads) while surfacing a wedge to the operator.
 const HTTP_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// Headroom above the response-body ceiling for the HTTP status line and
+/// headers, which are read on the same stream and stripped afterwards.
+const HTTP_HEADER_ALLOWANCE: usize = 8 * 1024;
 
 /// Pause between response fragments.
 ///
@@ -101,7 +145,48 @@ pub async fn handle(
     counters: &AuxUplinkConsumerCounters,
     own_device_id: &str,
 ) {
+    // The caller's clock starts HERE, not when the fragments are ready. The
+    // bound below used to be measured from the start of the send, so a slow
+    // HTTP call spent the caller's budget for free: a 5 s call plus a 5 s
+    // queue wait is past the ground's bound, and the burst transmitted anyway.
+    let started = Instant::now();
     let id = request.id;
+
+    // Authorise BEFORE the request reaches loopback.
+    //
+    // Everything downstream treats a relayed call as on-box, because it
+    // genuinely does arrive on 127.0.0.1 -- so by the time `ados-control` sees
+    // it, the decision has already been made. This is the only place the check
+    // can happen while it still means anything.
+    //
+    // Inert until a secret exists. A drone that has never been given one admits
+    // the call exactly as it always has, which is what lets this ship ahead of
+    // the delivery path without taking the relay lane offline in between.
+    let held = ados_protocol::relay_ticket::load_secret_at(std::path::Path::new(
+        ados_protocol::relay_ticket::RELAY_SECRET_PATH,
+    ));
+    if let Err(e) = authorize(
+        held.as_deref(),
+        request.ticket,
+        own_device_id,
+        now_unix_secs(),
+    ) {
+        counters.note_rpc_unauthorized();
+        tracing::warn!(
+            request_id = id,
+            error = %e,
+            "aux_rpc_request_unauthorized"
+        );
+        // Answered rather than dropped: a ground station presenting a bad
+        // credential should see it said so, not sit through a call timeout
+        // that reads identically to a dead radio.
+        let fragments = encode_fragments(own_device_id.as_bytes(), id, 401, &[]);
+        if !fragments.is_empty() {
+            send_fragments(id, egress, &fragments, counters, started).await;
+        }
+        return;
+    }
+
     let fragments = match dedupe.admit(id) {
         Admit::Duplicate => {
             counters.note_rpc_duplicate();
@@ -143,7 +228,7 @@ pub async fn handle(
         }
     };
 
-    send_fragments(id, egress, &fragments, counters).await;
+    send_fragments(id, egress, &fragments, counters, started).await;
 }
 
 /// Emit one response's fragments as a single paced burst.
@@ -160,10 +245,13 @@ async fn send_fragments(
     egress: &AuxEgress,
     fragments: &[Vec<u8>],
     counters: &AuxUplinkConsumerCounters,
+    started: Instant,
 ) {
     // `acquire` fails only on a closed semaphore and nothing closes a static
     // one; `.ok()` holds the permit for this scope with no panic path.
-    let slot = tokio::time::timeout(SEND_SLOT_WAIT_LIMIT, RESPONSE_SEND_SLOT.acquire()).await;
+    // Whatever is left of the caller's budget, not a fresh full allowance.
+    let remaining = SEND_SLOT_WAIT_LIMIT.saturating_sub(started.elapsed());
+    let slot = tokio::time::timeout(remaining, RESPONSE_SEND_SLOT.acquire()).await;
     let _slot = match slot {
         Ok(permit) => permit.ok(),
         Err(_) => {
@@ -171,7 +259,7 @@ async fn send_fragments(
             tracing::warn!(
                 request_id = id,
                 fragments = fragments.len(),
-                waited_s = SEND_SLOT_WAIT_LIMIT.as_secs(),
+                elapsed_ms = started.elapsed().as_millis() as u64,
                 "aux_rpc_response_abandoned_send_queue_too_deep"
             );
             return;
@@ -251,6 +339,30 @@ fn encode_all(sender: &[u8], id: u32, status: u16, symbols: &ResponseSymbols) ->
     out
 }
 
+/// Read a response off `r` up to the ceiling the response encoder already
+/// enforces, rather than to EOF.
+///
+/// `Connection: close` means the server closes after the response, so reading
+/// to EOF terminates — but only when the far end chooses to stop, and the size
+/// check ran after the body was fully buffered. With one task per relay
+/// request, N concurrent calls to a large-response route each held their own
+/// copy on a board with a few hundred megabytes.
+///
+/// The cap carries one byte past the ceiling so an over-ceiling body is still
+/// detected as over-ceiling downstream, rather than being truncated to exactly
+/// the limit and encoded as if it had fit.
+async fn read_response_bounded<R: tokio::io::AsyncRead + Unpin>(
+    r: R,
+) -> Result<Vec<u8>, HttpError> {
+    let cap = ados_protocol::aux_rpc::MAX_RESPONSE_BODY + HTTP_HEADER_ALLOWANCE + 1;
+    let mut buf = Vec::new();
+    r.take(cap as u64)
+        .read_to_end(&mut buf)
+        .await
+        .map_err(|e| HttpError::Read(e.to_string()))?;
+    Ok(buf)
+}
+
 /// A minimal HTTP/1.1 client for localhost. No TLS, no redirects, no
 /// streaming — just a request/response round trip to the drone's own API.
 async fn http_call(
@@ -281,13 +393,7 @@ async fn http_call(
                 .map_err(|e| HttpError::Write(e.to_string()))?;
         }
 
-        // Read the full response. Connection: close means the server closes
-        // after the response, so we read until EOF.
-        let mut response = Vec::new();
-        stream
-            .read_to_end(&mut response)
-            .await
-            .map_err(|e| HttpError::Read(e.to_string()))?;
+        let response = read_response_bounded(&mut stream).await?;
 
         parse_response(&response)
     };
@@ -473,6 +579,54 @@ mod tests {
 
     /// `start_paused` lets the bounded wait expire instantly instead of the
     /// test sitting through the real limit.
+
+    #[tokio::test]
+    async fn a_response_larger_than_the_ceiling_stops_being_read_at_the_ceiling() {
+        // The read used to run to EOF, bounded only by a 5 s timeout against
+        // loopback, and the size check happened after the body was fully
+        // buffered. With one task per relay request, N concurrent calls to a
+        // large-response route each held their own copy.
+        let (mut near, far) = tokio::io::duplex(64 * 1024);
+        let ceiling = ados_protocol::aux_rpc::MAX_RESPONSE_BODY;
+        // Far more than the ceiling, written for as long as anyone reads.
+        tokio::spawn(async move {
+            let chunk = vec![b'x'; 32 * 1024];
+            loop {
+                if near.write_all(&chunk).await.is_err() {
+                    break;
+                }
+            }
+        });
+
+        let got = tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            read_response_bounded(far),
+        )
+        .await
+        .expect("the read never terminated; it is still bounded only by a timeout")
+        .expect("read failed");
+
+        assert!(
+            got.len() <= ceiling + HTTP_HEADER_ALLOWANCE + 1,
+            "buffered {} bytes for a ceiling of {}",
+            got.len(),
+            ceiling
+        );
+    }
+
+    #[tokio::test]
+    async fn a_response_under_the_ceiling_is_read_whole() {
+        // The bound must not truncate the ordinary case.
+        let (mut near, far) = tokio::io::duplex(64 * 1024);
+        let body = b"HTTP/1.1 200 OK\r\n\r\n{\"ok\":true}".to_vec();
+        let expected = body.clone();
+        tokio::spawn(async move {
+            let _ = near.write_all(&body).await;
+        });
+        let got = read_response_bounded(far).await.expect("read failed");
+        assert_eq!(got, expected);
+    }
+
     #[tokio::test(start_paused = true)]
     async fn a_response_is_abandoned_rather_than_sent_after_the_caller_gave_up() {
         // The send slot is process-wide and held for a whole burst, so
@@ -489,7 +643,7 @@ mod tests {
 
         // Hold the slot for longer than a caller would wait.
         let held = RESPONSE_SEND_SLOT.acquire().await.expect("slot");
-        send_fragments(1, &egress, &fragments, &counters).await;
+        send_fragments(1, &egress, &fragments, &counters, Instant::now()).await;
         drop(held);
 
         assert_eq!(
@@ -713,5 +867,82 @@ mod tests {
             2,
             "the all-or-nothing guard must not reject an encodable response"
         );
+    }
+
+    mod relay_authorization {
+        use super::super::authorize;
+        use ados_protocol::relay_ticket::{RelayTicketIssuer, DEFAULT_TTL_SECONDS};
+
+        const SECRET: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+        const ME: &str = "77735cd38937";
+        const NOW: i64 = 1_800_000_000;
+
+        fn ticket_for(target: &str) -> String {
+            RelayTicketIssuer::from_secret(SECRET.as_bytes()).mint_at(
+                target,
+                DEFAULT_TTL_SECONDS,
+                NOW,
+            )
+        }
+
+        #[test]
+        fn a_drone_with_no_secret_admits_the_call_exactly_as_before() {
+            // The inert posture. Until a secret is delivered, the relay lane
+            // must behave precisely as it does today.
+            assert!(authorize(None, b"", ME, NOW).is_ok());
+            assert!(authorize(None, b"any old rubbish", ME, NOW).is_ok());
+        }
+
+        #[test]
+        fn a_valid_ticket_is_admitted() {
+            let t = ticket_for(ME);
+            assert!(authorize(Some(SECRET), t.as_bytes(), ME, NOW).is_ok());
+        }
+
+        #[test]
+        fn a_drone_holding_a_secret_refuses_a_call_carrying_none() {
+            // The actual close: once the credential exists, an unaccompanied
+            // relayed request no longer inherits on-box authority.
+            assert!(authorize(Some(SECRET), b"", ME, NOW).is_err());
+        }
+
+        #[test]
+        fn a_ticket_minted_for_another_drone_is_refused() {
+            // Load-bearing because the uplink is a broadcast: every drone in
+            // the fleet hears every ticket, so one addressed elsewhere must not
+            // open this one.
+            let t = ticket_for("some-other-drone");
+            assert!(authorize(Some(SECRET), t.as_bytes(), ME, NOW).is_err());
+        }
+
+        #[test]
+        fn a_ticket_from_a_different_pair_secret_is_refused() {
+            // A second ground station holding the shared fleet radio key still
+            // cannot mint one this drone accepts.
+            let other = "f".repeat(64);
+            let t = RelayTicketIssuer::from_secret(other.as_bytes()).mint_at(
+                ME,
+                DEFAULT_TTL_SECONDS,
+                NOW,
+            );
+            assert!(authorize(Some(SECRET), t.as_bytes(), ME, NOW).is_err());
+        }
+
+        #[test]
+        fn an_expired_ticket_is_refused() {
+            let t = ticket_for(ME);
+            assert!(authorize(
+                Some(SECRET),
+                t.as_bytes(),
+                ME,
+                NOW + DEFAULT_TTL_SECONDS + 1
+            )
+            .is_err());
+        }
+
+        #[test]
+        fn a_ticket_that_is_not_utf8_is_refused_rather_than_panicking() {
+            assert!(authorize(Some(SECRET), &[0xFF, 0xFE, 0xFD], ME, NOW).is_err());
+        }
     }
 }

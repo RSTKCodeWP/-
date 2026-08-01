@@ -1,8 +1,8 @@
 {
   "source": "ArduPilot/pymavlink",
-  "upstream_commit": "c35e868e0e8f0afe253e6d348b87b551f9505abb",
-  "upstream_updated": "2026-07-31T08:40:00Z",
-  "synced_at": "2026-07-31T09:05:36+00:00",
+  "upstream_commit": "839c381792b03396bd48f3d5783f5e67eb72bc43",
+  "upstream_updated": "2026-07-31T12:06:34Z",
+  "synced_at": "2026-08-01T08:26:38+00:00",
   "discovered_via": "owner:ArduPilot",
   "score": 6.0
 }

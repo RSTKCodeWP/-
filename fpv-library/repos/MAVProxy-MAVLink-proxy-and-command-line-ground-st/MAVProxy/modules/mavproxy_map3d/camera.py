@@ -3,7 +3,7 @@ Cesium-like camera and interactor for the 3D map.
 
 The camera keeps the horizon level at all times (no roll/flip): only yaw (about
 world up) and pitch (look-down angle, clamped). Default mouse drag pans; Ctrl+drag
-rotates (left-right = yaw, forward-back = pitch); wheel zooms.
+or a right drag rotates (left-right = yaw, forward-back = pitch); wheel zooms.
 '''
 
 import math
@@ -85,17 +85,23 @@ class TerrainCamera:
 
 
 class TerrainStyle(vtk.vtkInteractorStyleUser):
-    '''default drag = pan, Ctrl+drag = yaw/pitch, wheel = zoom'''
+    '''default drag = pan, Ctrl+drag or right drag = yaw/pitch, wheel = zoom'''
     def __init__(self, tc, on_change=None):
         self.tc = tc
         self.on_change = on_change
         self.last = None
         self.moved = False
+        self.rotating = False
+        self.active_button = None
         # Do not call this "enabled": vtkInteractorStyle exposes an enabled
         # property that attempts to enable the style immediately.
         self.interaction_enabled = True
-        self.AddObserver("LeftButtonPressEvent", self._down)
-        self.AddObserver("LeftButtonReleaseEvent", self._up)
+        self.AddObserver("LeftButtonPressEvent", self._down_pan)
+        self.AddObserver("LeftButtonReleaseEvent", self._up_left)
+        # macOS turns Ctrl+left into a right click, so the Ctrl+drag above
+        # never reaches us there; rotate on a right drag as well
+        self.AddObserver("RightButtonPressEvent", self._down_rotate)
+        self.AddObserver("RightButtonReleaseEvent", self._up_right)
         self.AddObserver("MouseMoveEvent", self._move)
         self.AddObserver("MouseWheelForwardEvent", self._wf)
         self.AddObserver("MouseWheelBackwardEvent", self._wb)
@@ -103,18 +109,45 @@ class TerrainStyle(vtk.vtkInteractorStyleUser):
     def _render(self):
         self.GetInteractor().GetRenderWindow().Render()
 
-    def _down(self, o, e):
-        if not self.interaction_enabled:
+    def cancel_drag(self):
+        '''forget any drag in progress. Without this a drag left unfinished
+        (interaction disabled part way through, or a release we never saw)
+        would keep moving the camera on plain mouse motion'''
+        self.last = None
+        self.moved = False
+        self.rotating = False
+        self.active_button = None
+
+    def _begin(self, button, rotating):
+        # one button owns the drag: a second press must not switch pan/rotate
+        # under the first, and its release must not end the first drag
+        if not self.interaction_enabled or self.active_button is not None:
             return
+        self.active_button = button
+        self.rotating = rotating
         self.last = self.GetInteractor().GetEventPosition()
         self.moved = False
 
-    def _up(self, o, e):
-        self.last = None
-        if not self.interaction_enabled:
+    def _end(self, button):
+        if self.active_button != button:
             return
-        if self.moved and self.on_change:
+        moved = self.moved
+        enabled = self.interaction_enabled
+        self.cancel_drag()
+        if enabled and moved and self.on_change:
             self.on_change()
+
+    def _down_pan(self, o, e):
+        self._begin('left', False)
+
+    def _down_rotate(self, o, e):
+        self._begin('right', True)
+
+    def _up_left(self, o, e):
+        self._end('left')
+
+    def _up_right(self, o, e):
+        self._end('right')
 
     def _move(self, o, e):
         if not self.interaction_enabled or self.last is None:
@@ -124,7 +157,7 @@ class TerrainStyle(vtk.vtkInteractorStyleUser):
         dx, dy = x - self.last[0], y - self.last[1]
         self.last = (x, y)
         self.moved = True
-        if it.GetControlKey():
+        if self.rotating or it.GetControlKey():
             self.tc.rotate(dx, dy)
         else:
             self.tc.pan(dx, dy)

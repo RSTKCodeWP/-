@@ -27,12 +27,15 @@ pub mod compute_status;
 pub mod config_schema;
 pub mod dashboard_pin;
 pub mod diagnostics;
+pub mod fc_identity;
 pub mod fleet;
 pub mod gs_bluetooth;
 pub mod gs_camera_write;
 pub mod gs_cmd;
 pub mod gs_crsf;
+pub mod gs_fleet_enroll;
 pub mod gs_fleet_hero;
+pub mod gs_fleet_slot;
 pub mod gs_gamepad_write;
 pub mod gs_input_read;
 pub mod gs_mesh;
@@ -67,6 +70,8 @@ pub mod params_write;
 pub mod plugins_config;
 pub mod plugins_state;
 pub mod plugins_tools;
+pub mod reachable_addr;
+pub mod relay_secret;
 pub mod service_control;
 pub mod services;
 pub mod signing;
@@ -275,6 +280,10 @@ pub fn build_router(state: AppState, net_native: bool, hid_native: bool) -> Rout
         )
         // Fleet roster: the opt-in mesh awareness surface. Both static on this
         // device — enrollment reports not-enrolled, peers is the empty list.
+        .route(
+            "/api/relay/peer-secret",
+            post(relay_secret::post_peer_secret),
+        )
         .route("/api/fleet/enrollment", get(fleet::get_enrollment))
         .route("/api/fleet/peers", get(fleet::list_peers))
         // MAVLink v2 signing: FC capability, the require-flag value (GET) + toggle

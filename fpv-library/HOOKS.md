@@ -1,6 +1,6 @@
 # FPV Library — discovery hooks
 
-Updated: 2026-07-31 09:40 UTC
+Updated: 2026-08-01 08:50 UTC
 
 ## Interesting (auto-flagged)
 
@@ -63,9 +63,9 @@ Updated: 2026-07-31 09:40 UTC
 | [cleanflight/cleanflight](https://github.com/cleanflight/cleanflight) | keep | 11.0 | fc | Clean-code version of the baseflight flight controller firmw |
 | [pydys/rasberry-inav-fpv-osd](https://github.com/pydys/rasberry-inav-fpv-osd) | keep | 11.0 | osd, fc | Simple Python library witch allows to render graphical OSD u |
 | [ibrahimsn98/fpv-ground-station](https://github.com/ibrahimsn98/fpv-ground-station) | keep | 11.0 | fc | FPV LTM Ground Telemetry Client for INAV and Betaflight |
+| [Extelligence-ai/bagel](https://github.com/Extelligence-ai/bagel) | keep | 10.8 | fc, ai | Chat with your robotics, drone, and IoT data — ChatGPT for t |
 | [ExperimentalDesignBureau-1571/fpv-ground-control-station](https://github.com/ExperimentalDesignBureau-1571/fpv-ground-control-station) | keep | 10.7 | gcs | Modular Ground Control Station for FPV Drones |
 | [m-heidary/ApexControl](https://github.com/m-heidary/ApexControl) | keep | 10.7 | gcs, fc | ApexControl Ground Station is a cross-platform MAVLink groun |
-| [learnsyslab/gym-pybullet-drones](https://github.com/learnsyslab/gym-pybullet-drones) | keep | 10.7 | fc, tools | PyBullet Gymnasium environments for single and multi-agent r |
 
 ## Watch list (weak hook — review manually)
 
