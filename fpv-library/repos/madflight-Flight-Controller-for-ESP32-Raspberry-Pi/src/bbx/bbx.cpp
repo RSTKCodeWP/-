@@ -253,12 +253,12 @@ void Bbx::log_imu(ImuState *imu_s) {
   BinLog bl("IMU");
   bl.keepFree = QUEUE_LENGTH/4; //keep 25% of queue free for other messages
   bl.TimeUS(imu_s->ts);
-  bl.i16("ax", (imu_s->ax - cfg.imu_cal_ax) * 1000, 1e-3, "G"); //G
-  bl.i16("ay", (imu_s->ay - cfg.imu_cal_ay) * 1000, 1e-3, "G"); //G
-  bl.i16("az", (imu_s->az - cfg.imu_cal_az) * 1000, 1e-3, "G"); //G
-  bl.i16("gx", (imu_s->gx - cfg.imu_cal_gx) * 10,   1e-1, "deg/s"); //dps
-  bl.i16("gy", (imu_s->gy - cfg.imu_cal_gy) * 10,   1e-1, "deg/s"); //dps
-  bl.i16("gz", (imu_s->gz - cfg.imu_cal_gz) * 10,   1e-1, "deg/s"); //dps
+  bl.i16("ax", imu_s->ax * 1000, 1e-3, "G"); //G
+  bl.i16("ay", imu_s->ay * 1000, 1e-3, "G"); //G
+  bl.i16("az", imu_s->az * 1000, 1e-3, "G"); //G
+  bl.i16("gx", imu_s->gx * 10,   1e-1, "deg/s"); //dps
+  bl.i16("gy", imu_s->gy * 10,   1e-1, "deg/s"); //dps
+  bl.i16("gz", imu_s->gz * 10,   1e-1, "deg/s"); //dps
   if(mag.installed()) {
     bl.i16("mx", mag.mx * 100, 1e-2, "uT"); //uT
     bl.i16("my", mag.my * 100, 1e-2, "uT"); //uT
@@ -272,7 +272,7 @@ void Bbx::log_mode() {
   bl.TimeUS();
   bl.u8flightmode("Mode", veh.flightmode_ap_id());
   bl.u8          ("ModeNum", veh.flightmode_ap_id());
-  bl.u8          ("Rsn",1); //ModeReason
+  bl.u8          ("Rsn", 1); //ModeReason
   bl.char16      ("Name", veh.flightmode_name()); //extenstion to "standard" ArduPilot BinLog
 }
 
@@ -349,7 +349,7 @@ void Bbx::log_rcl(RclState *rcl_s) {
   bl.i16("thr", rcl_s->throttle * 1000);
   bl.i16("yaw", rcl_s->yaw * 1000);
   bl.u8 ("arm", rcl_s->armed);
-  bl.u8 ("flt", rcl_s->flightmode);
+  bl.u8 ("flt", rcl_s->flightmode_idx);
   bl.u16("ch1", rcl_s->pwm[0]);
   bl.u16("ch2", rcl_s->pwm[1]);
   bl.u16("ch3", rcl_s->pwm[2]);

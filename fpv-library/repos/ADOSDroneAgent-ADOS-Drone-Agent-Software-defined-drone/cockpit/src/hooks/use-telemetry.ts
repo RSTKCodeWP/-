@@ -11,8 +11,9 @@ import { useEffect, useRef, useState } from "react";
 import { pollIntervalMs, renderProfile } from "@/lib/render-profile";
 
 import { useProfile } from "@/hooks/use-profile";
-import { getDroneStatus, getGsStatus } from "@/lib/api";
+import { ApiError, getDroneStatus, getGsStatus } from "@/lib/api";
 import type { GsStatus } from "@/lib/types";
+import { pollIntervalFor, useReachStore } from "@/stores/reach-store";
 
 export interface TelemetryState {
   status: GsStatus | null;
@@ -43,9 +44,14 @@ export function useTelemetry(intervalMs = pollIntervalMs(400, renderProfile())):
       try {
         const status = await fetchStatus(controller.signal);
         if (cancelled) return;
+        useReachStore.getState().report(null, true);
         setState({ status, error: null, stale: false });
       } catch (err) {
         if (cancelled || controller.signal.aborted) return;
+        // Refused is not absent: report it so the shell names the cause.
+        useReachStore
+          .getState()
+          .report(err instanceof ApiError ? err.status : null, false);
         setState((prev) => ({
           status: prev.status,
           error: err instanceof Error ? err.message : String(err),
@@ -53,7 +59,12 @@ export function useTelemetry(intervalMs = pollIntervalMs(400, renderProfile())):
         }));
       } finally {
         if (!cancelled) {
-          timer.current = setTimeout(tick, intervalMs);
+          // Back off while the agent is refusing — see `pollIntervalFor`.
+          const wait = pollIntervalFor(
+            intervalMs,
+            useReachStore.getState().refusal,
+          );
+          timer.current = setTimeout(tick, wait);
         }
       }
     };

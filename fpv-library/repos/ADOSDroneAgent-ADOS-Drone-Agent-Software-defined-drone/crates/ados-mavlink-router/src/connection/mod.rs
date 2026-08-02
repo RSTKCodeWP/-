@@ -42,6 +42,7 @@
 mod framing;
 mod send_scheduler;
 pub use send_scheduler::ClientOrigin;
+pub mod attitude_setpoint;
 pub mod swarm_setpoint;
 pub(crate) mod transport;
 

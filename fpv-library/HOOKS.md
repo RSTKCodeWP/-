@@ -1,6 +1,6 @@
 # FPV Library — discovery hooks
 
-Updated: 2026-08-01 08:50 UTC
+Updated: 2026-08-02 09:00 UTC
 
 ## Interesting (auto-flagged)
 

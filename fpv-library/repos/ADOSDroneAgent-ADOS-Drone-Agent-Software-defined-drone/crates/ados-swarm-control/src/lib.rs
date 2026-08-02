@@ -78,3 +78,21 @@ pub use swarmbus::{fixes_from_payload, precedence_from_wire, EXTRA_EMERGENCY, EX
 /// tested) without the transport in scope, and [`crate::controller`] pins the
 /// two together.
 pub const NEIGHBOR_STALE: std::time::Duration = std::time::Duration::from_secs(3);
+
+/// How stale this drone's OWN position may be before the controller stops
+/// commanding.
+///
+/// Tighter than [`NEIGHBOR_STALE`] on purpose. A neighbour going quiet empties
+/// the picture, which the controller already refuses to fly on. Our own fix
+/// going quiet does something worse: it stays plausible. The frame every
+/// neighbour is measured in is anchored on it, so a frozen fix keeps producing
+/// confident geometry about where everyone is relative to where we used to be,
+/// and the setpoints keep flowing at the full tick rate. At 10 Hz a three-second
+/// window is thirty ticks of commanding on a dead fix, so this is one second.
+///
+/// Re-exported, not restated. The transport half gates the OUTGOING beacon on
+/// the same window, because a frozen fix that this loop refuses to fly on is
+/// still a frozen fix every other drone in the fleet dead-reckons forward. Two
+/// copies of the number would let those two halves drift apart without anything
+/// failing.
+pub use ados_swarmbus::OWN_STATE_STALE;

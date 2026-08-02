@@ -1,8 +1,8 @@
 {
   "source": "juricabi/ELRS-Crossfire-WiFi-Joystick-Windows",
-  "upstream_commit": "aaa73f8bd4971be69e94e733dbbc1a07596e7a77",
-  "upstream_updated": "2026-07-29T20:36:23Z",
-  "synced_at": "2026-07-30T08:36:55+00:00",
+  "upstream_commit": "6bb1680b2c5df108b8156a7c26a890ae1de464d0",
+  "upstream_updated": "2026-08-01T13:25:24Z",
+  "synced_at": "2026-08-02T08:32:39+00:00",
   "discovered_via": "search:expresslrs mavlink:p1",
   "score": 9.6
 }
