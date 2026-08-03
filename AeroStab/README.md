@@ -15,6 +15,8 @@ AeroStab estimates ground velocity from downward optical flow, integrates positi
 - **GPS fusion** — optional drift correction when GPS is available at takeoff
 - **Quality gating** — MAVLink odometry only when tracking is reliable
 - **RTL path recording** — trajectory while armed, saved on disarm, web map
+- **PMW3901 / PAA5100** optional SPI flow sensor (blended with camera LK)
+- **Flight log analyzer** — CSV → `.aerostab.json` reports
 - Visual yaw estimation + FC yaw fusion
 - Frank-S01 / OV5647 camera profile
 - Simulation mode for bench testing
@@ -137,6 +139,28 @@ bash scripts/ardupilot_sitl.sh
 Config: `config/sitl.yaml` — synthetic camera + `tcp:127.0.0.1:5760` MAVLink.
 
 CI runs on push (`.github/workflows/aerostab-ci.yml`): pytest, SITL HIL, scenarios, simulate.
+
+### Flight log analysis
+
+```bash
+python3 scripts/analyze_log.py logs/20260803_002240.csv
+# or latest:
+python3 -m aerostab.log_analyzer -d logs
+```
+
+### Optional PMW3901 sensor
+
+Enable in `/etc/aerostab/config.yaml`:
+
+```yaml
+pmw3901:
+  enabled: true
+  chip: pmw3901   # or paa5100
+  blend_weight: 0.35
+```
+
+Wire SPI (Pi Zero 2W): MOSI/MISO/SCK/CS, 3.3V. Install: `pip install pmw3901`.
+Patterns adapted from [Pimoroni pmw3901-python](https://github.com/pimoroni/pmw3901-python).
 
 ## FOV calibration
 

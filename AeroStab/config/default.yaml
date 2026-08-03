@@ -65,6 +65,15 @@ web:
   port: 8080
   mjpeg_quality: 70
 
+pmw3901:
+  enabled: false
+  backend: auto
+  chip: pmw3901
+  spi_port: 0
+  spi_cs: 1
+  rotation_deg: 0
+  blend_weight: 0.35
+
 rtl:
   enabled: true
   min_dist_m: 0.25

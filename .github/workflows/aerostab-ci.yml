@@ -39,3 +39,8 @@ jobs:
 
       - name: Simulation smoke test
         run: python scripts/simulate.py
+
+      - name: Analyze sample log
+        run: |
+          python scripts/simulate.py
+          python scripts/analyze_log.py -d logs --json | head -20

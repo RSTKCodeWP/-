@@ -107,6 +107,19 @@ class WebConfig:
 
 
 @dataclass
+class PmwConfig:
+    enabled: bool = False
+    backend: str = "auto"  # auto | synthetic | hardware
+    chip: str = "pmw3901"  # pmw3901 | paa5100
+    spi_port: int = 0
+    spi_cs: int = 1
+    spi_cs_gpio: Optional[int] = None
+    rotation_deg: int = 0
+    # Blend weight when both camera LK and PMW3901 are available (0 = camera only)
+    blend_weight: float = 0.35
+
+
+@dataclass
 class RtlConfig:
     enabled: bool = True
     min_dist_m: float = 0.25
@@ -133,6 +146,7 @@ class AppConfig:
     mask: MaskConfig = field(default_factory=MaskConfig)
     mavlink: MavlinkConfig = field(default_factory=MavlinkConfig)
     web: WebConfig = field(default_factory=WebConfig)
+    pmw3901: PmwConfig = field(default_factory=PmwConfig)
     rtl: RtlConfig = field(default_factory=RtlConfig)
     runtime: RuntimeConfig = field(default_factory=RuntimeConfig)
 
@@ -159,6 +173,7 @@ def load_config(path: Optional[str] = None) -> AppConfig:
         mask=_merge_dataclass(MaskConfig, raw.get("mask", {})),
         mavlink=_merge_dataclass(MavlinkConfig, raw.get("mavlink", {})),
         web=_merge_dataclass(WebConfig, raw.get("web", {})),
+        pmw3901=_merge_dataclass(PmwConfig, raw.get("pmw3901", {})),
         rtl=_merge_dataclass(RtlConfig, raw.get("rtl", {})),
         runtime=_merge_dataclass(RuntimeConfig, raw.get("runtime", {})),
     )
@@ -175,6 +190,7 @@ def save_config(config: AppConfig, path: str) -> None:
         "mask": {k: v for k, v in asdict(config.mask).items() if k != "path"},
         "mavlink": asdict(config.mavlink),
         "web": asdict(config.web),
+        "pmw3901": asdict(config.pmw3901),
         "rtl": asdict(config.rtl),
         "runtime": asdict(config.runtime),
     }

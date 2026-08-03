@@ -7,7 +7,7 @@ CONFIG_DIR="/etc/aerostab"
 LOG_DIR="/var/log/aerostab"
 USER_NAME="${SUDO_USER:-pi}"
 
-echo "=== AeroStab v0.2 installer ==="
+echo "=== AeroStab v0.4 installer ==="
 [[ "$(id -u)" -eq 0 ]] || { echo "sudo $0"; exit 1; }
 
 export DEBIAN_FRONTEND=noninteractive
@@ -26,6 +26,8 @@ if [[ -f "$CONFIG_TXT" ]]; then
   grep -q '^dtoverlay=disable-bt' "$CONFIG_TXT" || echo 'dtoverlay=disable-bt' >> "$CONFIG_TXT"
   grep -q '^enable_uart=1' "$CONFIG_TXT" || echo 'enable_uart=1' >> "$CONFIG_TXT"
   grep -q '^gpu_mem=128' "$CONFIG_TXT" || echo 'gpu_mem=128' >> "$CONFIG_TXT"
+  # Optional PMW3901 SPI (uncomment dtoverlay if using breakout)
+  grep -q '^dtparam=spi=on' "$CONFIG_TXT" || echo 'dtparam=spi=on' >> "$CONFIG_TXT"
 fi
 
 mkdir -p "$INSTALL_DIR" "$CONFIG_DIR" "$LOG_DIR"
@@ -37,6 +39,8 @@ rsync -a --exclude '.venv' --exclude '__pycache__' --exclude 'logs' "$SCRIPT_DIR
 python3 -m venv "$INSTALL_DIR/.venv"
 "$INSTALL_DIR/.venv/bin/pip" install --upgrade pip wheel
 "$INSTALL_DIR/.venv/bin/pip" install -e "$INSTALL_DIR[pi]"
+# Optional optical flow sensor (PMW3901 / PAA5100)
+"$INSTALL_DIR/.venv/bin/pip" install -e "$INSTALL_DIR[pi,sensors]" || true
 
 [[ -f "$CONFIG_DIR/config.yaml" ]] || cp "$INSTALL_DIR/config/default.yaml" "$CONFIG_DIR/config.yaml"
 touch "$CONFIG_DIR/mask.json"

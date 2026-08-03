@@ -14,13 +14,14 @@ import cv2
 
 from aerostab.camera import create_camera
 from aerostab.config import AppConfig
-from aerostab.estimator import OdometryIntegrator, OpticalFlowEstimator
 from aerostab.gps_fusion import GpsFusion
 from aerostab.health import evaluate
 from aerostab.mavlink_bridge import MavlinkBridge
 from aerostab.mask import CameraMask
 from aerostab.rtl_path import RtlPathRecorder
+from aerostab.sensors.pmw3901 import FlowSensor, create_pmw_sensor
 from aerostab.state import SharedState
+from aerostab.estimator import FlowResult, OdometryIntegrator, OpticalFlowEstimator
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,7 @@ class AeroStabRuntime:
         self._mavlink: Optional[MavlinkBridge] = None
         self._fusion: Optional[GpsFusion] = None
         self._rtl: Optional[RtlPathRecorder] = None
+        self._pmw: Optional[FlowSensor] = None
         self._mask = CameraMask(config.mask.cols, config.mask.rows)
         self._running = False
         self._csv_file = None
@@ -74,6 +76,11 @@ class AeroStabRuntime:
             max_points=rc.max_points,
             save_path=rc.save_path,
         )
+        try:
+            self._pmw = create_pmw_sensor(cfg.pmw3901, simulate=simulate)
+        except Exception as exc:
+            logger.warning("PMW3901: %s", exc)
+            self._pmw = None
         if cfg.mavlink.enabled:
             try:
                 self._mavlink.connect()
@@ -108,6 +115,28 @@ class AeroStabRuntime:
             if alt_cfg.min_m <= alt <= alt_cfg.max_m:
                 return alt
         return alt_cfg.default_m
+
+    def _blend_pmw(self, flow: FlowResult, alt: float) -> FlowResult:
+        if not self._pmw:
+            return flow
+        motion = self._pmw.read_motion()
+        pvx, pvy = self._pmw.velocity_m_s(motion, alt)
+        w = max(0.0, min(1.0, self.config.pmw3901.blend_weight))
+        # Prefer PMW more when camera quality drops
+        if flow.quality < self.config.quality.min_quality:
+            w = max(w, 0.7)
+        vx = flow.vx_m_s * (1 - w) + pvx * w
+        vy = flow.vy_m_s * (1 - w) + pvy * w
+        q = max(flow.quality, motion.quality * w)
+        return FlowResult(
+            vx_m_s=vx,
+            vy_m_s=vy,
+            quality=q,
+            n_points=max(flow.n_points, 1 if motion.quality > 0.2 else 0),
+            flow_x_px=flow.flow_x_px,
+            flow_y_px=flow.flow_y_px,
+            yaw_rate_rad_s=flow.yaw_rate_rad_s,
+        )
 
     def _analysis_roi(self, w: int, h: int) -> tuple[int, int, int, int]:
         s = self.config.mask.analysis_roi_scale
@@ -147,6 +176,7 @@ class AeroStabRuntime:
 
         alt = self._altitude()
         flow = self._flow.update(gray, alt, dt)
+        flow = self._blend_pmw(flow, alt)
         yaw_fc = self._mavlink.fc_yaw_rad() if self._mavlink else None
         state = self._odo.update(flow, dt, fc_yaw_rad=yaw_fc, armed=armed)
 
@@ -264,6 +294,8 @@ class AeroStabRuntime:
         self.shared.update_status(running=False)
         if self._camera:
             self._camera.stop()
+        if self._pmw:
+            self._pmw.stop()
         if self._mavlink:
             self._mavlink.close()
         if self._csv_file:
