@@ -1,0 +1,64 @@
+# AeroStab — Pi Zero 2W + Frank-S01-V1.0 (OV5647, CSI)
+# Flash SD with Raspberry Pi OS Lite (64-bit Bookworm), then run deploy/install_pi.sh
+
+camera:
+  backend: auto          # auto | picamera2 | v4l2 | synthetic
+  device: 0              # v4l2 index
+  width: 640
+  height: 480
+  fps: 20                # Pi Zero 2W: 20 fps is a safe default
+  fov_deg: 72.4          # Frank-S01 standard lens (also try 120 or 160)
+  rotation_deg: 0        # 0 = camera forward arrow up in web UI
+  # OV5647 on Pi: enable in raspi-config / config.txt (see deploy/)
+
+estimator:
+  algorithm: lucas_kanade
+  max_corners: 60
+  quality_level: 0.02
+  min_distance: 10
+  block_size: 7
+  win_size: 21
+  max_level: 2
+  reset_interval_s: 30   # re-detect features periodically
+  velocity_lpf_alpha: 0.3
+  min_track_points: 8
+
+altitude:
+  source: mavlink_baro   # static | mavlink_baro
+  static_m: 2.0
+  min_m: 0.3
+  max_m: 500.0
+  default_m: 2.0
+
+odometry:
+  origin_on_arm: true
+  max_speed_m_s: 15.0
+  position_lpf_alpha: 0.2
+
+mavlink:
+  enabled: true
+  port: /dev/serial0
+  baud: 230400
+  system_id: 1
+  component_id: 197     # MAV_COMP_ID_VISUAL_INERTIAL_ODOMETRY
+  target_system: 1
+  target_component: 1
+  rate_hz: 20
+  send_optical_flow: true
+  send_vision_position: true
+  # Set home at first valid fix (manual lat/lon or zero for local ENU)
+  home_lat: 0.0
+  home_lon: 0.0
+  home_alt_m: 0.0
+
+web:
+  enabled: true
+  host: 0.0.0.0
+  port: 8080
+  mjpeg_quality: 70
+
+runtime:
+  control_hz: 50
+  simulate: false        # true = synthetic camera (dev/CI)
+  log_csv: true
+  log_dir: /var/log/aerostab

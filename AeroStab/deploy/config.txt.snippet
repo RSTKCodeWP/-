@@ -1,0 +1,11 @@
+# Frank-S01-V1.0 (OV5647) on Pi Zero 2W — add to /boot/firmware/config.txt if not using install_pi.sh
+
+camera_auto_detect=1
+dtoverlay=ov5647
+
+# UART to flight controller (GPIO 14 TX, 15 RX)
+enable_uart=1
+dtoverlay=disable-bt
+
+# Optional: more GPU memory for camera pipeline on Zero
+gpu_mem=128

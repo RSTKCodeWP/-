@@ -1,0 +1,42 @@
+# AeroStab — ArduPilot Copter 4.6.x parameters
+# UART to Pi: SERIALx_PROTOCOL=2 (MAVLink2), SERIALx_BAUD=230 (230400)
+# Replace x with your UART port (e.g. SERIAL4 for TELEM2)
+
+# --- External visual navigation (AeroStab) ---
+VISO_TYPE,1
+EK3_SRC1_POSXY,6
+EK3_SRC1_VELXY,6
+EK3_SRC1_POSZ,1
+EK3_SRC1_VELZ,0
+EK3_SRC1_YAW,6
+
+# Disable GPS as position source
+GPS1_TYPE,0
+AHRS_GPS_USE,0
+AHRS_GPS_GAIN,0
+FS_GCS_ENABLE,0
+
+# Frame (props toward camera = 12, away = 18)
+FRAME_TYPE,12
+
+# Arming
+ARMING_CHECK,8256
+
+# PosHold tuning (start soft)
+PHLD_BRAKE_ANGLE,2400
+PHLD_BRAKE_RATE,8
+PSC_POSXY_P,0.8
+EK3_ACC_P_NSE,0.7
+EK3_POSNE_M_NSE,1.5
+EK3_VELNE_M_NSE,1.5
+FS_EKF_THRESH,1.5
+EK3_IMU_MASK,1
+RC2_REVERSED,1
+
+# Stick deadzone (reduce drift creep)
+RC1_DZ,40
+RC2_DZ,40
+
+# Example: StabX on UART4 / TELEM2 — adjust for your wiring
+# SERIAL4_PROTOCOL,2
+# SERIAL4_BAUD,230

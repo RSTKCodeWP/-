@@ -1,0 +1,15 @@
+[Unit]
+Description=AeroStab optical navigation (Pi Zero 2W)
+After=network.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/opt/aerostab
+Environment=AEROSTAB_CONFIG=/etc/aerostab/config.yaml
+ExecStart=/opt/aerostab/.venv/bin/python -m aerostab -c /etc/aerostab/config.yaml
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
