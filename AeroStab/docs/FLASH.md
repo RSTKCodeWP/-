@@ -1,5 +1,7 @@
 # Запис SD-карти для Raspberry Pi Zero 2W
 
+> **Повна інструкція:** [`flash-sd/README.md`](../flash-sd/README.md) — збірка bundle, prepare-sd, cloud-init, звірка з StabX.
+
 ## Що потрібно
 
 - Raspberry Pi Zero 2W
@@ -34,12 +36,14 @@
 
 ```bash
 # На ПК (Linux/macOS), з каталогу AeroStab:
-bash image/build_sd_bundle.sh
+bash flash-sd/build.sh
+sudo bash flash-sd/prepare-sd.sh /media/$USER/bootfs --auto-install
 ```
 
-Скрипт створить `dist/aerostab-sd-bundle.tar.gz`. Розпакуйте на boot-розділ:
+Або вручну:
 
 ```bash
+bash image/build_sd_bundle.sh
 sudo tar -xzf dist/aerostab-sd-bundle.tar.gz -C /media/$USER/bootfs/
 ```
 

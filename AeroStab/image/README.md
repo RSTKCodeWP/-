@@ -1,12 +1,15 @@
 # AeroStab SD Image для Raspberry Pi Zero 2W
 
+> **Головна інструкція:** [`../flash-sd/README.md`](../flash-sd/README.md)
+
 Готовий **bundle** для швидкого розгортання без ручного клонування репозиторію на Pi.
 
 ## Збірка bundle (на ПК)
 
 ```bash
 cd AeroStab
-bash image/build_sd_bundle.sh
+bash flash-sd/build.sh
+# або: bash image/build_sd_bundle.sh
 ```
 
 Результат: `dist/aerostab-sd-bundle.tar.gz`

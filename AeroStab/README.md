@@ -15,14 +15,16 @@ If tracking is lost mid-flight: **HOLD LAST** (freeze odometry, keep last pose t
 
 ## Install (Pi)
 
-**Quick:** `sudo bash deploy/install_pi.sh && sudo reboot`
-
-**SD bundle (flash-ready):** see [image/README.md](image/README.md) and [docs/FLASH.md](docs/FLASH.md)
+**SD flash kit (рекомендовано):** [`flash-sd/README.md`](flash-sd/README.md)
 
 ```bash
-bash image/build_sd_bundle.sh
-# extract dist/aerostab-sd-bundle.tar.gz to boot partition
+bash flash-sd/build.sh
+sudo bash flash-sd/prepare-sd.sh /media/$USER/bootfs --auto-install
 ```
+
+**Вже є OS на Pi:** `sudo bash deploy/install_pi.sh && sudo reboot`
+
+Детальніше: [docs/FLASH.md](docs/FLASH.md) · звірка з StabX: [flash-sd/STABX-CHECKLIST.md](flash-sd/STABX-CHECKLIST.md)
 
 1. Open **http://aerostab.local:8080** → tab **Політ** / **Інструкція**
 2. Wire UART: Pi TX→FC RX, Pi RX→FC TX, GND, 5V

@@ -84,6 +84,23 @@ systemctl restart avahi-daemon || true
 systemctl daemon-reload
 systemctl enable aerostab.service
 
+# WiFi provisioning (StabX-style wifi.txt + USB)
+install -m 644 "$INSTALL_DIR/deploy/aerostab-wifi.service" /etc/systemd/system/
+install -m 644 "$INSTALL_DIR/deploy/aerostab-usb-wifi.service" /etc/systemd/system/
+systemctl enable aerostab-wifi.service 2>/dev/null || true
+systemctl enable aerostab-usb-wifi.service 2>/dev/null || true
+
+# Optional /data partition (StabX-style flight records on p3)
+if [[ -b /dev/mmcblk0p3 ]] && blkid /dev/mmcblk0p3 2>/dev/null | grep -q 'TYPE="ext4"'; then
+  mkdir -p /data/records
+  if ! grep -q '/data ' /etc/fstab 2>/dev/null; then
+    echo '/dev/mmcblk0p3 /data ext4 defaults,noatime 0 2' >> /etc/fstab
+  fi
+  mount /data 2>/dev/null || true
+  mkdir -p "$LOG_DIR/records"
+  echo "Flight records: /data/records (ext4 p3 mounted)"
+fi
+
 echo ""
 echo "=== AeroStab installed ==="
 echo "1. sudo reboot"

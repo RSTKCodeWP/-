@@ -193,10 +193,10 @@ UART: GPIO14/15 (miniuart-bt), MAVLink на ttyAMA0 @ **230400** (з докум�
 |-----------|-------|----------|
 | Мова | C++ (lserv + creepy) | Python |
 | Ліцензія | lserv + uapilot.online + BT | Немає (open source) |
-| Web UI | creepy :8080 | Flask :8080 + StabX aliases (`/arm`, `/camstate`) |
+| Web UI | creepy :8080 | Flask :8080 (`/api/*`, MJPEG) |
 | Provisioning | lserv :5050 | `aerostab-wifi`, `aerostab-firmware` |
-| Arm / calibrate | `/arm`, `/calibrate` | ✅ `/api/arm`, `/api/calibrate` |
-| WiFi | `wifi.txt` + USB | ✅ `aerostab-wifi` + systemd |
+| Arm / calibrate | `/arm`, `/calibrate` (веб) | **немає** — arm лише з RC (безпека) |
+| WiFi | `wifi.txt` + USB | `aerostab-wifi` + systemd |
 | Camera boot | `firmware.sh` | ✅ profiles ov5647 / imx219 |
 | UART | stop getty@ttyAMA0 | ✅ install_pi.sh |
 | Records | ext4 p3 | ⚠️ bind-mount if `/data` exists |

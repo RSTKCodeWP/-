@@ -36,7 +36,7 @@ fi
 
 echo "Bundle: $BUNDLE"
 
-# Install systemd oneshot for unattended boots
+# Enable unattended first-boot service (for next boots / cloud-init path)
 if [[ -f "$BUNDLE/aerostab-firstboot.service" ]]; then
   cp "$BUNDLE/aerostab-firstboot.service" /etc/systemd/system/
   systemctl daemon-reload
