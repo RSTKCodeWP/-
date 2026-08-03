@@ -31,14 +31,18 @@ def write_meta(dest: Path, entry: dict) -> None:
     (dest / META_FILE).write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")
 
 
-def clone_upstream(source: str, dest: Path) -> None:
+def is_mirrored(entry: dict) -> bool:
+    dest = library_root().parent / entry["path"]
+    return dest.exists() and (dest / META_FILE).exists()
+
+
+def clone_upstream(source: str, dest: Path, *, depth: int = 1) -> None:
     url = f"https://github.com/{source}.git"
-    subprocess.run(
-        ["git", "clone", "--depth", "1", url, str(dest)],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
+    cmd = ["git", "clone"]
+    if depth > 0:
+        cmd += ["--depth", str(depth)]
+    cmd += [url, str(dest)]
+    subprocess.run(cmd, check=True, capture_output=True, text=True)
 
 
 def sync_entry(entry: dict, *, dry_run: bool = False) -> str:
@@ -92,7 +96,30 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--update-only",
         action="store_true",
-        help="Only refresh repos already mirrored (have synced_at)",
+        help="Only refresh repos already mirrored (have synced_at or on disk)",
+    )
+    parser.add_argument(
+        "--new-only",
+        action="store_true",
+        help="Only clone repos not yet mirrored",
+    )
+    parser.add_argument(
+        "--max-per-run",
+        type=int,
+        default=0,
+        help="Limit number of repos processed this run (0=unlimited)",
+    )
+    parser.add_argument(
+        "--sort",
+        choices=("score", "small", "added"),
+        default="score",
+        help="Order for --new-only: score (high first), small (size asc), added (oldest first)",
+    )
+    parser.add_argument(
+        "--save-every",
+        type=int,
+        default=10,
+        help="Save catalog.json every N updates (0=only at end)",
     )
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args(argv)
@@ -107,7 +134,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.source:
         selected = [e for e in entries if e["source"] in args.source]
     elif args.all:
-        selected = [e for e in entries if e.get("path", "").startswith("fpv-library/repos/")]
+        selected = [e for e in entries if e.get("path")]
     else:
         parser.error("Use --all or --source owner/repo")
 
@@ -115,7 +142,10 @@ def main(argv: list[str] | None = None) -> int:
         selected = [e for e in selected if e.get("verdict") == args.verdict]
 
     if args.update_only:
-        selected = [e for e in selected if e.get("synced_at")]
+        selected = [e for e in selected if is_mirrored(e) or e.get("synced_at")]
+
+    if args.new_only:
+        selected = [e for e in selected if not is_mirrored(e)]
 
     if args.max_size_mb:
         limit_kb = args.max_size_mb * 1024
@@ -128,18 +158,30 @@ def main(argv: list[str] | None = None) -> int:
             filtered.append(e)
         selected = filtered
 
+    if args.sort == "score":
+        selected.sort(key=lambda e: (-(e.get("score") or 0), e.get("source", "")))
+    elif args.sort == "small":
+        selected.sort(key=lambda e: (int(e.get("size_kb") or 0), e.get("source", "")))
+    elif args.sort == "added":
+        selected.sort(key=lambda e: (e.get("added_at") or "", e.get("source", "")))
+
+    if args.max_per_run and len(selected) > args.max_per_run:
+        selected = selected[: args.max_per_run]
+
     if not selected:
         print("No matching catalog entries.")
         return 0
 
     changed = 0
     errors = 0
-    for entry in selected:
+    for i, entry in enumerate(selected, 1):
         try:
             result = sync_entry(entry, dry_run=args.dry_run)
             print(result)
             if result.startswith("updated") or result.startswith("would-update"):
                 changed += 1
+                if args.save_every and changed % args.save_every == 0 and not args.dry_run:
+                    save_catalog(catalog)
         except Exception as exc:  # noqa: BLE001 — continue syncing other repos
             errors += 1
             print(f"error {entry['source']}: {exc}", file=sys.stderr)

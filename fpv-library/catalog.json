@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-08-02T09:00:47+00:00",
+  "updated_at": "2026-08-03T22:30:57+00:00",
   "repos": [
     {
       "source": "johnboiles/Steer",
@@ -5800,7 +5800,7 @@
     },
     {
       "source": "bobberdolle1/GyroChad",
-      "path": "fpv-library/repos/GyroChad-AI-Powered-FPV-Drone-Assistant-Telegram",
+      "path": "GyroChad-Rust-FPV-Drone-AI-Bot",
       "added_at": "2026-07-26T23:31:24+00:00",
       "discovered_via": "owner:bobberdolle1",
       "description": "🚁 AI-Powered FPV Drone Assistant - Telegram bot with RAG, Vision, and Blackbox Analysis",
@@ -5865,7 +5865,7 @@
     },
     {
       "source": "paulnurkkala/hackrf-vtx-elrs-monitor",
-      "path": "fpv-library/repos/hackrf-vtx-elrs-monitor-HackRF-multi-band-FPV-VTX-ELRS-link-moni",
+      "path": "hackrf-vtx-elrs-monitor-HackRF-FPV-VTX-ELRS-Monitor",
       "added_at": "2026-07-26T23:31:25+00:00",
       "discovered_via": "owner:paulnurkkala",
       "description": "HackRF multi-band FPV VTX + ELRS link monitor (Claude-built)",
@@ -5888,7 +5888,7 @@
     },
     {
       "source": "paulnurkkala/ardufleetcheck",
-      "path": "fpv-library/repos/ardufleetcheck-One-command-ArduPilot-post-build-fleet-c",
+      "path": "ardufleetcheck-Python-ArduPilot-Fleet-Check-Skills",
       "added_at": "2026-07-26T23:31:25+00:00",
       "discovered_via": "owner:paulnurkkala",
       "description": "One-command ArduPilot post-build fleet-check pipeline, packaged as Claude Code skills (flash + param restore, OSD layout/font, VTX/RC/arm checks).",

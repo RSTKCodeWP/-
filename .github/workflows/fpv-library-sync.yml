@@ -2,7 +2,7 @@ name: FPV Library Sync
 
 on:
   schedule:
-    # Daily at 06:00 UTC — discover, triage hooks, sync upstream
+    # Daily at 06:00 UTC — discover, triage, full mirror sync
     - cron: "0 6 * * *"
   workflow_dispatch:
     inputs:
@@ -18,6 +18,14 @@ on:
         description: "Minimum relevance score"
         required: false
         default: "2.0"
+      backfill_per_run:
+        description: "New keep repos to clone per run"
+        required: false
+        default: "25"
+      max_size_mb:
+        description: "Skip repos larger than this MB during backfill"
+        required: false
+        default: "800"
 
 permissions:
   contents: write
@@ -25,6 +33,7 @@ permissions:
 jobs:
   sync:
     runs-on: ubuntu-latest
+    timeout-minutes: 360
     steps:
       - uses: actions/checkout@v4
 
@@ -53,20 +62,16 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python3 fpv-library/scripts/triage_catalog.py --force
 
-      - name: Sync keep-worthy repositories
+      - name: Register root-level project folders
+        run: python3 fpv-library/scripts/register_legacy.py
+
+      - name: Daily mirror — update existing + backfill new keep repos
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Refresh existing mirrors; skip cloning hundreds of new repos per day
-          python3 fpv-library/scripts/sync.py \
-            --all \
-            --verdict keep \
-            --update-only
-          # Priority new mirrors (curated list)
-          while read -r src; do
-            [[ "$src" =~ ^#|^$ ]] && continue
-            python3 fpv-library/scripts/sync.py --source "$src" || true
-          done < fpv-library/priority-sync.txt
+          python3 fpv-library/scripts/sync_daily.py \
+            --backfill-per-run "${{ github.event.inputs.backfill_per_run || '25' }}" \
+            --max-size-mb "${{ github.event.inputs.max_size_mb || '800' }}"
 
       - name: Check Caddx Ground Configuration releases
         run: python3 fpv-library/scripts/sync_caddx_ground_config.py --check-only
@@ -85,10 +90,10 @@ jobs:
         run: |
           git config user.name "fpv-library-bot"
           git config user.email "fpv-library-bot@users.noreply.github.com"
-          git add fpv-library/ REPOS.md
+          git add fpv-library/ REPOS.md docs/MIRROR_POLICY.md
           if git diff --staged --quiet; then
             echo "No changes to commit"
           else
-            git commit -m "fpv-library: automated discover, triage, sync"
+            git commit -m "fpv-library: daily discover, triage, and mirror sync"
             git push
           fi

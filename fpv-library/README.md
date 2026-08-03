@@ -35,6 +35,7 @@ fpv-library/
 ```
 
 **Full project index (description, path, date, size):** [`../REPOS.md`](../REPOS.md)  
+**Daily mirror policy:** [`MIRROR.md`](MIRROR.md) · [`../docs/MIRROR_POLICY.md`](../docs/MIRROR_POLICY.md)  
 **Repository layout:** [`../docs/STRUCTURE.md`](../docs/STRUCTURE.md) · [`STRUCTURE.md`](STRUCTURE.md)
 
 ## Usage
@@ -59,6 +60,17 @@ python3 fpv-library/scripts/discover_themes.py --pages 1-2 --min-score 2.5
 
 See [`THEMED.md`](THEMED.md) for curated project highlights.
 
+### Daily mirror (update + backfill)
+
+```bash
+# Full daily cycle (same as CI)
+python3 fpv-library/scripts/sync_daily.py
+
+# Or manually:
+python3 fpv-library/scripts/sync.py --all --verdict keep --update-only
+python3 fpv-library/scripts/sync.py --all --verdict keep --new-only --max-per-run 25
+```
+
 ### Sync upstream updates
 
 ```bash
@@ -76,16 +88,17 @@ python3 fpv-library/scripts/register_legacy.py
 
 ## Automation
 
-`.github/workflows/fpv-library-sync.yml` runs **daily**:
+`.github/workflows/fpv-library-sync.yml` runs **daily** (06:00 UTC):
 
-1. **Keyword discovery** — rotating batch from `keywords.txt` (FPV, betaflight, OpenIPC, ELRS, GCS, fiber, …)
+1. **Keyword discovery** — rotating batch from `keywords.txt`
 2. **Themed discovery** — GCS / link / fiber queries + owner ecosystems
-3. **Triage** — classify each repo: `keep` / `watch` / `skip`; write `HOOKS.md`
-4. **Sync** — pull upstream for `verdict=keep` repos (no size limit)
-5. **Index** — regenerate root `REPOS.md` (descriptions, sizes, dates)
-6. **Commit** — push catalog + mirror updates
+3. **Triage** — `keep` / `watch` / `skip`; write `HOOKS.md`
+4. **Register** — root-level project folders → catalog
+5. **Mirror** — `sync_daily.py`: update all existing + clone ~25 new `keep` repos
+6. **Index** — regenerate root `REPOS.md`
+7. **Commit** — push catalog + mirror updates
 
-Manual run: Actions → **FPV Library Sync** → Run workflow.
+Manual run: Actions → **FPV Library Sync** → Run workflow (adjust `backfill_per_run`).
 
 ### Keyword discovery
 
