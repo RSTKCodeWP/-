@@ -27,8 +27,26 @@
 //!    writer records a `retention.evicted` event. This is what stops a runaway
 //!    producer from wedging the box.
 //!
-//! A periodic `VACUUM` runs on a long, separate cadence (and once after a large
-//! eviction) to reclaim the freed pages; it is never on the hot path.
+//! Reclaim is **incremental**, never a full rewrite on the eviction path. A full
+//! `VACUUM` rewrites the entire file; with the store parked at its size cap and
+//! eviction triggering every 45 to 100 minutes, that meant rewriting ~900 MB on
+//! that cadence, forever. On an SD card that single behaviour dominated the
+//! write wear of the whole box, and a torn rewrite is exactly how the store gets
+//! corrupted. So: eviction frees pages onto SQLite's free list, subsequent
+//! inserts reuse them, and a bounded `PRAGMA incremental_vacuum` keeps the file
+//! from drifting upward. The full `VACUUM` survives only as an escape valve: it
+//! runs on its long cadence *and* only when actually warranted — a store still
+//! needing the one-time conversion to incremental mode, or a file whose free
+//! list has grown past a quarter of it. A healthy incremental store never
+//! rewrites itself, which matters beyond write volume: a `VACUUM` is one
+//! transaction, so the whole rewrite lands in the WAL, and a ~1 GB store made a
+//! 955 MB WAL that the next start then had to recover inside its start timeout.
+//!
+//! That choice forces a second one. The size cap must then be measured against
+//! the **logical** used size plus the WAL, not the raw file size — because a
+//! file whose freed pages are being reused legitimately stays at its high-water
+//! mark. Triggering on raw file size while no longer shrinking the file would
+//! re-trigger eviction on every pass and drain the store to empty.
 //!
 //! Every window, cap, batch size, and cadence is a constant in this one place.
 
@@ -70,6 +88,15 @@ pub const DEFAULT_VACUUM_INTERVAL: Duration = Duration::from_secs(7 * 24 * 60 * 
 /// looping. Bounds the write-transaction length so a delete never blocks ingest
 /// for long, and bounds how much eviction frees per inner step.
 pub const DELETE_BATCH_ROWS: usize = 2_000;
+
+/// Upper bound on how many pages one maintenance pass reclaims with
+/// `PRAGMA incremental_vacuum`. Bounds how long the reclaim step can hold the
+/// writer, the same way [`DELETE_BATCH_ROWS`] bounds a delete. At the usual
+/// 4 KiB page size this is ~64 MiB per pass, comfortably more than one
+/// eviction's worth of freed pages, so a normal pass reclaims everything it
+/// freed while a pathological backlog still cannot turn one pass into an
+/// unbounded rewrite.
+pub const MAX_INCREMENTAL_VACUUM_PAGES: i64 = 16_384;
 
 /// A safety bound on the number of delete batches one maintenance pass runs, so
 /// a pathologically large backlog cannot turn one pass into an unbounded loop.
@@ -164,8 +191,13 @@ pub struct MaintenanceReport {
     pub evicted_from_us: Option<i64>,
     /// Newest timestamp (µs) freed by eviction, if any rows were evicted.
     pub evicted_to_us: Option<i64>,
-    /// Whether this pass ran a `VACUUM`.
+    /// Whether this pass ran a full `VACUUM`. Only ever true on the periodic
+    /// cadence — eviction never triggers one.
     pub vacuumed: bool,
+    /// Pages returned to the filesystem by the bounded `incremental_vacuum` this
+    /// pass ran after an eviction. Zero when nothing was evicted, or when the
+    /// store is not in incremental auto-vacuum mode.
+    pub reclaimed_pages: u64,
 }
 
 impl MaintenanceReport {
@@ -216,19 +248,42 @@ pub fn run_maintenance(
     // Step 4: size-cap eviction, the safety net.
     let eviction = enforce_size_cap(conn, cfg, db_path)?;
 
-    // VACUUM on the caller's cadence, or always after a large eviction freed
-    // pages that would otherwise leave the file fragmented and oversized. The
-    // VACUUM itself is written through the WAL, so a TRUNCATE checkpoint after it
-    // flushes those frames back into the (now compact) main file and shrinks the
-    // `-wal` sidecar — without it the on-disk footprint (main + WAL) would stay
-    // above the cap even though the logical data is small.
-    let vacuumed = if (do_vacuum || eviction.rows > 0) && !stop.load(Ordering::Relaxed) {
+    // Reclaim. Two different mechanisms, deliberately not interchangeable:
+    //
+    // - After an eviction, a **bounded** `incremental_vacuum`. Eviction happens
+    //   every 45 to 100 minutes once the store is parked at its cap, so whatever
+    //   runs here runs on that cadence forever. A full `VACUUM` here rewrote the
+    //   entire ~900 MB file each time, which on flash is both the dominant write
+    //   load on the box and the window in which a power cut tears the store.
+    // - On the caller's own long cadence, the full `VACUUM`, which is the only
+    //   thing that truly compacts a file whose workload has shrunk.
+    //
+    // The `TRUNCATE` checkpoint after either one flushes the WAL frames the
+    // rewrite produced back into the main file and shrinks the `-wal` sidecar;
+    // without it the on-disk footprint would stay high even though the logical
+    // data is small.
+    let stopping = stop.load(Ordering::Relaxed);
+    let reclaimed_pages = if eviction.rows > 0 && !stopping {
+        incremental_vacuum(conn, MAX_INCREMENTAL_VACUUM_PAGES)?
+    } else {
+        0
+    };
+    let vacuumed = if do_vacuum && !stopping && full_vacuum_warranted(conn)? {
+        // A legacy store adopts incremental auto-vacuum across a VACUUM, and
+        // this is the only VACUUM that runs. Asking for it here means the
+        // conversion rides a rewrite that was going to happen anyway, instead
+        // of being a whole-file rewrite in front of daemon readiness — which,
+        // when it was tried there, put the unit minutes from a start-timeout
+        // kill mid-rewrite on a real node.
+        let _ = crate::db::request_incremental_auto_vacuum(conn);
         conn.execute_batch("VACUUM")?;
-        conn.pragma_update(None, "wal_checkpoint", "TRUNCATE")?;
         true
     } else {
         false
     };
+    if (vacuumed || eviction.rows > 0) && !stopping {
+        conn.pragma_update(None, "wal_checkpoint", "TRUNCATE")?;
+    }
 
     Ok(MaintenanceReport {
         rolled_up_rows,
@@ -238,7 +293,63 @@ pub fn run_maintenance(
         evicted_from_us: eviction.from_us,
         evicted_to_us: eviction.to_us,
         vacuumed,
+        reclaimed_pages,
     })
+}
+
+/// The free-list fraction above which a full `VACUUM` is worth its cost.
+///
+/// Below this, incremental reclaim is keeping up and a whole-file rewrite would
+/// buy nothing for a large, and dangerous, price.
+pub const FULL_VACUUM_FREELIST_RATIO: f64 = 0.25;
+
+/// Whether the periodic full `VACUUM` still has a job to do.
+///
+/// Once the store is in incremental auto-vacuum mode, it usually does not. That
+/// matters for more than write volume: a `VACUUM` runs as one transaction, so
+/// `wal_autocheckpoint` cannot fire inside it and the whole rewrite lands in the
+/// WAL. On a ~1 GB store that produced a **955 MB WAL** on a real node, and the
+/// next start had to recover it — inside a `TimeoutStartSec` whose expiry would
+/// restart the daemon straight back into the same recovery. Every full `VACUUM`
+/// is therefore a scheduled opportunity to create that condition.
+///
+/// So it now runs only when it is actually warranted:
+///
+/// - the store has not adopted incremental mode yet, and needs one rewrite to
+///   (this is the conversion path, and it happens once); or
+/// - the free list has grown past [`FULL_VACUUM_FREELIST_RATIO`] of the file,
+///   meaning incremental reclaim has genuinely fallen behind and the file is
+///   carrying real slack.
+///
+/// A store in incremental mode with a healthy free list skips it entirely, which
+/// removes the last whole-file rewrite from the steady state.
+fn full_vacuum_warranted(conn: &Connection) -> Result<bool, rusqlite::Error> {
+    if crate::db::auto_vacuum_mode(conn).unwrap_or(0) != crate::db::AUTO_VACUUM_INCREMENTAL {
+        return Ok(true);
+    }
+    let page_count: i64 = conn.query_row("PRAGMA page_count", [], |r| r.get(0))?;
+    let freelist: i64 = conn.query_row("PRAGMA freelist_count", [], |r| r.get(0))?;
+    if page_count <= 0 {
+        return Ok(false);
+    }
+    Ok(freelist as f64 / page_count as f64 >= FULL_VACUUM_FREELIST_RATIO)
+}
+
+/// Return up to `max_pages` free pages to the filesystem, and report how many
+/// actually went back.
+///
+/// `PRAGMA incremental_vacuum` is a no-op on a store that is not in incremental
+/// auto-vacuum mode, and SQLite reports no count, so the freed page total is
+/// measured as the drop in `freelist_count` across the call. That also makes the
+/// no-op case read honestly as zero rather than as an assumed success.
+fn incremental_vacuum(conn: &Connection, max_pages: i64) -> Result<u64, rusqlite::Error> {
+    let before: i64 = conn.query_row("PRAGMA freelist_count", [], |r| r.get(0))?;
+    if before <= 0 {
+        return Ok(0);
+    }
+    conn.execute_batch(&format!("PRAGMA incremental_vacuum({max_pages})"))?;
+    let after: i64 = conn.query_row("PRAGMA freelist_count", [], |r| r.get(0))?;
+    Ok((before - after).max(0) as u64)
 }
 
 // --- step 1: rollup ------------------------------------------------------
@@ -430,26 +541,29 @@ struct Eviction {
 /// (which are not evicted here) keep the long-horizon shape even after the raw
 /// rows for that span are gone.
 ///
-/// Two distinct size measures are used, deliberately:
+/// Both the trigger and the stopping condition are measured against the
+/// **logical** used size ([`logical_used_bytes`]: `(page_count -
+/// freelist_count) * page_size`) plus the WAL — not the raw file size.
 ///
-/// - The **trigger** is the on-disk footprint ([`store_size_bytes`]: main file +
-///   WAL). That is the honest "how big is the store on the card" the cap is
-///   meant to bound, and it is what crosses the high-water mark.
-/// - The **stopping condition** is the *logical used size* ([`logical_used_bytes`]:
-///   `(page_count - freelist_count) * page_size`). A plain `DELETE` moves pages
-///   onto SQLite's free list but does **not** shrink the main file; only the
-///   trailing `VACUUM` reclaims them. So measuring the file size inside the loop
-///   would never drop below low-water and the loop would evict everything. The
-///   logical used size *does* fall as rows are deleted, and it is exactly what
-///   the trailing `VACUUM` will shrink the file down to — so it is the correct
-///   stop. The caller always vacuums after an eviction, making the on-disk file
-///   match the logical size again.
+/// This is the counterpart to reclaim being incremental. A plain `DELETE` moves
+/// pages onto SQLite's free list without shrinking the main file, and those
+/// pages are then reused by subsequent inserts. So a healthy store at steady
+/// state legitimately sits at its high-water file size forever, with the free
+/// list absorbing the churn. Triggering on raw file size would read that
+/// perfectly healthy state as "over the cap" on **every** pass and evict the
+/// store down to nothing, one batch at a time, while never being able to shrink
+/// the file that caused the trigger. Measuring what is actually *used* is both
+/// the honest number and the only self-consistent one.
+///
+/// The raw on-disk footprint is still reported by [`store_size_bytes`] for
+/// telemetry — the operator should be able to see what the store occupies on
+/// the card — it just is not what arms eviction.
 fn enforce_size_cap(
     conn: &Connection,
     cfg: &RetentionConfig,
     db_path: &Path,
 ) -> Result<Eviction, rusqlite::Error> {
-    if store_size_bytes(db_path) <= cfg.max_bytes {
+    if used_store_bytes(conn, db_path)? <= cfg.max_bytes {
         return Ok(Eviction::default());
     }
 
@@ -483,11 +597,20 @@ fn enforce_size_cap(
     Ok(ev)
 }
 
+/// The store's *used* footprint: the logical used size plus the on-disk WAL.
+///
+/// The WAL is real bytes on the card that the cap has to account for, and unlike
+/// the main file it genuinely does shrink (the `TRUNCATE` checkpoint after a
+/// reclaim), so including it neither wedges the trigger nor lets an unbounded
+/// WAL hide from the cap.
+fn used_store_bytes(conn: &Connection, db_path: &Path) -> Result<u64, rusqlite::Error> {
+    Ok(logical_used_bytes(conn)? + wal_size_bytes(db_path))
+}
+
 /// The store's logical used size in bytes: `(page_count - freelist_count) *
 /// page_size`. This is the size the file would have after a `VACUUM`, so it is
-/// the right measure for the eviction stopping condition (file size does not
-/// shrink until the vacuum). Page count includes the WAL frames not yet
-/// checkpointed, so this is conservative.
+/// the right measure for both the eviction trigger and its stopping condition:
+/// the file itself does not shrink when rows are deleted, but this does.
 fn logical_used_bytes(conn: &Connection) -> Result<u64, rusqlite::Error> {
     let page_count: i64 = conn.query_row("PRAGMA page_count", [], |r| r.get(0))?;
     let freelist: i64 = conn.query_row("PRAGMA freelist_count", [], |r| r.get(0))?;
@@ -568,11 +691,16 @@ fn evict_batch(conn: &Connection, table: &'static str) -> Result<EvictBatch, rus
 /// which is the safe direction — it never evicts on a measurement error).
 pub fn store_size_bytes(db_path: &Path) -> u64 {
     let main = std::fs::metadata(db_path).map(|m| m.len()).unwrap_or(0);
-    let wal = wal_path(db_path)
+    main + wal_size_bytes(db_path)
+}
+
+/// The size of the `-wal` sidecar alone, or zero when it is absent or
+/// unreadable.
+fn wal_size_bytes(db_path: &Path) -> u64 {
+    wal_path(db_path)
         .and_then(|p| std::fs::metadata(p).ok())
         .map(|m| m.len())
-        .unwrap_or(0);
-    main + wal
+        .unwrap_or(0)
 }
 
 /// The `-wal` companion path for a store file.
@@ -861,12 +989,13 @@ mod tests {
         }
         .clamped();
 
-        // The seed is sized to exceed the cap; assert that precondition so the
-        // test fails loudly rather than silently skipping the eviction path.
-        let store_size = store_size_bytes(&path);
+        // The seed is sized to exceed the cap; assert that precondition against
+        // the measure eviction actually arms on, so the test fails loudly rather
+        // than silently skipping the eviction path.
+        let used = used_store_bytes(&conn, &path).unwrap();
         assert!(
-            store_size > cfg.max_bytes,
-            "the bulk seed must exceed the cap to exercise eviction: {store_size} <= {}",
+            used > cfg.max_bytes,
+            "the bulk seed must exceed the cap to exercise eviction: {used} <= {}",
             cfg.max_bytes
         );
 
@@ -888,14 +1017,138 @@ mod tests {
             "the oldest rows were the ones evicted"
         );
         assert!(count(&conn, "logs") < before, "rows were removed");
-        // After eviction plus the trailing vacuum + checkpoint, the on-disk store
-        // (main file + WAL) is back at or below the cap.
+        // After eviction the used footprint is back at or below the cap.
         assert!(
-            store_size_bytes(&path) <= cfg.max_bytes,
+            used_store_bytes(&conn, &path).unwrap() <= cfg.max_bytes,
             "eviction brought the store back under the cap"
         );
-        // A vacuum runs after an eviction freed pages.
-        assert!(report.vacuumed, "vacuum runs after eviction");
+        // Eviction reclaims incrementally and MUST NOT rewrite the whole file.
+        // A full VACUUM here would run on the eviction cadence forever, which on
+        // an SD card is the single largest source of write wear on the box.
+        assert!(
+            !report.vacuumed,
+            "eviction must never trigger a full VACUUM — that is the write treadmill"
+        );
+        assert!(
+            report.reclaimed_pages > 0,
+            "eviction reclaims freed pages incrementally"
+        );
+    }
+
+    #[test]
+    fn a_store_parked_at_the_cap_stops_evicting_once_it_is_under_it() {
+        // The regression this guards: reclaim is incremental, so the main file
+        // does not shrink after an eviction. If the cap were armed on raw file
+        // size, every subsequent pass would read the unchanged file as "still
+        // over the cap" and evict again, draining the store to empty a batch at
+        // a time while never being able to shrink the thing it was reacting to.
+        let (_dir, path, conn) = temp_store();
+        let now = BASE_US;
+        seed_bulk_logs(&conn, now, 70_000, 512);
+        conn.pragma_update(None, "wal_checkpoint", "TRUNCATE")
+            .unwrap();
+        let cfg = RetentionConfig {
+            max_bytes: MIN_MAX_BYTES,
+            low_water_ratio: 0.5,
+            ..RetentionConfig::default()
+        }
+        .clamped();
+
+        let first =
+            run_maintenance(&conn, &cfg, now, &path, false, &AtomicBool::new(false)).unwrap();
+        assert!(
+            first.had_eviction(),
+            "the first pass evicts down to low water"
+        );
+        let remaining = count(&conn, "logs");
+        assert!(remaining > 0, "eviction stopped at low water, not at empty");
+
+        // Nothing new was written between passes, so the next two passes must be
+        // clean no-ops on the eviction path.
+        for pass in 0..2 {
+            let again =
+                run_maintenance(&conn, &cfg, now, &path, false, &AtomicBool::new(false)).unwrap();
+            assert!(
+                !again.had_eviction(),
+                "pass {pass} evicted again from a store already under the cap"
+            );
+        }
+        assert_eq!(
+            count(&conn, "logs"),
+            remaining,
+            "no rows were lost to a re-triggered eviction"
+        );
+    }
+
+    #[test]
+    fn opening_a_legacy_store_never_rewrites_it_but_the_periodic_vacuum_converts_it() {
+        // The regression, found on a real node: converting inside `db::open`
+        // put a ~950 MB whole-file rewrite in front of daemon readiness. The
+        // unit is Type=notify with TimeoutStartSec=5min and Restart=on-failure,
+        // so it sat in `activating` growing a 955 MB WAL and was minutes from
+        // being killed mid-rewrite and restarted into the same rewrite — a
+        // crash loop that tears the store, which is the exact failure this whole
+        // change exists to stop.
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("logs.db");
+
+        // A store from before incremental mode existed: created with the
+        // default auto_vacuum, then populated.
+        {
+            let legacy = Connection::open(&path).unwrap();
+            legacy.pragma_update(None, "auto_vacuum", 0i64).unwrap();
+            legacy.pragma_update(None, "journal_mode", "WAL").unwrap();
+            legacy
+                .execute_batch("CREATE TABLE t (id INTEGER PRIMARY KEY, blob TEXT)")
+                .unwrap();
+            let tx = legacy.unchecked_transaction().unwrap();
+            for _ in 0..2_000 {
+                tx.execute("INSERT INTO t (blob) VALUES (?1)", params!["x".repeat(256)])
+                    .unwrap();
+            }
+            tx.commit().unwrap();
+        }
+
+        // Opening it must NOT convert, and must NOT rewrite it.
+        let before = std::fs::metadata(&path).unwrap().len();
+        let conn = db::open(&path).unwrap();
+        assert_eq!(
+            db::auto_vacuum_mode(&conn).unwrap(),
+            0,
+            "opening a legacy store must not convert it — that is a whole-file \
+             rewrite in front of readiness"
+        );
+        assert_eq!(
+            std::fs::metadata(&path).unwrap().len(),
+            before,
+            "opening a legacy store must not rewrite it"
+        );
+
+        // The periodic vacuum — the one rewrite that was going to happen
+        // anyway — is where the conversion rides along.
+        let cfg = RetentionConfig::default();
+        let report =
+            run_maintenance(&conn, &cfg, BASE_US, &path, true, &AtomicBool::new(false)).unwrap();
+        assert!(report.vacuumed);
+        assert_eq!(
+            db::auto_vacuum_mode(&conn).unwrap(),
+            db::AUTO_VACUUM_INCREMENTAL,
+            "the periodic vacuum converts the store"
+        );
+        db::integrity_check(&conn).unwrap();
+    }
+
+    #[test]
+    fn a_fresh_store_opens_in_incremental_auto_vacuum_mode() {
+        // Incremental reclaim is only available in this mode; without it
+        // `incremental_vacuum` is a silent no-op and the file would drift up
+        // until the weekly full vacuum.
+        let (_dir, _path, conn) = temp_store();
+        assert_eq!(
+            db::auto_vacuum_mode(&conn).unwrap(),
+            db::AUTO_VACUUM_INCREMENTAL,
+            "a fresh store must open in incremental auto-vacuum mode"
+        );
     }
 
     #[test]
@@ -913,16 +1166,87 @@ mod tests {
     }
 
     #[test]
-    fn vacuum_runs_when_requested() {
+    fn the_periodic_vacuum_is_skipped_when_it_would_buy_nothing() {
+        // A VACUUM runs as ONE transaction, so wal_autocheckpoint cannot fire
+        // inside it and the entire rewrite lands in the WAL. On a ~1 GB store
+        // that produced a 955 MB WAL on a real node, and the next start had to
+        // recover it inside a TimeoutStartSec whose expiry restarts the daemon
+        // straight back into the same recovery. Every unnecessary full VACUUM
+        // is a scheduled opportunity to create that condition.
+        //
+        // A healthy store in incremental mode does not need one.
         let (_dir, path, conn) = temp_store();
         let now = BASE_US;
         seed_metric(&conn, now - 1_000, "cpu.util.all", 1.0);
         let cfg = RetentionConfig::default();
         let report =
             run_maintenance(&conn, &cfg, now, &path, true, &AtomicBool::new(false)).unwrap();
-        assert!(report.vacuumed, "vacuum runs on the periodic cadence");
-        // The store still passes its integrity check after a vacuum.
+        assert!(
+            !report.vacuumed,
+            "a healthy incremental store must not rewrite itself on a cadence"
+        );
         db::integrity_check(&conn).unwrap();
+    }
+
+    #[test]
+    fn the_periodic_vacuum_still_runs_when_the_file_carries_real_slack() {
+        // The escape valve: if incremental reclaim has genuinely fallen behind
+        // and the free list is a large fraction of the file, a full compaction
+        // is warranted and still happens.
+        let (_dir, path, conn) = temp_store();
+        let now = BASE_US;
+        seed_bulk_logs(&conn, now, 40_000, 512);
+        conn.pragma_update(None, "wal_checkpoint", "TRUNCATE")
+            .unwrap();
+        // Delete most of it WITHOUT reclaiming, so the free list is large.
+        conn.execute("DELETE FROM logs", []).unwrap();
+
+        let page_count: i64 = conn
+            .query_row("PRAGMA page_count", [], |r| r.get(0))
+            .unwrap();
+        let freelist: i64 = conn
+            .query_row("PRAGMA freelist_count", [], |r| r.get(0))
+            .unwrap();
+        assert!(
+            freelist as f64 / page_count as f64 >= FULL_VACUUM_FREELIST_RATIO,
+            "precondition: the free list must be a large fraction of the file"
+        );
+
+        let cfg = RetentionConfig::default();
+        let report =
+            run_maintenance(&conn, &cfg, now, &path, true, &AtomicBool::new(false)).unwrap();
+        assert!(
+            report.vacuumed,
+            "a file carrying real slack is still compacted"
+        );
+        db::integrity_check(&conn).unwrap();
+    }
+
+    #[test]
+    fn a_store_not_yet_in_incremental_mode_is_always_vacuumed_once() {
+        // The conversion path: a legacy store adopts incremental mode only
+        // across a VACUUM, so that one rewrite must still happen.
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("logs.db");
+        {
+            let legacy = Connection::open(&path).unwrap();
+            legacy.pragma_update(None, "auto_vacuum", 0i64).unwrap();
+            legacy.pragma_update(None, "journal_mode", "WAL").unwrap();
+            legacy
+                .execute_batch("CREATE TABLE t (id INTEGER PRIMARY KEY)")
+                .unwrap();
+        }
+        let conn = db::open(&path).unwrap();
+        assert_eq!(db::auto_vacuum_mode(&conn).unwrap(), 0, "starts legacy");
+
+        let cfg = RetentionConfig::default();
+        let report =
+            run_maintenance(&conn, &cfg, BASE_US, &path, true, &AtomicBool::new(false)).unwrap();
+        assert!(report.vacuumed, "the conversion rewrite still runs");
+        assert_eq!(
+            db::auto_vacuum_mode(&conn).unwrap(),
+            db::AUTO_VACUUM_INCREMENTAL
+        );
     }
 
     #[test]
@@ -956,18 +1280,19 @@ mod tests {
         }
         .clamped();
         assert!(
-            store_size_bytes(&path) > cfg.max_bytes,
+            used_store_bytes(&conn, &path).unwrap() > cfg.max_bytes,
             "the bulk seed must exceed the cap to exercise eviction"
         );
-        // The cheap deletes still run; only the trailing VACUUM is withheld, so the
-        // file stays above the low-water mark until the next pass after a clean start.
+        // The cheap deletes still run; only the reclaim is withheld, so the file
+        // stays at its high-water mark until a pass after a clean start reclaims.
         let report =
             run_maintenance(&conn, &cfg, now, &path, false, &AtomicBool::new(true)).unwrap();
         assert!(report.had_eviction(), "eviction still runs while stopping");
         assert!(report.evicted_rows > 0);
-        assert!(
-            !report.vacuumed,
-            "the post-eviction vacuum is skipped while stopping"
+        assert!(!report.vacuumed, "no full vacuum while stopping");
+        assert_eq!(
+            report.reclaimed_pages, 0,
+            "the post-eviction reclaim is skipped while stopping"
         );
     }
 

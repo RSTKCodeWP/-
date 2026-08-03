@@ -34,6 +34,19 @@ pub const BUSY_TIMEOUT_MS: u32 = 5000;
 /// the SD card.
 pub const WAL_AUTOCHECKPOINT_PAGES: u32 = 1000;
 
+/// `PRAGMA auto_vacuum` value for incremental mode. In this mode a delete puts
+/// its pages on the free list and `PRAGMA incremental_vacuum(N)` reclaims a
+/// bounded number of them on demand — the alternative to a full `VACUUM`, which
+/// rewrites the entire file.
+///
+/// This is load-bearing for flash longevity, not a tuning nicety. With the store
+/// sitting at its size cap, a full `VACUUM` after every eviction rewrites ~900 MB
+/// every time eviction triggers; on an SD card that is the dominant source of
+/// write wear on the whole box. Incremental mode lets the free list absorb the
+/// churn instead: evicted pages are reused by subsequent inserts, so the file
+/// plateaus near the cap and steady-state writes fall to the inserts themselves.
+pub const AUTO_VACUUM_INCREMENTAL: i64 = 2;
+
 /// Per-connection page-cache size for read-only connections, as SQLite's
 /// negative-means-KiB form (`-512` = 512 KiB). Read-only connections are
 /// short-lived and many open concurrently off the blocking pool; SQLite's
@@ -200,6 +213,13 @@ pub fn open_readonly(path: impl AsRef<Path>) -> Result<Connection, DbError> {
 /// Apply the connection PRAGMAs tuned for an append-heavy store on flash media:
 /// WAL journaling, `synchronous=NORMAL`, a busy timeout, and WAL autocheckpoint.
 fn apply_pragmas(conn: &Connection) -> Result<(), DbError> {
+    // auto_vacuum FIRST, before anything can write a page. SQLite only honours
+    // this on a database that is still empty (or across a VACUUM), and setting
+    // the journal mode is itself enough to establish the file header — after
+    // which the change is silently ignored. Ordering is load-bearing, not
+    // stylistic: with it after WAL, a *fresh* store came up in the default mode
+    // and `incremental_vacuum` was a permanent no-op on it.
+    conn.pragma_update(None, "auto_vacuum", AUTO_VACUUM_INCREMENTAL)?;
     // WAL: concurrent read-only readers do not block the writer.
     conn.pragma_update(None, "journal_mode", "WAL")?;
     // NORMAL: one fsync per checkpoint rather than per transaction; safe under
@@ -209,6 +229,41 @@ fn apply_pragmas(conn: &Connection) -> Result<(), DbError> {
     conn.pragma_update(None, "wal_autocheckpoint", WAL_AUTOCHECKPOINT_PAGES)?;
     // Enforce the session foreign keys.
     conn.pragma_update(None, "foreign_keys", "ON")?;
+    Ok(())
+}
+
+/// Read `PRAGMA auto_vacuum` (0 = none, 1 = full, 2 = incremental).
+pub fn auto_vacuum_mode(conn: &Connection) -> Result<i64, DbError> {
+    let mode: i64 = conn.query_row("PRAGMA auto_vacuum", [], |row| row.get(0))?;
+    Ok(mode)
+}
+
+/// Ask SQLite to adopt incremental auto-vacuum at the **next** `VACUUM`.
+///
+/// SQLite only honours a change to `auto_vacuum` on an empty database or across
+/// a `VACUUM`. A fresh store therefore takes it immediately (`apply_pragmas`
+/// runs before any table exists); a store created before this mode existed needs
+/// one whole-file rewrite to adopt it.
+///
+/// **That rewrite must never be on the startup path**, which is why this only
+/// sets the pragma and does not vacuum. Retention calls it immediately before
+/// its own periodic `VACUUM`, so the conversion rides a rewrite that was going
+/// to happen anyway and costs nothing extra.
+///
+/// This was learned the hard way. Doing the conversion inside [`open`] put a
+/// ~950 MB rewrite in front of readiness on a real node: the unit is
+/// `Type=notify` with `TimeoutStartSec=5min` and `Restart=on-failure`, so it sat
+/// in `activating` accumulating a 955 MB WAL and was minutes from being killed
+/// mid-rewrite and restarted into the same rewrite — a crash loop that tears the
+/// store, which is precisely the failure the incremental work exists to stop.
+///
+/// Until a store converts, `incremental_vacuum` is a silent no-op on it and the
+/// file simply does not shrink between periodic vacuums. That is honest and
+/// bounded: retention reports `reclaimed_pages: 0` rather than pretending.
+pub fn request_incremental_auto_vacuum(conn: &Connection) -> Result<(), DbError> {
+    if auto_vacuum_mode(conn)? != AUTO_VACUUM_INCREMENTAL {
+        conn.pragma_update(None, "auto_vacuum", AUTO_VACUUM_INCREMENTAL)?;
+    }
     Ok(())
 }
 

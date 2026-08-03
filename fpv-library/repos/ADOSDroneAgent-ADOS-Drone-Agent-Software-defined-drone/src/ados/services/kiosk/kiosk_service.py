@@ -51,6 +51,7 @@ import structlog
 
 from ados.core.config import load_config
 from ados.core.logging import configure_logging, get_logger
+from ados.core.paths import ADOS_RUN_DIR
 
 log = get_logger("kiosk.kiosk_service")
 
@@ -129,11 +130,17 @@ _BACKOFF_MAX_SECONDS = 30.0
 # Graceful shutdown allowance for the cage child.
 _SHUTDOWN_GRACE_SECONDS = 10.0
 
-# Minimal-layer auto-trigger threshold. Boards under 3 GiB default to the
-# reduced render path so Chromium stays within its memory envelope.
-_MINIMAL_RAM_THRESHOLD_BYTES = 3 * 1024 * 1024 * 1024
-
 _STDERR_TAIL_BYTES = 2048
+
+# How many child stderr lines are forwarded to the journal before the rest are
+# suppressed. A browser is chatty; the point is to make a failure visible, not
+# to relay every frame's noise onto a flash-backed journal.
+_STDERR_LOG_LINE_LIMIT = 40
+
+# The browser is spawned BY the compositor, so it is legitimately absent for a
+# moment after launch. Wait this long before concluding it is missing.
+_BROWSER_START_GRACE_SECONDS = 25.0
+_BROWSER_POLL_SECONDS = 10.0
 
 # Chromium browser binary candidates, in resolution order. The binary name
 # varies by distro: Raspberry Pi OS historically shipped `chromium-browser`;
@@ -142,6 +149,24 @@ _STDERR_TAIL_BYTES = 2048
 # images expose. The installer installs whichever apt package is available; the
 # kiosk resolves the binary at runtime so it does not depend on one fixed name.
 _BROWSER_CANDIDATES = ("chromium-browser", "chromium", "chromium-browser-stable")
+
+# Directory name for the kiosk browser's profile and cache inside a session
+# user's runtime dir (the windowed path). See _chromium_storage_flags.
+_KIOSK_STORAGE_SUBDIR = "ados-kiosk"
+
+# Upper bound on the browser disk cache. It lives in tmpfs, so this is a RAM
+# budget, not a disk one — generous for a single local page, small enough that
+# it can never compete with the video pipeline for memory.
+_DISK_CACHE_BYTES = 64 * 1024 * 1024
+
+# Where the appliance (cage) launch keeps browser storage. The agent's own
+# runtime dir, which is tmpfs and which the agent creates and owns, so it is
+# guaranteed to exist and to be writable by the root-run cage child.
+#
+# Deliberately NOT $XDG_RUNTIME_DIR (/run/user/0): systemd does not create a
+# runtime dir for a system service, so that path can simply be absent, and
+# Chromium given a --user-data-dir whose parent does not exist fails to start.
+_CAGE_STORAGE_DIR = str(ADOS_RUN_DIR / "kiosk")
 
 
 def _hdmi_present() -> bool:
@@ -266,6 +291,22 @@ def hdmi_present() -> bool:
     return _hdmi_present()
 
 
+def _display_selection(config: Any) -> str:
+    """The operator's `ground_station.display.type`, or ``auto`` when unset.
+
+    Read defensively: this service must start on a config shaped by an older or
+    newer agent, and a missing block means "no opinion", not a crash.
+    """
+    try:
+        value = config.ground_station.display.type
+    except AttributeError:
+        return "auto"
+    if not isinstance(value, str):
+        return "auto"
+    selection = value.strip().lower()
+    return selection if selection in ("auto", "hdmi", "lcd", "none") else "auto"
+
+
 def _get_kiosk_config(config: Any) -> tuple[str | None, bool | None]:
     """Return (target_url, minimal_layer) from config, if present.
 
@@ -287,18 +328,6 @@ def _get_kiosk_config(config: Any) -> tuple[str | None, bool | None]:
     return url, minimal
 
 
-def _low_ram_board() -> bool:
-    try:
-        import psutil
-    except Exception:
-        return False
-    try:
-        total = psutil.virtual_memory().total
-    except Exception:
-        return False
-    return total < _MINIMAL_RAM_THRESHOLD_BYTES
-
-
 def _resolve_target_url(config: Any) -> tuple[str, bool]:
     """Config -> env -> default. Returns (url_with_query, minimal_flag).
 
@@ -310,11 +339,23 @@ def _resolve_target_url(config: Any) -> tuple[str, bool]:
 
     url = cfg_url or os.environ.get(_ENV_URL_KEY) or _DEFAULT_URL
 
-    minimal = False
-    if cfg_minimal is True:
-        minimal = True
-    elif _low_ram_board():
-        minimal = True
+    # Minimal by default on the panel. The reduced layer drops the backdrop
+    # blur the cockpit draws over live video, and a blurred region above a
+    # surface that changes every frame forces the compositor to re-read and
+    # re-blur its backdrop at the video's frame rate.
+    #
+    # Measured on a 4-core panel with video actually arriving over the radio:
+    # the full layer costs 292.9% of 400% and leaves 36% of the board idle;
+    # the reduced layer costs 137.9% and leaves 68% idle. Same video, same
+    # frame rate, 53% less CPU.
+    #
+    # This used to be gated on the board having under 3 GiB of RAM, which is
+    # the wrong quantity: the blur costs compositor time, not memory. A 3.8 GiB
+    # four-core panel — comfortably over that threshold — was therefore paying
+    # full price for an effect nobody can see behind a HUD, and was the board
+    # the reduced path would have helped most. An operator who wants the full
+    # layer asks for it.
+    minimal = cfg_minimal is not False
 
     env_minimal = os.environ.get(_ENV_MINIMAL_KEY)
     if env_minimal is not None:
@@ -454,14 +495,69 @@ def _resolve_browser_binary() -> str:
 def _chromium_render_flags(renderer: str) -> list[str]:
     """Chromium flags for the chosen renderer.
 
-    GPU: Wayland + EGL + GPU rasterization (hardware accelerated, used only
-    when the GPU userspace is provisioned). Software: ``--disable-gpu`` so
-    Chromium composites on the CPU and never opens the GPU EGL, matching cage's
-    pixman renderer so nothing in the stack touches a GPU that cannot be driven.
+    GPU: let Chromium pick its own GL implementation. **Do not name one.**
+
+    This used to pass ``--use-gl=egl``, and that flag has since been renamed
+    upstream to ``--gl=``. On a current Chromium the old spelling is not
+    rejected loudly — it resolves to "no implementation", so the GPU process
+    exits during initialization, over and over, and the panel stays black while
+    every other health signal reads fine. Measured on a ground station running
+    Chromium 150::
+
+        (no flag)               gpu_process_exits=0
+        --gl=egl-angle          gpu_process_exits=0
+        --use-angle=gl          gpu_process_exits=0
+        --use-gl=egl            gpu_process_exits=4   <- the only failing option
+
+    Several spellings work; passing none of them also works, and is the only
+    option that cannot go stale the same way. Chromium's default on Linux is
+    already the ANGLE/EGL path we were trying to ask for, so naming it bought
+    nothing and cost a black screen.
+
+    ``--enable-gpu-rasterization`` is likewise dropped: it has been the default
+    for years, and carrying a flag whose behaviour is now the default is how the
+    previous one survived long enough to break.
+
+    Software: ``--disable-gpu`` so Chromium composites on the CPU and never
+    opens the GPU EGL, matching cage's pixman renderer so nothing in the stack
+    touches a GPU that cannot be driven.
     """
     if renderer == _RENDERER_GPU:
-        return ["--use-gl=egl", "--enable-gpu-rasterization"]
+        return []
     return ["--disable-gpu"]
+
+
+def _chromium_storage_flags(base_dir: str) -> list[str]:
+    """Pin Chromium's profile and cache into the runtime tmpfs, with a bounded
+    cache.
+
+    Left to itself Chromium writes its HTTP cache, code cache, shader cache,
+    Local Storage, cookies and history under ``$HOME``. Under cage the service
+    runs as root, so that is ``/root/.cache/chromium`` and ``/root/.config/
+    chromium`` — on the SD card, unbounded, and rewritten continuously because
+    the page it is showing is a live-updating SPA with a video stream. A ground
+    station runs that page for its whole life.
+
+    None of it is worth persisting. The kiosk shows one page, served from
+    localhost, with no login and no session to carry across a reboot; the cache
+    exists to avoid a network round trip that is not happening anyway. So it all
+    goes to a tmpfs directory and dies with the boot.
+
+    The size cap matters *because* the target is tmpfs: an unbounded cache there
+    would trade SD wear for RAM exhaustion, which on a 4 GB board sharing memory
+    with a video pipeline is not a trade worth making.
+
+    Applying this on the windowed path too has a second, unrelated benefit: the
+    kiosk stops sharing a profile directory with the desktop user's own browser,
+    so launching it can no longer collide with a Chromium the operator already
+    has open.
+    """
+    base = base_dir.rstrip("/")
+    return [
+        f"--user-data-dir={base}/profile",
+        f"--disk-cache-dir={base}/cache",
+        f"--disk-cache-size={_DISK_CACHE_BYTES}",
+    ]
 
 
 def _build_chromium_argv(url: str, renderer: str) -> list[str]:
@@ -488,6 +584,7 @@ def _build_chromium_argv(url: str, renderer: str) -> list[str]:
         "--no-sandbox",
         "--ozone-platform=wayland",
         *_chromium_render_flags(renderer),
+        *_chromium_storage_flags(_CAGE_STORAGE_DIR),
         "--autoplay-policy=no-user-gesture-required",
         url,
     ]
@@ -758,7 +855,7 @@ def _session_env(session: DesktopSession) -> dict[str, str]:
 
 
 def _build_windowed_chromium_argv(
-    url: str, session_type: str, renderer: str
+    url: str, session_type: str, renderer: str, storage_dir: str
 ) -> list[str]:
     """Full argv for a full-screen Chromium kiosk WITHOUT cage, to run inside an
     already-running desktop session. The Ozone platform matches the session so
@@ -778,6 +875,7 @@ def _build_windowed_chromium_argv(
         "--no-first-run",
         f"--ozone-platform={platform}",
         *_chromium_render_flags(renderer),
+        *_chromium_storage_flags(storage_dir),
         "--autoplay-policy=no-user-gesture-required",
         url,
     ]
@@ -935,6 +1033,64 @@ class KioskSupervisor:
         except Exception:
             return ""
 
+    async def _stream_stderr(self, proc: Any) -> None:
+        """Forward the child's stderr to the journal line by line, and keep the
+        rolling tail the GPU-downgrade heuristic reads.
+
+        Bounded on purpose: a browser can be extremely chatty, and the point is
+        to make a failure visible, not to relay every frame's worth of noise
+        onto a flash-backed journal.
+        """
+        if proc.stderr is None:
+            return
+        seen = 0
+        recent: list[str] = []
+        try:
+            while True:
+                raw = await proc.stderr.readline()
+                if not raw:
+                    break
+                line = raw.decode("utf-8", errors="replace").rstrip()
+                if not line:
+                    continue
+                recent.append(line)
+                if len(recent) > 40:
+                    recent.pop(0)
+                self.last_stderr_tail = "\n".join(recent)[-_STDERR_TAIL_BYTES:]
+                if seen < _STDERR_LOG_LINE_LIMIT:
+                    log.warning("kiosk_child_stderr", line=line[:400])
+                elif seen == _STDERR_LOG_LINE_LIMIT:
+                    log.warning(
+                        "kiosk_child_stderr_suppressed",
+                        msg=f"further child stderr suppressed after {seen} lines",
+                    )
+                seen += 1
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            return
+
+    async def _watch_browser(self, proc: Any) -> None:
+        """Resolve once the BROWSER is gone while the compositor is still up.
+
+        Only meaningful on the cage path, where the supervisor's child is the
+        compositor and the browser is its grandchild. On the windowed path the
+        child IS the browser, so `proc.wait()` already covers it and this never
+        fires.
+
+        The browser is given a grace period to appear: it is spawned by cage, so
+        it is legitimately absent for a moment right after launch.
+        """
+        if not self._sweep_orphans_enabled:
+            return  # windowed path: the child is the browser itself
+        await asyncio.sleep(_BROWSER_START_GRACE_SECONDS)
+        while True:
+            if proc.returncode is not None:
+                return  # the compositor went first; the normal path handles it
+            if not _browser_running():
+                return
+            await asyncio.sleep(_BROWSER_POLL_SECONDS)
+
     async def run(self) -> int:
         """Supervise loop. Returns process exit code or 0 on clean stop."""
         backoff = _BACKOFF_START_SECONDS
@@ -954,9 +1110,45 @@ class KioskSupervisor:
 
             wait_task = asyncio.create_task(proc.wait(), name="kiosk_child_wait")
             stop_task = asyncio.create_task(self._stop.wait(), name="kiosk_stop_wait")
-            done, pending = await asyncio.wait(
-                {wait_task, stop_task}, return_when=asyncio.FIRST_COMPLETED
+            # Drain the child's stderr WHILE it runs, not only when it exits.
+            #
+            # A compositor that stays up with a broken browser inside it never
+            # exits, so an exit-time read never happens and the error is never
+            # seen. That is exactly how a black panel presented as a healthy
+            # unit: the last journal line was `kiosk_child_running`, and the GPU
+            # initialization error that caused it was only visible by running
+            # the argv by hand.
+            drain_task = asyncio.create_task(
+                self._stream_stderr(proc), name="kiosk_child_stderr"
             )
+            # And watch the BROWSER, not just the compositor we launched. The
+            # supervisor's child is `cage`; the browser is its grandchild, so a
+            # dead browser under a live cage is invisible to `proc.wait()`.
+            browser_task = asyncio.create_task(
+                self._watch_browser(proc), name="kiosk_browser_watch"
+            )
+            done, pending = await asyncio.wait(
+                {wait_task, stop_task, browser_task},
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+            if browser_task in done and wait_task not in done and stop_task not in done:
+                # The compositor is still alive but has nothing to show. Treat it
+                # as a crash so the existing backoff + GPU-downgrade machinery
+                # handles it, rather than leaving a black screen reading healthy.
+                log.error(
+                    "kiosk_browser_vanished",
+                    msg="the browser exited while the compositor stayed up; restarting",
+                    stderr_tail=self.last_stderr_tail,
+                )
+                for t in pending:
+                    t.cancel()
+                drain_task.cancel()
+                await self._graceful_kill(proc)
+                self._record_crash_and_check()
+                await asyncio.sleep(backoff)
+                backoff = min(backoff * 2, _BACKOFF_MAX_SECONDS)
+                continue
+            drain_task.cancel()
 
             if stop_task in done:
                 for t in pending:
@@ -1008,6 +1200,35 @@ class KioskSupervisor:
         return 0
 
 
+def _browser_running() -> bool:
+    """True when any of the known browser binaries has a live process.
+
+    Deliberately a name probe rather than a PID: the browser is the
+    compositor's grandchild and re-execs into several processes, so there is no
+    single stable pid to hold. `pgrep -f` against the resolved binary names is
+    the same mechanism the orphan sweep already uses.
+
+    Errs toward TRUE on any uncertainty (pgrep missing, permission denied): a
+    false "the browser is gone" would restart a working kiosk, which is worse
+    than missing one failure.
+    """
+    for name in _BROWSER_CANDIDATES:
+        try:
+            res = subprocess.run(  # noqa: S603
+                ["pgrep", "-f", name],
+                capture_output=True,
+                timeout=5,
+                check=False,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return True
+        if res.returncode == 0 and res.stdout.strip():
+            return True
+        if res.returncode not in (0, 1):
+            return True
+    return False
+
+
 def _looks_gpu_failure(stderr_tail: str) -> bool:
     """True when a child's stderr tail carries a GPU/EGL/renderer-init failure
     marker — a diagnostic hint for the GPU->software downgrade (the downgrade
@@ -1048,7 +1269,16 @@ def _make_supervisor(
     stripped and the renderer / DRM device / scoped libmali pinned. Raises
     ``FileNotFoundError`` when no Chromium is installed."""
     if session is not None:
-        argv = _build_windowed_chromium_argv(url, session.session_type, renderer)
+        argv = _build_windowed_chromium_argv(
+            url,
+            session.session_type,
+            renderer,
+            # Under the session user's own runtime dir. logind creates it for
+            # any active session, so a graphical session always has one, and it
+            # is owned by the user the child is dropped to — which a dir under
+            # the agent's root-owned runtime tree would not be.
+            f"/run/user/{session.uid}/{_KIOSK_STORAGE_SUBDIR}",
+        )
         # Run the browser AS the logged-in desktop user (not root): Chromium
         # refuses to run as root without --no-sandbox, and dropping to the user
         # keeps its sandbox and gives it a writable profile (HOME from
@@ -1058,6 +1288,17 @@ def _make_supervisor(
             env=_session_env(session),
             sweep_orphans=False,
             run_as_uid=session.uid,
+        )
+    # Chromium will not start when the parent of --user-data-dir is absent, and
+    # this one lives in a tmpfs that is empty on every boot, so create it here
+    # rather than assuming. Running as root under cage, this is ours to make.
+    try:
+        os.makedirs(_CAGE_STORAGE_DIR, exist_ok=True)
+    except OSError as exc:  # pragma: no cover - filesystem-dependent
+        log.warning(
+            "kiosk_storage_dir_unavailable",
+            path=_CAGE_STORAGE_DIR,
+            error=str(exc),
         )
     argv = _build_chromium_argv(url, renderer)
     return KioskSupervisor(
@@ -1072,6 +1313,22 @@ async def _amain() -> int:
     configure_logging(config.logging.level)
     slog = structlog.get_logger()
     slog.info("kiosk_service_starting")
+
+    # The operator's display selection, honoured before anything touches the
+    # panel. `lcd` and `none` both mean "this service does not own the screen",
+    # and until now setting either did nothing at all — the value was written,
+    # read by no one, and the kiosk started regardless.
+    display = _display_selection(config)
+    if display in ("lcd", "none"):
+        slog.info(
+            "kiosk_disabled_by_display_config",
+            selection=display,
+            msg=(
+                "the panel is assigned elsewhere by ground_station.display.type; "
+                "HDMI kiosk skipped cleanly"
+            ),
+        )
+        return 0
 
     if not await _wait_for_display():
         slog.info(

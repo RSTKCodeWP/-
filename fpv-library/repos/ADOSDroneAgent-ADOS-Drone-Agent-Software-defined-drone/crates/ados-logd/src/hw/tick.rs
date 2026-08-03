@@ -8,6 +8,7 @@
 //! The file IO done here is synchronous, so the caller runs the whole pass on a
 //! blocking thread.
 
+use std::collections::HashSet;
 use std::time::Instant;
 
 use rmpv::Value as MpVal;
@@ -29,6 +30,31 @@ use super::{
 };
 use crate::writer::now_us;
 
+/// How far a temperature must move before it is worth a new row.
+///
+/// A millidegree sensor never reads exactly the same twice, so "changed" needs a
+/// threshold or the gate never closes. Half a degree is well below anything that
+/// matters thermally and far above the sensor's idle jitter.
+const THERMAL_DEADBAND_C: f64 = 0.5;
+
+/// How far a core's clock must move before it is worth a new row, in kHz.
+///
+/// A governor moves between discrete operating points, so a real change is a
+/// step of tens of MHz; anything smaller is the reading landing either side of
+/// one. 1 MHz is far below the smallest real step and above the jitter.
+const CPU_FREQ_DEADBAND_KHZ: f64 = 1_000.0;
+
+/// How far a core's utilization must move before it is worth a new row, in
+/// percentage points.
+///
+/// Per-core utilization is intrinsically noisy — a core sampled four times a
+/// second wanders several points while doing nothing in particular — so without
+/// a threshold this series stores its own jitter forever. Nothing reads per-core
+/// utilization at finer than this: the headline `cpu.utilization_pct` is a
+/// separate 1 Hz aggregate, and the per-core series exists to show imbalance and
+/// pinned cores, both of which are tens of points wide.
+const CPU_UTIL_DEADBAND_PCT: f64 = 5.0;
+
 impl Collector {
     /// Run one collector tick at `now`: read every class whose cadence is due,
     /// fold the readings into one [`HwSnapshot`], and accumulate the per-signal
@@ -45,21 +71,13 @@ impl Collector {
         let mut metrics: Vec<TelemetryFrame> = Vec::new();
         let mut unavailable = 0u32;
 
-        // soc.compat is constant; carry it on every snapshot for the read edge.
-        if !self.soc.compat.is_empty() {
-            snap.signals.insert(
-                "soc.compat".to_string(),
-                MpVal::from(self.soc.compat.clone()),
-            );
-        }
-
         if now >= self.next_thermal {
             self.next_thermal = now + THERMAL_CADENCE;
-            unavailable += self.fold_thermal(ts, &mut snap, &mut metrics);
+            unavailable += self.fold_thermal(ts, now, &mut snap, &mut metrics);
         }
         if now >= self.next_freq_util {
             self.next_freq_util = now + FREQ_UTIL_CADENCE;
-            unavailable += self.fold_freq_util(ts, &mut snap, &mut metrics);
+            unavailable += self.fold_freq_util(ts, now, &mut snap, &mut metrics);
         }
         if now >= self.next_power {
             self.next_power = now + POWER_CADENCE;
@@ -90,6 +108,23 @@ impl Collector {
             self.fold_summary(ts, &mut snap, &mut metrics);
         }
 
+        // soc.compat is constant, and it rides along on any snapshot that is
+        // already being emitted so the read edge always has it.
+        //
+        // It is folded in HERE, at the end, and only when something else was
+        // read. Inserting it up front made `snapshot.signals` non-empty on every
+        // single tick, which defeated the empty-snapshot guard in `emit` — so
+        // the base tick cadence (100 ms) wrote an `hw` row 10 times a second
+        // forever, ~864 000 rows a day, even on the majority of ticks where no
+        // class was due and there was nothing to report. A constant is not a
+        // reading, and it must not be what makes a tick look like one.
+        if !snap.signals.is_empty() && !self.soc.compat.is_empty() {
+            snap.signals.insert(
+                "soc.compat".to_string(),
+                MpVal::from(self.soc.compat.clone()),
+            );
+        }
+
         self.unavailable_classes = unavailable;
         TickOutput {
             snapshot: snap,
@@ -103,39 +138,66 @@ impl Collector {
     /// Thermal zones + hwmon temperatures. The first zone is the quick-glance
     /// primary. Returns `1` when no thermal source was readable.
     fn fold_thermal(
-        &self,
+        &mut self,
         ts: i64,
+        now: Instant,
         snap: &mut HwSnapshot,
         metrics: &mut Vec<TelemetryFrame>,
     ) -> u32 {
         let zones = read_thermal_zones(&self.root);
         let hwmon = read_hwmon_temps(&self.root);
         let unavailable = u32::from(zones.is_empty() && hwmon.is_empty());
-        // The first zone is the quick-glance primary temperature.
+        let gate = &mut self.emit_gate;
+
+        // Every reading goes into the SNAPSHOT unconditionally — that is the
+        // live view, it costs one blob, and it is what an operator reads. Only
+        // the per-signal metric ROWS are gated, because those are what land on
+        // flash at the sampling cadence.
         if let Some(primary) = zones.first() {
             snap.signals
                 .insert("thermal.primary_c".to_string(), MpVal::from(primary.c));
-            push_metric(metrics, ts, "thermal.primary_c", primary.c as f64, &[]);
+            if gate.should_emit(
+                "thermal.primary_c",
+                primary.c as f64,
+                THERMAL_DEADBAND_C,
+                now,
+            ) {
+                push_metric(metrics, ts, "thermal.primary_c", primary.c as f64, &[]);
+            }
         }
+        let mut zone_keys: HashSet<String> = HashSet::new();
         for z in &zones {
-            let key = format!("thermal.{}_c", sanitize(&z.name));
+            let sanitized = sanitize(&z.name);
+            let key = format!("thermal.{sanitized}_c");
+            zone_keys.insert(sanitized);
             snap.signals.insert(key.clone(), MpVal::from(z.c));
-            push_metric(metrics, ts, &key, z.c as f64, &[("zone", &z.name)]);
+            if gate.should_emit(&key, z.c as f64, THERMAL_DEADBAND_C, now) {
+                push_metric(metrics, ts, &key, z.c as f64, &[("zone", &z.name)]);
+            }
         }
         for t in &hwmon {
-            let key = format!(
-                "thermal.hwmon.{}_{}_c",
-                sanitize(&t.chip),
-                sanitize(&t.label)
-            );
+            // A thermal zone backed by a hwmon device is exposed through BOTH
+            // trees, so recording each records one sensor twice. Measured on a
+            // real board: `thermal.skin_zone_c` and
+            // `thermal.hwmon.skin_zone_temp1_c` were the same sensor at the same
+            // cadence, and roughly half of all thermal rows were duplicates. A
+            // hwmon chip that does NOT correspond to a zone (a separate PMIC
+            // sensor, say) is still recorded — this drops only the overlap.
+            let chip = sanitize(&t.chip);
+            if zone_keys.contains(&chip) {
+                continue;
+            }
+            let key = format!("thermal.hwmon.{}_{}_c", chip, sanitize(&t.label));
             snap.signals.insert(key.clone(), MpVal::from(t.c));
-            push_metric(
-                metrics,
-                ts,
-                &key,
-                t.c as f64,
-                &[("chip", &t.chip), ("label", &t.label)],
-            );
+            if gate.should_emit(&key, t.c as f64, THERMAL_DEADBAND_C, now) {
+                push_metric(
+                    metrics,
+                    ts,
+                    &key,
+                    t.c as f64,
+                    &[("chip", &t.chip), ("label", &t.label)],
+                );
+            }
         }
         unavailable
     }
@@ -162,6 +224,7 @@ impl Collector {
     fn fold_freq_util(
         &mut self,
         ts: i64,
+        now: Instant,
         snap: &mut HwSnapshot,
         metrics: &mut Vec<TelemetryFrame>,
     ) -> u32 {
@@ -171,14 +234,23 @@ impl Collector {
         for c in &cores {
             if let Some(khz) = c.freq_khz {
                 let key = format!("cpu.freq.{}", c.core);
+                // The snapshot always carries the live value — it is one row for
+                // every signal on the box, so a fresh reading there is free. The
+                // stored per-core SERIES is what costs a row each, so only that
+                // is gated.
                 snap.signals.insert(key.clone(), MpVal::from(khz));
-                push_metric(
-                    metrics,
-                    ts,
-                    &key,
-                    khz as f64,
-                    &[("core", &c.core.to_string())],
-                );
+                if self
+                    .emit_gate
+                    .should_emit(&key, khz as f64, CPU_FREQ_DEADBAND_KHZ, now)
+                {
+                    push_metric(
+                        metrics,
+                        ts,
+                        &key,
+                        khz as f64,
+                        &[("core", &c.core.to_string())],
+                    );
+                }
             }
             if let Some(gov) = &c.governor {
                 snap.signals
@@ -187,7 +259,7 @@ impl Collector {
         }
         // Utilization is a rate: compute it against the previous /proc/stat.
         // The returned aggregate feeds the 1 Hz `cpu.utilization_pct` summary.
-        if let Some(util) = self.fold_utilization(&stat, ts, snap, metrics) {
+        if let Some(util) = self.fold_utilization(&stat, ts, now, snap, metrics) {
             self.last_cpu_util_all = Some(util);
         }
         self.baselines.proc_stat = Some(stat);
@@ -452,38 +524,60 @@ impl Collector {
     /// Returns the aggregate utilization percentage when one was computed, so the
     /// caller can cache it for the 1 Hz summary.
     fn fold_utilization(
-        &self,
+        &mut self,
         stat: &ProcStat,
         ts: i64,
+        now: Instant,
         snap: &mut HwSnapshot,
         metrics: &mut Vec<TelemetryFrame>,
     ) -> Option<f64> {
-        let prev = self.baselines.proc_stat.as_ref()?;
+        // Lift the baseline out before the gate is touched: the gate needs a
+        // mutable borrow of `self` and the baseline is an immutable one, so they
+        // cannot overlap. Both are a handful of integers per core.
+        let (prev_aggregate, prev_cores) = {
+            let prev = self.baselines.proc_stat.as_ref()?;
+            (prev.aggregate, prev.cores.clone())
+        };
         let mut aggregate_pct = None;
         // Aggregate utilization, the quick-glance `cpu.util.all` metric.
-        if let (Some(p), Some(n)) = (prev.aggregate, stat.aggregate) {
+        if let (Some(p), Some(n)) = (prev_aggregate, stat.aggregate) {
             if let Some(pct) = util_pct(p, n) {
                 snap.signals
                     .insert("cpu.util.all".to_string(), MpVal::from(pct));
-                push_metric(metrics, ts, "cpu.util.all", pct as f64, &[]);
+                // The aggregate is returned for the 1 Hz summary whether or not
+                // it is worth storing, so the summary never goes blank because
+                // this series was quiet.
+                if self.emit_gate.should_emit(
+                    "cpu.util.all",
+                    pct as f64,
+                    CPU_UTIL_DEADBAND_PCT,
+                    now,
+                ) {
+                    push_metric(metrics, ts, "cpu.util.all", pct as f64, &[]);
+                }
                 aggregate_pct = Some(pct as f64);
             }
         }
         // Per-core utilization, matched by core index across the two samples.
         for (core, n) in &stat.cores {
-            let Some(p) = prev.cores.iter().find(|(c, _)| c == core).map(|(_, t)| *t) else {
+            let Some(p) = prev_cores.iter().find(|(c, _)| c == core).map(|(_, t)| *t) else {
                 continue;
             };
             if let Some(pct) = util_pct(p, *n) {
                 let key = format!("cpu.util.{core}");
                 snap.signals.insert(key.clone(), MpVal::from(pct));
-                push_metric(
-                    metrics,
-                    ts,
-                    &key,
-                    pct as f64,
-                    &[("core", &core.to_string())],
-                );
+                if self
+                    .emit_gate
+                    .should_emit(&key, pct as f64, CPU_UTIL_DEADBAND_PCT, now)
+                {
+                    push_metric(
+                        metrics,
+                        ts,
+                        &key,
+                        pct as f64,
+                        &[("core", &core.to_string())],
+                    );
+                }
             }
         }
         aggregate_pct

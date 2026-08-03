@@ -14,7 +14,7 @@ import asyncio
 import os
 from types import SimpleNamespace
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -24,7 +24,6 @@ from ados.services.kiosk.kiosk_service import (
     _build_chromium_argv,
     _get_kiosk_config,
     _hdmi_present,
-    _low_ram_board,
     _resolve_target_url,
 )
 
@@ -303,43 +302,6 @@ def test_get_kiosk_config_returns_configured_values() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Low-RAM threshold (board with <3 GiB total RAM auto-trips minimal layer)
-# ---------------------------------------------------------------------------
-
-
-def test_low_ram_board_true_when_under_threshold() -> None:
-    """A 2 GiB board falls under the 3 GiB threshold."""
-    fake_psutil = MagicMock()
-    fake_psutil.virtual_memory.return_value = MagicMock(total=2 * 1024 * 1024 * 1024)
-    with patch.dict("sys.modules", {"psutil": fake_psutil}):
-        assert _low_ram_board() is True
-
-
-def test_low_ram_board_false_when_at_or_above_threshold() -> None:
-    """A 4 GiB board is comfortably above the threshold."""
-    fake_psutil = MagicMock()
-    fake_psutil.virtual_memory.return_value = MagicMock(total=4 * 1024 * 1024 * 1024)
-    with patch.dict("sys.modules", {"psutil": fake_psutil}):
-        assert _low_ram_board() is False
-
-
-def test_low_ram_board_threshold_boundary() -> None:
-    """At exactly 3 GiB the helper returns False (strict less-than)."""
-    fake_psutil = MagicMock()
-    fake_psutil.virtual_memory.return_value = MagicMock(total=3 * 1024 * 1024 * 1024)
-    with patch.dict("sys.modules", {"psutil": fake_psutil}):
-        assert _low_ram_board() is False
-
-
-def test_low_ram_board_psutil_failure_returns_false() -> None:
-    """psutil.virtual_memory() exceptions degrade safely to ``False``."""
-    fake_psutil = MagicMock()
-    fake_psutil.virtual_memory.side_effect = RuntimeError("no /proc on this box")
-    with patch.dict("sys.modules", {"psutil": fake_psutil}):
-        assert _low_ram_board() is False
-
-
-# ---------------------------------------------------------------------------
 # URL resolution
 # ---------------------------------------------------------------------------
 
@@ -347,21 +309,23 @@ def test_low_ram_board_psutil_failure_returns_false() -> None:
 def test_resolve_target_url_defaults_when_nothing_set(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("ADOS_KIOSK_URL", raising=False)
     monkeypatch.delenv("ADOS_KIOSK_MINIMAL_LAYER", raising=False)
-    with patch.object(ks, "_low_ram_board", return_value=False):
-        url, minimal = _resolve_target_url(SimpleNamespace())
+    url, minimal = _resolve_target_url(SimpleNamespace())
     # Trailing slash: the path the static mount actually serves, so no redirect
     # stands between the kiosk and the page (and none can drop the query).
-    assert url == "http://localhost:8080/cockpit/"
-    assert minimal is False
+    #
+    # Minimal is the DEFAULT on the panel. The backdrop blur it drops costs 53%
+    # of the browser's CPU on a four-core board, measured with video actually
+    # arriving over the radio, and nothing can see it behind a HUD.
+    assert url == "http://localhost:8080/cockpit/?layer=minimal"
+    assert minimal is True
 
 
 def test_resolve_target_url_env_override_used(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("ADOS_KIOSK_URL", "http://env-host/hud")
     monkeypatch.delenv("ADOS_KIOSK_MINIMAL_LAYER", raising=False)
-    with patch.object(ks, "_low_ram_board", return_value=False):
-        url, minimal = _resolve_target_url(SimpleNamespace())
-    assert url == "http://env-host/hud"
-    assert minimal is False
+    url, minimal = _resolve_target_url(SimpleNamespace())
+    assert url == "http://env-host/hud?layer=minimal"
+    assert minimal is True
 
 
 def test_resolve_target_url_config_beats_env(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -369,20 +333,25 @@ def test_resolve_target_url_config_beats_env(monkeypatch: pytest.MonkeyPatch) ->
     monkeypatch.setenv("ADOS_KIOSK_URL", "http://env-host/hud")
     monkeypatch.delenv("ADOS_KIOSK_MINIMAL_LAYER", raising=False)
     cfg = _config_with_kiosk(url="http://cfg-host/hud")
-    with patch.object(ks, "_low_ram_board", return_value=False):
-        url, _ = _resolve_target_url(cfg)
-    assert url == "http://cfg-host/hud"
+    url, _ = _resolve_target_url(cfg)
+    assert url == "http://cfg-host/hud?layer=minimal"
 
 
-def test_resolve_target_url_low_ram_appends_minimal_layer(
+def test_resolve_target_url_config_can_opt_back_into_the_full_layer(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """An explicit ``minimal_layer: false`` is the only way back to the blur.
+
+    Absent config means minimal; only an operator asking for the full layer
+    gets it, because on every board measured so far the blur costs about half
+    the browser's CPU and buys nothing visible behind the HUD.
+    """
     monkeypatch.delenv("ADOS_KIOSK_URL", raising=False)
     monkeypatch.delenv("ADOS_KIOSK_MINIMAL_LAYER", raising=False)
-    with patch.object(ks, "_low_ram_board", return_value=True):
-        url, minimal = _resolve_target_url(SimpleNamespace())
-    assert minimal is True
-    assert url.endswith("?layer=minimal")
+    cfg = _config_with_kiosk(url="http://host/hud", minimal=False)
+    url, minimal = _resolve_target_url(cfg)
+    assert minimal is False
+    assert "layer=minimal" not in url
 
 
 def test_resolve_target_url_config_minimal_flag_appends_query(
@@ -391,8 +360,7 @@ def test_resolve_target_url_config_minimal_flag_appends_query(
     monkeypatch.delenv("ADOS_KIOSK_URL", raising=False)
     monkeypatch.delenv("ADOS_KIOSK_MINIMAL_LAYER", raising=False)
     cfg = _config_with_kiosk(url="http://host/hud?theme=dark", minimal=True)
-    with patch.object(ks, "_low_ram_board", return_value=False):
-        url, minimal = _resolve_target_url(cfg)
+    url, minimal = _resolve_target_url(cfg)
     assert minimal is True
     # Existing query separator preserved.
     assert url == "http://host/hud?theme=dark&layer=minimal"
@@ -401,11 +369,10 @@ def test_resolve_target_url_config_minimal_flag_appends_query(
 def test_resolve_target_url_env_can_force_full_layer(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """``ADOS_KIOSK_MINIMAL_LAYER=0`` overrides a low-RAM detection."""
+    """``ADOS_KIOSK_MINIMAL_LAYER=0`` overrides the minimal default."""
     monkeypatch.setenv("ADOS_KIOSK_MINIMAL_LAYER", "0")
     monkeypatch.delenv("ADOS_KIOSK_URL", raising=False)
-    with patch.object(ks, "_low_ram_board", return_value=True):
-        url, minimal = _resolve_target_url(SimpleNamespace())
+    url, minimal = _resolve_target_url(SimpleNamespace())
     assert minimal is False
     assert "layer=minimal" not in url
 
@@ -436,16 +403,17 @@ def test_build_chromium_argv_software_disables_gpu() -> None:
     with patch.object(ks, "_resolve_browser_binary", return_value="/usr/bin/chromium"):
         argv = _build_chromium_argv("http://x", ks._RENDERER_SOFTWARE)
     assert "--disable-gpu" in argv
-    assert "--use-gl=egl" not in argv
+    assert not any(a.startswith(("--use-gl", "--gl=", "--use-angle")) for a in argv)
     assert "--enable-gpu-rasterization" not in argv
 
 
-def test_build_chromium_argv_gpu_uses_egl() -> None:
-    """GPU renderer -> EGL + GPU rasterization, and NOT --disable-gpu."""
+def test_build_chromium_argv_gpu_names_no_gl_implementation() -> None:
+    """GPU renderer -> let Chromium choose, and NOT --disable-gpu."""
     with patch.object(ks, "_resolve_browser_binary", return_value="/usr/bin/chromium"):
         argv = _build_chromium_argv("http://x", ks._RENDERER_GPU)
-    assert "--use-gl=egl" in argv
-    assert "--enable-gpu-rasterization" in argv
+    assert not any(a.startswith(("--use-gl", "--gl=", "--use-angle")) for a in argv), (
+        "the GPU path must not hardcode a GL implementation name — that is what broke"
+    )
     assert "--disable-gpu" not in argv
 
 
@@ -478,7 +446,7 @@ def test_resolve_browser_binary_raises_naming_every_candidate() -> None:
 def test_windowed_argv_wayland_has_no_cage_and_wayland_platform() -> None:
     with patch.object(ks, "_resolve_browser_binary", return_value="/usr/bin/chromium"):
         argv = ks._build_windowed_chromium_argv(
-            "http://target/cockpit", "wayland", ks._RENDERER_SOFTWARE
+            "http://target/cockpit", "wayland", ks._RENDERER_SOFTWARE, "/run/user/1000"
         )
     assert "cage" not in argv
     assert argv[0] == "/usr/bin/chromium"
@@ -487,10 +455,48 @@ def test_windowed_argv_wayland_has_no_cage_and_wayland_platform() -> None:
     assert argv[-1] == "http://target/cockpit"
 
 
+def test_cage_argv_keeps_browser_storage_off_the_card() -> None:
+    # Under cage the service runs as root, so an unpinned Chromium writes its
+    # HTTP cache, code cache, shader cache, cookies and history under
+    # /root/.cache and /root/.config — on the SD card, unbounded, and rewritten
+    # continuously because the cockpit is a live SPA with a video stream. A
+    # ground station runs that page for its whole life.
+    with patch.object(ks, "_resolve_browser_binary", return_value="/usr/bin/chromium"):
+        argv = _build_chromium_argv("http://target/cockpit", ks._RENDERER_SOFTWARE)
+
+    assert f"--user-data-dir={ks._CAGE_STORAGE_DIR}/profile" in argv
+    assert f"--disk-cache-dir={ks._CAGE_STORAGE_DIR}/cache" in argv
+    # The cache lives in tmpfs, so an unbounded one would trade SD wear for RAM
+    # exhaustion on a board that shares memory with the video pipeline.
+    assert f"--disk-cache-size={ks._DISK_CACHE_BYTES}" in argv
+    # It lands in the agent's own runtime dir, which is tmpfs on a node (the
+    # path differs on a dev host, which is why this asserts the relationship
+    # rather than a literal), and never anywhere under the root account's
+    # persistent cache or config.
+    assert ks._CAGE_STORAGE_DIR == str(ks.ADOS_RUN_DIR / "kiosk")
+    assert "/root/" not in ks._CAGE_STORAGE_DIR
+
+
+def test_windowed_argv_scopes_storage_to_the_session_runtime_dir() -> None:
+    # Same reasoning, plus one of its own: a kiosk that shares a profile
+    # directory with the desktop user's own browser collides with a Chromium
+    # the operator already has open.
+    with patch.object(ks, "_resolve_browser_binary", return_value="/usr/bin/chromium"):
+        argv = ks._build_windowed_chromium_argv(
+            "http://target/cockpit",
+            "wayland",
+            ks._RENDERER_SOFTWARE,
+            f"/run/user/1000/{ks._KIOSK_STORAGE_SUBDIR}",
+        )
+    assert f"--user-data-dir=/run/user/1000/{ks._KIOSK_STORAGE_SUBDIR}/profile" in argv
+    assert f"--disk-cache-dir=/run/user/1000/{ks._KIOSK_STORAGE_SUBDIR}/cache" in argv
+    assert not any(a.startswith("--user-data-dir=/home") for a in argv)
+
+
 def test_windowed_argv_x11_uses_x11_platform() -> None:
     with patch.object(ks, "_resolve_browser_binary", return_value="/usr/bin/chromium"):
         argv = ks._build_windowed_chromium_argv(
-            "http://target/cockpit", "x11", ks._RENDERER_SOFTWARE
+            "http://target/cockpit", "x11", ks._RENDERER_SOFTWARE, "/run/user/1000"
         )
     assert "--ozone-platform=x11" in argv
     assert "cage" not in argv
@@ -519,8 +525,9 @@ def test_windowed_supervisor_honours_the_resolved_gpu_renderer() -> None:
     assert "--disable-gpu" not in argv, (
         "a desktop session must not force software when GPU was resolved"
     )
-    assert "--use-gl=egl" in argv
-    assert "--enable-gpu-rasterization" in argv
+    assert not any(a.startswith(("--use-gl", "--gl=", "--use-angle")) for a in argv), (
+        "the GPU path must not hardcode a GL implementation name — that is what broke"
+    )
 
 
 def test_windowed_supervisor_still_passes_software_when_resolved_software() -> None:
@@ -536,7 +543,7 @@ def test_windowed_supervisor_still_passes_software_when_resolved_software() -> N
             )
     argv = sup._argv
     assert "--disable-gpu" in argv
-    assert "--use-gl=egl" not in argv
+    assert not any(a.startswith(("--use-gl", "--gl=", "--use-angle")) for a in argv)
 
 
 def test_detect_desktop_session_returns_active_wayland_session() -> None:
@@ -919,11 +926,15 @@ def test_cage_env_gpu_without_lib_dir_no_ld_path() -> None:
 
 
 def test_chromium_render_flags() -> None:
+    # Software still explicitly disables the GPU so nothing in the stack opens
+    # an EGL it cannot drive.
     assert ks._chromium_render_flags(ks._RENDERER_SOFTWARE) == ["--disable-gpu"]
-    assert ks._chromium_render_flags(ks._RENDERER_GPU) == [
-        "--use-gl=egl",
-        "--enable-gpu-rasterization",
-    ]
+    # The GPU path names NOTHING. `--use-gl=egl` was renamed upstream to
+    # `--gl=`, and the stale spelling does not fail loudly — it resolves to "no
+    # implementation", so the GPU process exits during init on a loop and the
+    # panel stays black while every health signal reads fine. Measured on
+    # Chromium 150: the old flag was the ONLY option that failed.
+    assert ks._chromium_render_flags(ks._RENDERER_GPU) == []
 
 
 def test_looks_gpu_failure_matches_markers() -> None:
@@ -966,7 +977,7 @@ def test_make_supervisor_cage_gpu_strips_display_and_scopes_libmali() -> None:
     with patch.object(ks, "_resolve_browser_binary", return_value="/usr/bin/chromium"):
         sup = ks._make_supervisor("http://x", None, ks._RENDERER_GPU, "/opt/ados/gpu/mali")
     assert sup._argv[0] == "cage"
-    assert "--use-gl=egl" in sup._argv
+    assert not any(a.startswith(("--use-gl", "--gl=", "--use-angle")) for a in sup._argv)
     assert sup._env is not None
     assert sup._env["WLR_RENDERER"] == "gles2"
     assert sup._env["LD_LIBRARY_PATH"].startswith("/opt/ados/gpu/mali")
@@ -1275,3 +1286,128 @@ async def test_amain_downgrades_gpu_to_software_on_cage_crash_loop(
 
 async def _async_noop() -> None:
     return None
+
+# ---------------------------------------------------------------------------
+# The black-screen class of failure: a broken browser inside a healthy cage
+# ---------------------------------------------------------------------------
+
+
+def test_browser_probe_errs_toward_running_when_it_cannot_tell() -> None:
+    """A false 'the browser is gone' restarts a WORKING kiosk, which is worse
+    than missing one failure. Any uncertainty must read as running."""
+    with patch.object(ks.subprocess, "run", side_effect=OSError("no pgrep")):
+        assert ks._browser_running() is True
+
+    # A pgrep that fails for a reason other than "no match" is uncertainty too.
+    with patch.object(
+        ks.subprocess, "run", return_value=SimpleNamespace(returncode=2, stdout=b"")
+    ):
+        assert ks._browser_running() is True
+
+
+def test_browser_probe_reports_gone_only_on_a_clean_no_match() -> None:
+    with patch.object(
+        ks.subprocess, "run", return_value=SimpleNamespace(returncode=1, stdout=b"")
+    ):
+        assert ks._browser_running() is False
+
+    with patch.object(
+        ks.subprocess, "run", return_value=SimpleNamespace(returncode=0, stdout=b"4242\n")
+    ):
+        assert ks._browser_running() is True
+
+
+@pytest.mark.asyncio
+async def test_child_stderr_reaches_the_log_while_the_child_is_still_running() -> None:
+    """The regression that made a black screen undiagnosable.
+
+    stderr used to be read only when the child EXITED. A compositor that stays
+    up with a broken browser inside it never exits, so the GPU error that
+    blacked the panel was never logged — the journal's last line was
+    `kiosk_child_running`.
+    """
+
+    class _Stderr:
+        def __init__(self, lines: list[bytes]) -> None:
+            self._lines = list(lines)
+
+        async def readline(self) -> bytes:
+            return self._lines.pop(0) if self._lines else b""
+
+    proc = SimpleNamespace(
+        stderr=_Stderr(
+            [
+                b"ERROR:gl_factory.cc:110] Requested GL implementation not found\n",
+                b"ERROR:viz_main_impl.cc:190] Exiting GPU process due to errors\n",
+            ]
+        ),
+        returncode=None,
+    )
+    sup = KioskSupervisor(["cage", "--", "/usr/bin/chromium"])
+
+    logged: list[str] = []
+    with patch.object(ks.log, "warning", side_effect=lambda *a, **k: logged.append(str(k))):
+        await sup._stream_stderr(proc)
+
+    assert any("Exiting GPU process" in entry for entry in logged), (
+        f"the child's failure must reach the journal while it runs: {logged}"
+    )
+    # And the rolling tail the GPU-downgrade heuristic reads is populated.
+    assert "Exiting GPU process" in sup.last_stderr_tail
+
+
+@pytest.mark.asyncio
+async def test_browser_watch_is_inert_on_the_windowed_path() -> None:
+    """On the in-desktop path the supervisor's child IS the browser, so
+    proc.wait() already covers it and this watch must never fire."""
+    sup = KioskSupervisor(["/usr/bin/chromium"], sweep_orphans=False)
+    proc = SimpleNamespace(returncode=None)
+    # Returns immediately rather than polling forever.
+    await asyncio.wait_for(sup._watch_browser(proc), timeout=2.0)
+
+# ---------------------------------------------------------------------------
+# ground_station.display.type — it used to be read by nothing
+# ---------------------------------------------------------------------------
+
+
+def _config_with_display(value: object) -> SimpleNamespace:
+    return SimpleNamespace(
+        logging=SimpleNamespace(level="info"),
+        ground_station=SimpleNamespace(display=SimpleNamespace(type=value)),
+    )
+
+
+def test_display_selection_reads_the_operator_choice() -> None:
+    for raw, expected in [
+        ("hdmi", "hdmi"),
+        ("LCD", "lcd"),
+        (" none ", "none"),
+        ("auto", "auto"),
+    ]:
+        assert ks._display_selection(_config_with_display(raw)) == expected
+
+
+def test_display_selection_falls_back_to_auto_on_anything_unusable() -> None:
+    # This service has to start against a config written by an older or newer
+    # agent. A missing or nonsense block means "no opinion", never a crash.
+    assert ks._display_selection(SimpleNamespace(logging=SimpleNamespace(level="info"))) == "auto"
+    assert ks._display_selection(_config_with_display(None)) == "auto"
+    assert ks._display_selection(_config_with_display("banana")) == "auto"
+
+
+@pytest.mark.asyncio
+async def test_kiosk_stands_down_when_the_panel_is_assigned_elsewhere() -> None:
+    """`lcd` and `none` both mean this service does not own the screen.
+
+    Setting either used to do nothing at all: the value was written, read by
+    nobody, and the kiosk started regardless.
+    """
+    for selection in ("lcd", "none"):
+        with (
+            patch.object(ks, "load_config", return_value=_config_with_display(selection)),
+            patch.object(ks, "configure_logging"),
+            patch.object(ks, "_wait_for_display") as waited,
+        ):
+            rc = await ks._amain()
+        assert rc == 0, f"{selection} must exit cleanly, not fail"
+        waited.assert_not_called(), f"{selection} must not even probe the display"

@@ -4,7 +4,7 @@
 //! injected root, so every signal class is exercised without touching the host,
 //! and the async run loop is verified to emit a snapshot and stop on shutdown.
 
-use super::helpers::{fold_throttle, sanitize};
+use super::helpers::{fold_throttle, sanitize, METRIC_HEARTBEAT};
 use super::*;
 use std::fs;
 use std::path::Path;
@@ -163,6 +163,98 @@ fn utilization_appears_on_the_second_sample() {
 }
 
 #[test]
+fn a_steady_core_stops_storing_its_own_jitter() {
+    // Per-core frequency and utilization were the single largest row source on a
+    // live node: sixteen keys at roughly four samples a second, storing a series
+    // whose consumers read it at a far coarser resolution than it was written.
+    // A core that stays put must stop producing rows, while the live snapshot
+    // keeps carrying its current value.
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    let stat_path = root.join("proc/stat");
+    fs::create_dir_all(stat_path.parent().unwrap()).unwrap();
+
+    let mut c = Collector::new(root);
+    let mut at = Instant::now();
+    // Steady 50% on one core: every sample adds the same busy/idle split.
+    let mut busy = 100u64;
+    let mut idle = 1000u64;
+    let sample = |c: &mut Collector, at: Instant, busy: u64, idle: u64| {
+        fs::write(
+            &stat_path,
+            format!("cpu  {busy} 0 50 {idle} 0 0 0 0 0 0\ncpu0 {busy} 0 50 {idle} 0 0 0 0 0 0\n"),
+        )
+        .unwrap();
+        c.tick(at)
+    };
+
+    sample(&mut c, at, busy, idle);
+    let mut emitted_after_first = 0usize;
+    let mut last_snapshot_had_util = false;
+    // Several more samples at the class cadence, all at the same utilization.
+    for _ in 0..5 {
+        busy += 100;
+        idle += 100;
+        at += FREQ_UTIL_CADENCE + Duration::from_millis(1);
+        let out = sample(&mut c, at, busy, idle);
+        emitted_after_first += out
+            .metrics
+            .iter()
+            .filter(|m| m.metric == "cpu.util.0")
+            .count();
+        last_snapshot_had_util = out.snapshot.signals.contains_key("cpu.util.0");
+    }
+
+    // The first of those five establishes the baseline; the rest sit inside the
+    // deadband and well inside the heartbeat, so they must store nothing.
+    assert_eq!(
+        emitted_after_first, 1,
+        "a core holding one utilization should store one row, not one per sample"
+    );
+    // ...but the live value is still there for anything reading the snapshot.
+    assert!(
+        last_snapshot_had_util,
+        "gating the stored series must not blank the live snapshot"
+    );
+}
+
+#[test]
+fn a_core_that_actually_moves_still_stores_a_row() {
+    // The gate must not swallow a real change: a core going from idle to pinned
+    // is exactly what the series exists to show.
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    let stat_path = root.join("proc/stat");
+    fs::create_dir_all(stat_path.parent().unwrap()).unwrap();
+
+    let mut c = Collector::new(root);
+    let mut at = Instant::now();
+    let write = |busy: u64, idle: u64| {
+        fs::write(
+            &stat_path,
+            format!("cpu  {busy} 0 50 {idle} 0 0 0 0 0 0\ncpu0 {busy} 0 50 {idle} 0 0 0 0 0 0\n"),
+        )
+        .unwrap();
+    };
+
+    write(100, 1000);
+    c.tick(at);
+    // ~50% busy.
+    write(200, 1100);
+    at += FREQ_UTIL_CADENCE + Duration::from_millis(1);
+    c.tick(at);
+    // Now pinned: all of the delta is busy time.
+    write(400, 1100);
+    at += FREQ_UTIL_CADENCE + Duration::from_millis(1);
+    let out = c.tick(at);
+
+    assert!(
+        out.metrics.iter().any(|m| m.metric == "cpu.util.0"),
+        "a core jumping to fully busy must store a row"
+    );
+}
+
+#[test]
 fn summary_metrics_emit_at_one_hz_from_cached_class_values() {
     // A fixture with memory + thermal + two distinct /proc/stat samples so
     // the 1 Hz summary can derive cpu.utilization_pct, mem.available_pct and
@@ -275,6 +367,154 @@ fn cadence_gating_skips_a_class_until_its_period_elapses() {
     assert!(
         out2.snapshot.signals.contains_key("thermal.primary_c"),
         "thermal re-fires after its cadence"
+    );
+}
+
+/// A fixture where a thermal zone and a hwmon chip are the SAME sensor, which
+/// is what a zone backed by a hwmon device looks like in `/sys`.
+fn duplicated_thermal_fixture() -> tempfile::TempDir {
+    let dir = tempfile::tempdir().unwrap();
+    let w = |rel: &str, body: &str| {
+        let p = dir.path().join(rel);
+        std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+        std::fs::write(p, body).unwrap();
+    };
+    // One zone named `skin_zone`...
+    w("sys/class/thermal/thermal_zone0/type", "skin_zone\n");
+    w("sys/class/thermal/thermal_zone0/temp", "42000\n");
+    // ...exposed a second time through hwmon under the same chip name.
+    w("sys/class/hwmon/hwmon0/name", "skin_zone\n");
+    w("sys/class/hwmon/hwmon0/temp1_input", "42000\n");
+    // A genuinely separate sensor that is NOT a zone must survive.
+    w("sys/class/hwmon/hwmon1/name", "pmic_die\n");
+    w("sys/class/hwmon/hwmon1/temp1_input", "55000\n");
+    dir
+}
+
+#[test]
+fn one_sensor_exposed_twice_is_recorded_once() {
+    // Measured on a real board: `thermal.skin_zone_c` and
+    // `thermal.hwmon.skin_zone_temp1_c` were the same physical sensor at the
+    // same 200 ms cadence, and roughly half of all thermal rows were duplicates
+    // of the other half.
+    let dir = duplicated_thermal_fixture();
+    let mut c = Collector::new(dir.path());
+    let out = c.tick(Instant::now());
+
+    let keys: Vec<String> = out.metrics.iter().map(|m| m.metric.clone()).collect();
+    assert!(
+        keys.iter().any(|k| k == "thermal.skin_zone_c"),
+        "the zone reading is kept: {keys:?}"
+    );
+    assert!(
+        !keys
+            .iter()
+            .any(|k| k.starts_with("thermal.hwmon.skin_zone")),
+        "the hwmon duplicate of a zone must not be recorded again: {keys:?}"
+    );
+    assert!(
+        keys.iter().any(|k| k.starts_with("thermal.hwmon.pmic_die")),
+        "a hwmon chip that is NOT a zone is still a real sensor: {keys:?}"
+    );
+}
+
+#[test]
+fn a_still_temperature_stops_producing_rows_but_a_transient_lands_at_once() {
+    // The fast cadence exists to catch a throttle transient, so it stays. What
+    // changes is that a sample is only STORED when it means something: sampling
+    // fast and writing every sample to flash are different things, and only the
+    // second costs anything.
+    let dir = duplicated_thermal_fixture();
+    let mut c = Collector::new(dir.path());
+    let t0 = Instant::now();
+
+    let first = c.tick(t0);
+    assert!(
+        first
+            .metrics
+            .iter()
+            .any(|m| m.metric == "thermal.skin_zone_c"),
+        "the first reading is always recorded"
+    );
+
+    // Unchanged temperature, one thermal cadence later: no new row.
+    let quiet = c.tick(t0 + THERMAL_CADENCE + Duration::from_millis(1));
+    assert!(
+        !quiet
+            .metrics
+            .iter()
+            .any(|m| m.metric == "thermal.skin_zone_c"),
+        "a temperature that has not moved does not earn a row"
+    );
+
+    // A real transient: rewrite the sensor and tick again. It lands immediately,
+    // on the very next sample, which is the whole point of the fast cadence.
+    std::fs::write(
+        dir.path().join("sys/class/thermal/thermal_zone0/temp"),
+        "78000\n",
+    )
+    .unwrap();
+    let spike = c.tick(t0 + 2 * THERMAL_CADENCE + Duration::from_millis(2));
+    let row = spike
+        .metrics
+        .iter()
+        .find(|m| m.metric == "thermal.skin_zone_c")
+        .expect("a transient is recorded on the sample that sees it");
+    assert!((row.value - 78.0).abs() < 0.01, "got {}", row.value);
+}
+
+#[test]
+fn a_flat_signal_still_lands_on_the_heartbeat() {
+    // Gating must never make a live producer look dead, and every one-minute
+    // rollup bucket needs at least one sample.
+    let dir = duplicated_thermal_fixture();
+    let mut c = Collector::new(dir.path());
+    let t0 = Instant::now();
+    let _ = c.tick(t0);
+
+    let later = c.tick(t0 + METRIC_HEARTBEAT + Duration::from_secs(1));
+    assert!(
+        later
+            .metrics
+            .iter()
+            .any(|m| m.metric == "thermal.skin_zone_c"),
+        "an unchanged signal is still recorded on the heartbeat"
+    );
+}
+
+#[test]
+fn a_tick_with_no_class_due_produces_an_empty_snapshot() {
+    // The collector ticks at 100 ms but every signal class is slower than that,
+    // so most ticks have nothing to report. Those ticks must produce a snapshot
+    // with no signals at all, because that is what `emit`'s empty-snapshot guard
+    // keys on to drop the row.
+    //
+    // The regression: `soc.compat` — a constant read once at construction — used
+    // to be inserted at the top of every tick, before any cadence check. That
+    // made every snapshot non-empty, the guard never fired, and a row landed on
+    // flash 10 times a second forever. A constant is not a reading.
+    let dir = rich_fixture();
+    let mut c = Collector::new(dir.path());
+    let t0 = Instant::now();
+
+    // The first tick fires every class, so it is legitimately full — and it
+    // carries the constant, which is the behaviour worth keeping.
+    let first = c.tick(t0);
+    assert!(
+        !first.snapshot.signals.is_empty(),
+        "the first tick reads every class"
+    );
+    assert!(
+        first.snapshot.signals.contains_key("soc.compat"),
+        "a snapshot that is being emitted still carries soc.compat for the read edge"
+    );
+
+    // One base tick later nothing is due: the fastest class is 200 ms.
+    let quiet = c.tick(t0 + BASE_TICK);
+    assert!(
+        quiet.snapshot.signals.is_empty(),
+        "a tick with no class due must carry no signals, got {:?}",
+        signal_keys(&quiet.snapshot)
     );
 }
 

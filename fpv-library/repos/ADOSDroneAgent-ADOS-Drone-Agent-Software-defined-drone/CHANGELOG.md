@@ -4,6 +4,713 @@ All notable changes to the ADOS Drone Agent are recorded here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 the project follows [Semantic Versioning](https://semver.org/).
 
+## [0.99.342] - 2026-08-03
+
+### Fixed
+
+- **The storage diagnostic depended on the logging store, which is about to be
+  off by default.** It read the write counter out of the store's hardware
+  snapshots, so the one tool that made the dying-card diagnosis possible would
+  have gone blind at exactly the moment it was needed most — on a node whose
+  store was stopped, torn, or turned off.
+
+  It now takes the reading itself: two `/proc/diskstats` samples five seconds
+  apart, differenced. That needs nothing but the kernel. The store is still
+  read, because its retained window is hours long where this one is seconds and
+  because the sticky throttle bits exist nowhere else, but it is no longer the
+  only source and no longer a prerequisite.
+
+  The direct reading wins when both exist, and the output says which one is on
+  screen. Five seconds of counter and hours of average answer different
+  questions — the first shows whether a change made a minute ago worked, the
+  second whether the box is like that all the time — and an operator acting on
+  one while reading the other draws the wrong conclusion.
+
+  The honesty rules are unchanged and now cover a third case: a counter that
+  went backwards between samples (a device removed and re-added) is skipped
+  rather than becoming an enormous rate, a `/proc/diskstats` line too short to
+  carry the counter is skipped rather than read as zero writes, and a box with
+  neither source available reports an absent rate naming both failures. A
+  genuinely idle card still reads as zero, which is a measurement and a
+  different claim from "could not measure".
+
+## [0.99.341] - 2026-08-03
+
+### Changed
+
+- **Named the plugin-log size cap where the log is written, not only where it is
+  enforced.** systemd has no directive that bounds an `append:` destination, so
+  the per-plugin logs are capped from outside by the supervisor's janitor. That
+  left the two halves of one rule in two crates with nothing connecting them: a
+  reader of the unit generator would see an append path with no limit and
+  reasonably conclude there was none.
+
+  The unit generator now declares the cap and the log suffix as named constants
+  beside the path it writes, explains that a trim has to rewrite the file in
+  place because systemd holds that descriptor open for the life of the plugin,
+  and carries a test asserting the log still lands in the directory and under
+  the suffix the janitor selects on. Moving either without moving the janitor
+  now fails a test instead of quietly unbounding the logs again.
+
+## [0.99.340] - 2026-08-03
+
+### Added
+
+- **`ados diag storage` now says what is sitting on the card, not only how fast
+  it is being written.** The wear figures answer one half of why a card fills;
+  the ground station whose card filled was not writing quickly at all, it was
+  holding 349 MB of downloaded packages nothing ever removed. That half was
+  invisible.
+
+  A new section reports the janitor's last pass — which rung it ran at, how long
+  ago, and the bytes it freed broken down by category — followed by what a full
+  pass would still be able to free, again per category. The second figure is
+  what a reclaim would actually take, not the raw size of each directory: most
+  of a log is not reclaimable because its tail is kept, and most recordings are
+  not reclaimable because the newest survive at any age, so reporting footprints
+  would promise space that does not exist.
+
+  A box whose janitor has not run reports that, rather than a column of zeroes.
+  "There is nothing left to reclaim" and "nobody has looked" are different
+  answers and only one of them means the card is fine. The pass age travels with
+  the figures so hour-old numbers are visibly hour-old.
+
+## [0.99.339] - 2026-08-03
+
+### Added
+
+- **An hourly disk janitor, because five separate things on this box grew with
+  nothing anywhere reclaiming them.** The installer fix returns the space apt
+  borrowed once; this is the half that runs forever. It lives inside the
+  supervisor alongside the seven reconcilers already there rather than as a new
+  service, since a new service is one more thing that can fail to start.
+
+  Three rungs, chosen from free space where `/var` lives. Routine, every pass,
+  takes back what is unambiguously waste: the apt archive cache, the part of any
+  plugin log or of the audit trail past its size cap, and recordings past their
+  retention. Under pressure (below 20% free) it also gives up the apt package
+  index, vacuums journal history, tightens recording retention, and prunes
+  quarantined copies of a store that tore. Below 10% free it does all of that
+  and says so loudly, because at that point the box is close to the state that
+  ends in a card which will not boot.
+
+  Two rules hold at every rung, because a janitor that quietly deletes evidence
+  is worse than the full disk it was fitted to prevent. Nothing is reclaimed
+  without being recorded: each pass emits one event carrying the bytes freed per
+  category, so "the janitor ran and found nothing" can be told apart from "the
+  janitor did not run". And every category has a floor: the newest quarantined
+  store survives even the most aggressive pass, since it is the evidence of the
+  most recent corruption; each log keeps its tail; the newest recordings survive
+  however old they are; the journal is never vacuumed below a minimum. The
+  config, the radio keys and the installed runtime are refused outright at the
+  single removal helper, so no category can reach them by mistake.
+
+  A free ratio the box could not measure resolves to Routine, never higher.
+  Being unable to read the filesystem is not evidence that space is short, and
+  the escalated rungs give up things that have value.
+
+  Tunable under `storage.janitor`; on by default, and an unreadable config
+  leaves it on rather than silently disabling a safety net.
+
+### Fixed
+
+- **The retention policy for append-only files could never have worked.** The
+  drop-in that ages out plugin logs, the audit trail and recordings works on
+  file age, and a file being continuously appended to is never old — its
+  timestamps are refreshed by every write. So it correctly aged out recordings,
+  which are closed when the capture ends, and could never age out either of the
+  two files it was mostly written for. The audit trail additionally lives beside
+  the agent's other persistent data rather than under `/var/log`, which is the
+  directory the drop-in names. Both are now bounded by size, which is a property
+  an open file actually has.
+
+  The trim rewrites the file in place rather than renaming it, because systemd
+  opens a plugin log once when the unit starts and holds that descriptor. A
+  rename would leave every later write going to the renamed file, so the
+  rotated log would keep growing under its new name while the new one stayed
+  empty forever.
+
+## [0.99.338] - 2026-08-03
+
+### Fixed
+
+- **The largest thing on a freshly flashed ground station was downloaded
+  package files nobody would ever open again.** Measured on a rig two days
+  after a flash: 349 MB across the apt archive cache and the package index,
+  ahead of the logging store, the journal and everything else on the card.
+  `apt-get install` copies every `.deb` it fetches into
+  `/var/cache/apt/archives` and leaves it there permanently; nothing in the
+  installer, the agent, or the base image had ever run `apt-get clean`.
+
+  The installer now reclaims both, immediately after the packages are
+  installed rather than at the end, so the space is back before the virtual
+  environment, the fetched binaries and the driver build ask for it. The
+  archive cache is pure waste and goes unconditionally. The package index is
+  not waste, so its removal is a deliberate trade: the next apt invocation has
+  to run `apt-get update` first, which every apt path the agent owns already
+  does, and which apt itself tells a human to do. One command against a third
+  of a gigabyte on a card that had been filling until it corrupted.
+
+  The step cannot fail an install. A reclaim that does not work is a reason to
+  try harder later; a full disk is the condition it exists to relieve, so
+  aborting on it would be backwards.
+
+## [0.99.337] - 2026-08-03
+
+### Fixed
+
+- **A drone transmitting into a void reported "all hops flowing".** The video
+  diagnostic attached a fixed sentence — "RF reception is confirmed on the
+  receiver's link_diag" — to the radio-injection hop whenever any byte was being
+  injected. It never asked the receiver anything. It also counted that hop as
+  flowing, so the summary line agreed.
+
+  Found on hardware: a drone injecting 296 KB/s at a ground station that had been
+  reflashed, held no radio key at all, and was decoding nothing. The tool said
+  the link was healthy. The same agent's link diagnostic, on the same box in the
+  same session, correctly said the link was unverified — so the tool disagreed
+  with itself, and the optimistic half is the one printed first.
+
+  The hop now reads the reception verdict the radio already computes and reports
+  what it found: reception confirmed, reception UNCONFIRMED, or no verdict
+  available. Injecting without confirmed reception is not a flowing hop — it
+  resolves as unknown, which names that hop as where video dies. The byte count
+  is still shown, because the transmitter genuinely is working; what changed is
+  the claim about the far end. An advancing transmit counter proves a
+  transmitter, never a receiver.
+
+- **Auto-pair could stop trying and never resume.** The loop exited permanently
+  in two places: after a successful pair, and after the attempt cap flipped a rig
+  to the cloud relay. Both meant the recovery path could only ever run once, at
+  boot.
+
+  The second one is the more damaging: a ground station that gave up after the
+  cap was no longer in a bind window when its drone returned, so the two could
+  not meet again without a restart. The loop now stays alive in both cases — a
+  paired rig answers "no" cheaply on each tick, and a cloud-parked rig stops
+  spending local attempts without ending the loop.
+
+### Fixed
+
+- **The I2C status OLED crash-looped on every ground station, always.** The
+  service panicked inside its own logging setup — "there is no reactor running"
+  — five times in a row and then gave up, so the display never painted anything.
+  Found by looking at what a rig actually reported after an upgrade rather than
+  by anyone using the OLED.
+
+  The logging layer spawned its background shipper with `tokio::spawn`, which
+  requires an ambient async runtime, and documented that as a caller
+  requirement. Every other binary happens to have an async `main`; this one is
+  synchronous, because driving an I2C panel does not need a runtime. So the
+  panic landed in the one binary where the requirement was not met, and it
+  landed during tracing init — before any log line could say so.
+
+  A logging layer cannot reasonably impose that contract: logging is set up
+  first, before the process has decided what shape it is. The layer now runs its
+  shipper on the ambient runtime when there is one and on its own thread when
+  there is not, so it works from any binary. The regression test is deliberately
+  not an async test, because the whole point is the absence of a runtime.
+
+### Fixed
+
+- **Per-core CPU frequency and utilization were the largest thing on the card.**
+  With the storage diagnostic finally able to answer the question, a live node
+  writing 1 034 KB/s showed where it was going: of 119 stored rows a second, 108
+  were metrics, and 62 of those were sixteen keys — frequency and utilization for
+  each of eight cores — sampled about four times a second and stored every time.
+
+  Nothing reads that series at that resolution. The headline
+  `cpu.utilization_pct` is a separate 1 Hz aggregate, and the per-core detail
+  exists to show load imbalance and pinned cores, both of which are tens of
+  points wide. What was actually being recorded, forever, was the sampler's own
+  jitter.
+
+  These now go through the same change gate the thermal series already uses: a
+  row when the value moves (1 MHz for a clock, which steps between discrete
+  operating points; 5 percentage points for utilization, which wanders several
+  points doing nothing), or when the signal has been quiet for 30 seconds so a
+  flat reading is never mistaken for a dead producer. The live snapshot keeps
+  carrying the current value on every tick — it is one row for the whole box, so
+  freshness there is free — and only the stored series is gated.
+
+  The write rate on hardware after this change is measured, not predicted, in
+  the notes for the following release.
+
+## [0.99.334] - 2026-08-03
+
+### Added
+
+- **`ados diag storage` — read back the wear the box was already recording.**
+  Four SD cards were replaced in eight days without anyone being able to say how
+  much the node was writing. The measurement existed the whole time: the hardware
+  collector puts the disk write counter and the throttle bitfield into the
+  durable store on every tick, and that store survives the reboot that destroys
+  everything in RAM. Nothing read it back.
+
+  A new `GET /api/diag/storage` does, and the CLI renders it. Three things it is
+  careful about:
+
+  - The write counter is reported as a **delta across the retained window**, not
+    as a reading. A cumulative counter's instantaneous value says nothing about
+    rate. If the counter went backwards the node rebooted mid-window, and the
+    answer is "not computable across a restart" rather than a negative number.
+  - The throttle bitfield is reported by its **sticky "has occurred" bits**.
+    Undervoltage is transient, so a single poll almost always misses it — which
+    is why the one reading ever taken proved nothing.
+  - Every field can come back absent **with a stated reason**, and a store that
+    did not answer reads `unknown`, never `ok`. A fabricated zero here would look
+    like a clean bill of health on exactly the card that is dying.
+
+  It also totals the store's own footprint, including quarantined copies of a
+  torn store — those are renamed aside rather than deleted, so a node that has
+  corrupted twice carries three, which is the mechanism that filled the card.
+
+### Fixed
+
+- **A subprocess that failed immediately took its error with it.** The stderr
+  drain summarises rate-limited output only when the *next* window opens, so a
+  child that died inside its first window logged its banner and nothing else —
+  everything past the limit was silently lost. That is the worst case to lose:
+  a subprocess failing immediately is failing at startup, which is exactly when
+  its output matters. An encoder fault that had to be reproduced by hand had
+  logged nothing but a banner for this reason.
+
+  The summary is now also flushed when the stream closes. `drain_plain` returns
+  what it did (`logged` / `suppressed`), so the behaviour is assertable without
+  standing up a tracing subscriber — the test drives a child that outruns the
+  rate limit and dies in the same window, and it fails if the flush is removed.
+
+## [0.99.332] - 2026-08-03
+
+### Fixed
+
+- **`ground_station.display.type` did nothing.** The field was documented in
+  three places as selecting which surface owns the panel, and was read by
+  nothing at all — setting it to `none` still started the HDMI kiosk. It is now
+  honoured: `lcd` and `none` both mean "this service does not own the screen",
+  and the kiosk stands down cleanly before it touches the display, saying which
+  selection stood it down. Read defensively, because this service has to start
+  against a config written by an older or newer agent: a missing or unusable
+  block means "no opinion", never a crash.
+
+### Removed
+
+- **`ground_station.display.detected_type`**, which was always `null`. It was
+  documented as "populated by the heartbeat enrichment helper after probing what
+  the OS actually exposes" — but no such helper was ever written, nothing ever
+  assigned it, and the heartbeat field it was meant to feed is hardcoded `None`
+  in two places. A read-only field that is permanently null while three
+  docstrings describe it as live is a lying surface. What the agent actually
+  detected belongs in runtime status, not in the config file an operator edits.
+
+## [0.99.331] - 2026-08-03
+
+### Fixed
+
+- **A single parameter write could put an aircraft permanently beyond the
+  agent's reach.** The param and command paths both address vehicle system id
+  `1`, so writing `SYSID_THISMAV` made the flight controller stop answering
+  every subsequent `PARAM_SET` from this agent — **including the write that
+  would undo it** — and stopped `arm`, `disarm`, `mode` and `rtl` reaching it
+  too. There is no reboot route on this surface either, so an operator could not
+  cycle out of it. One request, irreversible, and nothing about it looks unusual
+  at the time.
+
+  Writes to `SYSID_THISMAV` / `MAV_SYS_ID` are now refused with the reason
+  named, pointing at a direct USB parameter tool for the case where a
+  non-default system id is genuinely wanted. The guard is deliberately narrow —
+  `SYSID_MYGCS` (which GCS may command us) and `SYSID_ENFORCE` stay writable,
+  and there is a test for that, because refusing a benign parameter would be its
+  own bug.
+
+  Lifting the limit properly requires
+  discovering the vehicle's system id from its `HEARTBEAT` and carrying it
+  through both paths with a per-vehicle record. Merely widening the constant
+  would replace an obvious failure with a subtle one, where a command silently
+  reaches the wrong airframe.
+
+## [0.99.330] - 2026-08-03
+
+### Fixed
+
+Two faults that let the black panel in `0.99.329` look healthy for as long as it
+did. Neither caused it; both hid it.
+
+- **The child's stderr was only read when the child exited.** A compositor that
+  stays up with a broken browser inside it never exits, so the error was never
+  read and never logged — the journal's last line was `kiosk_child_running` and
+  the GPU-initialization failure was only visible by running the argv by hand.
+  stderr is now streamed to the journal line by line *while* the child runs,
+  bounded at 40 lines so a chatty browser cannot flood a flash-backed journal,
+  and the rolling tail the GPU-downgrade heuristic reads is kept live rather
+  than assembled at death.
+
+- **The supervisor watched the compositor, not the browser.** On the appliance
+  path the supervisor's child is `cage` and the browser is its grandchild, so a
+  dead browser under a live compositor was invisible to `proc.wait()`: unit
+  `active`, zero restarts, child alive, nothing on screen. The browser is now
+  watched directly, and its disappearance is treated as a crash so the existing
+  backoff and GPU-downgrade machinery handles it instead of a black screen
+  reading green.
+
+  The probe errs deliberately toward "still running" on any uncertainty (no
+  `pgrep`, a permission error, an unexpected exit status): a false negative
+  restarts a *working* kiosk, which is worse than missing one failure. It also
+  waits out a start grace period, because the browser is spawned by the
+  compositor and is legitimately absent for a moment after launch, and it is
+  inert on the windowed path where the child already *is* the browser.
+
+## [0.99.329] - 2026-08-03
+
+### Fixed
+
+- **The HDMI panel was black on a working ground station, because of a Chromium
+  flag that was renamed upstream.** The kiosk passed `--use-gl=egl` on the GPU
+  path. That spelling has since become `--gl=`, and the old one does not fail
+  loudly — it resolves to "no implementation", so Chromium's GPU process exits
+  during initialization, again and again, while `cage` stays up holding the
+  display. Every health signal read fine: the unit was `active`, zero restarts,
+  the supervisor's child was alive, the journal's last line was
+  `kiosk_child_running`. The screen was simply black.
+
+  Audited on the affected board (Chromium 150), all under `cage`::
+
+      (no flag)               gpu_process_exits=0
+      --gl=egl-angle          gpu_process_exits=0
+      --use-angle=gl          gpu_process_exits=0
+      --use-angle=gles        gpu_process_exits=0
+      --use-gl=egl  (ours)    gpu_process_exits=4   <- the only failing option
+
+  The GPU path now names **no** GL implementation at all. Several spellings
+  work, but only naming none of them cannot go stale the same way, and
+  Chromium's Linux default is already the ANGLE/EGL path the flag was trying to
+  request. `--enable-gpu-rasterization` is dropped for the same reason: it has
+  been the default for years, and carrying flags whose behaviour is now the
+  default is precisely how the broken one survived long enough to matter.
+
+  The software path is unchanged (`--disable-gpu`), so a board that genuinely
+  cannot drive a GPU is unaffected.
+
+## [0.99.328] - 2026-08-03
+
+### Security
+
+- **A paired node served its live video to anyone on the LAN, with no
+  credential.** The proxy exempted every path outside `/api/` from its
+  credential check — a rule written for the static SPA, whose client-side routes
+  genuinely are not enumerable — but `/whep` and `/hls` are a live data plane
+  that happens to sit outside `/api/` by URL shape. The effect was a **paired**
+  node being *looser* than the same node while **unpaired**, where
+  `auth::is_operator_ui` refuses `/whep` deliberately and says why.
+
+  The media plane is now never exempt. The SPA's route space is untouched, so
+  the operator UI still loads on any path — there is a test for each half,
+  because narrowing this carelessly would take the whole UI down to fix a video
+  leak.
+
+  This is shipped **together with its client half**, in this order on purpose:
+  all three video clients (cockpit WHEP, dashboard WHEP, dashboard HLS) now send
+  the same two credentials `apiFetch` already sends. `hls.js` fetches the
+  playlist and every segment itself, so it needed an `xhrSetup` hook rather than
+  a header on one call — the absence of that hook is why the paths could not be
+  gated before now.
+
+### Fixed
+
+- **Two layers disagreed on what a valid unpaired session is.** The unpaired
+  edge validated with the empty-key issuer while the proxied path used the
+  paired-key one, which returns `false` when unpaired. Harmless only by
+  accident — an unpaired node's data plane was open anyway, so the stricter
+  check was never reached. It is no longer open, so both now go through one
+  predicate that dispatches on the actual pairing state.
+
+## [0.99.327] - 2026-08-03
+
+### Fixed
+
+- **The hardware collector was storing one physical sensor twice, and storing
+  every sample of a temperature that had not moved.** Measured in steady state
+  on a real node: **165 metric rows/sec across 83 keys, and the top sixteen keys
+  were all `thermal.*`** — a board with ~16 thermal zones sampled at 200 ms,
+  landing on flash, for a store whose own rollups are minute-grained.
+
+  Two causes, both fixed:
+
+  - **Duplication.** A thermal zone backed by a hwmon device appears in *both*
+    `/sys/class/thermal` and `/sys/class/hwmon`, and both were recorded —
+    `thermal.skin_zone_c` and `thermal.hwmon.skin_zone_temp1_c` were the same
+    sensor at the same cadence. A hwmon chip that does not correspond to a zone
+    is still recorded; only the overlap is dropped.
+  - **Storing stillness.** The fast cadence is deliberate — a thermal transient
+    is the canary for a throttle — but *sampling* fast and *storing* every sample
+    are different things, and only the second costs flash. A reading is now
+    stored when it actually moved (0.5 °C, above the sensor's idle jitter) or
+    when the signal has been quiet for 30 s. A transient still lands on the very
+    sample that sees it, which is the property the cadence exists for, and the
+    heartbeat keeps a flat signal from reading as a dead producer while
+    guaranteeing every one-minute rollup bucket has a sample.
+
+  The snapshot is untouched: every reading still goes into it unconditionally,
+  because that is the live view and it costs one blob. Only the per-signal rows
+  are gated.
+
+## [0.99.326] - 2026-08-03
+
+### Fixed
+
+- **The periodic `VACUUM` was a scheduled opportunity to create an unrecoverable
+  start.** A `VACUUM` runs as a single transaction, so `wal_autocheckpoint`
+  cannot fire inside it and the entire rewrite lands in the WAL. On a ~1 GB
+  store that produced a **955 MB WAL** on a real node, and the next start had to
+  recover it — inside a `TimeoutStartSec` whose expiry would restart the daemon
+  straight back into the same recovery. It came up with seconds to spare; a
+  larger store would not have.
+
+  Now that reclaim is incremental, the full `VACUUM` has almost no job left, so
+  it runs only when warranted: a store that has not adopted incremental mode yet
+  and needs the one-time conversion rewrite, or a file whose free list has grown
+  past a quarter of it (incremental reclaim genuinely falling behind). A healthy
+  incremental store never rewrites itself, which removes the last whole-file
+  rewrite from the steady state — and with it the only thing that was producing
+  gigabyte WALs.
+
+## [0.99.325] - 2026-08-03
+
+### Fixed
+
+- **An upgrade could silently change what a box IS, and the documented
+  mitigation did not exist.** `ados update` ran `install.sh --upgrade` with no
+  profile at all, leaving the installer to resolve it. A gap in that resolution
+  has re-profiled a live ground station to `drone` and left it in a reboot loop
+  that needed a reflash to recover — and the standing advice, "always pass
+  `--profile` on `ados update`", was unactionable: the command had no such
+  option (`--check-only`, `-y/--yes`, `--json` only).
+
+  `ados update` now reads `/etc/ados/profile.conf` — which both `install.sh` and
+  the wizard already write — and passes it through explicitly, so an upgrade
+  states what the box is rather than trusting a default to be right. It prints
+  the pinned profile, and says so plainly when no marker exists instead of
+  passing silently. A `--profile` option is added for the one legitimate case:
+  deliberately converting a box from one role to another.
+
+  Tested at the argv level, not just the decision: removing the pass-through
+  fails the test. Asserting only on the computed value would have missed exactly
+  the bug being fixed.
+
+- **A failed install left the box with no installer.** The edge path deleted
+  `/opt/ados/source` *before* cloning, so a clone that failed for any reason
+  left no source tree — and that tree carries `scripts/install.sh`, so the node
+  lost the ability to retry its own install. On a node with no internet that is
+  unrecoverable. Observed on a rig: the clone failed and
+  `bash /opt/ados/source/scripts/install.sh` was afterwards "No such file or
+  directory".
+
+  The clone now lands in a sibling staging directory and is promoted only once
+  it succeeds, so a failure leaves the existing tree exactly as it was. The
+  staging directory is deliberately a sibling, never a child — a child would be
+  destroyed by the very removal that makes room for the promotion.
+
+## [0.99.324] - 2026-08-02
+
+### Fixed
+
+- **`0.99.319` put a whole-file rewrite in front of daemon readiness, and it was
+  minutes from crash-looping a real node.** Adopting incremental auto-vacuum on
+  a store created before that mode existed needs one `VACUUM`, and that
+  conversion was done inside `db::open`. On a node with a 950 MB store the unit
+  — `Type=notify`, `TimeoutStartSec=5min`, `Restart=on-failure` — sat in
+  `activating` for minutes accumulating a **955 MB WAL**, heading for a
+  start-timeout kill mid-rewrite followed by a restart into the same rewrite.
+  That is a crash loop that tears the store: precisely the failure the
+  incremental work exists to prevent.
+
+  The conversion now rides the **periodic** `VACUUM` instead — the one rewrite
+  that was going to happen anyway — so it costs nothing extra and never blocks
+  startup. Until a legacy store converts, `incremental_vacuum` is a no-op on it
+  and retention honestly reports `reclaimed_pages: 0` rather than pretending.
+
+  Caught by deploying `0.99.323` to a rig and watching it, not by a test. There
+  is a test now, and it fails against the shipped-and-wrong version.
+
+- **A *fresh* store was not getting incremental mode either.** SQLite only
+  honours `auto_vacuum` while the database is still empty, and setting
+  `journal_mode` is itself enough to establish the file header — so applying the
+  pragmas in the written order left every new store in the default mode, making
+  `incremental_vacuum` a permanent no-op on it. `auto_vacuum` is now set first.
+  The ordering is load-bearing, not stylistic.
+
+## [0.99.323] - 2026-08-02
+
+### Fixed
+
+- **A freshly installed node's dashboard was a dead end, and it blamed the
+  hardware.** Visiting a new agent by IP showed *"Agent unreachable — check that
+  the board is powered, on the network, and that `ados-supervisor` is running"*.
+  Every clause of that was false: the agent answered in milliseconds with
+  `403 This device is not paired yet. Set up access with the dashboard PIN, or
+  pair it first.`
+
+  The access gate only treated **401** as a challenge. That is the *paired*
+  case — reached off-box without a credential. An unpaired node on the operator's
+  own LAN answers **403**, so the gate fell through to "render the app anyway",
+  every panel then failed, and the generic offline card claimed the board was
+  unreachable. The screen that should have appeared — the branded PIN splash,
+  which already knows how to offer *setting* a PIN on a node that has none —
+  existed and worked, and was simply never reached.
+
+  Both codes now count. Verified end-to-end against a real unpaired agent:
+  `403` → challenge → `pin_set: false` → the splash opens in set-a-PIN mode.
+
+- **The offline card no longer blames the board for a board that answered.**
+  "Did not answer" and "answered, and said no" are different faults with
+  different fixes, and reporting the second as the first sends the operator to
+  check a power cable about a node that is running fine. When the failure was a
+  refusal, the card now says so and quotes the agent's own words.
+
+### Added
+
+- Unit tests for the dashboard, which had no test framework at all. Mirrors the
+  cockpit's vitest setup, and CI now runs them.
+
+## [0.99.322] - 2026-08-02
+
+### Fixed
+
+- **Dead copies of a corrupted logging store were only reclaimed by the next
+  corruption.** Pruning ran as part of quarantining, so a node that corrupted
+  twice under a build predating the prune carried both copies — up to two
+  gigabytes of unreadable file — until it corrupted a *third* time. That is the
+  worst moment to be short of space, and being short of space is a fair way to
+  cause it. A bench node was carrying 1.6 GB of exactly this beside a live
+  935 MB store. Pruning now also runs on a healthy start.
+
+- **Three on-disk outputs had no retention at all**: the per-plugin logs
+  (systemd `StandardOutput=append:`, with no rotation configured anywhere), the
+  audit trail, and operator flight recordings. None is a fast writer, so none
+  was part of the write load — but the failure they lead to is a full root
+  filesystem, which is how a recoverable problem becomes an unbootable card,
+  and nothing else on the box reclaimed them. A `systemd-tmpfiles` drop-in now
+  ages them out (14 days for plugin logs, 90 for the audit trail and
+  recordings). `systemd-tmpfiles` rather than logrotate because it is already
+  used for the plugin runtime directory and needs no extra package.
+
+- **`ados uninstall` left the box a headless appliance.** Masking is a symlink
+  to `/dev/null` in `/etc/systemd/system`; it is not a file under `/opt/ados`
+  and deleting the agent's drop-ins never undid it. Removing the agent left
+  `display-manager.service`, `lightdm.service` and the five sleep targets
+  masked, with nothing on the machine left to explain why. Uninstall now
+  unmasks them, and a test compares the list against the masking sites
+  themselves so a future mask cannot silently become permanent.
+
+### Measured, and deliberately not changed
+
+- **journald is not a meaningful writer here.** It was a suspect, so it was
+  measured rather than tuned on a hunch: 163 entries in a 60 s window on a live
+  node, on the order of tens of megabytes a day against the ~144 GB/day the
+  store was doing before `0.99.319`-`0.99.320`. `Storage=persistent` also earns
+  its place — it is what keeps an oops trace across the reboot. Left alone, and
+  recorded here so it is not "optimised" later on the same hunch.
+
+## [0.99.321] - 2026-08-02
+
+### Fixed
+
+- **A blocked task rebooted the box, which is how a slow card becomes an
+  unbootable one.** The installer set `kernel.hung_task_panic = 1` alongside
+  `kernel.panic = 10`, on the reasoning that the kernel-default 120 s timeout
+  meant a busy I/O path would never false-trip. That does not survive contact
+  with an SBC writing to an SD card: 120 s in uninterruptible sleep is
+  reachable whenever storage is saturated, and the reboot lands *during* a
+  write. Slow storage then becomes a damaged filesystem, which is slower still,
+  which trips the timeout again.
+
+  `hung_task_panic` is now off, written as an explicit `0` so an upgrade
+  actively reverts a node that already has it on rather than waiting for a
+  reboot to fall back to the default. `panic_on_oops` and the hardware watchdog
+  are unchanged — an oops means the kernel is already untrustworthy and
+  rebooting is right. The 120 s timeout stays, because it is what puts the
+  "blocked for more than 120 seconds" warning and its stack in the journal:
+  the evidence the reboot used to destroy.
+
+- **The kiosk browser wrote an unbounded cache to the card, continuously, for
+  the life of the box.** Nothing pinned Chromium's storage, so under `cage` —
+  where the service runs as root — its HTTP cache, code cache, shader cache,
+  cookies, history and Local Storage went to `/root/.cache/chromium` and
+  `/root/.config/chromium`. The page it shows is a live-updating SPA carrying a
+  video stream, and a ground station shows it permanently.
+
+  Profile and cache now go to a tmpfs directory with a 64 MiB cache cap, and
+  die with the boot. None of it was worth persisting: the kiosk shows one page
+  served from localhost, with no login and no session to carry across a reboot.
+  The cap matters *because* the target is tmpfs — an unbounded cache there
+  would trade SD wear for RAM exhaustion on a board sharing memory with the
+  video pipeline.
+
+  The windowed (in-desktop) path gets the same treatment under the session
+  user's own runtime dir, which fixes a second thing: the kiosk no longer
+  shares a profile directory with the operator's own browser, so launching it
+  can no longer collide with a Chromium they already have open.
+
+## [0.99.320] - 2026-08-02
+
+### Fixed
+
+- **The logging store recorded ~15 million telemetry rows a day that nothing
+  reads.** The state tap lifted ~17 numeric fields out of every snapshot on a
+  stream the state hub publishes at roughly 10 Hz, with no rate limit at all —
+  while the raw-frame tap sitting beside it has been sampled at 1 Hz since it
+  was written, for exactly the reason that applies here too. The store's own
+  rollups are minute- and hour-grained, so one sample per second is already 60
+  per bucket and the other nine tenths were landing on flash unread. Metrics are
+  now sampled at 1 Hz (`state::DEFAULT_SAMPLE_HZ`, tunable per tap).
+
+  Transitions are deliberately **not** sampled. An arm, a disarm or a mode
+  change is a discrete fact that drives the flight-session bookkeeping; dropping
+  one loses it for good, unlike a metric the next snapshot carries again.
+
+- **The hardware collector wrote a snapshot row 10 times a second forever, even
+  with nothing to report.** Every signal class is slower than the 100 ms base
+  tick, so most ticks have nothing due, and `emit` has always had an
+  empty-snapshot guard for exactly that. The guard never fired: `soc.compat` — a
+  constant read once at construction — was inserted at the top of every tick,
+  before any cadence check, which made every snapshot look like a reading.
+  ~864 000 rows a day. The constant now folds in at the end of the tick and only
+  when a class actually reported, so it still rides along on the snapshots that
+  are emitted without manufacturing the ones that are not.
+
+## [0.99.319] - 2026-08-02
+
+### Fixed
+
+- **The logging store rewrote its whole ~900 MB file every 45 to 100 minutes,
+  forever.** `retention.rs` ran a full `VACUUM` after *every* size-cap eviction,
+  not just on its documented weekly cadence. Once the store reaches its 1 GB cap
+  — roughly 5 to 10 hours after install — eviction triggers on that cadence for
+  the life of the box, so the rewrite did too.
+
+  Measured on a ground-station-class board: **1 714 KB/s sustained writes to the
+  card, about 144 GB a day**, on a node doing nothing but running. That is one to
+  two orders of magnitude above what a 24/7 SBC should write, and it is the
+  dominant write load on the whole system. A rewrite of that size is also a
+  minutes-long window in which a power cut tears the store; two abandoned
+  `logs.db.corrupt-*` files, 1.6 GB between them, were sitting next to a live
+  935 MB store on a bench node when this was found.
+
+  Reclaim on the eviction path is now incremental: the store opens in
+  `auto_vacuum=INCREMENTAL`, evicted pages go on SQLite's free list where
+  subsequent inserts reuse them, and a bounded `PRAGMA incremental_vacuum`
+  (16 384 pages, ~64 MiB) returns the surplus. The full `VACUUM` stays, but only
+  on its own long cadence. An existing store converts itself once at open, with
+  a log line, since SQLite only honours the mode change across one rewrite.
+
+  The size cap moves with it, and had to: it now arms on the **logical** used
+  size plus the WAL rather than the raw file size. A store whose freed pages are
+  being reused legitimately sits at its high-water file size, so keeping the old
+  trigger while no longer shrinking the file would have re-fired eviction on
+  every pass and drained the store to empty. A regression test drives three
+  consecutive passes over a store parked at the cap and asserts only the first
+  one evicts.
+
 ## [0.99.318] - 2026-08-01
 
 ### Fixed
@@ -331,7 +1038,7 @@ Fleet release: one ground station, one RTL8812EU per node, up to 24 drones on on
 - The plugin host validates a config write against the plugin's declared
   parameter schema (`gcs.contributes.parameters[key].schema`, read from the
   installed manifest) before persisting it -- JSON Schema Draft-07 via the
-  jsonschema crate, the agent half of the shared validator (DEC-217), so the
+  jsonschema crate, the agent half of the shared validator, so the
   agent never trusts the GCS form. A missing/uncompilable schema or a
   non-JSON value allows the write (graceful degradation); only a value a valid
   schema rejects is refused.

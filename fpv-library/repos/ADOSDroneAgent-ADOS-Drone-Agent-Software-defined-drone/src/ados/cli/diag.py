@@ -1,6 +1,6 @@
 """``ados diag`` CLI subcommand tree — reliable, per-hop pipeline diagnosis.
 
-Two operator-facing commands, both thin renderers over the agent's native REST
+Three operator-facing commands, all thin renderers over the agent's native REST
 surface (the logic lives in the Rust control front, so the CLI shows exactly what
 Mission Control sees):
 
@@ -11,6 +11,11 @@ Mission Control sees):
 * ``ados diag link`` — the WFB link diagnosis (``/api/wfb``): the one-glance
   ``link_diag`` verdict (deaf / mis_keyed / jammed / healthy / searching) plus the
   decode counters that separate the failure modes a bare "0 received" hides.
+* ``ados diag storage`` — the storage-wear verdict (``/api/diag/storage``): the
+  write counter read as a DELTA across the retained window, the throttle
+  bitfield's sticky "has occurred" bits, and the store's own footprint including
+  any quarantined corpse. The collector was already recording all of it; nothing
+  read it back, so four cards were reflashed without anyone learning why.
 
 Reach for these BEFORE hand-probing a pipeline (the reliable-diagnostics rule).
 """
@@ -84,6 +89,14 @@ _HOP_STATE = {
     "no_upstream": "pending",
     "unknown": "warn",
 }
+# Map a storage-wear verdict to a state dot. "unknown" is deliberately a warning
+# and not an "ok": a box whose store did not answer has not been proven healthy.
+_WEAR_STATE = {
+    "ok": "ok",
+    "wearing": "warn",
+    "critical": "fail",
+    "unknown": "warn",
+}
 # Map a WFB link_diag verdict to a state dot.
 _LINK_STATE = {
     "healthy": "ok",
@@ -119,6 +132,15 @@ _TYPICAL_PACKETS_PER_FRAME = 10
 _MEASURED_BY = {
     "local": "(measured here)",
     "peer": "(measured by the receiving station)",
+}
+
+
+# Where a write-rate figure came from. The direct reading needs nothing but the
+# kernel, so it is the one that still works with the logging store off; the
+# stored one reaches back much further. Neither is "the" rate on its own.
+_WRITE_SOURCE = {
+    "direct": "sampled from the kernel's own counter just now",
+    "store": "averaged over the logging store's retained history",
 }
 
 
@@ -327,3 +349,201 @@ def diag_link(as_json: bool) -> None:
                 "receiving station has reported what it decoded from this node."
             )
         )
+
+
+def _fmt_bytes(value: Any) -> str:
+    """Human-readable size, or a dash when the number is genuinely absent."""
+    if not isinstance(value, (int, float)):
+        return "-"
+    size = float(value)
+    for unit in ("B", "KB", "MB", "GB"):
+        if size < 1024:
+            return f"{size:.0f} {unit}" if unit == "B" else f"{size:.1f} {unit}"
+        size /= 1024
+    return f"{size:.1f} TB"
+
+
+@diag_group.command(
+    "storage",
+    help="Storage-wear verdict (write rate, throttle history, store footprint).",
+)
+@click.option("--json", "as_json", is_flag=True, help="Output JSON for scripts.")
+def diag_storage(as_json: bool) -> None:
+    data = _request("GET", "/api/diag/storage")
+    if as_json:
+        click.echo(json.dumps(data, indent=2, sort_keys=True))
+        return
+
+    theme = _ansi.detect_theme()
+    verdict = str(data.get("verdict", "unknown"))
+    state = _WEAR_STATE.get(verdict, "warn")
+
+    click.echo(_ansi.marker(theme, "STORAGE WEAR"))
+    click.echo(f"  {_ansi.dot(theme, state)} {theme.bold(verdict.upper())}")
+    reason = data.get("reason")
+    if isinstance(reason, str) and reason:
+        click.echo(_ansi.kv(theme, "", theme.dim(reason), label_width=2))
+    click.echo("")
+
+    write = data.get("write") or {}
+    kb_s = write.get("kb_per_s")
+    if isinstance(kb_s, (int, float)):
+        detail = f"{kb_s:.1f} KB/s"
+        gb_day = write.get("gb_per_day")
+        if isinstance(gb_day, (int, float)):
+            detail += f"  ·  {gb_day:.1f} GB/day"
+        window = write.get("window_s")
+        if isinstance(window, (int, float)):
+            detail += f"  ·  {window:.0f}s window"
+        click.echo(_ansi.kv(theme, "write rate", detail, label_width=16))
+        # Where the number came from. Five seconds of kernel counter and hours of
+        # stored history answer different questions: the first shows whether a
+        # change made a minute ago worked, the second whether the box is like
+        # this all the time. An operator acting on one while reading the other
+        # draws the wrong conclusion, so the provenance is never left implicit.
+        source = _WRITE_SOURCE.get(write.get("source"))
+        if source:
+            click.echo(_ansi.kv(theme, "", theme.dim(source), label_width=2))
+        device = write.get("device")
+        if isinstance(device, str) and device:
+            click.echo(_ansi.kv(theme, "device", device, label_width=16))
+    else:
+        # Never print a zero for an unmeasured rate — say why it is missing.
+        why = write.get("reason") or "not measured"
+        click.echo(
+            _ansi.kv(theme, "write rate", theme.dim(f"- ({why})"), label_width=16)
+        )
+
+    throttle = data.get("throttle") or {}
+    if throttle.get("supported") is True:
+        if throttle.get("clean") is True:
+            click.echo(
+                _ansi.kv(theme, "power/thermal", "clean, no events recorded", 16)
+            )
+        else:
+            flags = [
+                ("undervoltage", throttle.get("undervoltage_occurred")),
+                ("frequency capped", throttle.get("arm_frequency_capped_occurred")),
+                ("throttled", throttle.get("throttling_occurred")),
+                ("soft temp limit", throttle.get("soft_temperature_limit_occurred")),
+            ]
+            seen = [label for label, hit in flags if hit is True]
+            click.echo(
+                _ansi.kv(theme, "power/thermal", theme.fail(", ".join(seen) or "?"), 16)
+            )
+            click.echo(
+                _ansi.kv(
+                    theme,
+                    "",
+                    theme.dim("recorded at some point in the retained window"),
+                    label_width=2,
+                )
+            )
+    else:
+        why = throttle.get("reason") or "not reported by this board"
+        click.echo(_ansi.kv(theme, "power/thermal", theme.dim(f"- ({why})"), 16))
+
+    store = data.get("store") or {}
+    live = _fmt_bytes(store.get("live_bytes"))
+    wal = _fmt_bytes(store.get("wal_bytes"))
+    click.echo(_ansi.kv(theme, "log store", f"{live} live  ·  {wal} WAL", 16))
+    quarantined = store.get("quarantined")
+    if isinstance(quarantined, int) and quarantined > 0:
+        corpse_bytes = _fmt_bytes(store.get("quarantined_bytes"))
+        click.echo(
+            _ansi.kv(
+                theme,
+                "quarantined",
+                theme.fail(f"{quarantined} torn store(s), {corpse_bytes} not reclaimed"),
+                16,
+            )
+        )
+
+    fs = data.get("filesystem") or {}
+    used_pct = fs.get("used_pct")
+    if isinstance(used_pct, (int, float)):
+        total = _fmt_bytes(fs.get("total_bytes"))
+        click.echo(_ansi.kv(theme, "filesystem", f"{used_pct:.0f}% of {total} used", 16))
+    else:
+        why = fs.get("reason") or "not measured"
+        click.echo(_ansi.kv(theme, "filesystem", theme.dim(f"- ({why})"), 16))
+
+    _render_janitor(theme, data.get("janitor") or {})
+
+
+# How each reclaim category is named on screen, in sweep order. A category the
+# agent reports but this map does not know is still shown, under its raw key —
+# a silently dropped row would be a category quietly deleting things with
+# nothing on screen to say so.
+_JANITOR_CATEGORIES = {
+    "apt_archives": "downloaded packages",
+    "apt_lists": "package index",
+    "plugin_logs": "plugin logs",
+    "audit_log": "audit trail",
+    "recordings": "recordings",
+    "journal": "journal",
+    "quarantined_stores": "quarantined stores",
+}
+
+
+def _category_rows(block: Any) -> list[tuple[str, int]]:
+    """Non-zero per-category byte figures from a janitor block, in sweep order."""
+    if not isinstance(block, dict):
+        return []
+    rows: list[tuple[str, int]] = []
+    for key, label in _JANITOR_CATEGORIES.items():
+        value = block.get(key)
+        if isinstance(value, int) and value > 0:
+            rows.append((label, value))
+    for key, value in block.items():
+        if key not in _JANITOR_CATEGORIES and isinstance(value, int) and value > 0:
+            rows.append((key, value))
+    return rows
+
+
+def _render_janitor(theme: Any, janitor: dict[str, Any]) -> None:
+    """The disk janitor's last pass, and what is left for it to reclaim.
+
+    A box can be writing gently and still fill up — the card that filled was not
+    writing quickly, it was holding downloaded packages nothing removed. So the
+    wear figures above are only half the answer and this is the other half.
+
+    Absent numbers stay absent. A box whose janitor has never run must not print
+    zeroes, because "nothing to reclaim" and "nobody has looked" are different
+    answers and only one of them means the card is fine.
+    """
+    if not janitor:
+        return
+    click.echo("")
+    click.echo(_ansi.marker(theme, "RECLAIM"))
+
+    if janitor.get("ran") is not True:
+        why = janitor.get("reason") or "the janitor has not run"
+        click.echo(_ansi.kv(theme, "last pass", theme.dim(f"- ({why})"), 16))
+        return
+
+    rung = janitor.get("rung")
+    age = janitor.get("age_s")
+    when = f"{int(age) // 60} min ago" if isinstance(age, int) else "at an unknown time"
+    detail = f"{rung} · {when}" if isinstance(rung, str) and rung else when
+    click.echo(_ansi.kv(theme, "last pass", detail, 16))
+
+    freed = janitor.get("reclaimed_bytes")
+    if isinstance(freed, int):
+        click.echo(_ansi.kv(theme, "freed", _fmt_bytes(freed), 16))
+        for label, value in _category_rows(janitor.get("reclaimed")):
+            click.echo(
+                _ansi.kv(theme, "", theme.dim(f"{label}: {_fmt_bytes(value)}"), label_width=4)
+            )
+    else:
+        click.echo(_ansi.kv(theme, "freed", theme.dim("- (not reported)"), 16))
+
+    left = janitor.get("reclaimable_bytes")
+    if isinstance(left, int):
+        click.echo(_ansi.kv(theme, "still to give", _fmt_bytes(left), 16))
+        for label, value in _category_rows(janitor.get("reclaimable")):
+            click.echo(
+                _ansi.kv(theme, "", theme.dim(f"{label}: {_fmt_bytes(value)}"), label_width=4)
+            )
+    else:
+        click.echo(_ansi.kv(theme, "still to give", theme.dim("- (not reported)"), 16))

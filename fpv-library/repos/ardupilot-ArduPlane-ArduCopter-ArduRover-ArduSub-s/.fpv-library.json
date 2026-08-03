@@ -1,8 +1,8 @@
 {
   "source": "ArduPilot/ardupilot",
-  "upstream_commit": "d2dbff2e8f5188a36c5d220b8702837be8dbfc85",
-  "upstream_updated": "2026-08-01T04:12:12Z",
-  "synced_at": "2026-08-01T08:26:37+00:00",
+  "upstream_commit": "31b247b3a1a8bf5b19a9dc4a803676c1215e6d49",
+  "upstream_updated": "2026-08-03T01:25:01Z",
+  "synced_at": "2026-08-03T10:02:57+00:00",
   "discovered_via": "owner:ArduPilot",
   "score": 7.7
 }
