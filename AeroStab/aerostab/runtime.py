@@ -50,6 +50,8 @@ class AeroStabRuntime:
         self._holding = False
         self._was_holding = False
         self._last_good_state = None
+        self._alt_source_used = "default"
+        self._zero_fps_since = 0.0
 
     def reload_mask(self) -> None:
         if self.config.mask.enabled:
@@ -277,6 +279,16 @@ class AeroStabRuntime:
         fps = 0.0
         if len(self._frame_times) >= 2:
             fps = (len(self._frame_times) - 1) / (self._frame_times[-1] - self._frame_times[0])
+
+        # Watchdog: no frames / dead FPS while armed → enter hold
+        if fps < 1.0 and armed:
+            if self._zero_fps_since <= 0:
+                self._zero_fps_since = t0
+            elif t0 - self._zero_fps_since > 1.0:
+                self._holding = True
+                nav_valid = False
+        else:
+            self._zero_fps_since = 0.0
 
         camera_ok = self._camera_fail_streak == 0
         mav_ok = bool(self._mavlink and self._mavlink.connected)

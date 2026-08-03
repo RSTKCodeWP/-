@@ -69,6 +69,7 @@ if not p.exists() or not p.read_text().strip():
 PY
 
 chown -R "$USER_NAME:$USER_NAME" "$INSTALL_DIR" "$CONFIG_DIR" "$LOG_DIR"
+install -m 644 "$INSTALL_DIR/FLIGHT.md" "$CONFIG_DIR/FLIGHT.md" 2>/dev/null || true
 
 install -m 644 "$INSTALL_DIR/deploy/aerostab.service" /etc/systemd/system/aerostab.service
 install -m 755 "$INSTALL_DIR/deploy/wifi_provision.sh" /usr/local/bin/aerostab-wifi
