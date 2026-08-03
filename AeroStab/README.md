@@ -8,13 +8,17 @@ AeroStab estimates ground velocity from downward optical flow, integrates positi
 
 ## Features
 
-- Lucas–Kanade optical flow (Pi Zero friendly)
-- MAVLink ExternalNav @ 230400 baud
-- Web dashboard on port **8080** (live view + telemetry)
+- Lucas–Kanade optical flow (Pi Zero friendly, ~20 FPS @ 640×480)
+- MAVLink ExternalNav @ 230400 baud (`VISION_POSITION_ESTIMATE` + `OPTICAL_FLOW_RAD`)
+- **Production web UI** on port **8080** — live view, telemetry, mask editor, settings, preflight health
+- **Camera masking** — grid-based ROI editor (hide legs, cables, props from flow)
+- **GPS fusion** — optional drift correction when GPS is available at takeoff
+- **Quality gating** — MAVLink odometry only when tracking is reliable
+- Visual yaw estimation + FC yaw fusion
 - Frank-S01 / OV5647 camera profile
 - Simulation mode for bench testing
-- systemd service + one-shot Pi installer
-- ArduPilot parameter file included
+- systemd service + one-shot Pi installer (Avahi `aerostab.local`)
+- ArduPilot parameter files included
 
 ## Quick start (Raspberry Pi)
 
@@ -33,6 +37,8 @@ sudo bash deploy/install_pi.sh
 sudo reboot
 ```
 
+After reboot open **http://aerostab.local:8080** (or `http://<pi-ip>:8080`).
+
 ### 3. Wiring
 
 | Pi Zero 2W | Flight controller |
@@ -50,14 +56,26 @@ Load `deploy/ardupilot_aerostab.param` in Mission Planner.
 
 Set your UART port to **MAVLink2 @ 230400** (see comments in param file).
 
+For RTL/failsafe with optical nav, also review `deploy/ardupilot_rtl_failsafe.param`.
+
 Flight modes: **PosHold** (primary), **AltHold**, **Stabilize** (fallback).
 
-### 5. Fly
+### 5. Preflight (web UI)
 
-1. Power drone, wait for web UI: `http://<pi-ip>:8080`
-2. Check camera view, tracking points (green dots)
-3. Calibrate FOV in `/etc/aerostab/config.yaml` if needed (`fov_deg`: 72.4, 120, or 160)
-4. Arm in **PosHold**
+1. Open **Перевірки** tab — all checks should be green
+2. **Маска** tab — click cells covering drone parts visible in camera (legs, arms)
+3. **Налаштування** — set FOV (`72.4`, `120`, or `160` for your Frank-S01 lens)
+4. Verify live view shows green tracking points on ground texture
+5. Arm in **PosHold** only when status shows **NAV OK**
+
+## Web UI
+
+| Tab | Purpose |
+|-----|---------|
+| Панель | Live MJPEG, FPS, position, velocity, quality, MAVLink status |
+| Маска | 16×12 grid mask editor — red cells excluded from optical flow |
+| Налаштування | FOV, rotation, FPS, grid overlay, GPS fusion, min quality |
+| Перевірки | Preflight health checks (camera, MAVLink, tracking, mask fill) |
 
 ## Configuration
 
@@ -68,10 +86,23 @@ camera:
   fov_deg: 72.4    # Frank-S01 lens variant
   rotation_deg: 0  # align arrow with drone nose in web UI
 
+gps_fusion:
+  enabled: false     # set true to correct drift when GPS available at arm
+
+mask:
+  enabled: true
+  path: /etc/aerostab/mask.json
+
 mavlink:
   port: /dev/serial0
   baud: 230400
+
+quality:
+  min_quality: 0.25
+  min_points_to_send: 8
 ```
+
+Environment variable `AEROSTAB_CONFIG` overrides config path.
 
 ## Development (PC / CI)
 
@@ -80,15 +111,15 @@ cd AeroStab
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e .
-pytest -q
-python scripts/simulate.py
-python -m aerostab --simulate   # web UI on :8080
+python3 -m pytest -q
+python3 scripts/simulate.py
+python3 -m aerostab --simulate   # web UI on :8080
 ```
 
 ## FOV calibration
 
 1. Place drone 1 m above floor
-2. Enable grid in web UI (or use ruler on floor)
+2. Enable grid in web UI (Налаштування → Сітка FOV)
 3. Adjust `fov_deg` until 100 cm on ground matches one grid cell in view
 
 ## Troubleshooting
@@ -96,10 +127,19 @@ python -m aerostab --simulate   # web UI on :8080
 | Issue | Fix |
 |-------|-----|
 | No camera | `libcamera-hello`, check `dtoverlay=ov5647` in config.txt |
-| PosHold won't arm | Check MAVLink heartbeat, web UI mavlink=OK |
+| PosHold won't arm | Check MAVLink heartbeat, web UI mavlink=OK, all health checks green |
+| NAV WAIT | Improve ground texture, reduce altitude oscillation, tune mask |
 | Oscillation | Soften `PSC_POSXY_P`, lower PIDs |
-| Drift | Increase `RC1_DZ`/`RC2_DZ`, verify FOV |
+| Drift | Enable GPS fusion, increase `RC1_DZ`/`RC2_DZ`, verify FOV |
 | No serial | `enable_uart=1`, `dtoverlay=disable-bt`, reboot |
+
+## Architecture
+
+```
+Camera → Optical Flow → Odometry → [GPS Fusion] → MAVLink → ArduPilot EKF
+              ↑
+         Camera Mask (ignore drone parts)
+```
 
 ## License
 

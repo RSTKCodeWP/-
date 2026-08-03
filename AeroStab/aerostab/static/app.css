@@ -1,0 +1,94 @@
+:root {
+  --bg: #0b0f14;
+  --card: #151c27;
+  --accent: #3d9eff;
+  --ok: #3dd68c;
+  --warn: #f5a623;
+  --bad: #ff5c5c;
+  --text: #e8eef5;
+  --muted: #7d8da6;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: "Segoe UI", system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+header {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #243044;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+}
+h1 { margin: 0; font-size: 1.25rem; }
+.badge {
+  font-size: 0.7rem;
+  padding: 3px 8px;
+  border-radius: 4px;
+  vertical-align: middle;
+}
+.badge.live { background: #1a4d32; color: var(--ok); }
+.badge.sim { background: #4d3a1a; color: var(--warn); }
+.badge.wait { background: #4d1a1a; color: var(--bad); }
+nav { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+.tab {
+  background: var(--card);
+  border: 1px solid #2a3548;
+  color: var(--text);
+  padding: 0.4rem 0.75rem;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.tab.active { border-color: var(--accent); color: var(--accent); }
+.panel { display: none; padding: 1rem; }
+.panel.active { display: block; }
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  gap: 1rem;
+}
+@media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+.card {
+  background: var(--card);
+  border-radius: 10px;
+  padding: 0.75rem;
+  border: 1px solid #243044;
+}
+.video-card img { width: 100%; border-radius: 8px; background: #000; }
+.stat {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid #243044;
+  font-size: 0.88rem;
+}
+.stat span:last-child { color: var(--accent); font-variant-numeric: tabular-nums; }
+.hint { color: var(--muted); font-size: 0.85rem; }
+.row { display: flex; gap: 0.5rem; margin-top: 0.75rem; flex-wrap: wrap; }
+button {
+  background: var(--card);
+  border: 1px solid #2a3548;
+  color: var(--text);
+  padding: 0.45rem 0.9rem;
+  border-radius: 6px;
+  cursor: pointer;
+}
+button.primary { background: #1a3a5c; border-color: var(--accent); }
+.form label { display: block; margin: 0.5rem 0; font-size: 0.9rem; }
+.form input[type=number] { width: 100%; margin-top: 0.25rem; padding: 0.35rem; }
+#maskCanvas {
+  width: 100%;
+  max-width: 640px;
+  background: #000;
+  border-radius: 8px;
+  cursor: crosshair;
+  display: block;
+}
+.check { padding: 0.4rem 0; border-bottom: 1px solid #243044; }
+.check.ok span { color: var(--ok); }
+.check.bad span { color: var(--bad); }
+footer { padding: 1rem; color: var(--muted); font-size: 0.8rem; text-align: center; }

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import sys
 
 from aerostab.config import load_config
@@ -22,29 +23,41 @@ def setup_logging(verbose: bool) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="AeroStab optical navigation")
-    parser.add_argument("-c", "--config", help="Path to YAML config")
-    parser.add_argument("--simulate", action="store_true", help="Synthetic camera (no hardware)")
-    parser.add_argument("--no-web", action="store_true", help="Disable web UI")
-    parser.add_argument("--no-mavlink", action="store_true", help="Disable MAVLink output")
+    parser = argparse.ArgumentParser(description="AeroStab optical navigation v0.2")
+    parser.add_argument("-c", "--config", help="YAML config path")
+    parser.add_argument("--simulate", action="store_true")
+    parser.add_argument("--no-web", action="store_true")
+    parser.add_argument("--no-mavlink", action="store_true")
     parser.add_argument("-v", "--verbose", action="store_true")
     args = parser.parse_args(argv)
 
     setup_logging(args.verbose)
-    config = load_config(args.config)
+    config_path = args.config or os.environ.get("AEROSTAB_CONFIG", "")
+    if not config_path:
+        from pathlib import Path
+
+        for candidate in (
+            "/etc/aerostab/config.yaml",
+            str(Path(__file__).resolve().parents[1] / "config" / "default.yaml"),
+        ):
+            if Path(candidate).exists():
+                config_path = candidate
+                break
+        else:
+            config_path = str(Path(__file__).resolve().parents[1] / "config" / "default.yaml")
+
+    config = load_config(config_path)
     if args.simulate:
         config.runtime.simulate = True
     if args.no_mavlink:
         config.mavlink.enabled = False
 
     shared = SharedState()
-    runtime = AeroStabRuntime(config, shared)
+    runtime = AeroStabRuntime(config, shared, config_path=config_path)
 
     if config.web.enabled and not args.no_web:
-        start_web_server(shared, config)
-        logging.getLogger(__name__).info(
-            "Web UI http://%s:%d", config.web.host, config.web.port
-        )
+        start_web_server(shared, config, runtime, config_path)
+        logging.getLogger(__name__).info("Web http://%s:%d", config.web.host, config.web.port)
 
     runtime.run_loop()
     return 0

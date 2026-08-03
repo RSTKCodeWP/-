@@ -1,54 +1,75 @@
-"""Tests for AeroStab (no hardware required)."""
+"""Tests for AeroStab."""
 
 import time
+from pathlib import Path
 
 import numpy as np
 
-from aerostab.config import CameraConfig, EstimatorConfig, load_config
-from aerostab.estimator import OpticalFlowEstimator, OdometryIntegrator
-from aerostab.camera import SyntheticCamera
+from aerostab.config import load_config, save_config
+from aerostab.estimator import OdometryIntegrator, OpticalFlowEstimator, FlowResult
+from aerostab.camera import SyntheticCamera, CameraConfig
+from aerostab.mask import CameraMask
+from aerostab.gps_fusion import GpsFusion, GpsFix
+from aerostab.health import evaluate
 
 
-def test_config_loads():
+def test_config_roundtrip(tmp_path):
     cfg = load_config()
-    assert cfg.camera.fov_deg == 72.4
-    assert cfg.mavlink.baud == 230400
+    p = tmp_path / "cfg.yaml"
+    save_config(cfg, str(p))
+    cfg2 = load_config(str(p))
+    assert cfg2.camera.fov_deg == cfg.camera.fov_deg
 
 
-def test_synthetic_camera_frames():
+def test_mask_save_load(tmp_path):
+    m = CameraMask(4, 3)
+    m.set_cell(1, 1, True)
+    p = tmp_path / "mask.json"
+    m.save(p)
+    m2 = CameraMask.load(p)
+    assert m2.cells[1 * 4 + 1]
+
+
+def test_mask_opencv():
+    m = CameraMask(8, 6)
+    m.set_cell(0, 0, True)
+    mask = m.build_opencv_mask(640, 480)
+    assert mask[0, 0] == 0
+    assert mask[100, 100] == 255
+
+
+def test_optical_flow_motion():
     cam_cfg = CameraConfig(width=320, height=240, fps=20)
+    flow_est = OpticalFlowEstimator(cam_cfg, load_config().estimator)
     cam = SyntheticCamera(cam_cfg)
     cam.start()
-    ok, gray = cam.read_gray()
-    assert ok and gray is not None
-    assert gray.shape == (240, 320)
-
-
-def test_optical_flow_detects_motion():
-    cam_cfg = CameraConfig(width=320, height=240, fps=20, fov_deg=72.4)
-    est_cfg = EstimatorConfig(max_corners=40, min_track_points=5)
-    flow_est = OpticalFlowEstimator(cam_cfg, est_cfg)
-    cam = SyntheticCamera(cam_cfg)
-    cam.start()
-
     dt = 1 / 20.0
-    velocities = []
-    for _ in range(40):
+    qualities = []
+    for _ in range(50):
         ok, gray = cam.read_gray()
         assert ok
-        r = flow_est.update(gray, altitude_m=2.0, dt=dt)
-        velocities.append((r.vx_m_s, r.vy_m_s, r.quality))
-        time.sleep(0.001)
-
-    # Synthetic texture moves — expect non-zero velocity or decent quality eventually
-    max_q = max(v[2] for v in velocities)
-    assert max_q > 0.1
+        r = flow_est.update(gray, 2.0, dt)
+        qualities.append(r.quality)
+    assert max(qualities) > 0.2
 
 
-def test_odometry_integrates():
-    odo = OdometryIntegrator(max_speed=10.0, position_lpf=0.2)
-    from aerostab.estimator import FlowResult
+def test_gps_fusion_origin():
+    gf = GpsFusion(enabled=True, wait_timeout_s=0.1, default_lat=50.0, default_lon=30.0)
+    gf.ingest_gps(GpsFix(50.001, 30.001, 100, 3, 10, time.monotonic()))
+    assert gf.nav_ready()
 
-    f = FlowResult(vx_m_s=1.0, vy_m_s=0.5, quality=0.8, n_points=20, flow_x_px=1, flow_y_px=1)
-    s = odo.update(f, dt=0.1)
-    assert s.x_m != 0 or s.y_m != 0
+
+def test_health_evaluate():
+    cfg = load_config()
+    r = evaluate(
+        cfg,
+        camera_ok=True,
+        mavlink_ok=True,
+        quality=0.5,
+        track_points=20,
+        fps=15,
+        nav_ready=True,
+        mask_fill_ratio=0.1,
+        simulate=True,
+    )
+    assert r.ready

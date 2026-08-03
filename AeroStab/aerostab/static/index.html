@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>AeroStab</title>
+  <link rel="stylesheet" href="/static/app.css"/>
+</head>
+<body>
+  <header>
+    <h1>AeroStab <span id="badge" class="badge">...</span></h1>
+    <nav>
+      <button class="tab active" data-tab="dash">Панель</button>
+      <button class="tab" data-tab="mask">Маска</button>
+      <button class="tab" data-tab="setup">Налаштування</button>
+      <button class="tab" data-tab="health">Перевірки</button>
+    </nav>
+  </header>
+
+  <section id="tab-dash" class="panel active">
+    <div class="grid">
+      <div class="card video-card">
+        <img src="/video.mjpg" alt="camera"/>
+      </div>
+      <div class="card stats" id="stats"></div>
+    </div>
+  </section>
+
+  <section id="tab-mask" class="panel">
+    <p class="hint">Клік по клітинці — замаскувати деталь дрона (ніжки, кабель). Червона зона ігнорується optical flow.</p>
+    <canvas id="maskCanvas" width="640" height="360"></canvas>
+    <div class="row">
+      <button id="maskClear">Очистити</button>
+      <button id="maskSave" class="primary">Зберегти маску</button>
+      <button id="maskReload">Перезавантажити</button>
+    </div>
+  </section>
+
+  <section id="tab-setup" class="panel">
+    <form id="cfgForm" class="card form">
+      <label>FOV (°) <input name="fov_deg" type="number" step="0.1"/></label>
+      <label>Поворот камери (°) <input name="rotation_deg" type="number" step="90"/></label>
+      <label>FPS <input name="fps" type="number"/></label>
+      <label><input name="show_grid" type="checkbox"/> Сітка FOV</label>
+      <label><input name="gps_fusion" type="checkbox"/> GPS fusion (корекція drift)</label>
+      <label>Мін. якість <input name="min_quality" type="number" step="0.05" min="0" max="1"/></label>
+      <button type="submit" class="primary">Зберегти конфіг</button>
+      <button type="button" id="resetOdo">Скинути позицію</button>
+    </form>
+  </section>
+
+  <section id="tab-health" class="panel">
+    <div id="healthList" class="card"></div>
+    <p class="hint">Усі перевірки мають бути зелені перед PosHold arm на реальному польоті.</p>
+  </section>
+
+  <footer>Pi Zero 2W · Frank-S01 OV5647 · ArduPilot ExternalNav</footer>
+  <script src="/static/app.js"></script>
+</body>
+</html>

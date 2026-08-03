@@ -1,0 +1,23 @@
+# RTL + Failsafe for AeroStab (ArduPilot Copter 4.6+)
+# Use with deploy/ardupilot_aerostab.param
+
+RC5_OPTION,4
+RTL_ALT,1500
+RTL_ALT_FINAL,0
+RTL_SPEED,50
+
+# Battery
+BATT_FS_LOW_ACT,2
+BATT_FS_CRT_ACT,1
+
+# EKF failsafe when vision nav degrades
+FS_EKF_ACTION,2
+FS_EKF_THRESH,1.5
+
+# RC loss — RTL if link returns, else land via throttle FS
+FS_THR_ENABLE,1
+FS_GCS_ENABLE,0
+
+# Stick deadzones
+RC1_DZ,40
+RC2_DZ,40

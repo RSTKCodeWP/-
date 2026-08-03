@@ -1,8 +1,8 @@
-"""Configuration loading."""
+"""Configuration loading and persistence."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -18,6 +18,7 @@ class CameraConfig:
     fps: int = 20
     fov_deg: float = 72.4
     rotation_deg: int = 0
+    show_grid: bool = False
 
 
 @dataclass
@@ -32,6 +33,7 @@ class EstimatorConfig:
     reset_interval_s: float = 30.0
     velocity_lpf_alpha: float = 0.3
     min_track_points: int = 8
+    use_visual_yaw: bool = True
 
 
 @dataclass
@@ -48,6 +50,35 @@ class OdometryConfig:
     origin_on_arm: bool = True
     max_speed_m_s: float = 15.0
     position_lpf_alpha: float = 0.2
+    reset_on_arm: bool = True
+
+
+@dataclass
+class GpsFusionConfig:
+    enabled: bool = False
+    wait_timeout_s: float = 60.0
+    accept_radius_km: float = 50.0
+    alignment_distance_m: float = 30.0
+    default_lat: float = 0.0
+    default_lon: float = 0.0
+
+
+@dataclass
+class QualityConfig:
+    min_quality: float = 0.25
+    min_fps: float = 8.0
+    min_points_to_send: int = 8
+    hold_last_on_drop: bool = True
+
+
+@dataclass
+class MaskConfig:
+    enabled: bool = True
+    cols: int = 16
+    rows: int = 12
+    path: str = "/etc/aerostab/mask.json"
+    max_roi_fill: float = 0.33
+    analysis_roi_scale: float = 0.5
 
 
 @dataclass
@@ -89,6 +120,9 @@ class AppConfig:
     estimator: EstimatorConfig = field(default_factory=EstimatorConfig)
     altitude: AltitudeConfig = field(default_factory=AltitudeConfig)
     odometry: OdometryConfig = field(default_factory=OdometryConfig)
+    gps_fusion: GpsFusionConfig = field(default_factory=GpsFusionConfig)
+    quality: QualityConfig = field(default_factory=QualityConfig)
+    mask: MaskConfig = field(default_factory=MaskConfig)
     mavlink: MavlinkConfig = field(default_factory=MavlinkConfig)
     web: WebConfig = field(default_factory=WebConfig)
     runtime: RuntimeConfig = field(default_factory=RuntimeConfig)
@@ -111,7 +145,28 @@ def load_config(path: Optional[str] = None) -> AppConfig:
         estimator=_merge_dataclass(EstimatorConfig, raw.get("estimator", {})),
         altitude=_merge_dataclass(AltitudeConfig, raw.get("altitude", {})),
         odometry=_merge_dataclass(OdometryConfig, raw.get("odometry", {})),
+        gps_fusion=_merge_dataclass(GpsFusionConfig, raw.get("gps_fusion", {})),
+        quality=_merge_dataclass(QualityConfig, raw.get("quality", {})),
+        mask=_merge_dataclass(MaskConfig, raw.get("mask", {})),
         mavlink=_merge_dataclass(MavlinkConfig, raw.get("mavlink", {})),
         web=_merge_dataclass(WebConfig, raw.get("web", {})),
         runtime=_merge_dataclass(RuntimeConfig, raw.get("runtime", {})),
     )
+
+
+def save_config(config: AppConfig, path: str) -> None:
+    data = {
+        "camera": asdict(config.camera),
+        "estimator": asdict(config.estimator),
+        "altitude": asdict(config.altitude),
+        "odometry": asdict(config.odometry),
+        "gps_fusion": asdict(config.gps_fusion),
+        "quality": asdict(config.quality),
+        "mask": {k: v for k, v in asdict(config.mask).items() if k != "path"},
+        "mavlink": asdict(config.mavlink),
+        "web": asdict(config.web),
+        "runtime": asdict(config.runtime),
+    }
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        yaml.safe_dump(data, f, default_flow_style=False, sort_keys=False)

@@ -1,9 +1,6 @@
-# AeroStab — install with: pip install -e .
 numpy>=1.21.0
 opencv-python-headless>=4.5.0
 pymavlink>=2.4.37
 pyyaml>=6.0
 flask>=2.0.0
-
-# On Raspberry Pi only:
-# picamera2>=0.3.12
+waitress>=2.1.0
