@@ -23,13 +23,7 @@ def main() -> int:
         "--backfill-per-run",
         type=int,
         default=25,
-        help="Max new repos to clone per run (default: 25)",
-    )
-    parser.add_argument(
-        "--max-size-mb",
-        type=int,
-        default=800,
-        help="Skip cloning repos larger than this MB (0=no limit, default: 800)",
+        help="Max new repos to clone per run (default: 25 — gradual, no size skips)",
     )
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
@@ -39,12 +33,12 @@ def main() -> int:
     if args.dry_run:
         common.append("--dry-run")
 
-    print("=== Phase 1: update existing mirrors ===")
+    print("=== Phase 1: update existing mirrors (with verify) ===")
     rc = run(sync + ["--all", *common, "--update-only"])
     if rc:
         return rc
 
-    print("=== Phase 2: backfill new mirrors ===")
+    print("=== Phase 2: backfill new mirrors (no size limit) ===")
     backfill = sync + [
         "--all",
         *common,
@@ -54,15 +48,13 @@ def main() -> int:
         "--sort",
         "score",
     ]
-    if args.max_size_mb:
-        backfill += ["--max-size-mb", str(args.max_size_mb)]
     rc = run(backfill)
     if rc:
         return rc
 
     print("=== Phase 3: priority org libraries (full git) ===")
-    for org in ("OpenIPC",):
-        run(sync + ["--owner", org, *common, "--max-per-run", "15"])
+    for org in ("OpenIPC", "OpenHD", "DroneBridge", "ArduPilot"):
+        run(sync + ["--owner", org, *common, "--max-per-run", "10"])
 
     print("=== Phase 4: priority list (force sync) ===")
     priority = SCRIPTS.parent / "priority-sync.txt"

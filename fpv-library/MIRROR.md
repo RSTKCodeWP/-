@@ -65,9 +65,18 @@ python3 fpv-library/scripts/sync.py --source OpenIPC/msposd --force-reclone
 ## Backfill
 
 Зараз у каталозі **~1537 keep**, склоновано **~200**.  
-CI додає **~25 нових на день** — повний backfill за ~55 днів.
+CI додає **~25 нових на день** — поступово, **без пропуску за розміром**.
 
-Великі репо (>800 MB) пропускаються при backfill — `--max-size-mb`.
+## Розширений пошук
+
+`discover_expand.py` — щодня з нашої бази:
+- org вгору (усі репо організації)
+- усі репо авторів з каталогу
+- similarity search за topics/тематикою
+
+## Перевірка після sync
+
+Кожен mirror: HEAD == upstream, diff порожній, submodules OK.
 
 ## CI
 

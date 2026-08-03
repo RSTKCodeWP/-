@@ -19,13 +19,9 @@ on:
         required: false
         default: "2.0"
       backfill_per_run:
-        description: "New keep repos to clone per run"
+        description: "New keep repos to clone per run (gradual backfill)"
         required: false
         default: "25"
-      max_size_mb:
-        description: "Skip repos larger than this MB during backfill"
-        required: false
-        default: "800"
 
 permissions:
   contents: write
@@ -46,7 +42,16 @@ jobs:
             --min-score "${{ github.event.inputs.min_score || '2.0' }}" \
             --batch-size "${{ github.event.inputs.keyword_batch || '12' }}" \
             --expand-owners \
-            --owner-limit 3
+            --owner-limit 0
+
+      - name: Expand from catalog base (owners, orgs, similarity)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 fpv-library/scripts/discover_expand.py \
+            --owner-batch 12 \
+            --org-batch 5 \
+            --similar-batch 8
 
       - name: Themed discovery (weekly slice — pages 1 only)
         env:
@@ -81,8 +86,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           python3 fpv-library/scripts/sync_daily.py \
-            --backfill-per-run "${{ github.event.inputs.backfill_per_run || '25' }}" \
-            --max-size-mb "${{ github.event.inputs.max_size_mb || '800' }}"
+            --backfill-per-run "${{ github.event.inputs.backfill_per_run || '25' }}"
 
       - name: Check Caddx Ground Configuration releases
         run: python3 fpv-library/scripts/sync_caddx_ground_config.py --check-only

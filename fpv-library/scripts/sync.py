@@ -12,6 +12,7 @@ from pathlib import Path
 
 from fpv_lib.catalog import catalog_path, library_root, load_catalog, now_iso, save_catalog
 from fpv_lib.gh import default_branch_sha, GhError, repo_details
+from fpv_lib.verify import verify_mirror
 
 
 META_FILE = ".fpv-library.json"
@@ -148,7 +149,13 @@ def update_mirror(dest: Path, *, branch: str) -> None:
     init_submodules(dest)
 
 
-def sync_entry(entry: dict, *, dry_run: bool = False, force_reclone: bool = False) -> str:
+def sync_entry(
+    entry: dict,
+    *,
+    dry_run: bool = False,
+    force_reclone: bool = False,
+    skip_verify: bool = False,
+) -> str:
     source = entry["source"]
     dest = library_root().parent / entry["path"]
 
@@ -165,8 +172,19 @@ def sync_entry(entry: dict, *, dry_run: bool = False, force_reclone: bool = Fals
 
     if mirrored and not force_reclone and not legacy:
         if entry.get("upstream_commit") == sha and local_sha == sha:
-            return f"up-to-date {source}"
-        action = "update"
+            if not skip_verify and not dry_run:
+                ok, detail = verify_mirror(dest, expected_sha=sha, branch=branch)
+                if ok:
+                    entry["verified_at"] = now_iso()
+                    return f"up-to-date {source} verified"
+                # local drift — force refresh
+                action = "update"
+            elif dry_run:
+                return f"up-to-date {source}"
+            else:
+                return f"up-to-date {source}"
+        else:
+            action = "update"
     elif legacy or force_reclone:
         action = "reclone"
     elif dest.exists() and not mirrored:
@@ -186,6 +204,14 @@ def sync_entry(entry: dict, *, dry_run: bool = False, force_reclone: bool = Fals
     entry["upstream_updated"] = pushed_at
     entry["synced_at"] = now_iso()
     write_meta(dest, entry)
+
+    if not skip_verify:
+        ok, detail = verify_mirror(dest, expected_sha=sha, branch=branch)
+        if not ok:
+            raise GitError(f"verify failed: {detail}")
+        entry["verified_at"] = now_iso()
+        return f"{action}d {source} @ {sha[:8]} verified"
+
     return f"{action}d {source} @ {sha[:8]}"
 
 
@@ -230,6 +256,11 @@ def main(argv: list[str] | None = None) -> int:
         help="Delete and re-clone even if already mirrored (migrates legacy snapshots)",
     )
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--skip-verify",
+        action="store_true",
+        help="Skip post-sync integrity check (not recommended)",
+    )
     args = parser.parse_args(argv)
 
     if not catalog_path().exists():
@@ -292,9 +323,16 @@ def main(argv: list[str] | None = None) -> int:
     for entry in selected:
         try:
             force = args.force_reclone or is_legacy_snapshot(entry)
-            result = sync_entry(entry, dry_run=args.dry_run, force_reclone=force)
+            result = sync_entry(
+                entry,
+                dry_run=args.dry_run,
+                force_reclone=force,
+                skip_verify=args.skip_verify,
+            )
             print(result)
-            if result.startswith(("cloned", "updated", "recloned", "would-clone", "would-update", "would-reclone")):
+            if result.startswith(
+                ("cloned", "updated", "recloned", "would-clone", "would-update", "would-reclone")
+            ):
                 changed += 1
                 if args.save_every and changed % args.save_every == 0 and not args.dry_run:
                     save_catalog(catalog)

@@ -70,11 +70,11 @@ discover → discover_org(OpenIPC) → triage → sync_daily → REPOS.md → co
 
 | Параметр | Значення | Чому |
 |----------|----------|------|
-| `backfill_per_run` | 25 | Не перевантажити CI |
-| `max_size_mb` | 800 | Пропустити гігантів при backfill |
-| full git | так | Повна бібліотека, не shallow snapshot |
+| `backfill_per_run` | 25 | Поступовий backfill без пропусків за розміром |
+| full git | так | Повна копія, без shallow snapshot |
+| verify | після кожного sync | HEAD + diff vs `origin/<branch>` + submodules |
 
-Гіганти (>800 MB): клонувати вручну або окремим job з LFS.
+**Немає ліміту розміру.** Великий репо = повний clone, просто поступово (N нових за запуск).
 
 ## OpenIPC — приклад org-бібліотеки
 
@@ -102,8 +102,26 @@ python3 fpv-library/scripts/register_legacy.py
 - GitHub Releases assets (окрім Caddx manifests)
 - `watch` / `skip` verdict
 
-## Моніторинг
+## Розширений пошук (discover_expand)
 
-- `REPOS.md` — скільки на диску, розміри, дати
-- `catalog.json` → поля `synced_at`, `upstream_commit`
-- `.fpv-library.json` у кожній теці (`mirror_mode: full-git`)
+Щодня з існуючої бази (`keep` + `watch`):
+
+1. **Вгору** — усі org з каталогу → `discover_org` (повний список репо org)
+2. **Автори** — усі репо кожного автора з нашої бази (batch ~12/день)
+3. **Схожість** — GitHub search за topics/ключовими словами з нашої бази + expand owners без ліміту
+
+Чим більше репо в базі — тим ширші similarity queries.
+
+```bash
+python3 fpv-library/scripts/discover_expand.py
+```
+
+## Перевірка цілісності
+
+Після кожного clone/update:
+- `HEAD` == upstream SHA
+- `git diff origin/<branch>` порожній
+- submodules синхронізовані
+- working tree чистий
+
+Поле `verified_at` в `catalog.json`.
