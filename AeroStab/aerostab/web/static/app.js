@@ -300,3 +300,42 @@ async function drawRtl() {
 }
 
 loadMask();
+
+async function postFlight(path, body) {
+  const res = await fetch(path, {
+    method: 'POST',
+    headers: body ? {'Content-Type': 'application/json'} : {},
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  let d = {};
+  try {
+    d = await res.json();
+  } catch (e) {
+    d = { message: 'request failed' };
+  }
+  return { ok: res.ok && d.ok !== false, message: d.message || d.error || (res.ok ? 'OK' : 'failed') };
+}
+
+$('btnArm').onclick = async () => {
+  const msg = $('flyActionMsg');
+  msg.textContent = 'ARM…';
+  const r = await postFlight('/api/arm');
+  msg.textContent = r.message;
+  if (!r.ok) msg.className = 'hint bad'; else msg.className = 'hint ok';
+};
+$('btnDisarm').onclick = async () => {
+  const msg = $('flyActionMsg');
+  msg.textContent = 'DISARM…';
+  const r = await postFlight('/api/disarm');
+  msg.textContent = r.message;
+  msg.className = r.ok ? 'hint ok' : 'hint bad';
+};
+$('btnCalibrate').onclick = async () => {
+  if (!confirm('Поставте дрон на рівну поверхню. DISARM перед калібруванням. Продовжити?')) return;
+  const msg = $('flyActionMsg');
+  msg.textContent = 'Калібрування…';
+  const r = await postFlight('/api/calibrate');
+  msg.textContent = r.message;
+  msg.className = r.ok ? 'hint ok' : 'hint bad';
+};
+

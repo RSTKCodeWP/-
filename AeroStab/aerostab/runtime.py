@@ -413,6 +413,58 @@ class AeroStabRuntime:
                 ]
             )
 
+    def mavlink_arm(self, force: bool = False) -> tuple[bool, str]:
+        if not self._mavlink or not self.config.mavlink.enabled:
+            return False, "MAVLink disabled"
+        snap = self.shared.snapshot()
+        if not force and not snap.get("flight_ok") and not self.config.runtime.simulate:
+            return False, "FLIGHT OK required before arm"
+        ok, msg = self._mavlink.arm(force=force)
+        if ok:
+            self._mavlink.send_status("AeroStab ARM from web UI", severity=6)
+        return ok, msg
+
+    def mavlink_disarm(self) -> tuple[bool, str]:
+        if not self._mavlink or not self.config.mavlink.enabled:
+            return False, "MAVLink disabled"
+        ok, msg = self._mavlink.disarm()
+        if ok:
+            self._mavlink.send_status("AeroStab DISARM from web UI", severity=6)
+        return ok, msg
+
+    def mavlink_calibrate_level(self) -> tuple[bool, str]:
+        if not self._mavlink or not self.config.mavlink.enabled:
+            return False, "MAVLink disabled"
+        return self._mavlink.calibrate_level()
+
+    def camera_state(self) -> dict:
+        """StabX-style /camstate aggregate for web UI."""
+        cam = self.config.camera
+        profiles_dir = Path("/etc/aerostab/firmware/zero")
+        cameras = []
+        if profiles_dir.is_dir():
+            cameras = sorted(p.name for p in profiles_dir.iterdir() if p.is_dir())
+        if not cameras:
+            cameras = ["ov5647", "imx219"]
+        selected = "ov5647"
+        cam_file = Path("/etc/aerostab/camera.txt")
+        if cam_file.is_file():
+            selected = cam_file.read_text(encoding="utf-8").strip().lower() or selected
+        return {
+            "cameras": cameras,
+            "camera": selected,
+            "backend": cam.backend,
+            "width": cam.width,
+            "height": cam.height,
+            "rotation": cam.rotation_deg,
+            "fov": cam.fov_deg,
+            "show_grid": cam.show_grid,
+            "locked": False,
+            "readonly": False,
+            "records_state": "logs_only" if self.config.runtime.log_csv else "nothing",
+            "user_pos_error": 100,
+        }
+
     def stop(self) -> None:
         self._running = False
         self.shared.update_status(running=False)

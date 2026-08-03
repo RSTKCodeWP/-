@@ -1,0 +1,8 @@
+# AeroStab profile: Frank-S01 / OV5647 CSI
+camera_auto_detect=0
+arm_64bit=1
+enable_uart=1
+dtoverlay=disable-bt
+dtoverlay=ov5647
+gpu_mem=128
+dtparam=spi=on

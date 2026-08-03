@@ -1,0 +1,11 @@
+[Unit]
+Description=AeroStab USB wifi.txt provisioning
+After=devmon.service local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/aerostab-wifi
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

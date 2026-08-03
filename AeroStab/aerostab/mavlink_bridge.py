@@ -216,6 +216,72 @@ class MavlinkBridge:
         except Exception:
             pass
 
+    def _command_long(self, command: int, *params: float, timeout_s: float = 3.0) -> tuple[bool, str]:
+        if self._conn is None:
+            return False, "MAVLink not connected"
+        if not self.connected:
+            return False, "FC heartbeat missing"
+        p = list(params) + [0.0] * (7 - len(params))
+        try:
+            self._conn.mav.command_long_send(
+                self._conn.target_system,
+                self._conn.target_component,
+                command,
+                0,
+                p[0],
+                p[1],
+                p[2],
+                p[3],
+                p[4],
+                p[5],
+                p[6],
+            )
+            ack = self._conn.recv_match(type="COMMAND_ACK", blocking=True, timeout=timeout_s)
+            if ack is None:
+                return True, "command sent (no ACK)"
+            result = int(ack.result)
+            if result == mavutil.mavlink.MAV_RESULT_ACCEPTED:
+                return True, "accepted"
+            if result == mavutil.mavlink.MAV_RESULT_IN_PROGRESS:
+                return True, "in progress"
+            return False, f"FC rejected (result={result})"
+        except Exception as exc:
+            logger.warning("MAVLink command %s failed: %s", command, exc)
+            return False, str(exc)
+
+    def arm(self, force: bool = False) -> tuple[bool, str]:
+        """Arm FC via MAV_CMD_COMPONENT_ARM_DISARM."""
+        if not self.ensure_connected():
+            return False, "MAVLink not connected"
+        param2 = 21196.0 if force else 0.0  # magic force arm (ArduPilot)
+        return self._command_long(
+            mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM,
+            1.0,
+            param2,
+        )
+
+    def disarm(self) -> tuple[bool, str]:
+        if not self.ensure_connected():
+            return False, "MAVLink not connected"
+        return self._command_long(mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM, 0.0)
+
+    def calibrate_level(self) -> tuple[bool, str]:
+        """Board level calibration (drone on flat surface, disarmed)."""
+        if not self.ensure_connected():
+            return False, "MAVLink not connected"
+        if self._armed:
+            return False, "disarm before calibration"
+        # param5=2 — board level calibration on ArduPilot
+        return self._command_long(
+            mavutil.mavlink.MAV_CMD_PREFLIGHT_CALIBRATION,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            2.0,
+            timeout_s=8.0,
+        )
+
     def close(self) -> None:
         if self._conn is not None:
             try:

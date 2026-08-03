@@ -112,6 +112,80 @@ def register_routes(
 
         return jsonify({"ports": list_serial_candidates(), "configured": config.mavlink.port})
 
+    @bp.route("/api/camstate")
+    def camstate():
+        if runtime:
+            return jsonify(runtime.camera_state())
+        cam = config.camera
+        return jsonify(
+            {
+                "cameras": ["ov5647", "imx219"],
+                "camera": "ov5647",
+                "backend": cam.backend,
+                "width": cam.width,
+                "height": cam.height,
+                "rotation": cam.rotation_deg,
+                "fov": cam.fov_deg,
+                "show_grid": cam.show_grid,
+                "locked": False,
+                "readonly": False,
+                "records_state": "logs_only",
+                "user_pos_error": 100,
+            }
+        )
+
+    @bp.route("/api/arm", methods=["POST"])
+    def api_arm():
+        if not runtime:
+            return jsonify({"ok": False, "error": "runtime not running"}), 503
+        force = bool((request.get_json(silent=True) or {}).get("force"))
+        ok, msg = runtime.mavlink_arm(force=force)
+        return jsonify({"ok": ok, "message": msg}), (200 if ok else 400)
+
+    @bp.route("/api/disarm", methods=["POST"])
+    def api_disarm():
+        if not runtime:
+            return jsonify({"ok": False, "error": "runtime not running"}), 503
+        ok, msg = runtime.mavlink_disarm()
+        return jsonify({"ok": ok, "message": msg}), (200 if ok else 400)
+
+    @bp.route("/api/calibrate", methods=["POST"])
+    def api_calibrate():
+        if not runtime:
+            return jsonify({"ok": False, "error": "runtime not running"}), 503
+        ok, msg = runtime.mavlink_calibrate_level()
+        return jsonify({"ok": ok, "message": msg}), (200 if ok else 400)
+
+    # StabX creepy-compatible aliases (GET, same port)
+    @bp.route("/arm")
+    def stabx_arm():
+        if not runtime:
+            return "runtime offline", 503
+        ok, msg = runtime.mavlink_arm()
+        return msg if ok else (msg, 400)
+
+    @bp.route("/stop")
+    def stabx_stop():
+        if not runtime:
+            return "runtime offline", 503
+        ok, msg = runtime.mavlink_disarm()
+        return msg if ok else (msg, 400)
+
+    @bp.route("/calibrate")
+    def stabx_calibrate():
+        if not runtime:
+            return "runtime offline", 503
+        ok, msg = runtime.mavlink_calibrate_level()
+        return msg if ok else (msg, 400)
+
+    @bp.route("/camstate")
+    def stabx_camstate():
+        if runtime:
+            import json
+
+            return json.dumps(runtime.camera_state()), 200, {"Content-Type": "application/json"}
+        return "{}", 200, {"Content-Type": "application/json"}
+
     @bp.route("/video.mjpg")
     def video():
         def generate():

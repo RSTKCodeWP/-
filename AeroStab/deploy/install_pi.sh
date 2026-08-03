@@ -28,21 +28,41 @@ if [[ -f /etc/hosts ]]; then
   grep -q 'aerostab' /etc/hosts || echo '127.0.1.1 aerostab' >> /etc/hosts
 fi
 
-# Frank-S01 / OV5647 CSI + UART for FC
+# Frank-S01 / OV5647 CSI + UART for FC — profile via firmware.sh
 CONFIG_TXT="/boot/firmware/config.txt"
 [[ -f "$CONFIG_TXT" ]] || CONFIG_TXT="/boot/config.txt"
+
+mkdir -p "$CONFIG_DIR/firmware/zero/ov5647" "$CONFIG_DIR/firmware/zero/imx219"
+install -m 644 "$INSTALL_DIR/deploy/settings/firmware/zero/ov5647/config.txt" \
+  "$CONFIG_DIR/firmware/zero/ov5647/config.txt"
+install -m 644 "$INSTALL_DIR/deploy/settings/firmware/zero/imx219/config.txt" \
+  "$CONFIG_DIR/firmware/zero/imx219/config.txt"
+[[ -f "$CONFIG_DIR/camera.txt" ]] || echo 'ov5647' > "$CONFIG_DIR/camera.txt"
+
+install -m 755 "$INSTALL_DIR/deploy/firmware.sh" /usr/local/bin/aerostab-firmware
+/usr/local/bin/aerostab-firmware || true
+
 if [[ -f "$CONFIG_TXT" ]]; then
-  grep -q '^camera_auto_detect=1' "$CONFIG_TXT" || echo 'camera_auto_detect=1' >> "$CONFIG_TXT"
-  grep -q '^dtoverlay=ov5647' "$CONFIG_TXT" || echo 'dtoverlay=ov5647' >> "$CONFIG_TXT"
-  grep -q '^dtoverlay=disable-bt' "$CONFIG_TXT" || echo 'dtoverlay=disable-bt' >> "$CONFIG_TXT"
-  grep -q '^enable_uart=1' "$CONFIG_TXT" || echo 'enable_uart=1' >> "$CONFIG_TXT"
-  grep -q '^gpu_mem=128' "$CONFIG_TXT" || echo 'gpu_mem=128' >> "$CONFIG_TXT"
-  grep -q '^dtparam=spi=on' "$CONFIG_TXT" || echo 'dtparam=spi=on' >> "$CONFIG_TXT"
+  grep -q '^gpu_mem=' "$CONFIG_TXT" || echo 'gpu_mem=128' >> "$CONFIG_TXT"
 fi
 
-# Disable serial console on UART (Bookworm)
+# Disable serial console on UART (Bookworm) — StabX stops getty@ttyAMA0
 if [[ -f /boot/firmware/cmdline.txt ]]; then
   sed -i 's/console=serial0,[0-9]* //g' /boot/firmware/cmdline.txt || true
+fi
+for unit in serial-getty@ttyAMA0.service getty@ttyAMA0.service; do
+  systemctl disable "$unit" 2>/dev/null || true
+  systemctl stop "$unit" 2>/dev/null || true
+done
+
+# Optional /data records partition (StabX p3) — bind-mount if present
+if grep -q '/data ' /proc/mounts 2>/dev/null; then
+  mkdir -p /data/records /var/log/aerostab
+  chmod 777 /data/records 2>/dev/null || true
+  if ! mountpoint -q /var/log/aerostab 2>/dev/null; then
+    mkdir -p /data/records/aerostab
+    mount --bind /data/records/aerostab /var/log/aerostab 2>/dev/null || true
+  fi
 fi
 
 mkdir -p "$INSTALL_DIR" "$CONFIG_DIR" "$LOG_DIR"
@@ -73,6 +93,14 @@ install -m 644 "$INSTALL_DIR/FLIGHT.md" "$CONFIG_DIR/FLIGHT.md" 2>/dev/null || t
 
 install -m 644 "$INSTALL_DIR/deploy/aerostab.service" /etc/systemd/system/aerostab.service
 install -m 755 "$INSTALL_DIR/deploy/wifi_provision.sh" /usr/local/bin/aerostab-wifi
+install -m 644 "$INSTALL_DIR/deploy/aerostab-wifi.service" /etc/systemd/system/aerostab-wifi.service
+install -m 644 "$INSTALL_DIR/deploy/aerostab-usb-wifi.service" /etc/systemd/system/aerostab-usb-wifi.service
+
+# Fallback WiFi profile (field setup hotspot alternative to StabX uapilot)
+if command -v nmcli >/dev/null 2>&1; then
+  install -m 600 "$INSTALL_DIR/deploy/aerostab.nmconnection" \
+    /etc/NetworkManager/system-connections/aerostab-fallback.nmconnection 2>/dev/null || true
+fi
 
 # mDNS
 mkdir -p /etc/avahi/services
@@ -90,7 +118,7 @@ EOF
 systemctl restart avahi-daemon || true
 
 systemctl daemon-reload
-systemctl enable aerostab.service
+systemctl enable aerostab.service aerostab-wifi.service aerostab-usb-wifi.service
 
 echo ""
 echo "=== AeroStab installed ==="
@@ -98,7 +126,10 @@ echo "1. Reboot: sudo reboot"
 echo "2. Open:   http://aerostab.local:8080"
 echo "3. Complete first-flight wizard (green = ready)"
 echo "4. Load:   deploy/ardupilot_aerostab.param in Mission Planner"
-echo "5. Wire:   Pi TX→FC RX, Pi RX→FC TX, GND, 5V"
-echo "6. Arm PosHold only when UI shows FLIGHT OK"
+echo "5. WiFi: put wifi.txt on USB (SSID line1, password line2) or:"
+echo "     sudo aerostab-wifi \"SSID\" \"password\""
+echo "6. Camera profile: echo imx219 > /etc/aerostab/camera.txt && sudo aerostab-firmware && reboot"
+echo "7. Wire:   Pi TX→FC RX, Pi RX→FC TX, GND, 5V"
+echo "8. Arm PosHold only when UI shows FLIGHT OK (or use ARM FC button)"
 echo ""
 echo "Params note: SERIAL2 = TELEM2 @ 230400 — change SERIALx if needed"

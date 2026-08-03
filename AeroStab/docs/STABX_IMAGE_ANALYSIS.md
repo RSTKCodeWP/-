@@ -192,13 +192,15 @@ UART: GPIO14/15 (miniuart-bt), MAVLink на ttyAMA0 @ **230400** (з докум�
 | Компонент | StabX | AeroStab |
 |-----------|-------|----------|
 | Мова | C++ (lserv + creepy) | Python |
-| Ліцензія | lserv + uapilot.online + BT | Немає |
-| Web UI | creepy :8080, вбудований HTML | Flask/FastAPI modular web |
-| Provisioning | lserv :5050 | N/A (open) |
-| OTA | lserv.zip encrypted | git/apt |
-| OS | Debian 12 bookworm | Raspberry Pi OS / Debian |
-| UART | stop getty@ttyAMA0 | Аналогічно потрібно |
-| Records | ext4 p3 + bind mount | TBD |
+| Ліцензія | lserv + uapilot.online + BT | Немає (open source) |
+| Web UI | creepy :8080 | Flask :8080 + StabX aliases (`/arm`, `/camstate`) |
+| Provisioning | lserv :5050 | `aerostab-wifi`, `aerostab-firmware` |
+| Arm / calibrate | `/arm`, `/calibrate` | ✅ `/api/arm`, `/api/calibrate` |
+| WiFi | `wifi.txt` + USB | ✅ `aerostab-wifi` + systemd |
+| Camera boot | `firmware.sh` | ✅ profiles ov5647 / imx219 |
+| UART | stop getty@ttyAMA0 | ✅ install_pi.sh |
+| Records | ext4 p3 | ⚠️ bind-mount if `/data` exists |
+| OTA | lserv.zip encrypted | git / apt |
 
 ---
 

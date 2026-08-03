@@ -71,6 +71,8 @@ nav { display: flex; gap: 0.35rem; flex-wrap: wrap; }
 }
 .stat span:last-child { color: var(--accent); font-variant-numeric: tabular-nums; }
 .hint { color: var(--muted); font-size: 0.85rem; }
+.hint.ok { color: var(--ok); }
+.hint.bad { color: var(--bad); }
 .row { display: flex; gap: 0.5rem; margin-top: 0.75rem; flex-wrap: wrap; align-items: center; }
 button {
   background: var(--card);
@@ -81,6 +83,8 @@ button {
   cursor: pointer;
 }
 button.primary { background: #1a3a5c; border-color: var(--accent); }
+button.danger { background: #4d1a1a; border-color: var(--bad); color: #fff; }
+.fly-actions { margin-top: 0.75rem; }
 .form label { display: block; margin: 0.5rem 0; font-size: 0.9rem; }
 .form input[type=number] { width: 100%; margin-top: 0.25rem; padding: 0.35rem; }
 #maskCanvas {

@@ -156,8 +156,22 @@ class MockFlightController:
         )
       elif mtype == "OPTICAL_FLOW_RAD":
         self.stats.optical_flow_count += 1
+      elif mtype == "COMMAND_LONG":
+        cmd = int(msg.command)
+        if cmd == mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM:
+          self.armed = float(msg.param1) >= 0.5
+          logger.info("Mock FC %s via COMMAND_LONG", "ARM" if self.armed else "DISARM")
+        self._send_command_ack(cmd, mavutil.mavlink.MAV_RESULT_ACCEPTED)
       elif mtype == "HEARTBEAT":
         pass
+
+  def _send_command_ack(self, command: int, result: int) -> None:
+    if self._conn is None:
+      return
+    try:
+      self._conn.mav.command_ack_send(command, result)
+    except Exception:
+      pass
 
   def _send_telemetry(self) -> None:
     if self._conn is None or getattr(self._conn, "port", None) is None:
