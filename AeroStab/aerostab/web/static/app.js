@@ -1,5 +1,7 @@
 const COLS = 16, ROWS = 12;
 let maskCells = Array(COLS * ROWS).fill(false);
+let configData = {};
+let configSchema = { sections: {}, fields: {} };
 
 function $(id) { return document.getElementById(id); }
 
@@ -10,6 +12,8 @@ document.querySelectorAll('.tab').forEach(btn => {
     btn.classList.add('active');
     $('tab-' + btn.dataset.tab).classList.add('active');
     if (btn.dataset.tab === 'mask') drawMask();
+    if (btn.dataset.tab === 'setup') loadSettings();
+    if (btn.dataset.tab === 'docs') loadDocsList();
   };
 });
 
@@ -120,33 +124,144 @@ $('maskSave').onclick = async () => {
 };
 $('maskReload').onclick = loadMask;
 
-async function loadCfg() {
-  const d = await (await fetch('/api/config')).json();
-  const f = $('cfgForm');
-  f.fov_deg.value = d.camera.fov_deg;
-  f.rotation_deg.value = d.camera.rotation_deg;
-  f.fps.value = d.camera.fps;
-  f.show_grid.checked = d.camera.show_grid;
-  f.gps_fusion.checked = d.gps_fusion.enabled;
-  f.min_quality.value = d.quality.min_quality;
+function fieldId(section, key) { return `cfg-${section}-${key}`; }
+
+function renderSettingsForm() {
+  const root = $('settingsSections');
+  root.innerHTML = '';
+  for (const [section, fields] of Object.entries(configSchema.fields || {})) {
+    const card = document.createElement('div');
+    card.className = 'card settings-section';
+    const title = (configSchema.sections || {})[section] || section;
+    card.innerHTML = `<h3>${title}</h3>`;
+    const form = document.createElement('div');
+    form.className = 'settings-fields';
+    for (const f of fields) {
+      const val = (configData[section] || {})[f.key];
+      const id = fieldId(section, f.key);
+      let input = '';
+      if (f.type === 'checkbox') {
+        input = `<label class="field checkbox"><input id="${id}" type="checkbox" ${val ? 'checked' : ''}/> ${f.label}</label>`;
+      } else if (f.type === 'select') {
+        const opts = (f.options || []).map(o =>
+          `<option value="${o}" ${String(val) === String(o) ? 'selected' : ''}>${o}</option>`
+        ).join('');
+        input = `<label class="field">${f.label}<select id="${id}">${opts}</select></label>`;
+      } else {
+        const step = f.step != null ? ` step="${f.step}"` : '';
+        const min = f.min != null ? ` min="${f.min}"` : '';
+        const max = f.max != null ? ` max="${f.max}"` : '';
+        input = `<label class="field">${f.label}<input id="${id}" type="${f.type || 'text'}" value="${val ?? ''}"${step}${min}${max}/></label>`;
+      }
+      const hint = f.hint ? `<span class="field-hint">${f.hint}</span>` : '';
+      form.innerHTML += `<div class="field-wrap">${input}${hint}</div>`;
+    }
+    card.appendChild(form);
+    root.appendChild(card);
+  }
 }
 
-$('cfgForm').onsubmit = async (e) => {
-  e.preventDefault();
-  const f = e.target;
-  await fetch('/api/config', { method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({
-      fov_deg: +f.fov_deg.value,
-      rotation_deg: +f.rotation_deg.value,
-      fps: +f.fps.value,
-      show_grid: f.show_grid.checked,
-      gps_fusion: f.gps_fusion.checked,
-      min_quality: +f.min_quality.value,
-    })});
-  alert('FOV застосовано одразу. Інші параметри — після перезапуску сервісу.');
-};
+function collectConfigPatch() {
+  const patch = {};
+  for (const [section, fields] of Object.entries(configSchema.fields || {})) {
+    const data = {};
+    for (const f of fields) {
+      const el = $(fieldId(section, f.key));
+      if (!el) continue;
+      if (f.type === 'checkbox') data[f.key] = el.checked;
+      else if (f.type === 'number') data[f.key] = el.value === '' ? 0 : +el.value;
+      else data[f.key] = el.value;
+    }
+    patch[section] = data;
+  }
+  return patch;
+}
 
+async function loadSettings() {
+  try {
+    const [schemaRes, cfgRes, serialRes] = await Promise.all([
+      fetch('/api/config/schema'),
+      fetch('/api/config'),
+      fetch('/api/serial_ports'),
+    ]);
+    configSchema = await schemaRes.json();
+    configData = await cfgRes.json();
+    const serial = await serialRes.json();
+    renderSettingsForm();
+    const ports = (serial.ports || []).map(p => (typeof p === 'string' ? p : p.device)).join(', ') || 'немає';
+    $('serialInfo').textContent = `UART: ${serial.configured || 'auto'} · знайдено: ${ports}`;
+  } catch (e) {
+    $('settingsSections').innerHTML = '<p class="hint">Помилка завантаження налаштувань</p>';
+  }
+}
+
+$('cfgReload').onclick = loadSettings;
+$('cfgSave').onclick = async () => {
+  const patch = collectConfigPatch();
+  const res = await fetch('/api/config', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(patch),
+  });
+  const d = await res.json();
+  if (d.ok) {
+    alert('Збережено. Секції: ' + (d.changed || []).join(', '));
+    loadSettings();
+  } else {
+    alert('Помилка: ' + (d.error || 'unknown'));
+  }
+};
 $('resetOdo').onclick = async () => { await fetch('/api/reset_odometry', {method:'POST'}); };
+
+function mdToHtml(md) {
+  let html = md
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+    .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/^- (.+)$/gm, '<li>$1</li>')
+    .replace(/(<li>.*<\/li>\n?)+/g, m => `<ul>${m}</ul>`)
+    .replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
+  html = html.replace(/```([\s\S]*?)```/g, (_, code) => `<pre><code>${code.trim()}</code></pre>`);
+  html = html.split(/\n\n+/).map(p => {
+    p = p.trim();
+    if (!p || p.startsWith('<')) return p;
+    return `<p>${p.replace(/\n/g, '<br/>')}</p>`;
+  }).join('\n');
+  return html;
+}
+
+let docsLoaded = false;
+async function loadDocsList() {
+  if (docsLoaded) return;
+  const items = await (await fetch('/api/docs')).json();
+  const nav = $('docsNav');
+  nav.innerHTML = '<h3>Розділи</h3>';
+  if (!items.length) {
+    nav.innerHTML += '<p class="hint">Документація не знайдена (docs/*.md)</p>';
+    return;
+  }
+  items.forEach((item, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'doc-link' + (i === 0 ? ' active' : '');
+    btn.textContent = item.title;
+    btn.onclick = () => {
+      nav.querySelectorAll('.doc-link').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      loadDoc(item.id);
+    };
+    nav.appendChild(btn);
+  });
+  docsLoaded = true;
+  loadDoc(items[0].id);
+}
+
+async function loadDoc(id) {
+  const d = await (await fetch('/api/docs/' + encodeURIComponent(id))).json();
+  $('docsBody').innerHTML = mdToHtml(d.markdown || '');
+}
 
 async function drawRtl() {
   const c = $('rtlCanvas');
@@ -185,4 +300,3 @@ async function drawRtl() {
 }
 
 loadMask();
-loadCfg();

@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# Build SD-card bundle for Pi Zero 2W first-boot auto-install.
+# Output: dist/aerostab-sd-bundle.tar.gz
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+OUT="$ROOT/dist"
+STAGE="$OUT/sd-bundle-stage"
+BUNDLE_NAME="aerostab-sd-bundle"
+
+rm -rf "$STAGE"
+mkdir -p "$STAGE/aerostab" "$OUT"
+
+echo "=== Staging AeroStab for SD bundle ==="
+if command -v rsync >/dev/null 2>&1; then
+  rsync -a \
+    --exclude '.venv' \
+    --exclude '__pycache__' \
+    --exclude '.pytest_cache' \
+    --exclude 'logs' \
+    --exclude 'dist' \
+    --exclude '.git' \
+    "$ROOT/" "$STAGE/aerostab/project/"
+else
+  mkdir -p "$STAGE/aerostab/project"
+  tar -C "$ROOT" \
+    --exclude='.venv' --exclude='__pycache__' --exclude='.pytest_cache' \
+    --exclude='logs' --exclude='dist' --exclude='.git' \
+    -cf - . | tar -C "$STAGE/aerostab/project" -xf -
+fi
+
+cp "$ROOT/image/firstboot/install-on-first-boot.sh" "$STAGE/aerostab/install-on-first-boot.sh"
+cp "$ROOT/image/firstboot/aerostab-firstboot.service" "$STAGE/aerostab/aerostab-firstboot.service"
+cp "$ROOT/image/firstboot/README-FIRSTBOOT.txt" "$STAGE/aerostab/README-FIRSTBOOT.txt"
+
+# Marker: Pi OS firstrun hook reads this on boot partition
+cat > "$STAGE/aerostab/ENABLE_FIRSTBOOT" <<'EOF'
+AeroStab first-boot installer enabled.
+On first Linux boot, copy aerostab-firstboot.service and run install-on-first-boot.sh.
+EOF
+
+tar -czf "$OUT/${BUNDLE_NAME}.tar.gz" -C "$STAGE" aerostab
+
+echo ""
+echo "=== Bundle ready ==="
+echo "  $OUT/${BUNDLE_NAME}.tar.gz"
+echo ""
+echo "Flash Pi OS Lite 64-bit, then:"
+echo "  sudo tar -xzf ${BUNDLE_NAME}.tar.gz -C /media/\$USER/bootfs/"
+echo "  # On first SSH boot OR manual:"
+echo "  sudo bash /boot/firmware/aerostab/install-on-first-boot.sh"
+echo ""
+ls -lh "$OUT/${BUNDLE_NAME}.tar.gz"

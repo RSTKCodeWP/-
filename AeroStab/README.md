@@ -15,16 +15,39 @@ If tracking is lost mid-flight: **HOLD LAST** (freeze odometry, keep last pose t
 
 ## Install (Pi)
 
+**Quick:** `sudo bash deploy/install_pi.sh && sudo reboot`
+
+**SD bundle (flash-ready):** see [image/README.md](image/README.md) and [docs/FLASH.md](docs/FLASH.md)
+
 ```bash
-cd AeroStab
-sudo bash deploy/install_pi.sh
-sudo reboot
+bash image/build_sd_bundle.sh
+# extract dist/aerostab-sd-bundle.tar.gz to boot partition
 ```
 
-1. Open **http://aerostab.local:8080** → tab **Політ**
+1. Open **http://aerostab.local:8080** → tab **Політ** / **Інструкція**
 2. Wire UART: Pi TX→FC RX, Pi RX→FC TX, GND, 5V
 3. Load `deploy/ardupilot_aerostab.param` (SERIAL2 TELEM2 @ 230400 — change if needed)
 4. Arm **PosHold** only when UI shows **FLIGHT OK**
+
+## Web UI
+
+| Tab | Purpose |
+|-----|---------|
+| **Політ** | First-flight wizard, FLIGHT OK gate |
+| **Налаштування** | Full config (camera, MAVLink, altitude, quality, …) |
+| **Інструкція** | Built-in docs (`docs/*.md`) |
+| **Маска** | ROI mask editor |
+| **Перевірки** | Preflight health |
+
+Modular backend: `aerostab/web/` (Flask routes, schema-driven config API).
+
+## Documentation
+
+- [docs/FLASH.md](docs/FLASH.md) — SD card + Pi Imager
+- [docs/INSTALL.md](docs/INSTALL.md) — install on Pi
+- [docs/WIRE.md](docs/WIRE.md) — UART wiring + ArduPilot params
+- [docs/SETTINGS.md](docs/SETTINGS.md) — settings reference
+- [FLIGHT.md](FLIGHT.md) — flight card (UA)
 
 ## Flight rules
 

@@ -1,0 +1,15 @@
+[Unit]
+Description=AeroStab SD first-boot installer
+After=network-online.target
+ConditionPathExists=!/var/lib/aerostab/firstboot.done
+ConditionPathExists=/boot/firmware/aerostab/install-on-first-boot.sh
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /boot/firmware/aerostab/install-on-first-boot.sh
+RemainAfterExit=yes
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
