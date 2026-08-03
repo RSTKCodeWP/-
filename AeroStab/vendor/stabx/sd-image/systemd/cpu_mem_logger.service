@@ -1,0 +1,12 @@
+[Unit]
+Description=CPU/Mem Logger Service 
+
+[Service]
+# Run as user "pi" (adjust if needed)
+User=pi
+ExecStart=/usr/bin/python3 /home/pi/consumer.py
+# If you want the script to restart if it crashes:
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

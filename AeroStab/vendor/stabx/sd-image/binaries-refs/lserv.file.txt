@@ -1,0 +1,1 @@
+/tmp/stabx-root/home/pilot/start/lserv: ELF 64-bit LSB pie executable, ARM aarch64, version 1 (GNU/Linux), dynamically linked, interpreter /lib/ld-linux-aarch64.so.1, BuildID[sha1]=c13406e1979841f970893630ab1e1d9e4def2491, for GNU/Linux 3.7.0, stripped

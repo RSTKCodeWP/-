@@ -1,0 +1,11 @@
+[Unit]
+Description=Custom WiFi Connect
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/bash -c '/usr/bin/wifi.sh > /home/pub/records/wifi_log.txt 2>&1'
+
+[Install]
+WantedBy=multi-user.target

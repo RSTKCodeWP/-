@@ -1,0 +1,43 @@
+<meta charset="utf-8">
+<style>
+    body { text-align: center; background:#15170b; color:#e5e7eb; font-family:'Consolas','Lucida Console','Roboto Mono',monospace; }
+    
+</style>
+
+<img id="cameraFeedJpegs" src="QUALITYREF" style="max-height: 100%;">
+
+<script>
+    // send request /camrotate to get image rotation angle
+    function send_rotation_request() {
+        sendRequest('/camrotate').then(data => {
+            if (data) {
+                // data is a string: rotation scaling, parsing:
+                var _rotscale = data.split(' ');
+                var _rot = (math.parseFloat(_rotscale[0]) + 270) % 360;
+                document.getElementById('cameraFeedJpegs').style.transform = `rotate(${_rot}deg scale(3.0))`;
+            }
+        });
+    }
+
+    // A small and clean function to send requests and return the fetched data
+    function sendRequest(url) {
+        return fetch(url, {
+            method: 'GET' // or 'POST' if you need to send a POST request
+        })
+            .then(response => {
+                if (response.ok) {
+                    return response.text(); // Return the response as plain text
+                } else {
+                    console.error('sendRequest failed:', response.statusText, " Url: ", url);
+                    return null;
+                }
+            })
+            .catch(error => {
+                console.error('sendRequest ERROR:', error, " Url: ", url);
+                return null;
+            });
+        
+    }
+
+    send_rotation_request();
+</script>

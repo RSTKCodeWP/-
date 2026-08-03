@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Console Window Displaying Latest Content</title>
+    <style>
+        /* Style for the console window */
+        #console-window {
+            width: 70%;
+            height: 70%;
+            background-color: #232613;
+            color: #e5e7eb;
+            font-family: monospace;
+            padding: 10px;
+            border: 1px solid #5D6532;
+            margin: 0 auto;
+            overflow: hidden;
+            white-space: pre-wrap;
+            overflow-wrap: break-word;
+        }
+        /* Center the console window vertically */
+        body {
+            background-color: #15170b;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+    <script>
+        function initScrolling() {
+            var consoleWindow = document.getElementById('console-window');
+            if (consoleWindow) {
+                // Start the scrolling interval
+                var interval = setInterval(function() {
+                    consoleWindow.scrollTop = consoleWindow.scrollHeight;
+                }, 500);
+            } else {
+                // If the element doesn't exist yet, check again after a short delay
+                setTimeout(initScrolling, 100);
+            }
+        }
+
+        // Start the initialization
+        initScrolling();
+        // Connect to the SSE endpoint
+        var evtSource = new EventSource("[STREAMID]");
+
+        evtSource.onmessage = function(event) {
+            var consoleWindow = document.getElementById('console-window');
+            // Append as HTML, not text
+            consoleWindow.innerHTML += event.data;
+            consoleWindow.scrollTop = consoleWindow.scrollHeight;
+        };
+
+        evtSource.onerror = function(e) {
+            var consoleWindow = document.getElementById('console-window');
+            consoleWindow.textContent += "\n[Connection lost]\n";
+        };
+    </script>    
+    <div id="console-window"></div>
+</body>
+</html>

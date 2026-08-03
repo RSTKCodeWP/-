@@ -1,0 +1,11 @@
+[Unit]
+Description=Shred logs and Bluetooth config at startup
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/shred.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
