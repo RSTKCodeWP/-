@@ -14,6 +14,7 @@ AeroStab estimates ground velocity from downward optical flow, integrates positi
 - **Camera masking** — grid-based ROI editor (hide legs, cables, props from flow)
 - **GPS fusion** — optional drift correction when GPS is available at takeoff
 - **Quality gating** — MAVLink odometry only when tracking is reliable
+- **RTL path recording** — trajectory while armed, saved on disarm, web map
 - Visual yaw estimation + FC yaw fusion
 - Frank-S01 / OV5647 camera profile
 - Simulation mode for bench testing
@@ -122,6 +123,7 @@ Mock MAVLink flight controller over TCP (no ArduPilot build required):
 
 ```bash
 python3 scripts/sitl_hil.py --seconds 8   # integration self-test
+python3 scripts/sitl_scenarios.py         # arm/disarm + RTL scenarios
 python3 scripts/start_sitl_bench.sh       # mock FC + AeroStab with web UI
 python3 -m aerostab --sitl                # same config via CLI flag
 ```
@@ -133,6 +135,8 @@ bash scripts/ardupilot_sitl.sh
 ```
 
 Config: `config/sitl.yaml` — synthetic camera + `tcp:127.0.0.1:5760` MAVLink.
+
+CI runs on push (`.github/workflows/aerostab-ci.yml`): pytest, SITL HIL, scenarios, simulate.
 
 ## FOV calibration
 

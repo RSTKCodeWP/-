@@ -65,6 +65,12 @@ web:
   port: 8080
   mjpeg_quality: 70
 
+rtl:
+  enabled: true
+  min_dist_m: 0.25
+  max_points: 2000
+  save_path: /var/log/aerostab/rtl_path.json
+
 runtime:
   control_hz: 50
   simulate: false

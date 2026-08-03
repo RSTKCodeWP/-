@@ -41,6 +41,8 @@ class MockFlightController:
   gps_fix_type: int = 3
   gps_sats: int = 12
   armed: bool = False
+  arm_at_s: Optional[float] = None
+  disarm_at_s: Optional[float] = None
   system_id: int = 1
   component_id: int = 1
   rate_hz: float = 50.0
@@ -50,6 +52,7 @@ class MockFlightController:
   _conn: Optional[mavutil.mavfile] = field(default=None, init=False, repr=False)
   _lock: threading.Lock = field(default_factory=threading.Lock, init=False, repr=False)
   stats: MockFcStats = field(default_factory=MockFcStats, init=False)
+  _loop_start: float = field(default=0.0, init=False, repr=False)
 
   @property
   def endpoint(self) -> str:
@@ -109,6 +112,7 @@ class MockFlightController:
 
     with self._lock:
       self.stats.client_connected = True
+    self._loop_start = time.monotonic()
     logger.info("Mock FC client connected")
 
     for _ in range(10):
@@ -119,6 +123,14 @@ class MockFlightController:
     next_tx = time.monotonic()
     while not self._stop.is_set():
       now = time.monotonic()
+      elapsed = now - self._loop_start
+      if self.arm_at_s is not None and not self.armed and elapsed >= self.arm_at_s:
+        self.armed = True
+        logger.info("Mock FC ARM at %.1fs", elapsed)
+      if self.disarm_at_s is not None and self.armed and elapsed >= self.disarm_at_s:
+        self.armed = False
+        logger.info("Mock FC DISARM at %.1fs", elapsed)
+
       while True:
         msg = self._conn.recv_match(blocking=False)
         if msg is None:

@@ -34,6 +34,7 @@ async function poll() {
       ['Точки', s.track_points],
       ['GPS', s.gps_fix + ' (' + s.gps_sats + ' sat)'],
       ['Mask ROI', Math.round(s.mask_fill * 100) + '%'],
+      ['RTL', s.rtl_recording ? ('REC ' + s.rtl_points + ' pt') : (s.rtl_points + ' pt, ' + s.rtl_length_m + ' m')],
       ['Uptime', s.uptime_s + ' s'],
     ].map(([k,v]) => `<div class="stat"><span>${k}</span><span>${v}</span></div>`).join('');
 
@@ -42,6 +43,47 @@ async function poll() {
         `<div class="check ${c.ok?'ok':'bad'}"><span>${c.ok?'✓':'✗'} ${c.name}</span> — ${c.detail}</div>`
       ).join('');
     }
+    drawRtl();
+  } catch (e) {}
+}
+
+async function drawRtl() {
+  const c = $('rtlCanvas');
+  if (!c) return;
+  const ctx = c.getContext('2d');
+  const w = c.width, h = c.height;
+  ctx.fillStyle = '#0a0e12';
+  ctx.fillRect(0, 0, w, h);
+  try {
+    const d = await (await fetch('/api/rtl_path')).json();
+    $('rtlHint').textContent = d.recording
+      ? `Запис: ${d.points} точок, ${d.length_m} m`
+      : `Останній політ: ${d.points} точок, ${d.length_m} m`;
+    const path = d.path || [];
+    if (path.length < 2) return;
+    const xs = path.map(p => p.x), ys = path.map(p => p.y);
+    const minX = Math.min(...xs), maxX = Math.max(...xs);
+    const minY = Math.min(...ys), maxY = Math.max(...ys);
+    const pad = 12;
+    const sx = (maxX - minX) || 1, sy = (maxY - minY) || 1;
+    const scale = Math.min((w - 2*pad) / sx, (h - 2*pad) / sy);
+    const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+    const tx = (x) => w/2 + (x - cx) * scale;
+    const ty = (y) => h/2 - (y - cy) * scale;
+    ctx.strokeStyle = '#3d9eff';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(tx(path[0].x), ty(path[0].y));
+    for (let i = 1; i < path.length; i++) ctx.lineTo(tx(path[i].x), ty(path[i].y));
+    ctx.stroke();
+    ctx.fillStyle = '#3dd68c';
+    ctx.beginPath();
+    ctx.arc(tx(path[0].x), ty(path[0].y), 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#f5a623';
+    ctx.beginPath();
+    ctx.arc(tx(path[path.length-1].x), ty(path[path.length-1].y), 4, 0, Math.PI * 2);
+    ctx.fill();
   } catch (e) {}
 }
 setInterval(poll, 500);

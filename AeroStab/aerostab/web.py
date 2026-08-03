@@ -90,6 +90,12 @@ def create_web_app(
             runtime._odo.reset_origin()
         return jsonify({"ok": True})
 
+    @app.route("/api/rtl_path")
+    def rtl_path():
+        if runtime and runtime._rtl:
+            return jsonify(runtime._rtl.to_dict())
+        return jsonify({"recording": False, "points": 0, "path": []})
+
     @app.route("/video.mjpg")
     def video():
         def generate():

@@ -107,6 +107,14 @@ class WebConfig:
 
 
 @dataclass
+class RtlConfig:
+    enabled: bool = True
+    min_dist_m: float = 0.25
+    max_points: int = 2000
+    save_path: str = "/var/log/aerostab/rtl_path.json"
+
+
+@dataclass
 class RuntimeConfig:
     control_hz: int = 50
     simulate: bool = False
@@ -125,6 +133,7 @@ class AppConfig:
     mask: MaskConfig = field(default_factory=MaskConfig)
     mavlink: MavlinkConfig = field(default_factory=MavlinkConfig)
     web: WebConfig = field(default_factory=WebConfig)
+    rtl: RtlConfig = field(default_factory=RtlConfig)
     runtime: RuntimeConfig = field(default_factory=RuntimeConfig)
 
 
@@ -150,6 +159,7 @@ def load_config(path: Optional[str] = None) -> AppConfig:
         mask=_merge_dataclass(MaskConfig, raw.get("mask", {})),
         mavlink=_merge_dataclass(MavlinkConfig, raw.get("mavlink", {})),
         web=_merge_dataclass(WebConfig, raw.get("web", {})),
+        rtl=_merge_dataclass(RtlConfig, raw.get("rtl", {})),
         runtime=_merge_dataclass(RuntimeConfig, raw.get("runtime", {})),
     )
 
@@ -165,6 +175,7 @@ def save_config(config: AppConfig, path: str) -> None:
         "mask": {k: v for k, v in asdict(config.mask).items() if k != "path"},
         "mavlink": asdict(config.mavlink),
         "web": asdict(config.web),
+        "rtl": asdict(config.rtl),
         "runtime": asdict(config.runtime),
     }
     Path(path).parent.mkdir(parents=True, exist_ok=True)

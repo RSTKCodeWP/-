@@ -33,6 +33,9 @@ class RuntimeStatus:
     gps_sats: int = 0
     fusion_scale: float = 1.0
     mask_fill: float = 0.0
+    rtl_recording: bool = False
+    rtl_points: int = 0
+    rtl_length_m: float = 0.0
     errors: list = field(default_factory=list)
     config_path: str = ""
     uptime_s: float = 0.0
@@ -61,6 +64,9 @@ class RuntimeStatus:
             "gps_sats": self.gps_sats,
             "fusion_scale": round(self.fusion_scale, 3),
             "mask_fill": round(self.mask_fill, 2),
+            "rtl_recording": self.rtl_recording,
+            "rtl_points": self.rtl_points,
+            "rtl_length_m": round(self.rtl_length_m, 2),
             "errors": self.errors[-5:],
             "uptime_s": round(time.monotonic() - self.start_time, 1),
         }

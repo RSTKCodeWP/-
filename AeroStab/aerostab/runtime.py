@@ -19,6 +19,7 @@ from aerostab.gps_fusion import GpsFusion
 from aerostab.health import evaluate
 from aerostab.mavlink_bridge import MavlinkBridge
 from aerostab.mask import CameraMask
+from aerostab.rtl_path import RtlPathRecorder
 from aerostab.state import SharedState
 
 logger = logging.getLogger(__name__)
@@ -34,6 +35,7 @@ class AeroStabRuntime:
         self._odo: Optional[OdometryIntegrator] = None
         self._mavlink: Optional[MavlinkBridge] = None
         self._fusion: Optional[GpsFusion] = None
+        self._rtl: Optional[RtlPathRecorder] = None
         self._mask = CameraMask(config.mask.cols, config.mask.rows)
         self._running = False
         self._csv_file = None
@@ -64,6 +66,13 @@ class AeroStabRuntime:
             alignment_distance_m=gf.alignment_distance_m,
             default_lat=gf.default_lat,
             default_lon=gf.default_lon,
+        )
+        rc = cfg.rtl
+        self._rtl = RtlPathRecorder(
+            enabled=rc.enabled,
+            min_dist_m=rc.min_dist_m,
+            max_points=rc.max_points,
+            save_path=rc.save_path,
         )
         if cfg.mavlink.enabled:
             try:
@@ -132,6 +141,8 @@ class AeroStabRuntime:
 
         if armed and not self._last_armed and self.config.odometry.reset_on_arm:
             self._odo.reset_origin()
+        if self._rtl and armed != self._last_armed:
+            self._rtl.on_arm(armed)
         self._last_armed = armed
 
         alt = self._altitude()
@@ -156,6 +167,9 @@ class AeroStabRuntime:
         )
         nav_ready = self._fusion.nav_ready() if self._fusion else True
         state.nav_valid = nav_valid and nav_ready
+
+        if self._rtl:
+            self._rtl.sample(state.x_m, state.y_m, alt, state.nav_valid)
 
         fps = 0.0
         if len(self._frame_times) >= 2:
@@ -224,6 +238,9 @@ class AeroStabRuntime:
             gps_sats=self._mavlink.last_gps.satellites if self._mavlink and self._mavlink.last_gps else 0,
             fusion_scale=fusion.scale if fusion else 1.0,
             mask_fill=mask_fill,
+            rtl_recording=bool(self._rtl and self._rtl.recording),
+            rtl_points=self._rtl.point_count if self._rtl else 0,
+            rtl_length_m=self._rtl.path_length_m() if self._rtl else 0.0,
         )
 
         if self._csv_writer:
