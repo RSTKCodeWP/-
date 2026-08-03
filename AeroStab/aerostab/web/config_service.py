@@ -49,8 +49,16 @@ def apply_config_patch(config: "AppConfig", patch: Dict[str, Any]) -> list[str]:
 
 def apply_runtime_hot_reload(runtime: "AeroStabRuntime", changed: list[str]) -> None:
     """Apply hot-reloadable changes without full restart."""
-    if "camera" in changed and runtime._flow:
-        runtime._flow.cam = runtime.config.camera
-        runtime._flow.set_fov(runtime.config.camera.fov_deg)
-    if "mask" in changed:
-        runtime.reload_mask()
+    with runtime._config_lock:
+        if "camera" in changed and runtime._flow:
+            runtime._flow.cam = runtime.config.camera
+            runtime._flow.set_fov(runtime.config.camera.fov_deg)
+        if "mask" in changed:
+            runtime.reload_mask()
+        if "quality" in changed:
+            q = runtime.config.quality
+            runtime.shared.update_status(
+                min_quality=q.min_quality,
+                min_points=q.min_points_to_send,
+                min_fps=q.min_fps,
+            )

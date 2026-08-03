@@ -43,13 +43,20 @@ def register_routes(
         patch = request.get_json(force=True)
         if not isinstance(patch, dict):
             return jsonify({"ok": False, "error": "expected object"}), 400
-        changed = apply_config_patch(config, patch)
-        if config_path:
-            from aerostab.config import save_config
+        lock = runtime._config_lock if runtime else None
+        if lock:
+            lock.acquire()
+        try:
+            changed = apply_config_patch(config, patch)
+            if config_path:
+                from aerostab.config import save_config
 
-            save_config(config, config_path)
-        if runtime:
-            apply_runtime_hot_reload(runtime, changed)
+                save_config(config, config_path)
+            if runtime:
+                apply_runtime_hot_reload(runtime, changed)
+        finally:
+            if lock and lock.locked():
+                lock.release()
         return jsonify({"ok": True, "changed": changed})
 
     @bp.route("/api/mask", methods=["GET", "POST"])

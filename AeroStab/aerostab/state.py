@@ -31,6 +31,9 @@ class RuntimeStatus:
     yaw_deg: float = 0.0
     quality: float = 0.0
     track_points: int = 0
+    min_quality: float = 0.25
+    min_points: int = 8
+    min_fps: float = 8.0
     gps_fix: int = 0
     gps_sats: int = 0
     fusion_scale: float = 1.0
@@ -66,6 +69,9 @@ class RuntimeStatus:
             "yaw_deg": round(self.yaw_deg, 1),
             "quality": round(self.quality, 2),
             "track_points": self.track_points,
+            "min_quality": self.min_quality,
+            "min_points": self.min_points,
+            "min_fps": self.min_fps,
             "gps_fix": self.gps_fix,
             "gps_sats": self.gps_sats,
             "fusion_scale": round(self.fusion_scale, 3),

@@ -19,10 +19,13 @@ function renderStats(el, s) {
 }
 
 function updateFlySteps(s) {
+  const minQ = s.min_quality ?? 0.25;
+  const minPts = s.min_points ?? 8;
+  const minFps = s.min_fps ?? 8;
   const steps = [
-    ['Камера', s.fps > 5 || s.simulate],
+    ['Камера', s.fps >= minFps || s.simulate],
     ['MAVLink', s.mavlink_connected || s.simulate],
-    ['Tracking', s.quality >= 0.25 && s.track_points >= 8],
+    ['Tracking', s.quality >= minQ && s.track_points >= minPts],
     ['Маска ROI', s.mask_fill < 0.33],
     ['NAV warmup', s.nav_valid || s.simulate],
     ['FLIGHT OK', s.flight_ok || (s.simulate && s.nav_valid)],
@@ -42,7 +45,19 @@ async function poll() {
     else if (s.simulate) { b.textContent = 'SIM'; b.className = 'badge sim'; }
     else { b.textContent = s.armed ? 'ARMED' : 'READY'; b.className = 'badge live'; }
 
-    $('armBanner').classList.toggle('hidden', s.flight_ok || s.armed);
+    const banner = $('armBanner');
+    if (s.flight_ok) {
+      banner.classList.add('hidden');
+    } else if (s.armed && s.holding) {
+      banner.textContent = 'HOLD LAST — утримання останньої позиції';
+      banner.classList.remove('hidden');
+    } else if (s.armed) {
+      banner.textContent = 'ARMED — NAV не готовий, не знімайте з місця';
+      banner.classList.remove('hidden');
+    } else {
+      banner.textContent = 'Не армити — навігація не готова';
+      banner.classList.remove('hidden');
+    }
     renderStats($('stats'), s);
     updateFlySteps(s);
 

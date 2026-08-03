@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import logging
 import math
+import threading
 import time
 from datetime import datetime
 from pathlib import Path
@@ -19,6 +20,7 @@ from aerostab.gps_fusion import GpsFusion
 from aerostab.health import evaluate
 from aerostab.mavlink_bridge import MavlinkBridge
 from aerostab.mask import CameraMask
+from aerostab.quality_gate import GateInputs, GateState, flight_ok, step_gate
 from aerostab.rtl_path import RtlPathRecorder
 from aerostab.sensors.pmw3901 import FlowSensor, create_pmw_sensor
 from aerostab.state import SharedState
@@ -46,12 +48,12 @@ class AeroStabRuntime:
         self._last_armed = False
         self._last_send_slot = -1
         self._camera_fail_streak = 0
-        self._nav_valid_since = 0.0
-        self._holding = False
+        self._gate = GateState(nav_valid=False, holding=False, nav_valid_since=0.0, zero_fps_since=0.0)
         self._was_holding = False
         self._last_good_state = None
         self._alt_source_used = "default"
-        self._zero_fps_since = 0.0
+        self._config_lock = threading.Lock()
+        self._simulate = config.runtime.simulate
 
     def reload_mask(self) -> None:
         if self.config.mask.enabled:
@@ -70,26 +72,32 @@ class AeroStabRuntime:
         self._odo = OdometryIntegrator(cfg.odometry.max_speed_m_s, cfg.estimator.use_visual_yaw)
         self._mavlink = MavlinkBridge(cfg.mavlink)
         gf = cfg.gps_fusion
-        self._fusion = GpsFusion(
-            enabled=gf.enabled,
-            wait_timeout_s=gf.wait_timeout_s,
-            accept_radius_km=gf.accept_radius_km,
-            alignment_distance_m=gf.alignment_distance_m,
-            default_lat=gf.default_lat,
-            default_lon=gf.default_lon,
-        )
+        self._fusion = None
+        if gf.enabled:
+            self._fusion = GpsFusion(
+                enabled=True,
+                wait_timeout_s=gf.wait_timeout_s,
+                accept_radius_km=gf.accept_radius_km,
+                alignment_distance_m=gf.alignment_distance_m,
+                default_lat=gf.default_lat,
+                default_lon=gf.default_lon,
+            )
         rc = cfg.rtl
-        self._rtl = RtlPathRecorder(
-            enabled=rc.enabled,
-            min_dist_m=rc.min_dist_m,
-            max_points=rc.max_points,
-            save_path=rc.save_path,
-        )
-        try:
-            self._pmw = create_pmw_sensor(cfg.pmw3901, simulate=simulate)
-        except Exception as exc:
-            logger.warning("PMW3901: %s", exc)
-            self._pmw = None
+        self._rtl = None
+        if rc.enabled:
+            self._rtl = RtlPathRecorder(
+                enabled=True,
+                min_dist_m=rc.min_dist_m,
+                max_points=rc.max_points,
+                save_path=rc.save_path,
+            )
+        self._pmw = None
+        if cfg.pmw3901.enabled:
+            try:
+                self._pmw = create_pmw_sensor(cfg.pmw3901, simulate=simulate)
+            except Exception as exc:
+                logger.warning("PMW3901: %s", exc)
+                self._pmw = None
         if cfg.mavlink.enabled:
             try:
                 self._mavlink.connect()
@@ -98,7 +106,31 @@ class AeroStabRuntime:
         if cfg.runtime.log_csv:
             self._open_log()
         self._running = True
-        self.shared.update_status(running=True, simulate=simulate, config_path=self.config_path)
+        q = cfg.quality
+        self.shared.update_status(
+            running=True,
+            simulate=simulate,
+            config_path=self.config_path,
+            min_quality=q.min_quality,
+            min_points=q.min_points_to_send,
+            min_fps=q.min_fps,
+        )
+
+    def _restart_camera(self) -> bool:
+        """Re-open camera after repeated capture failures."""
+        if self._simulate:
+            return True
+        try:
+            if self._camera:
+                self._camera.stop()
+            self._camera = create_camera(self.config.camera, simulate=False)
+            self._camera_fail_streak = 0
+            logger.info("Camera restarted")
+            return True
+        except Exception as exc:
+            logger.error("Camera restart failed: %s", exc)
+            self._camera = None
+            return False
 
     def _open_log(self) -> None:
         log_dir = Path(self.config.runtime.log_dir)
@@ -188,22 +220,43 @@ class AeroStabRuntime:
         cv2.putText(vis, "1m grid", (8, h - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
 
     def tick(self) -> None:
-        if not self._running or not self._camera or not self._flow or not self._odo:
+        if not self._running or not self._flow or not self._odo:
+            return
+        if not self._camera:
             return
         t0 = time.monotonic()
 
-        if self._mavlink and self.config.mavlink.enabled:
+        with self._config_lock:
+            cfg = self.config
+
+        if self._mavlink and cfg.mavlink.enabled:
             self._mavlink.poll()
 
         ok, gray, bgr = self._camera.read_pair()
         if not ok or gray is None:
             self._camera_fail_streak += 1
-            if self._mavlink and self.config.mavlink.enabled:
+            if self._mavlink and cfg.mavlink.enabled:
                 self._mavlink.poll()
             if self._camera_fail_streak >= 3:
+                if self._camera_fail_streak == 3:
+                    self._restart_camera()
+                self._gate = step_gate(
+                    self._gate,
+                    GateInputs(
+                        tracking_ok=False,
+                        nav_ready=False,
+                        armed=bool(self._mavlink and self._mavlink.armed),
+                        hold_last_on_drop=cfg.quality.hold_last_on_drop,
+                        warmup_s=cfg.quality.nav_valid_warmup_s,
+                        now=t0,
+                        nav_valid_since=0.0,
+                        fps=0.0,
+                        camera_ok=False,
+                    ),
+                )
                 mav_ok = bool(self._mavlink and self._mavlink.connected)
                 health = evaluate(
-                    self.config,
+                    cfg,
                     camera_ok=False,
                     mavlink_ok=mav_ok,
                     quality=0.0,
@@ -211,21 +264,26 @@ class AeroStabRuntime:
                     fps=0.0,
                     nav_ready=False,
                     mask_fill_ratio=1.0,
-                    simulate=self.config.runtime.simulate,
+                    simulate=cfg.runtime.simulate,
                     heartbeat_age_s=self._mavlink.heartbeat_age_s if self._mavlink else 999.0,
-                    altitude_m=self.config.altitude.default_m,
-                    holding=False,
+                    altitude_m=cfg.altitude.default_m,
+                    holding=self._gate.holding,
                     nav_valid=False,
                     altitude_source="n/a",
                 )
                 self.shared.set_health(health)
-                self.shared.update_status(fps=0.0, flight_ok=False, nav_valid=False)
+                self.shared.update_status(
+                    fps=0.0,
+                    flight_ok=False,
+                    nav_valid=False,
+                    holding=self._gate.holding,
+                )
             return
         self._camera_fail_streak = 0
         if bgr is None:
             bgr = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
 
-        dt = 1.0 / max(self.config.runtime.control_hz, 1)
+        dt = 1.0 / max(cfg.runtime.control_hz, 1)
         if self._frame_times:
             dt = max(1e-3, min(0.1, t0 - self._frame_times[-1]))
         self._frame_times.append(t0)
@@ -236,7 +294,7 @@ class AeroStabRuntime:
         if self._mavlink and self._mavlink.last_gps and self._fusion:
             self._fusion.ingest_gps(self._mavlink.last_gps)
 
-        if armed and not self._last_armed and self.config.odometry.reset_on_arm:
+        if armed and not self._last_armed and cfg.odometry.reset_on_arm:
             self._odo.reset_origin()
         if self._rtl and armed != self._last_armed:
             self._rtl.on_arm(armed)
@@ -250,43 +308,53 @@ class AeroStabRuntime:
         rx, ry, rw, rh = self._analysis_roi(w, h)
         mask_fill = self._mask.masked_fraction_in_roi(rx, ry, rw, rh, w, h)
 
-        qcfg = self.config.quality
+        qcfg = cfg.quality
         tracking_ok = (
             flow.quality >= qcfg.min_quality
             and flow.n_points >= qcfg.min_points_to_send
-            and mask_fill < self.config.mask.max_roi_fill
+            and mask_fill < cfg.mask.max_roi_fill
         )
         nav_ready = self._fusion.nav_ready() if self._fusion else True
 
-        if tracking_ok and nav_ready:
-            if self._nav_valid_since <= 0:
-                self._nav_valid_since = t0
-            warmup_ok = (t0 - self._nav_valid_since) >= qcfg.nav_valid_warmup_s
-            nav_valid = warmup_ok
-            self._holding = False
-        else:
-            self._nav_valid_since = 0.0
-            nav_valid = False
-            self._holding = qcfg.hold_last_on_drop and armed
+        fps = 0.0
+        if len(self._frame_times) >= 2:
+            fps = (len(self._frame_times) - 1) / (self._frame_times[-1] - self._frame_times[0])
 
-        if self._holding and not self._was_holding and self._mavlink:
+        self._gate = step_gate(
+            self._gate,
+            GateInputs(
+                tracking_ok=tracking_ok,
+                nav_ready=nav_ready,
+                armed=armed,
+                hold_last_on_drop=qcfg.hold_last_on_drop,
+                warmup_s=qcfg.nav_valid_warmup_s,
+                now=t0,
+                nav_valid_since=self._gate.nav_valid_since,
+                fps=fps,
+                camera_ok=True,
+            ),
+        )
+        nav_valid = self._gate.nav_valid
+        holding = self._gate.holding
+
+        if holding and not self._was_holding and self._mavlink:
             self._mavlink.send_status("AeroStab HOLD LAST — texture lost", severity=4)
-        elif not self._holding and self._was_holding and self._mavlink and nav_valid:
+        elif not holding and self._was_holding and self._mavlink and nav_valid:
             self._mavlink.send_status("AeroStab NAV OK restored", severity=6)
-        self._was_holding = self._holding
+        self._was_holding = holding
 
         yaw_fc = self._mavlink.fc_yaw_rad() if self._mavlink else None
         state = self._odo.update(
-            flow, dt, fc_yaw_rad=yaw_fc, armed=armed, hold=self._holding
+            flow, dt, fc_yaw_rad=yaw_fc, armed=armed, hold=holding
         )
-        if self._fusion and not self._holding:
+        if self._fusion and not holding:
             x, y, vx, vy = self._fusion.correct(
                 state.x_m, state.y_m, state.vx_m_s, state.vy_m_s, dt
             )
             self._odo.set_position(x, y, vx, vy)
             state = self._odo.state
 
-        state.nav_valid = nav_valid and not self._holding
+        state.nav_valid = nav_valid and not holding
         if state.nav_valid:
             self._last_good_state = (
                 state.x_m,
@@ -298,26 +366,12 @@ class AeroStabRuntime:
             )
 
         if self._rtl:
-            self._rtl.sample(state.x_m, state.y_m, alt, state.nav_valid or self._holding)
-
-        fps = 0.0
-        if len(self._frame_times) >= 2:
-            fps = (len(self._frame_times) - 1) / (self._frame_times[-1] - self._frame_times[0])
-
-        # Watchdog: no frames / dead FPS while armed → enter hold
-        if fps < 1.0 and armed:
-            if self._zero_fps_since <= 0:
-                self._zero_fps_since = t0
-            elif t0 - self._zero_fps_since > 1.0:
-                self._holding = True
-                nav_valid = False
-        else:
-            self._zero_fps_since = 0.0
+            self._rtl.sample(state.x_m, state.y_m, alt, state.nav_valid or holding)
 
         camera_ok = self._camera_fail_streak == 0
         mav_ok = bool(self._mavlink and self._mavlink.connected)
         health = evaluate(
-            self.config,
+            cfg,
             camera_ok=camera_ok,
             mavlink_ok=mav_ok,
             quality=flow.quality,
@@ -325,22 +379,28 @@ class AeroStabRuntime:
             fps=fps,
             nav_ready=nav_ready,
             mask_fill_ratio=mask_fill,
-            simulate=self.config.runtime.simulate,
+            simulate=cfg.runtime.simulate,
             heartbeat_age_s=self._mavlink.heartbeat_age_s if self._mavlink else 999.0,
             altitude_m=alt,
-            holding=self._holding,
+            holding=holding,
             nav_valid=state.nav_valid,
             altitude_source=self._altitude_source_label(),
         )
         self.shared.set_health(health)
+        ok_to_fly = flight_ok(
+            health_ready=health.ready,
+            nav_valid=state.nav_valid,
+            armed=armed,
+            holding=holding,
+        )
 
-        slot = int(t0 * self.config.mavlink.rate_hz)
+        slot = int(t0 * cfg.mavlink.rate_hz)
         if self._mavlink and self._mavlink.connected and slot != self._last_send_slot:
             send = False
             send_state = state
             if state.nav_valid:
                 send = True
-            elif self._holding and qcfg.hold_send_last_pose and self._last_good_state:
+            elif holding and qcfg.hold_send_last_pose and self._last_good_state:
                 # Keep feeding last pose so EKF does not lose ExternalNav abruptly
                 from aerostab.estimator import OdometryState
 
@@ -367,7 +427,7 @@ class AeroStabRuntime:
             ey = int(cy - L * math.cos(yaw))
             cv2.arrowedLine(vis, (cx, cy), (ex, ey), (0, 255, 255), 2, tipLength=0.3)
 
-        if self._holding:
+        if holding:
             status_txt, color = "HOLD LAST", (0, 165, 255)
         elif state.nav_valid:
             status_txt, color = "NAV OK", (0, 255, 0)
@@ -388,7 +448,7 @@ class AeroStabRuntime:
             1,
         )
         _, jpeg = cv2.imencode(
-            ".jpg", vis, [int(cv2.IMWRITE_JPEG_QUALITY), self.config.web.mjpeg_quality]
+            ".jpg", vis, [int(cv2.IMWRITE_JPEG_QUALITY), cfg.web.mjpeg_quality]
         )
         self.shared.set_frame(vis, jpeg.tobytes())
 
@@ -400,8 +460,11 @@ class AeroStabRuntime:
             armed=armed,
             nav_ready=nav_ready,
             nav_valid=state.nav_valid,
-            holding=self._holding,
-            flight_ok=health.ready and state.nav_valid,
+            holding=holding,
+            flight_ok=ok_to_fly,
+            min_quality=qcfg.min_quality,
+            min_points=qcfg.min_points_to_send,
+            min_fps=qcfg.min_fps,
             altitude_m=alt,
             vx_m_s=state.vx_m_s,
             vy_m_s=state.vy_m_s,
@@ -434,7 +497,7 @@ class AeroStabRuntime:
                     flow.n_points,
                     int(armed),
                     int(state.nav_valid),
-                    int(self._holding),
+                    int(holding),
                 ]
             )
 

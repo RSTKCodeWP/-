@@ -63,7 +63,8 @@ done
 
 chown -R "$USER_NAME:$USER_NAME" "$INSTALL_DIR" "$CONFIG_DIR" "$LOG_DIR"
 install -m 644 "$INSTALL_DIR/FLIGHT.md" "$CONFIG_DIR/FLIGHT.md" 2>/dev/null || true
-install -m 644 "$INSTALL_DIR/deploy/aerostab.service" /etc/systemd/system/aerostab.service
+sed "s/^User=pi/User=$USER_NAME/; s/^Group=pi/Group=$USER_NAME/" \
+  "$INSTALL_DIR/deploy/aerostab.service" > /etc/systemd/system/aerostab.service
 install -m 755 "$INSTALL_DIR/deploy/wifi_provision.sh" /usr/local/bin/aerostab-wifi
 
 mkdir -p /etc/avahi/services

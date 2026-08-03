@@ -28,21 +28,5 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e .
 
-      - name: Unit tests
-        run: python -m pytest -q
-
-      - name: Self-check
-        run: python scripts/selfcheck.py --simulate
-
-      - name: SITL HIL integration
-        run: python scripts/sitl_hil.py --seconds 5
-
-      - name: SITL scenarios
-        run: python scripts/sitl_scenarios.py
-
-      - name: Simulation smoke test
-        run: python scripts/simulate.py
-
-      - name: Analyze sample log
-        run: |
-          python scripts/analyze_log.py -d logs --json | head -20
+      - name: Triple verification (unit + integration + E2E)
+        run: bash scripts/verify_all.sh
