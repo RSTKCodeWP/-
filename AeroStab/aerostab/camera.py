@@ -26,6 +26,13 @@ class CameraSource(ABC):
   def read_bgr(self) -> Tuple[bool, Optional[np.ndarray]]:
       ...
 
+  def read_pair(self) -> Tuple[bool, Optional[np.ndarray], Optional[np.ndarray]]:
+      """Single capture → (ok, gray, bgr). Avoids double-read on Pi."""
+      ok, bgr = self.read_bgr()
+      if not ok or bgr is None:
+          return False, None, None
+      return True, cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY), bgr
+
   @abstractmethod
   def stop(self) -> None:
       ...
@@ -70,6 +77,10 @@ class SyntheticCamera(CameraSource):
     def read_bgr(self) -> Tuple[bool, Optional[np.ndarray]]:
         g = self._frame()
         return True, cv2.cvtColor(g, cv2.COLOR_GRAY2BGR)
+
+    def read_pair(self) -> Tuple[bool, Optional[np.ndarray], Optional[np.ndarray]]:
+        g = self._frame()
+        return True, g, cv2.cvtColor(g, cv2.COLOR_GRAY2BGR)
 
     def stop(self) -> None:
         pass

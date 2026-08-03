@@ -1,4 +1,4 @@
-"""Preflight health checks."""
+"""Preflight health checks — gate before PosHold arm."""
 
 from __future__ import annotations
 
@@ -38,6 +38,10 @@ def evaluate(
     nav_ready: bool,
     mask_fill_ratio: float,
     simulate: bool,
+    heartbeat_age_s: float = 0.0,
+    altitude_m: float = 2.0,
+    holding: bool = False,
+    nav_valid: bool = False,
 ) -> HealthReport:
     checks: List[CheckResult] = []
     min_q = config.quality.min_quality
@@ -45,13 +49,14 @@ def evaluate(
     min_fps = config.quality.min_fps
 
     checks.append(CheckResult("camera", camera_ok or simulate, "frame capture"))
-    checks.append(
-        CheckResult(
-            "mavlink",
-            mavlink_ok or simulate or not config.mavlink.enabled,
-            "FC heartbeat" if config.mavlink.enabled else "disabled",
-        )
-    )
+    mav_detail = "FC heartbeat"
+    if config.mavlink.enabled and not simulate:
+        mav_ok = mavlink_ok and heartbeat_age_s < 3.0
+        mav_detail = f"heartbeat age {heartbeat_age_s:.1f}s"
+    else:
+        mav_ok = True
+        mav_detail = "disabled/sim"
+    checks.append(CheckResult("mavlink", mav_ok, mav_detail))
     checks.append(
         CheckResult(
             "tracking",
@@ -62,7 +67,7 @@ def evaluate(
     checks.append(
         CheckResult("framerate", fps >= min_fps or simulate, f"{fps:.1f} fps (need >={min_fps})")
     )
-    checks.append(CheckResult("nav_origin", nav_ready, "GPS/home origin for fusion"))
+    checks.append(CheckResult("nav_origin", nav_ready, "origin ready"))
     checks.append(
         CheckResult(
             "mask",
@@ -71,10 +76,22 @@ def evaluate(
         )
     )
     checks.append(
+        CheckResult("fov", 40 <= config.camera.fov_deg <= 170, f"FOV {config.camera.fov_deg}°")
+    )
+    alt_ok = config.altitude.min_m <= altitude_m <= config.altitude.max_m
+    checks.append(
         CheckResult(
-            "fov",
-            40 <= config.camera.fov_deg <= 170,
-            f"FOV {config.camera.fov_deg}°",
+            "altitude",
+            alt_ok,
+            f"{altitude_m:.2f} m via {config.altitude.source}",
+        )
+    )
+    # Sustained nav for PosHold — holding mid-flight is OK but not "ready to arm"
+    checks.append(
+        CheckResult(
+            "poshold",
+            (nav_valid and not holding) or simulate,
+            "NAV OK (warmup done)" if nav_valid else ("HOLD LAST" if holding else "waiting for stable track"),
         )
     )
 

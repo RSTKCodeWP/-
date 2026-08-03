@@ -13,30 +13,57 @@ document.querySelectorAll('.tab').forEach(btn => {
   };
 });
 
+function renderStats(el, s) {
+  if (!el) return;
+  el.innerHTML = [
+    ['Статус', s.flight_ok ? 'FLIGHT OK' : (s.holding ? 'HOLD LAST' : 'NOT READY')],
+    ['FPS', s.fps],
+    ['MAVLink', s.mavlink_connected ? ('OK ' + s.heartbeat_age_s + 's') : 'OFF'],
+    ['Nav valid', s.nav_valid ? 'YES' : 'NO'],
+    ['Health', s.health_ready ? 'OK' : 'CHECK'],
+    ['Висота', s.altitude_m + ' m'],
+    ['Vx / Vy', s.vx_m_s + ' / ' + s.vy_m_s],
+    ['Позиція', s.x_m + ' / ' + s.y_m + ' m'],
+    ['Yaw', s.yaw_deg + '°'],
+    ['Якість', s.quality],
+    ['Точки', s.track_points],
+    ['RTL', s.rtl_recording ? ('REC ' + s.rtl_points) : (s.rtl_points + ' pt')],
+    ['Uptime', s.uptime_s + ' s'],
+  ].map(([k,v]) => `<div class="stat"><span>${k}</span><span>${v}</span></div>`).join('');
+}
+
+function updateFlySteps(s) {
+  const steps = [
+    ['Камера кадри', s.fps > 5],
+    ['MAVLink heartbeat', !!s.mavlink_connected || !!s.simulate],
+    ['Tracking якість', s.quality >= 0.25 && s.track_points >= 8],
+    ['Маска ROI OK', s.mask_fill < 0.33],
+    ['NAV warmup', !!s.nav_valid || !!s.simulate],
+    ['Health ready', !!s.health_ready || !!s.simulate],
+    ['FLIGHT OK → можна PosHold', !!s.flight_ok || (!!s.simulate && !!s.nav_valid)],
+  ];
+  $('flySteps').innerHTML = steps.map(([t, ok]) =>
+    `<li class="${ok?'ok':'bad'}">${ok?'✓':'✗'} ${t}</li>`
+  ).join('');
+}
+
 async function poll() {
   try {
     const s = await (await fetch('/api/status')).json();
     const b = $('badge');
-    if (!s.nav_valid) { b.textContent = 'NAV WAIT'; b.className = 'badge wait'; }
+    if (s.flight_ok) { b.textContent = 'FLIGHT OK'; b.className = 'badge ok'; }
+    else if (s.holding) { b.textContent = 'HOLD'; b.className = 'badge hold'; }
+    else if (!s.nav_valid) { b.textContent = 'NAV WAIT'; b.className = 'badge wait'; }
     else if (s.simulate) { b.textContent = 'SIM'; b.className = 'badge sim'; }
     else { b.textContent = s.armed ? 'ARMED' : 'READY'; b.className = 'badge live'; }
 
-    $('stats').innerHTML = [
-      ['FPS', s.fps],
-      ['MAVLink', s.mavlink_connected ? 'OK' : 'OFF'],
-      ['Nav valid', s.nav_valid ? 'YES' : 'NO'],
-      ['Health', s.health_ready ? 'OK' : 'CHECK'],
-      ['Висота', s.altitude_m + ' m'],
-      ['Vx / Vy', s.vx_m_s + ' / ' + s.vy_m_s],
-      ['Позиція', s.x_m + ' / ' + s.y_m + ' m'],
-      ['Yaw', s.yaw_deg + '°'],
-      ['Якість', s.quality],
-      ['Точки', s.track_points],
-      ['GPS', s.gps_fix + ' (' + s.gps_sats + ' sat)'],
-      ['Mask ROI', Math.round(s.mask_fill * 100) + '%'],
-      ['RTL', s.rtl_recording ? ('REC ' + s.rtl_points + ' pt') : (s.rtl_points + ' pt, ' + s.rtl_length_m + ' m')],
-      ['Uptime', s.uptime_s + ' s'],
-    ].map(([k,v]) => `<div class="stat"><span>${k}</span><span>${v}</span></div>`).join('');
+    const banner = $('armBanner');
+    if (!s.flight_ok && !s.armed) banner.classList.remove('hidden');
+    else banner.classList.add('hidden');
+
+    renderStats($('stats'), s);
+    renderStats($('statsFly'), s);
+    updateFlySteps(s);
 
     if (s.health && s.health.checks) {
       $('healthList').innerHTML = s.health.checks.map(c =>
@@ -44,46 +71,6 @@ async function poll() {
       ).join('');
     }
     drawRtl();
-  } catch (e) {}
-}
-
-async function drawRtl() {
-  const c = $('rtlCanvas');
-  if (!c) return;
-  const ctx = c.getContext('2d');
-  const w = c.width, h = c.height;
-  ctx.fillStyle = '#0a0e12';
-  ctx.fillRect(0, 0, w, h);
-  try {
-    const d = await (await fetch('/api/rtl_path')).json();
-    $('rtlHint').textContent = d.recording
-      ? `Запис: ${d.points} точок, ${d.length_m} m`
-      : `Останній політ: ${d.points} точок, ${d.length_m} m`;
-    const path = d.path || [];
-    if (path.length < 2) return;
-    const xs = path.map(p => p.x), ys = path.map(p => p.y);
-    const minX = Math.min(...xs), maxX = Math.max(...xs);
-    const minY = Math.min(...ys), maxY = Math.max(...ys);
-    const pad = 12;
-    const sx = (maxX - minX) || 1, sy = (maxY - minY) || 1;
-    const scale = Math.min((w - 2*pad) / sx, (h - 2*pad) / sy);
-    const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
-    const tx = (x) => w/2 + (x - cx) * scale;
-    const ty = (y) => h/2 - (y - cy) * scale;
-    ctx.strokeStyle = '#3d9eff';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(tx(path[0].x), ty(path[0].y));
-    for (let i = 1; i < path.length; i++) ctx.lineTo(tx(path[i].x), ty(path[i].y));
-    ctx.stroke();
-    ctx.fillStyle = '#3dd68c';
-    ctx.beginPath();
-    ctx.arc(tx(path[0].x), ty(path[0].y), 4, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#f5a623';
-    ctx.beginPath();
-    ctx.arc(tx(path[path.length-1].x), ty(path[path.length-1].y), 4, 0, Math.PI * 2);
-    ctx.fill();
   } catch (e) {}
 }
 setInterval(poll, 500);
@@ -156,10 +143,46 @@ $('cfgForm').onsubmit = async (e) => {
       gps_fusion: f.gps_fusion.checked,
       min_quality: +f.min_quality.value,
     })});
-  alert('Збережено. Деякі параметри застосуються після перезапуску сервісу.');
+  alert('FOV застосовано одразу. Інші параметри — після перезапуску сервісу.');
 };
 
 $('resetOdo').onclick = async () => { await fetch('/api/reset_odometry', {method:'POST'}); };
+
+async function drawRtl() {
+  const c = $('rtlCanvas');
+  if (!c) return;
+  const ctx = c.getContext('2d');
+  const w = c.width, h = c.height;
+  ctx.fillStyle = '#0a0e12';
+  ctx.fillRect(0, 0, w, h);
+  try {
+    const d = await (await fetch('/api/rtl_path')).json();
+    $('rtlHint').textContent = d.recording
+      ? `Запис: ${d.points} точок, ${d.length_m} m`
+      : `Останній політ: ${d.points} точок, ${d.length_m} m`;
+    const path = d.path || [];
+    if (path.length < 2) return;
+    const xs = path.map(p => p.x), ys = path.map(p => p.y);
+    const minX = Math.min(...xs), maxX = Math.max(...xs);
+    const minY = Math.min(...ys), maxY = Math.max(...ys);
+    const pad = 12;
+    const sx = (maxX - minX) || 1, sy = (maxY - minY) || 1;
+    const scale = Math.min((w - 2*pad) / sx, (h - 2*pad) / sy);
+    const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+    const tx = (x) => w/2 + (x - cx) * scale;
+    const ty = (y) => h/2 - (y - cy) * scale;
+    ctx.strokeStyle = '#3d9eff';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(tx(path[0].x), ty(path[0].y));
+    for (let i = 1; i < path.length; i++) ctx.lineTo(tx(path[i].x), ty(path[i].y));
+    ctx.stroke();
+    ctx.fillStyle = '#3dd68c';
+    ctx.beginPath(); ctx.arc(tx(path[0].x), ty(path[0].y), 4, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#f5a623';
+    ctx.beginPath(); ctx.arc(tx(path[path.length-1].x), ty(path[path.length-1].y), 4, 0, Math.PI*2); ctx.fill();
+  } catch (e) {}
+}
 
 loadMask();
 loadCfg();

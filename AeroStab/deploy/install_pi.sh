@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # AeroStab production installer — Raspberry Pi OS Bookworm 64-bit
+# Goal: flash → install → reboot → http://aerostab.local:8080 → PosHold hover
 set -euo pipefail
 
 INSTALL_DIR="/opt/aerostab"
@@ -7,7 +8,7 @@ CONFIG_DIR="/etc/aerostab"
 LOG_DIR="/var/log/aerostab"
 USER_NAME="${SUDO_USER:-pi}"
 
-echo "=== AeroStab v0.4 installer ==="
+echo "=== AeroStab v0.5 installer ==="
 [[ "$(id -u)" -eq 0 ]] || { echo "sudo $0"; exit 1; }
 
 export DEBIAN_FRONTEND=noninteractive
@@ -16,44 +17,65 @@ apt-get install -y \
   python3 python3-pip python3-venv python3-dev \
   libcap-dev libatlas-base-dev \
   libcamera-apps libcamera-dev \
-  avahi-daemon
+  avahi-daemon rsync
+
+# Groups for UART / camera / SPI
+usermod -aG dialout,video,spi,i2c "$USER_NAME" 2>/dev/null || true
+
+# Hostname for aerostab.local
+hostnamectl set-hostname aerostab 2>/dev/null || true
+if [[ -f /etc/hosts ]]; then
+  grep -q 'aerostab' /etc/hosts || echo '127.0.1.1 aerostab' >> /etc/hosts
+fi
 
 # Frank-S01 / OV5647 CSI + UART for FC
 CONFIG_TXT="/boot/firmware/config.txt"
+[[ -f "$CONFIG_TXT" ]] || CONFIG_TXT="/boot/config.txt"
 if [[ -f "$CONFIG_TXT" ]]; then
   grep -q '^camera_auto_detect=1' "$CONFIG_TXT" || echo 'camera_auto_detect=1' >> "$CONFIG_TXT"
   grep -q '^dtoverlay=ov5647' "$CONFIG_TXT" || echo 'dtoverlay=ov5647' >> "$CONFIG_TXT"
   grep -q '^dtoverlay=disable-bt' "$CONFIG_TXT" || echo 'dtoverlay=disable-bt' >> "$CONFIG_TXT"
   grep -q '^enable_uart=1' "$CONFIG_TXT" || echo 'enable_uart=1' >> "$CONFIG_TXT"
   grep -q '^gpu_mem=128' "$CONFIG_TXT" || echo 'gpu_mem=128' >> "$CONFIG_TXT"
-  # Optional PMW3901 SPI (uncomment dtoverlay if using breakout)
   grep -q '^dtparam=spi=on' "$CONFIG_TXT" || echo 'dtparam=spi=on' >> "$CONFIG_TXT"
 fi
 
+# Disable serial console on UART (Bookworm)
+if [[ -f /boot/firmware/cmdline.txt ]]; then
+  sed -i 's/console=serial0,[0-9]* //g' /boot/firmware/cmdline.txt || true
+fi
+
 mkdir -p "$INSTALL_DIR" "$CONFIG_DIR" "$LOG_DIR"
-chown -R "$USER_NAME:$USER_NAME" "$LOG_DIR"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-rsync -a --exclude '.venv' --exclude '__pycache__' --exclude 'logs' "$SCRIPT_DIR/" "$INSTALL_DIR/"
+rsync -a --exclude '.venv' --exclude '__pycache__' --exclude 'logs' --exclude '.pytest_cache' \
+  "$SCRIPT_DIR/" "$INSTALL_DIR/"
 
 python3 -m venv "$INSTALL_DIR/.venv"
 "$INSTALL_DIR/.venv/bin/pip" install --upgrade pip wheel
 "$INSTALL_DIR/.venv/bin/pip" install -e "$INSTALL_DIR[pi]"
-# Optional optical flow sensor (PMW3901 / PAA5100)
 "$INSTALL_DIR/.venv/bin/pip" install -e "$INSTALL_DIR[pi,sensors]" || true
 
 [[ -f "$CONFIG_DIR/config.yaml" ]] || cp "$INSTALL_DIR/config/default.yaml" "$CONFIG_DIR/config.yaml"
-touch "$CONFIG_DIR/mask.json"
-chown "$USER_NAME:$USER_NAME" "$CONFIG_DIR/mask.json" "$CONFIG_DIR/config.yaml"
+
+# Valid empty mask (never touch empty file — crashes JSON loader)
+python3 - <<'PY'
+import json
+from pathlib import Path
+p = Path("/etc/aerostab/mask.json")
+if not p.exists() or not p.read_text().strip():
+    cols, rows = 16, 12
+    p.write_text(json.dumps({"cols": cols, "rows": rows, "cells": [False]*(cols*rows)}))
+PY
+
+chown -R "$USER_NAME:$USER_NAME" "$INSTALL_DIR" "$CONFIG_DIR" "$LOG_DIR"
 
 install -m 644 "$INSTALL_DIR/deploy/aerostab.service" /etc/systemd/system/aerostab.service
 install -m 755 "$INSTALL_DIR/deploy/wifi_provision.sh" /usr/local/bin/aerostab-wifi
 
-# mDNS: aerostab.local
-if [[ -f /etc/avahi/services/aerostab.service ]]; then
-  true
-else
-  cat > /etc/avahi/services/aerostab.service <<'EOF'
+# mDNS
+mkdir -p /etc/avahi/services
+cat > /etc/avahi/services/aerostab.service <<'EOF'
 <?xml version="1.0" standalone='no'?>
 <!DOCTYPE service-group SYSTEM "avahi-service.dtd">
 <service-group>
@@ -64,15 +86,18 @@ else
   </service>
 </service-group>
 EOF
-  systemctl restart avahi-daemon || true
-fi
+systemctl restart avahi-daemon || true
 
 systemctl daemon-reload
 systemctl enable aerostab.service
 
 echo ""
 echo "=== AeroStab installed ==="
-echo "Reboot, then open http://aerostab.local:8080"
-echo "Wire: Pi TX→FC RX, Pi RX→FC TX, GND, 5V"
-echo "Load deploy/ardupilot_aerostab.param in Mission Planner"
-echo "Simulate: $INSTALL_DIR/.venv/bin/python -m aerostab --simulate"
+echo "1. Reboot: sudo reboot"
+echo "2. Open:   http://aerostab.local:8080"
+echo "3. Complete first-flight wizard (green = ready)"
+echo "4. Load:   deploy/ardupilot_aerostab.param in Mission Planner"
+echo "5. Wire:   Pi TX→FC RX, Pi RX→FC TX, GND, 5V"
+echo "6. Arm PosHold only when UI shows FLIGHT OK"
+echo ""
+echo "Params note: SERIAL2 = TELEM2 @ 230400 — change SERIALx if needed"

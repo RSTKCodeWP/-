@@ -30,15 +30,15 @@ class EstimatorConfig:
     block_size: int = 7
     win_size: int = 21
     max_level: int = 2
-    reset_interval_s: float = 30.0
+    reset_interval_s: float = 60.0
     velocity_lpf_alpha: float = 0.3
     min_track_points: int = 8
-    use_visual_yaw: bool = True
+    use_visual_yaw: bool = False  # FC compass yaw safer for PosHold
 
 
 @dataclass
 class AltitudeConfig:
-    source: str = "mavlink_baro"
+    source: str = "auto"  # auto | rangefinder | baro_relative | mavlink_baro | static
     static_m: float = 2.0
     min_m: float = 0.3
     max_m: float = 500.0
@@ -69,6 +69,8 @@ class QualityConfig:
     min_fps: float = 8.0
     min_points_to_send: int = 8
     hold_last_on_drop: bool = True
+    hold_send_last_pose: bool = True
+    nav_valid_warmup_s: float = 2.0
 
 
 @dataclass
@@ -91,7 +93,7 @@ class MavlinkConfig:
     target_system: int = 1
     target_component: int = 1
     rate_hz: int = 20
-    send_optical_flow: bool = True
+    send_optical_flow: bool = False
     send_vision_position: bool = True
     home_lat: float = 0.0
     home_lon: float = 0.0
@@ -109,13 +111,12 @@ class WebConfig:
 @dataclass
 class PmwConfig:
     enabled: bool = False
-    backend: str = "auto"  # auto | synthetic | hardware
-    chip: str = "pmw3901"  # pmw3901 | paa5100
+    backend: str = "auto"
+    chip: str = "pmw3901"
     spi_port: int = 0
     spi_cs: int = 1
     spi_cs_gpio: Optional[int] = None
     rotation_deg: int = 0
-    # Blend weight when both camera LK and PMW3901 are available (0 = camera only)
     blend_weight: float = 0.35
 
 
@@ -187,7 +188,7 @@ def save_config(config: AppConfig, path: str) -> None:
         "odometry": asdict(config.odometry),
         "gps_fusion": asdict(config.gps_fusion),
         "quality": asdict(config.quality),
-        "mask": {k: v for k, v in asdict(config.mask).items() if k != "path"},
+        "mask": asdict(config.mask),
         "mavlink": asdict(config.mavlink),
         "web": asdict(config.web),
         "pmw3901": asdict(config.pmw3901),

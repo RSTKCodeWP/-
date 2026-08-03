@@ -98,9 +98,19 @@ class CameraMask:
     def load(cls, path: Path) -> CameraMask:
         if not path.exists():
             return cls()
-        data = json.loads(path.read_text(encoding="utf-8"))
-        m = cls(data.get("cols", 16), data.get("rows", 12))
+        try:
+            text = path.read_text(encoding="utf-8").strip()
+            if not text:
+                return cls()
+            data = json.loads(text)
+        except (json.JSONDecodeError, OSError):
+            return cls()
+        m = cls(int(data.get("cols", 16)), int(data.get("rows", 12)))
         cells = data.get("cells", [])
         if len(cells) == m.cols * m.rows:
             m.cells = [bool(x) for x in cells]
         return m
+
+    @classmethod
+    def empty_json(cls, cols: int = 16, rows: int = 12) -> str:
+        return json.dumps({"cols": cols, "rows": rows, "cells": [False] * (cols * rows)})

@@ -31,6 +31,9 @@ jobs:
       - name: Unit tests
         run: python -m pytest -q
 
+      - name: Self-check
+        run: python scripts/selfcheck.py --simulate
+
       - name: SITL HIL integration
         run: python scripts/sitl_hil.py --seconds 5
 
@@ -42,5 +45,4 @@ jobs:
 
       - name: Analyze sample log
         run: |
-          python scripts/simulate.py
           python scripts/analyze_log.py -d logs --json | head -20

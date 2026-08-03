@@ -1,4 +1,4 @@
-# AeroStab v0.2 — Pi Zero 2W + Frank-S01-V1.0 (OV5647)
+# AeroStab v0.5 — production: Pi Zero 2W + Frank-S01 → PosHold hover
 
 camera:
   backend: auto
@@ -7,7 +7,7 @@ camera:
   fps: 20
   fov_deg: 72.4
   rotation_deg: 0
-  show_grid: false
+  show_grid: true
 
 estimator:
   max_corners: 60
@@ -15,11 +15,11 @@ estimator:
   min_distance: 10
   min_track_points: 8
   velocity_lpf_alpha: 0.3
-  reset_interval_s: 30
-  use_visual_yaw: true
+  reset_interval_s: 60
+  use_visual_yaw: false
 
 altitude:
-  source: mavlink_baro
+  source: auto          # rangefinder → baro_relative → relative_alt → default
   static_m: 2.0
   min_m: 0.3
   max_m: 500.0
@@ -31,16 +31,14 @@ odometry:
 
 gps_fusion:
   enabled: false
-  wait_timeout_s: 60
-  accept_radius_km: 50
-  alignment_distance_m: 30
-  default_lat: 0.0
-  default_lon: 0.0
 
 quality:
   min_quality: 0.25
   min_fps: 8.0
   min_points_to_send: 8
+  hold_last_on_drop: true
+  hold_send_last_pose: true
+  nav_valid_warmup_s: 2.0
 
 mask:
   enabled: true
@@ -54,9 +52,8 @@ mavlink:
   enabled: true
   port: /dev/serial0
   baud: 230400
-  component_id: 197
   rate_hz: 20
-  send_optical_flow: true
+  send_optical_flow: false
   send_vision_position: true
 
 web:
@@ -67,11 +64,6 @@ web:
 
 pmw3901:
   enabled: false
-  backend: auto
-  chip: pmw3901
-  spi_port: 0
-  spi_cs: 1
-  rotation_deg: 0
   blend_weight: 0.35
 
 rtl:

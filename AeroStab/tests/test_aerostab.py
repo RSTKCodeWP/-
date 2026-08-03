@@ -71,5 +71,9 @@ def test_health_evaluate():
         nav_ready=True,
         mask_fill_ratio=0.1,
         simulate=True,
+        heartbeat_age_s=0.1,
+        altitude_m=2.0,
+        holding=False,
+        nav_valid=True,
     )
     assert r.ready

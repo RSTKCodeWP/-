@@ -7,17 +7,34 @@
   <link rel="stylesheet" href="/static/app.css"/>
 </head>
 <body>
+  <div id="armBanner" class="arm-banner hidden">НЕ АРМИТИ — навігація не готова</div>
+
   <header>
     <h1>AeroStab <span id="badge" class="badge">...</span></h1>
     <nav>
-      <button class="tab active" data-tab="dash">Панель</button>
+      <button class="tab active" data-tab="fly">Політ</button>
+      <button class="tab" data-tab="dash">Камера</button>
       <button class="tab" data-tab="mask">Маска</button>
       <button class="tab" data-tab="setup">Налаштування</button>
       <button class="tab" data-tab="health">Перевірки</button>
     </nav>
   </header>
 
-  <section id="tab-dash" class="panel active">
+  <section id="tab-fly" class="panel active">
+    <div class="card wizard">
+      <h2>Перший політ → PosHold</h2>
+      <ol id="flySteps" class="fly-steps"></ol>
+      <p class="hint">Arm у PosHold лише коли статус <b>FLIGHT OK</b>. При втраті текстури — HOLD LAST (позиція заморожена).</p>
+    </div>
+    <div class="grid">
+      <div class="card video-card">
+        <img src="/video.mjpg" alt="camera"/>
+      </div>
+      <div class="card stats" id="statsFly"></div>
+    </div>
+  </section>
+
+  <section id="tab-dash" class="panel">
     <div class="grid">
       <div class="card video-card">
         <img src="/video.mjpg" alt="camera"/>
@@ -46,7 +63,7 @@
       <label>FOV (°) <input name="fov_deg" type="number" step="0.1"/></label>
       <label>Поворот камери (°) <input name="rotation_deg" type="number" step="90"/></label>
       <label>FPS <input name="fps" type="number"/></label>
-      <label><input name="show_grid" type="checkbox"/> Сітка FOV</label>
+      <label><input name="show_grid" type="checkbox"/> Сітка 1 м (FOV)</label>
       <label><input name="gps_fusion" type="checkbox"/> GPS fusion (корекція drift)</label>
       <label>Мін. якість <input name="min_quality" type="number" step="0.05" min="0" max="1"/></label>
       <button type="submit" class="primary">Зберегти конфіг</button>
@@ -56,10 +73,10 @@
 
   <section id="tab-health" class="panel">
     <div id="healthList" class="card"></div>
-    <p class="hint">Усі перевірки мають бути зелені перед PosHold arm на реальному польоті.</p>
+    <p class="hint">Усі перевірки зелені + FLIGHT OK перед PosHold arm.</p>
   </section>
 
-  <footer>Pi Zero 2W · Frank-S01 OV5647 · ArduPilot ExternalNav</footer>
+  <footer>Pi Zero 2W · Frank-S01 · PosHold без GPS · http://aerostab.local:8080</footer>
   <script src="/static/app.js"></script>
 </body>
 </html>

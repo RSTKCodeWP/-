@@ -61,6 +61,7 @@ def create_web_app(
             save_config(config, config_path)
         if runtime and runtime._flow:
             runtime._flow.cam = config.camera
+            runtime._flow.set_fov(config.camera.fov_deg)
         return jsonify({"ok": True})
 
     @app.route("/api/mask", methods=["GET", "POST"])

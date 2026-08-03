@@ -56,7 +56,6 @@ def main() -> int:
     print(f"  MAVLink connected: {snap['mavlink_connected']}")
     print(f"  AeroStab messages sent: {snap['mavlink_messages']}")
     print(f"  FC vision received: {fc_stats.vision_count}")
-    print(f"  FC optical_flow received: {fc_stats.optical_flow_count}")
     print(f"  FPS: {snap['fps']}")
     print(f"  Quality: {snap['quality']}")
     print(f"  Nav valid: {snap['nav_valid']}")

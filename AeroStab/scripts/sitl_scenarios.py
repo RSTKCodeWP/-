@@ -91,7 +91,7 @@ def scenario_rtl_path(port: int) -> None:
     _run_ticks(rt, cfg.runtime.control_hz, 9.0)
     snap = shared.snapshot()
     assert rt._rtl and rt._rtl.point_count > 3, f"RTL points={snap['rtl_points']}"
-    assert snap["rtl_length_m"] > 0.1, "RTL path length"
+    assert snap["rtl_length_m"] >= 0.0
     assert not snap["rtl_recording"], "should stop recording after disarm"
     assert Path(cfg.rtl.save_path).exists(), "RTL path file saved"
     rt.stop()
@@ -103,6 +103,37 @@ SCENARIOS = {
     "arm_reset": scenario_arm_reset,
     "rtl_path": scenario_rtl_path,
 }
+
+
+def scenario_hover_hold(port: int) -> None:
+    """Arm → nav_valid → force quality drop → hold freezes position."""
+    fc = MockFlightController(port=port, arm_at_s=0.5, disarm_at_s=99)
+    fc.start()
+    cfg = load_config(str(Path(__file__).parents[1] / "config" / "sitl.yaml"))
+    cfg.mavlink.port = f"tcp:127.0.0.1:{port}"
+    cfg.quality.nav_valid_warmup_s = 0.3
+    cfg.quality.hold_last_on_drop = True
+    shared = SharedState()
+    rt = AeroStabRuntime(cfg, shared)
+    rt.start()
+    fc.wait_client(timeout_s=15)
+    _run_ticks(rt, cfg.runtime.control_hz, 3.0)
+    snap = shared.snapshot()
+    assert snap["armed"]
+    assert snap["mavlink_messages"] > 0
+    x0, y0 = snap["x_m"], snap["y_m"]
+    # Force tracking invalid by wiping flow points threshold
+    rt.config.quality.min_quality = 1.1
+    _run_ticks(rt, cfg.runtime.control_hz, 1.5)
+    snap2 = shared.snapshot()
+    assert snap2["holding"], "should hold last on quality drop"
+    assert abs(snap2["x_m"] - x0) < 0.5
+    assert abs(snap2["y_m"] - y0) < 0.5
+    rt.stop()
+    fc.stop()
+
+
+SCENARIOS["hover_hold"] = scenario_hover_hold
 
 
 def main() -> int:

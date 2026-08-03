@@ -1,4 +1,4 @@
-# SITL / HIL configuration for bench and CI (TCP MAVLink + synthetic camera)
+# SITL / HIL — TCP MAVLink + synthetic camera (fast warmup for CI)
 
 camera:
   backend: auto
@@ -6,25 +6,29 @@ camera:
   height: 240
   fps: 20
   fov_deg: 72.4
+  show_grid: false
 
 estimator:
   max_corners: 40
   min_track_points: 6
+  use_visual_yaw: false
+  reset_interval_s: 120
 
 altitude:
-  source: mavlink_baro
+  source: static
+  static_m: 2.0
   default_m: 2.0
 
 gps_fusion:
-  enabled: true
-  wait_timeout_s: 2.0
-  default_lat: 50.0
-  default_lon: 30.0
+  enabled: false
 
 quality:
   min_quality: 0.15
   min_fps: 5.0
   min_points_to_send: 6
+  hold_last_on_drop: true
+  hold_send_last_pose: true
+  nav_valid_warmup_s: 0.5
 
 mask:
   enabled: false
@@ -35,9 +39,16 @@ mavlink:
   port: tcp:127.0.0.1:5760
   baud: 230400
   rate_hz: 20
+  send_optical_flow: false
+  send_vision_position: true
 
 web:
   enabled: false
+
+rtl:
+  enabled: true
+  min_dist_m: 0.05
+  save_path: logs/rtl_path.json
 
 runtime:
   control_hz: 30

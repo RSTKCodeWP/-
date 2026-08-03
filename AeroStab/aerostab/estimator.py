@@ -88,6 +88,23 @@ class OpticalFlowEstimator:
             angles.append(da / dt)
         return float(np.median(angles)) if angles else 0.0
 
+    def set_fov(self, fov_deg: float) -> None:
+        self.cam.fov_deg = fov_deg
+        self._focal_px = self._focal_length_pixels(self.cam.width, fov_deg)
+
+    def soft_refresh_features(self, gray: np.ndarray) -> None:
+        """Add features without wiping existing tracks (avoid hover velocity spike)."""
+        if self._points is None or len(self._points) < self.est.min_track_points:
+            self._points = self._detect_points(gray)
+            return
+        extra = self._detect_points(gray)
+        if extra is None or len(extra) == 0:
+            return
+        combined = np.vstack([self._points, extra])
+        if len(combined) > self.est.max_corners:
+            combined = combined[: self.est.max_corners]
+        self._points = combined
+
     def update(self, gray: np.ndarray, altitude_m: float, dt: float) -> FlowResult:
         if dt <= 0:
             dt = 1e-3
@@ -96,7 +113,8 @@ class OpticalFlowEstimator:
             return FlowResult(0, 0, 0, 0, 0, 0, 0)
 
         if time.monotonic() - self._last_reset > self.est.reset_interval_s:
-            self.reset(gray)
+            self.soft_refresh_features(gray)
+            self._last_reset = time.monotonic()
 
         if self._points is None or len(self._points) < self.est.min_track_points:
             self._points = self._detect_points(gray)
@@ -193,7 +211,15 @@ class OdometryIntegrator:
         dt: float,
         fc_yaw_rad: Optional[float] = None,
         armed: bool = False,
+        hold: bool = False,
     ) -> OdometryState:
+        if hold:
+            self.state.vx_m_s = 0.0
+            self.state.vy_m_s = 0.0
+            self.state.quality = flow.quality
+            self.state.armed = armed
+            return self.state
+
         vx = max(-self.max_speed, min(self.max_speed, flow.vx_m_s))
         vy = max(-self.max_speed, min(self.max_speed, flow.vy_m_s))
         self.state.vx_m_s = vx
@@ -213,7 +239,6 @@ class OdometryIntegrator:
         self.state.x_m += vx * dt
         self.state.y_m += vy * dt
         return self.state
-
     def set_position(self, x_m: float, y_m: float, vx: float, vy: float) -> None:
         self.state.x_m = x_m
         self.state.y_m = y_m
