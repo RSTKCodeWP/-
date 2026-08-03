@@ -7,3 +7,8 @@ dist/
 build/
 logs/
 /var/
+
+# StabX image analysis artifacts (RAR tracked via Git LFS at repo root .gitattributes)
+image/extracted/
+image/stabx-drive/
+image/*.img
