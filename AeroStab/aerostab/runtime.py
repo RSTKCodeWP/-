@@ -115,21 +115,29 @@ class AeroStabRuntime:
         alt_cfg = self.config.altitude
         src = alt_cfg.source
         if src == "static":
+            self._alt_source_used = "static"
             return alt_cfg.static_m
         if self._mavlink and self._mavlink.connected:
             if src in ("auto", "rangefinder") and self._mavlink.rangefinder_m is not None:
                 rf = self._mavlink.rangefinder_m
                 if alt_cfg.min_m <= rf <= alt_cfg.max_m:
+                    self._alt_source_used = "rangefinder"
                     return rf
             if src in ("auto", "baro_relative"):
                 rel = self._mavlink.relative_baro_m
                 if rel is not None and alt_cfg.min_m <= rel <= alt_cfg.max_m:
+                    self._alt_source_used = "baro_relative"
                     return max(rel, alt_cfg.min_m)
             if src in ("auto", "mavlink_baro"):
                 alt = self._mavlink.altitude_m
                 if alt_cfg.min_m <= alt <= alt_cfg.max_m:
+                    self._alt_source_used = "relative_alt"
                     return alt
+        self._alt_source_used = "default"
         return alt_cfg.default_m
+
+    def _altitude_source_label(self) -> str:
+        return getattr(self, "_alt_source_used", self.config.altitude.source)
 
     def _blend_pmw(self, flow: FlowResult, alt: float) -> FlowResult:
         if not self._pmw:
@@ -373,6 +381,7 @@ class AeroStabRuntime:
             rtl_points=self._rtl.point_count if self._rtl else 0,
             rtl_length_m=self._rtl.path_length_m() if self._rtl else 0.0,
             heartbeat_age_s=self._mavlink.heartbeat_age_s if self._mavlink else 999.0,
+            altitude_source=self._altitude_source_label(),
         )
 
         if self._csv_writer:

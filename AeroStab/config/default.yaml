@@ -50,7 +50,7 @@ mask:
 
 mavlink:
   enabled: true
-  port: /dev/serial0
+  port: auto
   baud: 230400
   rate_hz: 20
   send_optical_flow: false

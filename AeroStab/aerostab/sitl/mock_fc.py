@@ -43,6 +43,7 @@ class MockFlightController:
   armed: bool = False
   arm_at_s: Optional[float] = None
   disarm_at_s: Optional[float] = None
+  send_rangefinder: bool = True
   system_id: int = 1
   component_id: int = 1
   rate_hz: float = 50.0
@@ -206,5 +207,18 @@ class MockFlightController:
       0,
       self.gps_sats,
     )
+    if self.send_rangefinder:
+      # current_distance in cm; orientation 25 = downward
+      dist_cm = max(1, int(self.altitude_m * 100))
+      mav.distance_sensor_send(
+        boot_ms,
+        20,
+        5000,
+        dist_cm,
+        0,  # MAV_DISTANCE_SENSOR_LASER / generic
+        0,
+        25,
+        0,
+      )
     with self._lock:
       self.stats.heartbeat_count += 1

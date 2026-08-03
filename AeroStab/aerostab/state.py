@@ -39,6 +39,7 @@ class RuntimeStatus:
     rtl_points: int = 0
     rtl_length_m: float = 0.0
     heartbeat_age_s: float = 999.0
+    altitude_source: str = ""
     errors: list = field(default_factory=list)
     config_path: str = ""
     uptime_s: float = 0.0
@@ -73,6 +74,7 @@ class RuntimeStatus:
             "rtl_points": self.rtl_points,
             "rtl_length_m": round(self.rtl_length_m, 2),
             "heartbeat_age_s": round(self.heartbeat_age_s, 2),
+            "altitude_source": self.altitude_source,
             "errors": self.errors[-5:],
             "uptime_s": round(time.monotonic() - self.start_time, 1),
         }

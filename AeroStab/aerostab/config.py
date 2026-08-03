@@ -86,7 +86,7 @@ class MaskConfig:
 @dataclass
 class MavlinkConfig:
     enabled: bool = True
-    port: str = "/dev/serial0"
+    port: str = "auto"
     baud: int = 230400
     system_id: int = 1
     component_id: int = 197

@@ -69,7 +69,10 @@ class MavlinkBridge:
     def connect(self) -> None:
         if not self.cfg.enabled:
             return
-        port = self.cfg.port
+        from aerostab.serial_detect import resolve_mavlink_port
+
+        port = resolve_mavlink_port(self.cfg.port)
+        self.cfg.port = port
         logger.info("MAVLink %s", port)
         kwargs = {
             "source_system": self.cfg.system_id,

@@ -21,7 +21,7 @@ function renderStats(el, s) {
     ['MAVLink', s.mavlink_connected ? ('OK ' + s.heartbeat_age_s + 's') : 'OFF'],
     ['Nav valid', s.nav_valid ? 'YES' : 'NO'],
     ['Health', s.health_ready ? 'OK' : 'CHECK'],
-    ['Висота', s.altitude_m + ' m'],
+    ['Висота', s.altitude_m + ' m (' + (s.altitude_source || '?') + ')'],
     ['Vx / Vy', s.vx_m_s + ' / ' + s.vy_m_s],
     ['Позиція', s.x_m + ' / ' + s.y_m + ' m'],
     ['Yaw', s.yaw_deg + '°'],
