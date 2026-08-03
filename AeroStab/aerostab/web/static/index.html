@@ -7,90 +7,48 @@
   <link rel="stylesheet" href="/static/app.css"/>
 </head>
 <body>
-  <div id="armBanner" class="arm-banner hidden">НЕ АРМИТИ — навігація не готова</div>
+  <div id="armBanner" class="arm-banner hidden">Не армити — навігація не готова</div>
 
   <header>
     <h1>AeroStab <span id="badge" class="badge">...</span></h1>
-    <nav>
-      <button class="tab active" data-tab="fly">Політ</button>
-      <button class="tab" data-tab="dash">Камера</button>
-      <button class="tab" data-tab="mask">Маска</button>
-      <button class="tab" data-tab="setup">Налаштування</button>
-      <button class="tab" data-tab="docs">Інструкція</button>
-      <button class="tab" data-tab="health">Перевірки</button>
-    </nav>
+    <p class="hint header-hint">Optical nav → MAVLink → PosHold · arm лише з пульта при <b>FLIGHT OK</b></p>
   </header>
 
-  <section id="tab-fly" class="panel active">
-    <div class="card wizard">
-      <h2>Перший політ → PosHold</h2>
-      <ol id="flySteps" class="fly-steps"></ol>
-      <p class="hint">Arm у PosHold лише коли статус <b>FLIGHT OK</b>. При втраті текстури — HOLD LAST (позиція заморожена).</p>
-      <div class="row fly-actions">
-        <button type="button" id="btnArm" class="primary">ARM FC</button>
-        <button type="button" id="btnDisarm" class="danger">DISARM</button>
-        <button type="button" id="btnCalibrate">Калібрувати рівень</button>
-        <span id="flyActionMsg" class="hint"></span>
-      </div>
-    </div>
-    <div class="grid">
-      <div class="card video-card">
-        <img src="/video.mjpg" alt="camera"/>
-      </div>
-      <div class="card stats" id="statsFly"></div>
-    </div>
-  </section>
+  <main class="layout">
+    <section class="card video-card">
+      <img src="/video.mjpg" alt="camera"/>
+    </section>
 
-  <section id="tab-dash" class="panel">
-    <div class="grid">
-      <div class="card video-card">
-        <img src="/video.mjpg" alt="camera"/>
+    <aside class="side">
+      <div class="card">
+        <h2>Перевірки</h2>
+        <ol id="flySteps" class="fly-steps"></ol>
+        <ul id="healthList" class="health-compact"></ul>
       </div>
       <div class="card stats" id="stats"></div>
-      <div class="card rtl-card">
-        <h3>RTL траєкторія</h3>
-        <canvas id="rtlCanvas" width="280" height="200"></canvas>
-        <p class="hint" id="rtlHint">Записується під час ARM</p>
-      </div>
-    </div>
-  </section>
+    </aside>
+  </main>
 
-  <section id="tab-mask" class="panel">
-    <p class="hint">Клік по клітинці — замаскувати деталь дрона (ніжки, кабель). Червона зона ігнорується optical flow.</p>
+  <details class="card panel-fold">
+    <summary>Маска ROI (ніжки / кабель)</summary>
+    <p class="hint">Червона зона ігнорується optical flow.</p>
     <canvas id="maskCanvas" width="640" height="360"></canvas>
     <div class="row">
-      <button id="maskClear">Очистити</button>
-      <button id="maskSave" class="primary">Зберегти маску</button>
-      <button id="maskReload">Перезавантажити</button>
+      <button type="button" id="maskClear">Очистити</button>
+      <button type="button" id="maskSave" class="primary">Зберегти</button>
     </div>
-  </section>
+  </details>
 
-  <section id="tab-setup" class="panel">
-    <div class="setup-toolbar row">
-      <button type="button" id="cfgReload">Оновити</button>
-      <button type="button" id="cfgSave" class="primary">Зберегти всі</button>
+  <details class="card panel-fold">
+    <summary>Налаштування</summary>
+    <div class="row setup-toolbar">
+      <button type="button" id="cfgSave" class="primary">Зберегти</button>
       <button type="button" id="resetOdo">Скинути позицію</button>
-      <span id="serialInfo" class="hint"></span>
     </div>
     <div id="settingsSections" class="settings-grid"></div>
-    <p class="hint">FOV і маска застосовуються одразу. UART/камера — після перезапуску <code>sudo systemctl restart aerostab</code>.</p>
-  </section>
+  </details>
 
-  <section id="tab-docs" class="panel">
-    <div class="docs-layout">
-      <aside class="card docs-nav" id="docsNav"></aside>
-      <article class="card docs-body" id="docsBody">
-        <p class="hint">Оберіть розділ інструкції зліва.</p>
-      </article>
-    </div>
-  </section>
-
-  <section id="tab-health" class="panel">
-    <div id="healthList" class="card"></div>
-    <p class="hint">Усі перевірки зелені + FLIGHT OK перед PosHold arm.</p>
-  </section>
-
-  <footer>Pi Zero 2W · Frank-S01 · PosHold без GPS · http://aerostab.local:8080</footer>
+  <footer>Pi Zero 2W · Frank-S01 OV5647 · http://aerostab.local:8080</footer>
   <script src="/static/app.js"></script>
 </body>
 </html>

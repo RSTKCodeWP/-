@@ -64,7 +64,9 @@ class AeroStabRuntime:
         simulate = cfg.runtime.simulate
         self.reload_mask()
         self._camera = create_camera(cfg.camera, simulate=simulate)
-        self._flow = OpticalFlowEstimator(cfg.camera, cfg.estimator, self._mask)
+        self._flow = OpticalFlowEstimator(
+            cfg.camera, cfg.estimator, self._mask, roi_scale=cfg.mask.analysis_roi_scale
+        )
         self._odo = OdometryIntegrator(cfg.odometry.max_speed_m_s, cfg.estimator.use_visual_yaw)
         self._mavlink = MavlinkBridge(cfg.mavlink)
         gf = cfg.gps_fusion
@@ -196,6 +198,28 @@ class AeroStabRuntime:
         ok, gray, bgr = self._camera.read_pair()
         if not ok or gray is None:
             self._camera_fail_streak += 1
+            if self._mavlink and self.config.mavlink.enabled:
+                self._mavlink.poll()
+            if self._camera_fail_streak >= 3:
+                mav_ok = bool(self._mavlink and self._mavlink.connected)
+                health = evaluate(
+                    self.config,
+                    camera_ok=False,
+                    mavlink_ok=mav_ok,
+                    quality=0.0,
+                    track_points=0,
+                    fps=0.0,
+                    nav_ready=False,
+                    mask_fill_ratio=1.0,
+                    simulate=self.config.runtime.simulate,
+                    heartbeat_age_s=self._mavlink.heartbeat_age_s if self._mavlink else 999.0,
+                    altitude_m=self.config.altitude.default_m,
+                    holding=False,
+                    nav_valid=False,
+                    altitude_source="n/a",
+                )
+                self.shared.set_health(health)
+                self.shared.update_status(fps=0.0, flight_ok=False, nav_valid=False)
             return
         self._camera_fail_streak = 0
         if bgr is None:
@@ -306,6 +330,7 @@ class AeroStabRuntime:
             altitude_m=alt,
             holding=self._holding,
             nav_valid=state.nav_valid,
+            altitude_source=self._altitude_source_label(),
         )
         self.shared.set_health(health)
 
@@ -412,58 +437,6 @@ class AeroStabRuntime:
                     int(self._holding),
                 ]
             )
-
-    def mavlink_arm(self, force: bool = False) -> tuple[bool, str]:
-        if not self._mavlink or not self.config.mavlink.enabled:
-            return False, "MAVLink disabled"
-        snap = self.shared.snapshot()
-        if not force and not snap.get("flight_ok") and not self.config.runtime.simulate:
-            return False, "FLIGHT OK required before arm"
-        ok, msg = self._mavlink.arm(force=force)
-        if ok:
-            self._mavlink.send_status("AeroStab ARM from web UI", severity=6)
-        return ok, msg
-
-    def mavlink_disarm(self) -> tuple[bool, str]:
-        if not self._mavlink or not self.config.mavlink.enabled:
-            return False, "MAVLink disabled"
-        ok, msg = self._mavlink.disarm()
-        if ok:
-            self._mavlink.send_status("AeroStab DISARM from web UI", severity=6)
-        return ok, msg
-
-    def mavlink_calibrate_level(self) -> tuple[bool, str]:
-        if not self._mavlink or not self.config.mavlink.enabled:
-            return False, "MAVLink disabled"
-        return self._mavlink.calibrate_level()
-
-    def camera_state(self) -> dict:
-        """StabX-style /camstate aggregate for web UI."""
-        cam = self.config.camera
-        profiles_dir = Path("/etc/aerostab/firmware/zero")
-        cameras = []
-        if profiles_dir.is_dir():
-            cameras = sorted(p.name for p in profiles_dir.iterdir() if p.is_dir())
-        if not cameras:
-            cameras = ["ov5647", "imx219"]
-        selected = "ov5647"
-        cam_file = Path("/etc/aerostab/camera.txt")
-        if cam_file.is_file():
-            selected = cam_file.read_text(encoding="utf-8").strip().lower() or selected
-        return {
-            "cameras": cameras,
-            "camera": selected,
-            "backend": cam.backend,
-            "width": cam.width,
-            "height": cam.height,
-            "rotation": cam.rotation_deg,
-            "fov": cam.fov_deg,
-            "show_grid": cam.show_grid,
-            "locked": False,
-            "readonly": False,
-            "records_state": "logs_only" if self.config.runtime.log_csv else "nothing",
-            "user_pos_error": 100,
-        }
 
     def stop(self) -> None:
         self._running = False

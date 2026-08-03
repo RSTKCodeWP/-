@@ -17,3 +17,4 @@ fpv-library/firmware-images/
 *.swp
 .idea/
 .vscode/
+logs/

@@ -5,49 +5,30 @@ let configSchema = { sections: {}, fields: {} };
 
 function $(id) { return document.getElementById(id); }
 
-document.querySelectorAll('.tab').forEach(btn => {
-  btn.onclick = () => {
-    document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-    btn.classList.add('active');
-    $('tab-' + btn.dataset.tab).classList.add('active');
-    if (btn.dataset.tab === 'mask') drawMask();
-    if (btn.dataset.tab === 'setup') loadSettings();
-    if (btn.dataset.tab === 'docs') loadDocsList();
-  };
-});
-
 function renderStats(el, s) {
   if (!el) return;
   el.innerHTML = [
     ['Статус', s.flight_ok ? 'FLIGHT OK' : (s.holding ? 'HOLD LAST' : 'NOT READY')],
     ['FPS', s.fps],
     ['MAVLink', s.mavlink_connected ? ('OK ' + s.heartbeat_age_s + 's') : 'OFF'],
-    ['Nav valid', s.nav_valid ? 'YES' : 'NO'],
-    ['Health', s.health_ready ? 'OK' : 'CHECK'],
     ['Висота', s.altitude_m + ' m (' + (s.altitude_source || '?') + ')'],
+    ['Якість / точки', s.quality + ' / ' + s.track_points],
     ['Vx / Vy', s.vx_m_s + ' / ' + s.vy_m_s],
-    ['Позиція', s.x_m + ' / ' + s.y_m + ' m'],
-    ['Yaw', s.yaw_deg + '°'],
-    ['Якість', s.quality],
-    ['Точки', s.track_points],
-    ['RTL', s.rtl_recording ? ('REC ' + s.rtl_points) : (s.rtl_points + ' pt')],
-    ['Uptime', s.uptime_s + ' s'],
-  ].map(([k,v]) => `<div class="stat"><span>${k}</span><span>${v}</span></div>`).join('');
+    ['ARM (FC)', s.armed ? 'YES' : 'NO'],
+  ].map(([k, v]) => `<div class="stat"><span>${k}</span><span>${v}</span></div>`).join('');
 }
 
 function updateFlySteps(s) {
   const steps = [
-    ['Камера кадри', s.fps > 5],
-    ['MAVLink heartbeat', !!s.mavlink_connected || !!s.simulate],
-    ['Tracking якість', s.quality >= 0.25 && s.track_points >= 8],
-    ['Маска ROI OK', s.mask_fill < 0.33],
-    ['NAV warmup', !!s.nav_valid || !!s.simulate],
-    ['Health ready', !!s.health_ready || !!s.simulate],
-    ['FLIGHT OK → можна PosHold', !!s.flight_ok || (!!s.simulate && !!s.nav_valid)],
+    ['Камера', s.fps > 5 || s.simulate],
+    ['MAVLink', s.mavlink_connected || s.simulate],
+    ['Tracking', s.quality >= 0.25 && s.track_points >= 8],
+    ['Маска ROI', s.mask_fill < 0.33],
+    ['NAV warmup', s.nav_valid || s.simulate],
+    ['FLIGHT OK', s.flight_ok || (s.simulate && s.nav_valid)],
   ];
   $('flySteps').innerHTML = steps.map(([t, ok]) =>
-    `<li class="${ok?'ok':'bad'}">${ok?'✓':'✗'} ${t}</li>`
+    `<li class="${ok ? 'ok' : 'bad'}">${ok ? '✓' : '✗'} ${t}</li>`
   ).join('');
 }
 
@@ -61,34 +42,29 @@ async function poll() {
     else if (s.simulate) { b.textContent = 'SIM'; b.className = 'badge sim'; }
     else { b.textContent = s.armed ? 'ARMED' : 'READY'; b.className = 'badge live'; }
 
-    const banner = $('armBanner');
-    if (!s.flight_ok && !s.armed) banner.classList.remove('hidden');
-    else banner.classList.add('hidden');
-
+    $('armBanner').classList.toggle('hidden', s.flight_ok || s.armed);
     renderStats($('stats'), s);
-    renderStats($('statsFly'), s);
     updateFlySteps(s);
 
     if (s.health && s.health.checks) {
       $('healthList').innerHTML = s.health.checks.map(c =>
-        `<div class="check ${c.ok?'ok':'bad'}"><span>${c.ok?'✓':'✗'} ${c.name}</span> — ${c.detail}</div>`
+        `<li class="${c.ok ? 'ok' : 'bad'}">${c.ok ? '✓' : '✗'} ${c.name}: ${c.detail}</li>`
       ).join('');
     }
-    drawRtl();
   } catch (e) {}
 }
 setInterval(poll, 500);
 poll();
 
 async function loadMask() {
-  const r = await fetch('/api/mask');
-  const d = await r.json();
+  const d = await (await fetch('/api/mask')).json();
   maskCells = d.cells || maskCells;
   drawMask();
 }
 
 function drawMask() {
   const c = $('maskCanvas');
+  if (!c) return;
   const ctx = c.getContext('2d');
   const w = c.width, h = c.height;
   ctx.fillStyle = '#111';
@@ -99,30 +75,31 @@ function drawMask() {
       const i = r * COLS + col;
       ctx.fillStyle = maskCells[i] ? 'rgba(220,40,40,0.75)' : 'rgba(40,60,90,0.3)';
       ctx.fillRect(col * cw + 1, r * ch + 1, cw - 2, ch - 2);
-      ctx.strokeStyle = '#333';
-      ctx.strokeRect(col * cw, r * ch, cw, ch);
     }
   }
 }
 
-$('maskCanvas').onclick = (e) => {
-  const c = $('maskCanvas');
-  const rect = c.getBoundingClientRect();
-  const x = (e.clientX - rect.left) * (c.width / rect.width);
-  const y = (e.clientY - rect.top) * (c.height / rect.height);
-  const col = Math.floor(x / (c.width / COLS));
-  const row = Math.floor(y / (c.height / ROWS));
-  const i = row * COLS + col;
-  if (i >= 0 && i < maskCells.length) { maskCells[i] = !maskCells[i]; drawMask(); }
-};
-
+const maskCanvas = $('maskCanvas');
+if (maskCanvas) {
+  maskCanvas.onclick = (e) => {
+    const c = maskCanvas;
+    const rect = c.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * (c.width / rect.width);
+    const y = (e.clientY - rect.top) * (c.height / rect.height);
+    const col = Math.floor(x / (c.width / COLS));
+    const row = Math.floor(y / (c.height / ROWS));
+    const i = row * COLS + col;
+    if (i >= 0 && i < maskCells.length) { maskCells[i] = !maskCells[i]; drawMask(); }
+  };
+}
 $('maskClear').onclick = () => { maskCells.fill(false); drawMask(); };
 $('maskSave').onclick = async () => {
-  await fetch('/api/mask', { method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({cells: maskCells}) });
-  alert('Маску збережено');
+  await fetch('/api/mask', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ cells: maskCells }),
+  });
 };
-$('maskReload').onclick = loadMask;
 
 function fieldId(section, key) { return `cfg-${section}-${key}`; }
 
@@ -131,9 +108,8 @@ function renderSettingsForm() {
   root.innerHTML = '';
   for (const [section, fields] of Object.entries(configSchema.fields || {})) {
     const card = document.createElement('div');
-    card.className = 'card settings-section';
-    const title = (configSchema.sections || {})[section] || section;
-    card.innerHTML = `<h3>${title}</h3>`;
+    card.className = 'settings-section';
+    card.innerHTML = `<h3>${(configSchema.sections || {})[section] || section}</h3>`;
     const form = document.createElement('div');
     form.className = 'settings-fields';
     for (const f of fields) {
@@ -149,9 +125,7 @@ function renderSettingsForm() {
         input = `<label class="field">${f.label}<select id="${id}">${opts}</select></label>`;
       } else {
         const step = f.step != null ? ` step="${f.step}"` : '';
-        const min = f.min != null ? ` min="${f.min}"` : '';
-        const max = f.max != null ? ` max="${f.max}"` : '';
-        input = `<label class="field">${f.label}<input id="${id}" type="${f.type || 'text'}" value="${val ?? ''}"${step}${min}${max}/></label>`;
+        input = `<label class="field">${f.label}<input id="${id}" type="${f.type || 'text'}" value="${val ?? ''}"${step}/></label>`;
       }
       const hint = f.hint ? `<span class="field-hint">${f.hint}</span>` : '';
       form.innerHTML += `<div class="field-wrap">${input}${hint}</div>`;
@@ -178,164 +152,30 @@ function collectConfigPatch() {
 }
 
 async function loadSettings() {
-  try {
-    const [schemaRes, cfgRes, serialRes] = await Promise.all([
-      fetch('/api/config/schema'),
-      fetch('/api/config'),
-      fetch('/api/serial_ports'),
-    ]);
-    configSchema = await schemaRes.json();
-    configData = await cfgRes.json();
-    const serial = await serialRes.json();
-    renderSettingsForm();
-    const ports = (serial.ports || []).map(p => (typeof p === 'string' ? p : p.device)).join(', ') || 'немає';
-    $('serialInfo').textContent = `UART: ${serial.configured || 'auto'} · знайдено: ${ports}`;
-  } catch (e) {
-    $('settingsSections').innerHTML = '<p class="hint">Помилка завантаження налаштувань</p>';
-  }
+  const [schemaRes, cfgRes] = await Promise.all([
+    fetch('/api/config/schema'),
+    fetch('/api/config'),
+  ]);
+  configSchema = await schemaRes.json();
+  configData = await cfgRes.json();
+  renderSettingsForm();
 }
 
-$('cfgReload').onclick = loadSettings;
+document.querySelector('details.panel-fold summary')?.addEventListener('click', () => {
+  setTimeout(() => { if ($('settingsSections').children.length === 0) loadSettings(); }, 0);
+});
+
 $('cfgSave').onclick = async () => {
-  const patch = collectConfigPatch();
   const res = await fetch('/api/config', {
     method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify(patch),
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(collectConfigPatch()),
   });
   const d = await res.json();
-  if (d.ok) {
-    alert('Збережено. Секції: ' + (d.changed || []).join(', '));
-    loadSettings();
-  } else {
-    alert('Помилка: ' + (d.error || 'unknown'));
-  }
+  alert(d.ok ? 'Збережено' : ('Помилка: ' + (d.error || '?')));
 };
-$('resetOdo').onclick = async () => { await fetch('/api/reset_odometry', {method:'POST'}); };
 
-function mdToHtml(md) {
-  let html = md
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
-    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
-    .replace(/^# (.+)$/gm, '<h1>$1</h1>')
-    .replace(/`([^`]+)`/g, '<code>$1</code>')
-    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-    .replace(/^- (.+)$/gm, '<li>$1</li>')
-    .replace(/(<li>.*<\/li>\n?)+/g, m => `<ul>${m}</ul>`)
-    .replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
-  html = html.replace(/```([\s\S]*?)```/g, (_, code) => `<pre><code>${code.trim()}</code></pre>`);
-  html = html.split(/\n\n+/).map(p => {
-    p = p.trim();
-    if (!p || p.startsWith('<')) return p;
-    return `<p>${p.replace(/\n/g, '<br/>')}</p>`;
-  }).join('\n');
-  return html;
-}
-
-let docsLoaded = false;
-async function loadDocsList() {
-  if (docsLoaded) return;
-  const items = await (await fetch('/api/docs')).json();
-  const nav = $('docsNav');
-  nav.innerHTML = '<h3>Розділи</h3>';
-  if (!items.length) {
-    nav.innerHTML += '<p class="hint">Документація не знайдена (docs/*.md)</p>';
-    return;
-  }
-  items.forEach((item, i) => {
-    const btn = document.createElement('button');
-    btn.className = 'doc-link' + (i === 0 ? ' active' : '');
-    btn.textContent = item.title;
-    btn.onclick = () => {
-      nav.querySelectorAll('.doc-link').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      loadDoc(item.id);
-    };
-    nav.appendChild(btn);
-  });
-  docsLoaded = true;
-  loadDoc(items[0].id);
-}
-
-async function loadDoc(id) {
-  const d = await (await fetch('/api/docs/' + encodeURIComponent(id))).json();
-  $('docsBody').innerHTML = mdToHtml(d.markdown || '');
-}
-
-async function drawRtl() {
-  const c = $('rtlCanvas');
-  if (!c) return;
-  const ctx = c.getContext('2d');
-  const w = c.width, h = c.height;
-  ctx.fillStyle = '#0a0e12';
-  ctx.fillRect(0, 0, w, h);
-  try {
-    const d = await (await fetch('/api/rtl_path')).json();
-    $('rtlHint').textContent = d.recording
-      ? `Запис: ${d.points} точок, ${d.length_m} m`
-      : `Останній політ: ${d.points} точок, ${d.length_m} m`;
-    const path = d.path || [];
-    if (path.length < 2) return;
-    const xs = path.map(p => p.x), ys = path.map(p => p.y);
-    const minX = Math.min(...xs), maxX = Math.max(...xs);
-    const minY = Math.min(...ys), maxY = Math.max(...ys);
-    const pad = 12;
-    const sx = (maxX - minX) || 1, sy = (maxY - minY) || 1;
-    const scale = Math.min((w - 2*pad) / sx, (h - 2*pad) / sy);
-    const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
-    const tx = (x) => w/2 + (x - cx) * scale;
-    const ty = (y) => h/2 - (y - cy) * scale;
-    ctx.strokeStyle = '#3d9eff';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(tx(path[0].x), ty(path[0].y));
-    for (let i = 1; i < path.length; i++) ctx.lineTo(tx(path[i].x), ty(path[i].y));
-    ctx.stroke();
-    ctx.fillStyle = '#3dd68c';
-    ctx.beginPath(); ctx.arc(tx(path[0].x), ty(path[0].y), 4, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = '#f5a623';
-    ctx.beginPath(); ctx.arc(tx(path[path.length-1].x), ty(path[path.length-1].y), 4, 0, Math.PI*2); ctx.fill();
-  } catch (e) {}
-}
+$('resetOdo').onclick = () => fetch('/api/reset_odometry', { method: 'POST' });
 
 loadMask();
-
-async function postFlight(path, body) {
-  const res = await fetch(path, {
-    method: 'POST',
-    headers: body ? {'Content-Type': 'application/json'} : {},
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  let d = {};
-  try {
-    d = await res.json();
-  } catch (e) {
-    d = { message: 'request failed' };
-  }
-  return { ok: res.ok && d.ok !== false, message: d.message || d.error || (res.ok ? 'OK' : 'failed') };
-}
-
-$('btnArm').onclick = async () => {
-  const msg = $('flyActionMsg');
-  msg.textContent = 'ARM…';
-  const r = await postFlight('/api/arm');
-  msg.textContent = r.message;
-  if (!r.ok) msg.className = 'hint bad'; else msg.className = 'hint ok';
-};
-$('btnDisarm').onclick = async () => {
-  const msg = $('flyActionMsg');
-  msg.textContent = 'DISARM…';
-  const r = await postFlight('/api/disarm');
-  msg.textContent = r.message;
-  msg.className = r.ok ? 'hint ok' : 'hint bad';
-};
-$('btnCalibrate').onclick = async () => {
-  if (!confirm('Поставте дрон на рівну поверхню. DISARM перед калібруванням. Продовжити?')) return;
-  const msg = $('flyActionMsg');
-  msg.textContent = 'Калібрування…';
-  const r = await postFlight('/api/calibrate');
-  msg.textContent = r.message;
-  msg.className = r.ok ? 'hint ok' : 'hint bad';
-};
-
+loadSettings();

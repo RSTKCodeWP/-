@@ -26,10 +26,17 @@ class FlowResult:
 
 
 class OpticalFlowEstimator:
-    def __init__(self, cam: CameraConfig, est: EstimatorConfig, mask: Optional[CameraMask] = None):
+    def __init__(
+        self,
+        cam: CameraConfig,
+        est: EstimatorConfig,
+        mask: Optional[CameraMask] = None,
+        roi_scale: float = 0.5,
+    ):
         self.cam = cam
         self.est = est
         self.mask = mask or CameraMask()
+        self.roi_scale = roi_scale
         self._focal_px = self._focal_length_pixels(cam.width, cam.fov_deg)
         self._prev_gray: Optional[np.ndarray] = None
         self._points: Optional[np.ndarray] = None
@@ -171,9 +178,8 @@ class OpticalFlowEstimator:
                 x, y = int(p[0][0]), int(p[0][1])
                 cv2.circle(out, (x, y), 3, (0, 255, 0), -1)
         h, w = out.shape[:2]
-        s = self.cam.height / 480 * 0.5  # analysis ROI box
-        roi_w = int(w * s)
-        roi_h = int(h * s)
+        roi_w = int(w * self.roi_scale)
+        roi_h = int(h * self.roi_scale)
         x0, y0 = (w - roi_w) // 2, (h - roi_h) // 2
         cv2.rectangle(out, (x0, y0), (x0 + roi_w, y0 + roi_h), (255, 200, 0), 1)
         return out

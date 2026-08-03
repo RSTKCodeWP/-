@@ -53,7 +53,6 @@ mavlink:
   port: auto
   baud: 230400
   rate_hz: 20
-  send_optical_flow: false
   send_vision_position: true
 
 web:
@@ -67,7 +66,7 @@ pmw3901:
   blend_weight: 0.35
 
 rtl:
-  enabled: true
+  enabled: false
   min_dist_m: 0.25
   max_points: 2000
   save_path: /var/log/aerostab/rtl_path.json
@@ -75,5 +74,5 @@ rtl:
 runtime:
   control_hz: 50
   simulate: false
-  log_csv: true
+  log_csv: false
   log_dir: /var/log/aerostab

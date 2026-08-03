@@ -23,7 +23,7 @@ def setup_logging(verbose: bool) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="AeroStab optical navigation v0.2")
+    parser = argparse.ArgumentParser(description="AeroStab optical navigation")
     parser.add_argument("-c", "--config", help="YAML config path")
     parser.add_argument("--simulate", action="store_true")
     parser.add_argument("--sitl", action="store_true", help="Use config/sitl.yaml (TCP MAVLink + synthetic camera)")

@@ -42,6 +42,7 @@ def evaluate(
     altitude_m: float = 2.0,
     holding: bool = False,
     nav_valid: bool = False,
+    altitude_source: str = "",
 ) -> HealthReport:
     checks: List[CheckResult] = []
     min_q = config.quality.min_quality
@@ -83,7 +84,7 @@ def evaluate(
         CheckResult(
             "altitude",
             alt_ok,
-            f"{altitude_m:.2f} m via {config.altitude.source}",
+            f"{altitude_m:.2f} m via {altitude_source or config.altitude.source}",
         )
     )
     # Sustained nav for PosHold — holding mid-flight is OK but not "ready to arm"
