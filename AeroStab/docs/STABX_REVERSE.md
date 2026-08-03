@@ -305,4 +305,82 @@ cat /etc/systemd/system/*.service
 - Сайт: https://theacademia.tech
 - BOM: https://docs.google.com/spreadsheets/d/1EK2ivnruir1vM7jP4dPWfKLPtNHdDFTZSqVXn1FO-Cc
 
-*Документ згенеровано з відкритої документації. Бінарний реверс не виконувався.*
+*Документ згенеровано з відкритої документації. Бінарний реверс образу — див. розділ 12.*
+
+---
+
+## 12. Спроба завантаження образу (2026-08-03)
+
+### Методи (усі для 1.7 GB RAR)
+
+| Метод | Результат |
+|-------|-----------|
+| `gdown` | Quota exceeded |
+| `curl` + confirm token | HTML «Quota exceeded» (2 KB) |
+| Browser (computerUse) | Те саме — кнопка «Download anyway» → блок |
+| Google Drive folder (plane FW) | 1/3 zip OK, 2/3 quota |
+
+**Висновок:** файл `ZERO-16G-2025-11-01-JR.rar` тимчасово недоступний для автоматичного завантаження. Потрібно: завантажити локально, або повторити через 24 год, або надати mirror/пряме посилання.
+
+### Скрипт аналізу (коли файл є)
+
+```bash
+bash AeroStab/scripts/analyze_stabx_image.sh /path/to/ZERO-16G-2025-11-01-JR.rar
+```
+
+---
+
+## 13. Бінарний реверс доступних артефактів
+
+### 13.1 ArduPlane STABX (MatekH7A3-Wing)
+
+Завантажено з [Google Drive folder](https://drive.google.com/drive/folders/1YqU0y8PFPoRYXT9zpu3KWSGH_ifB57I1):
+`MatekH7A3-Wing_stable-4.6.3-250m-routing-vtx.zip` (4.8 MB)
+
+| Поле | Значення |
+|------|----------|
+| Версія | **ArduPlane V4.6.3 STABX** |
+| Git hash | `508e0cc4` |
+| Board | MatekH7A3-Wing (STM32H7A3) |
+| HAL_VISUALODOM | enabled |
+| EK3_FEATURE_EXTERNAL_NAV | enabled |
+| MODE_GUIDED_NOGPS | enabled |
+| AP_GPS_MAV | enabled (для GPS_INPUT з Pi) |
+
+Рядки з `arduplane.bin`:
+```
+ArduPlane V4.6.3 STABX (508e0cc4)
+VisOdom: reset / yaw shifted
+EKF3 IMU%u is using external nav data
+check VISO_ORIENT parameter
+optical_flow / mavlink
+```
+
+Це підтверджує: для **літаків** StabX надсилає координати як **MAVLink GPS** (`GPS_TYPE=14`), а не VISION_POSITION.
+
+### 13.2 uapilot.online інфраструктура
+
+| Endpoint | Статус |
+|----------|--------|
+| `/` | Login (Client ID) |
+| `/files/download/win32diskimager-...` | 200, 12 MB (публічний) |
+| `/static/js/script.js` | WiFi toggle override |
+| `/api/*` | 404 (API за login) |
+
+Прошивки Pi та білди завантажуються через **Client ID** на `:5050` (на самому Pi) або uapilot.online — без ключа недоступні.
+
+### 13.3 Очікуваний вміст SD-образу (інференс)
+
+На основі документації + типової структури Pi OS:
+
+```
+/boot/firmware/config.txt    # ov5647, uart, spi
+/etc/hostname                # pizero2
+/opt/ або /home/pi/          # StabX binary (закритий)
+systemd: stabx.service       # :8080 flight UI
+systemd: stabx-prov.service  # :5050 license/provisioning
+wifi.txt provisioning        # OTG USB
+```
+
+Після отримання RAR — запустити `scripts/analyze_stabx_image.sh` для фактичної структури.
+
