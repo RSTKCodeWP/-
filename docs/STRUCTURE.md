@@ -9,6 +9,7 @@
 | [`fpv-library/`](fpv-library/) | Автоматичний каталог і **повне дзеркало** FPV/drone GitHub-репо (discover → triage → daily sync) |
 | [`docs/`](docs/) | Документація структури та специфікації |
 | [`.github/workflows/`](.github/workflows/) | CI: щоденний **mirror sync** бібліотеки, перевірка релізів Caddx |
+| [`MAP.md`](../MAP.md) | **Карта тек** — дерево всіх папок, org-бібліотеки, статус mirror (автогенерація) |
 | [`REPOS.md`](../REPOS.md) | **Повний список** усіх проєктів: опис, шлях, дата, розмір (автогенерація) |
 | [`docs/MIRROR_POLICY.md`](../docs/MIRROR_POLICY.md) | Політика: кожен keep = тека + щоденне автооновлення |
 | [`README.md`](../README.md) | Головна навігація |

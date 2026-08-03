@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-08-03T23:04:52+00:00",
+  "updated_at": "2026-08-03T23:24:00+00:00",
   "repos": [
     {
       "source": "johnboiles/Steer",
@@ -4825,7 +4825,7 @@
     },
     {
       "source": "paulnurkkala/claude-osdfont",
-      "path": "fpv-library/repos/claude-osdfont-Claude-Code-plugin-upload-an-OSD-mcm-fon",
+      "path": "claude-osdfont-Betaflight-OSD-Font-Claude-Plugin",
       "added_at": "2026-07-26T23:31:18+00:00",
       "discovered_via": "search:betaflight osd:p1",
       "description": "Claude Code plugin: upload an OSD .mcm font to a Betaflight FC over MSP. /osdfont",
@@ -4846,7 +4846,7 @@
     },
     {
       "source": "paulnurkkala/claude-mgrsosd",
-      "path": "fpv-library/repos/claude-mgrsosd-Claude-Code-plugin-push-a-Betaflight-OSD",
+      "path": "claude-mgrsosd-Betaflight-OSD-Layout-Claude-Plugin",
       "added_at": "2026-07-26T23:31:18+00:00",
       "discovered_via": "search:betaflight osd:p1",
       "description": "Claude Code plugin: push a Betaflight OSD layout .rtf to an attached FC. /mgrsosd",
@@ -5897,7 +5897,7 @@
       "upstream_updated": "2026-05-31T11:47:06Z",
       "owner": "paulnurkkala",
       "upstream_commit": "4e0683e24920beca263df5978cde261055b80fbf",
-      "synced_at": "2026-07-26T23:32:57+00:00",
+      "synced_at": "2026-08-03T23:24:00+00:00",
       "size_kb": 98,
       "topics": [],
       "verdict": "keep",
@@ -5907,7 +5907,8 @@
       ],
       "interesting": true,
       "triage_reason": "high-score-fpv",
-      "triage_at": "2026-08-02T08:50:04+00:00"
+      "triage_at": "2026-08-02T08:50:04+00:00",
+      "verified_at": "2026-08-03T23:24:00+00:00"
     },
     {
       "source": "paulnurkkala/leoflight-dual-thrustmasters",
@@ -5931,7 +5932,7 @@
     },
     {
       "source": "paulnurkkala/claude-rctest",
-      "path": "fpv-library/repos/claude-rctest-Claude-Code-plugin-verify-a-Betaflight-F",
+      "path": "claude-rctest-Betaflight-RC-Test-Claude-Plugin",
       "added_at": "2026-07-26T23:31:25+00:00",
       "discovered_via": "owner:paulnurkkala",
       "description": "Claude Code plugin: verify a Betaflight FC is receiving live RC frames from its receiver. /rctest",
@@ -5951,7 +5952,7 @@
     },
     {
       "source": "paulnurkkala/claude-satest",
-      "path": "fpv-library/repos/claude-satest-Claude-Code-plugin-SmartAudio-sanity-tes",
+      "path": "claude-satest-Betaflight-SmartAudio-Claude-Plugin",
       "added_at": "2026-07-26T23:31:25+00:00",
       "discovered_via": "owner:paulnurkkala",
       "description": "Claude Code plugin: SmartAudio sanity test on a Betaflight FC. /satest",
@@ -5971,7 +5972,7 @@
     },
     {
       "source": "FPVibe/fpv-tools",
-      "path": "fpv-library/repos/fpv-tools-various-tools-for-fpv",
+      "path": "fpv-tools-Deno-Browser-Betaflight-Utilities",
       "added_at": "2026-07-26T23:31:25+00:00",
       "discovered_via": "owner:FPVibe",
       "description": "various tools for fpv ",
@@ -68106,6 +68107,276 @@
       ],
       "interesting": false,
       "triage_reason": "low-relevance"
+    },
+    {
+      "source": "RSTKCodeWP/at32f435-rgt7-manual",
+      "path": "at32f435-rgt7-manual-AT32-Flight-Controller-Manual",
+      "added_at": "2026-08-03T23:23:38+00:00",
+      "discovered_via": "root-register",
+      "legacy": true,
+      "owner": "RSTKCodeWP",
+      "verdict": "keep",
+      "registered_at": "2026-08-03T23:23:38+00:00"
+    },
+    {
+      "source": "RSTKCodeWP/comm-slackbot",
+      "path": "comm-slackbot-Slack-COMMGamers-Bot",
+      "added_at": "2026-08-03T23:23:38+00:00",
+      "discovered_via": "root-register",
+      "legacy": true,
+      "owner": "RSTKCodeWP",
+      "verdict": "keep",
+      "registered_at": "2026-08-03T23:23:38+00:00"
+    },
+    {
+      "source": "RSTKCodeWP/commgamers.us",
+      "path": "commgamers-us-COMMGamers-Website",
+      "added_at": "2026-08-03T23:23:38+00:00",
+      "discovered_via": "root-register",
+      "legacy": true,
+      "owner": "RSTKCodeWP",
+      "verdict": "keep",
+      "registered_at": "2026-08-03T23:23:38+00:00"
+    },
+    {
+      "source": "FPVibe/django-password-reset",
+      "path": "django-password-reset-Django-Password-Reset-Views",
+      "added_at": "2026-08-03T23:23:38+00:00",
+      "discovered_via": "root-register",
+      "legacy": true,
+      "owner": "FPVibe",
+      "verdict": "keep",
+      "registered_at": "2026-08-03T23:23:38+00:00"
+    },
+    {
+      "source": "FPVibe/Django-Pushbullet",
+      "path": "Django-Pushbullet-Django-Pushbullet-Integration",
+      "added_at": "2026-08-03T23:23:38+00:00",
+      "discovered_via": "root-register",
+      "legacy": true,
+      "owner": "FPVibe",
+      "verdict": "keep",
+      "registered_at": "2026-08-03T23:23:38+00:00"
+    },
+    {
+      "source": "FPVibe/django-templated-email",
+      "path": "django-templated-email-Django-Templated-Email",
+      "added_at": "2026-08-03T23:23:38+00:00",
+      "discovered_via": "root-register",
+      "legacy": true,
+      "owner": "FPVibe",
+      "verdict": "keep",
+      "registered_at": "2026-08-03T23:23:38+00:00"
+    },
+    {
+      "source": "FPVibe/docs",
+      "path": "docs-FPVibe-Federation-Architecture-Specs",
+      "added_at": "2026-08-03T23:23:38+00:00",
+      "discovered_via": "root-register",
+      "legacy": true,
+      "owner": "FPVibe",
+      "verdict": "keep",
+      "registered_at": "2026-08-03T23:23:38+00:00"
+    },
+    {
+      "source": "RSTKCodeWP/dronewars2026",
+      "path": "dronewars2026-HTML-Drone-Wars-2026",
+      "added_at": "2026-08-03T23:23:38+00:00",
+      "discovered_via": "root-register",
+      "legacy": true,
+      "owner": "RSTKCodeWP",
+      "verdict": "keep",
+      "registered_at": "2026-08-03T23:23:38+00:00"
+    },
+    {
+      "source": "FPVibe/flowchart",
+      "path": "flowchart-Node-FPV-Training-Tracker-PWA",
+      "added_at": "2026-08-03T23:23:38+00:00",
+      "discovered_via": "root-register",
+      "legacy": true,
+      "owner": "FPVibe",
+      "verdict": "keep",
+      "registered_at": "2026-08-03T23:23:38+00:00"
+    },
+    {
+      "source": "FPVibe/fpvibe.github.io",
+      "path": "fpvibe-github-io-FPVibe-Org-Website",
+      "added_at": "2026-08-03T23:23:38+00:00",
+      "discovered_via": "root-register",
+      "legacy": true,
+      "owner": "FPVibe",
+      "verdict": "keep",
+      "registered_at": "2026-08-03T23:23:38+00:00"
+    },
+    {
+      "source": "FPVibe/.github",
+      "path": "FPVibe-github-Org-Profile-Defaults",
+      "added_at": "2026-08-03T23:23:38+00:00",
+      "discovered_via": "root-register",
+      "legacy": true,
+      "owner": "FPVibe",
+      "verdict": "keep",
+      "registered_at": "2026-08-03T23:23:38+00:00"
+    },
+    {
+      "source": "RSTKCodeWP/leoflight-dual-thrustmasters",
+      "path": "leoflight-dual-thrustmasters-Jetson-Dual-Thrustmaster-MAVLink",
+      "added_at": "2026-08-03T23:23:38+00:00",
+      "discovered_via": "root-register",
+      "legacy": true,
+      "owner": "RSTKCodeWP",
+      "verdict": "keep",
+      "registered_at": "2026-08-03T23:23:38+00:00"
+    },
+    {
+      "source": "RSTKCodeWP/maixcam-servo-control",
+      "path": "maixcam-servo-control-AI-Ballistic-Servo-MaixCAM",
+      "added_at": "2026-08-03T23:23:38+00:00",
+      "discovered_via": "root-register",
+      "legacy": true,
+      "owner": "RSTKCodeWP",
+      "verdict": "keep",
+      "registered_at": "2026-08-03T23:23:38+00:00"
+    },
+    {
+      "source": "RSTKCodeWP/maixcam-wildtrap",
+      "path": "maixcam-wildtrap-AI-Camera-Trap-MaixCAM",
+      "added_at": "2026-08-03T23:23:38+00:00",
+      "discovered_via": "root-register",
+      "legacy": true,
+      "owner": "RSTKCodeWP",
+      "verdict": "keep",
+      "registered_at": "2026-08-03T23:23:38+00:00"
+    },
+    {
+      "source": "RSTKCodeWP/MEANduino",
+      "path": "MEANduino-MEAN-Server-Arduino-Data",
+      "added_at": "2026-08-03T23:23:38+00:00",
+      "discovered_via": "root-register",
+      "legacy": true,
+      "owner": "RSTKCodeWP",
+      "verdict": "keep",
+      "registered_at": "2026-08-03T23:23:38+00:00"
+    },
+    {
+      "source": "RSTKCodeWP/openflash",
+      "path": "openflash-Rust-NAND-Flash-Programmer",
+      "added_at": "2026-08-03T23:23:38+00:00",
+      "discovered_via": "root-register",
+      "legacy": true,
+      "owner": "RSTKCodeWP",
+      "verdict": "keep",
+      "registered_at": "2026-08-03T23:23:38+00:00"
+    },
+    {
+      "source": "RSTKCodeWP/Pico-Nand-Flasher",
+      "path": "Pico-Nand-Flasher-RaspberryPi-Pico-NAND",
+      "added_at": "2026-08-03T23:23:38+00:00",
+      "discovered_via": "root-register",
+      "legacy": true,
+      "owner": "RSTKCodeWP",
+      "verdict": "keep",
+      "registered_at": "2026-08-03T23:23:38+00:00"
+    },
+    {
+      "source": "RSTKCodeWP/RCGroupsScraper",
+      "path": "RCGroupsScraper-Python-RCGroups-Search-Notifier",
+      "added_at": "2026-08-03T23:23:38+00:00",
+      "discovered_via": "root-register",
+      "legacy": true,
+      "owner": "RSTKCodeWP",
+      "verdict": "keep",
+      "registered_at": "2026-08-03T23:23:38+00:00"
+    },
+    {
+      "source": "RSTKCodeWP/sausage",
+      "path": "sausage-Java-Sausage-App",
+      "added_at": "2026-08-03T23:23:38+00:00",
+      "discovered_via": "root-register",
+      "legacy": true,
+      "owner": "RSTKCodeWP",
+      "verdict": "keep",
+      "registered_at": "2026-08-03T23:23:38+00:00"
+    },
+    {
+      "source": "RSTKCodeWP/sedona-trip-planner",
+      "path": "sedona-trip-planner-Leaflet-Sedona-Trip-Map",
+      "added_at": "2026-08-03T23:23:38+00:00",
+      "discovered_via": "root-register",
+      "legacy": true,
+      "owner": "RSTKCodeWP",
+      "verdict": "keep",
+      "registered_at": "2026-08-03T23:23:38+00:00"
+    },
+    {
+      "source": "RSTKCodeWP/stellar-js",
+      "path": "stellar-js-Parallax-Scrolling-Library",
+      "added_at": "2026-08-03T23:23:38+00:00",
+      "discovered_via": "root-register",
+      "legacy": true,
+      "owner": "RSTKCodeWP",
+      "verdict": "keep",
+      "registered_at": "2026-08-03T23:23:38+00:00"
+    },
+    {
+      "source": "RSTKCodeWP/TUCapstone12",
+      "path": "TUCapstone12-TU-Orals-Quiz-Web-App",
+      "added_at": "2026-08-03T23:23:38+00:00",
+      "discovered_via": "root-register",
+      "legacy": true,
+      "owner": "RSTKCodeWP",
+      "verdict": "keep",
+      "registered_at": "2026-08-03T23:23:38+00:00"
+    },
+    {
+      "source": "RSTKCodeWP/unbound",
+      "path": "unbound-Lua-Universal-DPI-Bypass",
+      "added_at": "2026-08-03T23:23:38+00:00",
+      "discovered_via": "root-register",
+      "legacy": true,
+      "owner": "RSTKCodeWP",
+      "verdict": "keep",
+      "registered_at": "2026-08-03T23:23:38+00:00"
+    },
+    {
+      "source": "RSTKCodeWP/uptimerobot",
+      "path": "uptimerobot-Python-UptimeRobot-API-Wrapper",
+      "added_at": "2026-08-03T23:23:38+00:00",
+      "discovered_via": "root-register",
+      "legacy": true,
+      "owner": "RSTKCodeWP",
+      "verdict": "keep",
+      "registered_at": "2026-08-03T23:23:38+00:00"
+    },
+    {
+      "source": "RSTKCodeWP/wordpress-s3-migration-script",
+      "path": "wordpress-s3-migration-script-WordPress-S3-Migration",
+      "added_at": "2026-08-03T23:23:38+00:00",
+      "discovered_via": "root-register",
+      "legacy": true,
+      "owner": "RSTKCodeWP",
+      "verdict": "keep",
+      "registered_at": "2026-08-03T23:23:38+00:00"
+    },
+    {
+      "source": "RSTKCodeWP/wpcustposttype",
+      "path": "wpcustposttype-WordPress-Custom-Post-Types",
+      "added_at": "2026-08-03T23:23:38+00:00",
+      "discovered_via": "root-register",
+      "legacy": true,
+      "owner": "RSTKCodeWP",
+      "verdict": "keep",
+      "registered_at": "2026-08-03T23:23:38+00:00"
+    },
+    {
+      "source": "RSTKCodeWP/zyloweathergetter",
+      "path": "zyloweathergetter-JavaScript-Weather-Getter",
+      "added_at": "2026-08-03T23:23:38+00:00",
+      "discovered_via": "root-register",
+      "legacy": true,
+      "owner": "RSTKCodeWP",
+      "verdict": "keep",
+      "registered_at": "2026-08-03T23:23:38+00:00"
     }
   ],
   "search_queries": [

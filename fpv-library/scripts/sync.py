@@ -125,6 +125,12 @@ def clone_full(source: str, dest: Path) -> None:
         if dest.exists():
             shutil.rmtree(dest)
         subprocess.run(
+            ["git", "rm", "-rf", "--cached", rel_path],
+            cwd=monorepo_root(),
+            capture_output=True,
+            text=True,
+        )
+        subprocess.run(
             ["git", "submodule", "add", "--force", url, rel_path],
             cwd=monorepo_root(),
             check=True,
@@ -255,6 +261,11 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Delete and re-clone even if already mirrored (migrates legacy snapshots)",
     )
+    parser.add_argument(
+        "--roots-only",
+        action="store_true",
+        help="Only sync catalog entries at monorepo root (no slash in path)",
+    )
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument(
         "--skip-verify",
@@ -282,6 +293,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.verdict:
         selected = [e for e in selected if e.get("verdict") == args.verdict]
+
+    if args.roots_only:
+        selected = [e for e in selected if e.get("path") and "/" not in e["path"]]
 
     if args.update_only:
         selected = [

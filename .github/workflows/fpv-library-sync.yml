@@ -101,11 +101,14 @@ jobs:
       - name: Regenerate REPOS.md index
         run: python3 fpv-library/scripts/generate_repo_index.py
 
+      - name: Regenerate MAP.md (folder tree)
+        run: python3 fpv-library/scripts/generate_library_map.py
+
       - name: Commit updates
         run: |
           git config user.name "fpv-library-bot"
           git config user.email "fpv-library-bot@users.noreply.github.com"
-          git add fpv-library/ REPOS.md docs/MIRROR_POLICY.md .gitmodules
+          git add fpv-library/ REPOS.md MAP.md docs/MIRROR_POLICY.md docs/STRUCTURE.md .gitmodules
           # Org/user mirror folders at monorepo root (e.g. OpenIPC/firmware)
           python3 - <<'PY' | while read -r d; do [ -n "$d" ] && git add "$d/"; done
           import json

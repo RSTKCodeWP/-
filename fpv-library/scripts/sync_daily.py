@@ -65,6 +65,9 @@ def main() -> int:
                 continue
             run(sync + ["--source", src, *common])
 
+    print("=== Phase 5: root-level legacy mirrors (gradual) ===")
+    run(sync + ["--all", *common, "--roots-only", "--max-per-run", "5", "--sort", "small"])
+
     print("=== Daily mirror done ===")
     return 0
 
