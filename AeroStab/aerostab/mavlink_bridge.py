@@ -47,13 +47,16 @@ class MavlinkBridge:
     def connect(self) -> None:
         if not self.cfg.enabled:
             return
-        logger.info("MAVLink %s @ %d", self.cfg.port, self.cfg.baud)
-        self._conn = mavutil.mavlink_connection(
-            self.cfg.port,
-            baud=self.cfg.baud,
-            source_system=self.cfg.system_id,
-            source_component=self.cfg.component_id,
-        )
+        port = self.cfg.port
+        logger.info("MAVLink %s", port)
+        kwargs = {
+            "source_system": self.cfg.system_id,
+            "source_component": self.cfg.component_id,
+        }
+        if port.startswith(("tcp:", "tcpin:", "udp:", "udpin:")):
+            self._conn = mavutil.mavlink_connection(port, **kwargs)
+        else:
+            self._conn = mavutil.mavlink_connection(port, baud=self.cfg.baud, **kwargs)
         self._conn.wait_heartbeat(timeout=10)
         self._hb_time = time.monotonic()
         logger.info("FC heartbeat OK (sys=%s)", self._conn.target_system)
@@ -114,13 +117,25 @@ class MavlinkBridge:
 
         if self.cfg.send_vision_position:
             self._conn.mav.vision_position_estimate_send(
-                ts_us, x_n, y_e, -use_alt, 0, 0, yaw, [0.0] * 21, 0
+                ts_us, x_n, y_e, -use_alt, 0.0, 0.0, yaw
             )
 
         if self.cfg.send_optical_flow:
             q = int(min(255, max(0, state.quality * 255)))
+            dt_us = max(1, int(1e6 / max(self.cfg.rate_hz, 1)))
             self._conn.mav.optical_flow_rad_send(
-                ts_us, 0, int(vn * 100), int(ve * 100), 0.0, 0.0, q, use_alt, 0.0, 0, 0
+                ts_us,
+                0,
+                dt_us,
+                vn,
+                ve,
+                0.0,
+                0.0,
+                0.0,
+                0,
+                q,
+                0,
+                use_alt,
             )
 
         self._messages_sent += 1

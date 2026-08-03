@@ -1,0 +1,47 @@
+# SITL bench: mock FC + AeroStab with web UI
+
+camera:
+  backend: auto
+  width: 320
+  height: 240
+  fps: 20
+  fov_deg: 72.4
+
+estimator:
+  max_corners: 40
+  min_track_points: 6
+
+altitude:
+  source: mavlink_baro
+  default_m: 2.0
+
+gps_fusion:
+  enabled: true
+  wait_timeout_s: 2.0
+  default_lat: 50.0
+  default_lon: 30.0
+
+quality:
+  min_quality: 0.15
+  min_fps: 5.0
+  min_points_to_send: 6
+
+mask:
+  enabled: false
+  path: mask.json
+
+mavlink:
+  enabled: true
+  port: tcp:127.0.0.1:5760
+  baud: 230400
+  rate_hz: 20
+
+web:
+  enabled: true
+  host: 0.0.0.0
+  port: 8080
+
+runtime:
+  control_hz: 30
+  simulate: true
+  log_csv: false

@@ -26,6 +26,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="AeroStab optical navigation v0.2")
     parser.add_argument("-c", "--config", help="YAML config path")
     parser.add_argument("--simulate", action="store_true")
+    parser.add_argument("--sitl", action="store_true", help="Use config/sitl.yaml (TCP MAVLink + synthetic camera)")
     parser.add_argument("--no-web", action="store_true")
     parser.add_argument("--no-mavlink", action="store_true")
     parser.add_argument("-v", "--verbose", action="store_true")
@@ -46,7 +47,15 @@ def main(argv: list[str] | None = None) -> int:
         else:
             config_path = str(Path(__file__).resolve().parents[1] / "config" / "default.yaml")
 
-    config = load_config(config_path)
+    if args.sitl:
+        from pathlib import Path
+
+        sitl_cfg = Path(__file__).resolve().parents[1] / "config" / "sitl.yaml"
+        config_path = str(sitl_cfg)
+        config = load_config(config_path)
+        config.runtime.simulate = True
+    else:
+        config = load_config(config_path)
     if args.simulate:
         config.runtime.simulate = True
     if args.no_mavlink:

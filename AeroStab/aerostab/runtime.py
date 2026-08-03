@@ -65,7 +65,7 @@ class AeroStabRuntime:
             default_lat=gf.default_lat,
             default_lon=gf.default_lon,
         )
-        if cfg.mavlink.enabled and not simulate:
+        if cfg.mavlink.enabled:
             try:
                 self._mavlink.connect()
             except Exception as exc:

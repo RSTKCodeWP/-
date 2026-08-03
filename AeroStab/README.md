@@ -116,6 +116,24 @@ python3 scripts/simulate.py
 python3 -m aerostab --simulate   # web UI on :8080
 ```
 
+### SITL / HIL testing (no hardware)
+
+Mock MAVLink flight controller over TCP (no ArduPilot build required):
+
+```bash
+python3 scripts/sitl_hil.py --seconds 8   # integration self-test
+python3 scripts/start_sitl_bench.sh       # mock FC + AeroStab with web UI
+python3 -m aerostab --sitl                # same config via CLI flag
+```
+
+Full ArduPilot SITL (optional, requires build):
+
+```bash
+bash scripts/ardupilot_sitl.sh
+```
+
+Config: `config/sitl.yaml` — synthetic camera + `tcp:127.0.0.1:5760` MAVLink.
+
 ## FOV calibration
 
 1. Place drone 1 m above floor
