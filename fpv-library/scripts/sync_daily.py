@@ -60,7 +60,11 @@ def main() -> int:
     if rc:
         return rc
 
-    print("=== Phase 3: priority list (force sync) ===")
+    print("=== Phase 3: priority org libraries (full git) ===")
+    for org in ("OpenIPC",):
+        run(sync + ["--owner", org, *common, "--max-per-run", "15"])
+
+    print("=== Phase 4: priority list (force sync) ===")
     priority = SCRIPTS.parent / "priority-sync.txt"
     if priority.exists():
         for line in priority.read_text(encoding="utf-8").splitlines():

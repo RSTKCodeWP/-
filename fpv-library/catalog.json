@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-08-03T22:30:57+00:00",
+  "updated_at": "2026-08-03T23:04:52+00:00",
   "repos": [
     {
       "source": "johnboiles/Steer",
@@ -297,9 +297,9 @@
     },
     {
       "source": "OpenIPC/waybeam_venc",
-      "path": "fpv-library/repos/waybeam_venc-Standalone-Video-Encoder-Streamer-for-FP",
+      "path": "OpenIPC/waybeam_venc",
       "added_at": "2026-07-26T23:19:55+00:00",
-      "discovered_via": "search:Fpv:p4",
+      "discovered_via": "org:OpenIPC",
       "description": "Standalone Video Encoder & Streamer for FPV",
       "stars": 22,
       "score": 7.5,
@@ -319,7 +319,7 @@
       ],
       "interesting": true,
       "triage_reason": "high-score-fpv",
-      "triage_at": "2026-08-02T08:48:56+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "somethingwrong2007/FPV-Skyline-Offical-Website",
@@ -469,9 +469,9 @@
     },
     {
       "source": "OpenIPC/msposd",
-      "path": "fpv-library/repos/msposd-OpenIPC-implementation-of-MSP-Displaypor",
+      "path": "OpenIPC/msposd",
       "added_at": "2026-07-26T23:19:55+00:00",
-      "discovered_via": "search:Fpv:p4",
+      "discovered_via": "org:OpenIPC",
       "description": "OpenIPC implementation of MSP Displayport OSD for INAV/Betaflight/ArduPilot",
       "stars": 55,
       "score": 16.5,
@@ -495,7 +495,7 @@
       ],
       "interesting": true,
       "triage_reason": "high-score-fpv",
-      "triage_at": "2026-08-02T08:48:58+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "prithcode/Ultra-Budget-Brushless-FPV-Drone-Build",
@@ -760,17 +760,17 @@
     },
     {
       "source": "OpenIPC/PixelPilot",
-      "path": "fpv-library/repos/PixelPilot-PixelPilot-is-an-Android-app-packaging-m",
+      "path": "OpenIPC/PixelPilot",
       "added_at": "2026-07-26T23:19:57+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "PixelPilot is an Android app packaging multiple pieces together to decode an H264/H265 video feed broadcast by wfb-ng over the air.",
       "stars": 147,
-      "score": 8.5,
-      "upstream_updated": "2026-08-01T13:55:02Z",
+      "score": 10.0,
+      "upstream_updated": "2026-08-02T20:43:41Z",
       "owner": "OpenIPC",
       "upstream_commit": "0a039fb844e547fabc3a9d8ff69cb227b9e3f53a",
       "synced_at": "2026-08-02T08:32:11+00:00",
-      "size_kb": 11814,
+      "size_kb": 11815,
       "topics": [
         "fpv",
         "openipc",
@@ -785,13 +785,13 @@
       ],
       "interesting": true,
       "triage_reason": "high-score-fpv",
-      "triage_at": "2026-08-02T08:49:02+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/fpv4win",
-      "path": "fpv-library/repos/fpv4win-WiFi-Broadcast-FPV-client-for-Windows-pl",
+      "path": "OpenIPC/fpv4win",
       "added_at": "2026-07-26T23:19:57+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "WiFi Broadcast FPV client for Windows platform",
       "stars": 75,
       "score": 7.5,
@@ -814,16 +814,16 @@
       ],
       "interesting": true,
       "triage_reason": "high-score-fpv",
-      "triage_at": "2026-08-02T08:49:02+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/mavfwd",
-      "path": "fpv-library/repos/mavfwd-Simplest-MAVLink-serial-port-to-UDP-forw",
+      "path": "OpenIPC/mavfwd",
       "added_at": "2026-07-26T23:19:57+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "Simplest MAVLink serial port to UDP forwarder in pure C",
       "stars": 28,
-      "score": 7.5,
+      "score": 8.5,
       "upstream_updated": "2026-07-09T18:24:14Z",
       "owner": "OpenIPC",
       "upstream_commit": "10ee2d0698fbb7f41d692d0c88566c2d19df1fb9",
@@ -841,13 +841,13 @@
       ],
       "interesting": true,
       "triage_reason": "high-score-fpv",
-      "triage_at": "2026-08-02T08:49:02+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/wfb-ng-openwrt",
-      "path": "fpv-library/repos/wfb-ng-openwrt-WFB-NG-for-OpenWrt",
+      "path": "OpenIPC/wfb-ng-openwrt",
       "added_at": "2026-07-26T23:19:57+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "WFB-NG for OpenWrt",
       "stars": 34,
       "score": 7.5,
@@ -869,13 +869,13 @@
       ],
       "interesting": true,
       "triage_reason": "high-score-fpv",
-      "triage_at": "2026-08-02T08:49:03+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/osd",
-      "path": "fpv-library/repos/osd-An-all-in-one-daemon-that-exposes-an-HTT",
+      "path": "OpenIPC/osd",
       "added_at": "2026-07-26T23:19:57+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "An all-in-one daemon that exposes an HTTP frontend to adjust settings, manage OSD regions and stream AV content on supported IP cameras",
       "stars": 14,
       "score": 7.3,
@@ -897,7 +897,7 @@
       ],
       "interesting": true,
       "triage_reason": "high-score-fpv",
-      "triage_at": "2026-08-02T08:49:03+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "RotorHazard/RH_Install-Manager",
@@ -2235,17 +2235,17 @@
     },
     {
       "source": "OpenIPC/firmware",
-      "path": "fpv-library/repos/firmware-Alternative-IP-Camera-firmware-from-an-o",
+      "path": "OpenIPC/firmware",
       "added_at": "2026-07-26T23:31:10+00:00",
-      "discovered_via": "search:openipc fpv:p1",
+      "discovered_via": "org:OpenIPC",
       "description": "Alternative IP Camera firmware from an open community",
-      "stars": 2090,
+      "stars": 2100,
       "score": 7.0,
-      "upstream_updated": "2026-07-30T00:43:27Z",
+      "upstream_updated": "2026-08-02T23:27:43Z",
       "owner": "OpenIPC",
       "upstream_commit": "764105bf90a8178d80fd4d31d810fad7d8969b31",
       "synced_at": "2026-07-30T08:36:43+00:00",
-      "size_kb": 221085,
+      "size_kb": 221086,
       "topics": [
         "anyka",
         "buildroot",
@@ -2276,7 +2276,7 @@
       ],
       "interesting": true,
       "triage_reason": "high-score-fpv",
-      "triage_at": "2026-08-02T08:49:21+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "pingbiqi/wuxiantuchuan",
@@ -2312,17 +2312,17 @@
     },
     {
       "source": "OpenIPC/aviateur",
-      "path": "fpv-library/repos/aviateur-Cross-platform-OpenIPC-FPV-ground-statio",
+      "path": "OpenIPC/aviateur",
       "added_at": "2026-07-26T23:31:10+00:00",
-      "discovered_via": "search:openipc fpv:p1",
+      "discovered_via": "org:OpenIPC",
       "description": "Cross-platform OpenIPC FPV ground station for Linux/Windows/macOS",
-      "stars": 61,
+      "stars": 64,
       "score": 6.0,
-      "upstream_updated": "2026-07-31T07:31:36Z",
+      "upstream_updated": "2026-08-03T05:03:54Z",
       "owner": "OpenIPC",
       "upstream_commit": "0274206d6c48fcdd8a309b9de3bf3fbd81c4694b",
       "synced_at": "2026-07-31T09:04:26+00:00",
-      "size_kb": 12787,
+      "size_kb": 12616,
       "topics": [
         "aviateur",
         "fpv",
@@ -2335,7 +2335,7 @@
       ],
       "interesting": true,
       "triage_reason": "high-score-fpv",
-      "triage_at": "2026-08-02T08:49:22+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "imagemlt/AMLDigitalFPV",
@@ -2359,15 +2359,15 @@
     },
     {
       "source": "OpenIPC/PixelPilot_rk",
-      "path": "fpv-library/repos/PixelPilot_rk-Application-that-decodes-an-RTP-Video-St",
+      "path": "OpenIPC/PixelPilot_rk",
       "added_at": "2026-07-26T23:31:10+00:00",
-      "discovered_via": "search:openipc fpv:p1",
+      "discovered_via": "org:OpenIPC",
       "description": "Application that decodes an RTP Video Stream and displays it on screen, for Rockchip devices.",
       "stars": 56,
       "score": 6.0,
-      "upstream_updated": "2026-07-11T08:31:54Z",
+      "upstream_updated": "2026-08-03T06:17:09Z",
       "owner": "OpenIPC",
-      "size_kb": 2154,
+      "size_kb": 2230,
       "topics": [
         "fpv",
         "openipc",
@@ -2382,7 +2382,7 @@
       ],
       "interesting": true,
       "triage_reason": "high-score-fpv",
-      "triage_at": "2026-08-02T08:49:22+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "neelsani/openipc-rs",
@@ -2477,12 +2477,12 @@
     },
     {
       "source": "OpenIPC/joycam",
-      "path": "fpv-library/repos/joycam-JoyCam-bridge-your-joystick-receiver-or",
+      "path": "OpenIPC/joycam",
       "added_at": "2026-07-26T23:31:10+00:00",
-      "discovered_via": "search:openipc fpv:p1",
+      "discovered_via": "org:OpenIPC",
       "description": "JoyCam - bridge your joystick, receiver, or transmitter to the CRSF (Crossfire), IBUS (FlySky) and SBUS (Futaba) protocols on Linux.",
       "stars": 3,
-      "score": 6.5,
+      "score": 7.3,
       "upstream_updated": "2026-05-10T10:59:00Z",
       "owner": "OpenIPC",
       "size_kb": 87,
@@ -2507,13 +2507,13 @@
       ],
       "interesting": true,
       "triage_reason": "high-score-fpv",
-      "triage_at": "2026-08-02T08:49:24+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/research",
-      "path": "fpv-library/repos/research-Simple-FPV-research",
+      "path": "OpenIPC/research",
       "added_at": "2026-07-26T23:31:10+00:00",
-      "discovered_via": "search:openipc fpv:p1",
+      "discovered_via": "org:OpenIPC",
       "description": "Simple FPV research",
       "stars": 70,
       "score": 6.0,
@@ -2533,16 +2533,16 @@
       ],
       "interesting": true,
       "triage_reason": "high-score-fpv",
-      "triage_at": "2026-08-02T08:49:24+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/configurator",
-      "path": "fpv-library/repos/configurator-Configurator-for-setting-up-OpenIPC-FPV",
+      "path": "OpenIPC/configurator",
       "added_at": "2026-07-26T23:31:10+00:00",
-      "discovered_via": "search:openipc fpv:p1",
+      "discovered_via": "org:OpenIPC",
       "description": "Configurator for setting up OpenIPC FPV and URLLC devices",
       "stars": 45,
-      "score": 6.0,
+      "score": 7.2,
       "upstream_updated": "2026-03-07T23:33:46Z",
       "owner": "OpenIPC",
       "upstream_commit": "30136ce617eecc5e1b5a69ea4ea9c603e180056d",
@@ -2561,13 +2561,13 @@
       ],
       "interesting": true,
       "triage_reason": "high-score-fpv",
-      "triage_at": "2026-08-02T08:49:24+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/fpv-presets",
-      "path": "fpv-library/repos/fpv-presets-Presets-for-configuring-OpenIPC-FPV-syst",
+      "path": "OpenIPC/fpv-presets",
       "added_at": "2026-07-26T23:31:10+00:00",
-      "discovered_via": "search:openipc fpv:p1",
+      "discovered_via": "org:OpenIPC",
       "description": "Presets for configuring OpenIPC FPV systems",
       "stars": 14,
       "score": 5.5,
@@ -2585,13 +2585,13 @@
       ],
       "interesting": true,
       "triage_reason": "high-score-fpv",
-      "triage_at": "2026-08-02T08:49:25+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/adaptive-link",
-      "path": "fpv-library/repos/adaptive-link-Greg-s-Adaptive-Link-Files-for-OpenIPC-c",
+      "path": "OpenIPC/adaptive-link",
       "added_at": "2026-07-26T23:31:10+00:00",
-      "discovered_via": "search:openipc fpv:p1",
+      "discovered_via": "org:OpenIPC",
       "description": "Greg's Adaptive-Link - Files for OpenIPC camera and Radxa Zero 3w/e ground station",
       "stars": 30,
       "score": 6.0,
@@ -2611,7 +2611,7 @@
       ],
       "interesting": true,
       "triage_reason": "high-score-fpv",
-      "triage_at": "2026-08-02T08:49:25+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "BlackFox-org/GRO-man",
@@ -2635,9 +2635,9 @@
     },
     {
       "source": "OpenIPC/yaml-cli-multi",
-      "path": "fpv-library/repos/yaml-cli-multi-Parses-a-subset-of-YAML-configuration-fi",
+      "path": "OpenIPC/yaml-cli-multi",
       "added_at": "2026-07-26T23:31:10+00:00",
-      "discovered_via": "search:openipc fpv:p1",
+      "discovered_via": "org:OpenIPC",
       "description": "Parses a subset of YAML configuration files",
       "stars": 1,
       "score": 5.0,
@@ -2656,7 +2656,7 @@
       ],
       "interesting": true,
       "triage_reason": "high-score-fpv",
-      "triage_at": "2026-08-02T08:49:26+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "wrexik/SkyScan",
@@ -2683,16 +2683,16 @@
     },
     {
       "source": "OpenIPC/fpv",
-      "path": "fpv-library/repos/fpv-A-repository-for-storing-and-maintaining",
+      "path": "OpenIPC/fpv",
       "added_at": "2026-07-26T23:31:10+00:00",
-      "discovered_via": "search:openipc fpv:p1",
+      "discovered_via": "org:OpenIPC",
       "description": "A repository for storing and maintaining version history for stable firmware builds for VTX.",
       "stars": 4,
       "score": 6.8,
       "upstream_updated": "2025-05-11T09:47:26Z",
       "owner": "OpenIPC",
       "upstream_commit": "0c3309af8efef3dd7740ed7435dc383f3bcb36c8",
-      "synced_at": "2026-07-26T23:32:33+00:00",
+      "synced_at": "2026-08-03T23:04:52+00:00",
       "size_kb": 6,
       "topics": [
         "fpv",
@@ -2705,7 +2705,7 @@
       ],
       "interesting": true,
       "triage_reason": "high-score-fpv",
-      "triage_at": "2026-08-02T08:49:26+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "SnapDragonfly/jetson-fpv",
@@ -2763,9 +2763,9 @@
     },
     {
       "source": "OpenIPC/improver",
-      "path": "fpv-library/repos/improver-OpenIPC-Improver-for-setting-up-FPV-and",
+      "path": "OpenIPC/improver",
       "added_at": "2026-07-26T23:31:10+00:00",
-      "discovered_via": "search:openipc fpv:p1",
+      "discovered_via": "org:OpenIPC",
       "description": "OpenIPC Improver for setting up FPV and URLLC devices",
       "stars": 7,
       "score": 5.5,
@@ -2784,16 +2784,16 @@
       ],
       "interesting": true,
       "triage_reason": "high-score-fpv",
-      "triage_at": "2026-08-02T08:49:27+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/steam-groundstations",
-      "path": "fpv-library/repos/steam-groundstations-OpenIPC-Steam-Deck-Groundstation",
+      "path": "OpenIPC/steam-groundstations",
       "added_at": "2026-07-26T23:31:10+00:00",
-      "discovered_via": "search:openipc fpv:p1",
+      "discovered_via": "org:OpenIPC",
       "description": "OpenIPC Steam Deck Groundstation",
       "stars": 16,
-      "score": 5.5,
+      "score": 6.7,
       "upstream_updated": "2025-01-22T16:18:11Z",
       "owner": "OpenIPC",
       "upstream_commit": "1b8fe14a71d07c17a7a1ae88e0f7c059211446e9",
@@ -2813,7 +2813,7 @@
       ],
       "interesting": true,
       "triage_reason": "high-score-fpv",
-      "triage_at": "2026-08-02T08:49:28+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "jiejiecn/myopenipc",
@@ -2837,9 +2837,9 @@
     },
     {
       "source": "OpenIPC/ca813rf",
-      "path": "fpv-library/repos/ca813rf-Repository-with-new-driver-from-Caddx",
+      "path": "OpenIPC/ca813rf",
       "added_at": "2026-07-26T23:31:10+00:00",
-      "discovered_via": "search:openipc fpv:p2",
+      "discovered_via": "org:OpenIPC",
       "description": "Repository with new driver from Caddx",
       "stars": 3,
       "score": 5.0,
@@ -2857,13 +2857,13 @@
       ],
       "interesting": true,
       "triage_reason": "high-score-fpv",
-      "triage_at": "2026-08-02T08:49:28+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/sensor-profiles",
-      "path": "fpv-library/repos/sensor-profiles-Collection-of-profiles-for-various-senso",
+      "path": "OpenIPC/sensor-profiles",
       "added_at": "2026-07-26T23:31:10+00:00",
-      "discovered_via": "search:openipc fpv:p2",
+      "discovered_via": "org:OpenIPC",
       "description": "Collection of profiles for various sensors",
       "stars": 5,
       "score": 5.5,
@@ -2883,16 +2883,16 @@
       ],
       "interesting": true,
       "triage_reason": "high-score-fpv",
-      "triage_at": "2026-08-02T08:49:28+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/improver-legacy",
-      "path": "fpv-library/repos/improver-legacy-OpenIPC-Improver-legacy-for-setting-up-F",
+      "path": "OpenIPC/improver-legacy",
       "added_at": "2026-07-26T23:31:10+00:00",
-      "discovered_via": "search:openipc fpv:p2",
+      "discovered_via": "org:OpenIPC",
       "description": "OpenIPC Improver (legacy) for setting up FPV and URLLC devices",
       "stars": 2,
-      "score": 5.0,
+      "score": 6.2,
       "upstream_updated": "2024-10-04T14:27:42Z",
       "owner": "OpenIPC",
       "size_kb": 1755,
@@ -2909,13 +2909,13 @@
       ],
       "interesting": true,
       "triage_reason": "high-score-fpv",
-      "triage_at": "2026-08-02T08:49:29+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/pyosd",
-      "path": "fpv-library/repos/pyosd-OSD-python-app-to-run-on-MacOS",
+      "path": "OpenIPC/pyosd",
       "added_at": "2026-07-26T23:31:10+00:00",
-      "discovered_via": "search:openipc fpv:p2",
+      "discovered_via": "org:OpenIPC",
       "description": "OSD python app to run on MacOS",
       "stars": 10,
       "score": 7.3,
@@ -2937,13 +2937,13 @@
       ],
       "interesting": true,
       "triage_reason": "high-score-fpv",
-      "triage_at": "2026-08-02T08:49:29+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/urllc-webui",
-      "path": "fpv-library/repos/urllc-webui-OpenIPC-URLLC-WebUI-examples",
+      "path": "OpenIPC/urllc-webui",
       "added_at": "2026-07-26T23:31:10+00:00",
-      "discovered_via": "search:openipc fpv:p2",
+      "discovered_via": "org:OpenIPC",
       "description": "OpenIPC URLLC WebUI examples",
       "stars": 3,
       "score": 5.0,
@@ -2962,13 +2962,13 @@
       ],
       "interesting": true,
       "triage_reason": "high-score-fpv",
-      "triage_at": "2026-08-02T08:49:29+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/sandbox-fpv",
-      "path": "fpv-library/repos/sandbox-fpv-Sandbox-for-FPV-experiments",
+      "path": "OpenIPC/sandbox-fpv",
       "added_at": "2026-07-26T23:31:10+00:00",
-      "discovered_via": "search:openipc fpv:p2",
+      "discovered_via": "org:OpenIPC",
       "description": "Sandbox for FPV experiments",
       "stars": 71,
       "score": 6.0,
@@ -2986,7 +2986,7 @@
       ],
       "interesting": true,
       "triage_reason": "high-score-fpv",
-      "triage_at": "2026-08-02T08:49:30+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "vysh112/live-analog-video-signal-strength-analyser",
@@ -5528,17 +5528,17 @@
     },
     {
       "source": "OpenIPC/sbc-groundstations",
-      "path": "fpv-library/repos/sbc-groundstations",
+      "path": "OpenIPC/sbc-groundstations",
       "added_at": "2026-07-26T23:31:20+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "sbc-groundstations",
       "stars": 117,
       "score": 7.0,
-      "upstream_updated": "2026-07-29T18:48:09Z",
+      "upstream_updated": "2026-08-03T10:59:50Z",
       "owner": "OpenIPC",
       "upstream_commit": "28113f398c722983df536275d4aa028483eb206f",
       "synced_at": "2026-07-30T08:37:26+00:00",
-      "size_kb": 948,
+      "size_kb": 958,
       "topics": [
         "groundstation",
         "openipc",
@@ -5550,19 +5550,19 @@
       ],
       "interesting": true,
       "triage_reason": "high-score-fpv",
-      "triage_at": "2026-08-02T08:50:00+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/devourer",
-      "path": "fpv-library/repos/devourer-The-Realtek-userspace-Wi-Fi-driver",
+      "path": "OpenIPC/devourer",
       "added_at": "2026-07-26T23:31:20+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "The Realtek userspace Wi-Fi driver",
-      "stars": 42,
+      "stars": 45,
       "score": 6.0,
-      "upstream_updated": "2026-07-26T19:10:02Z",
+      "upstream_updated": "2026-08-03T18:33:29Z",
       "owner": "OpenIPC",
-      "size_kb": 24179,
+      "size_kb": 24268,
       "topics": [
         "openipc",
         "openipc-fpv",
@@ -5575,16 +5575,16 @@
       ],
       "interesting": true,
       "triage_reason": "high-score-fpv",
-      "triage_at": "2026-08-02T08:50:00+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/companion",
-      "path": "fpv-library/repos/companion-An-official-multi-platform-configuration",
+      "path": "OpenIPC/companion",
       "added_at": "2026-07-26T23:31:20+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "An official multi-platform configuration tool for OpenIPC cameras, built using Avalonia UI.",
       "stars": 42,
-      "score": 6.0,
+      "score": 8.2,
       "upstream_updated": "2026-07-19T13:39:55Z",
       "owner": "OpenIPC",
       "upstream_commit": "a7490f8b01f5a3cbfb866e58842d0879d9c2535d",
@@ -5602,13 +5602,13 @@
       ],
       "interesting": true,
       "triage_reason": "high-score-fpv",
-      "triage_at": "2026-08-02T08:50:01+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/hi_osd",
-      "path": "fpv-library/repos/hi_osd-Provide-additional-OSD-regions-on-Hisili",
+      "path": "OpenIPC/hi_osd",
       "added_at": "2026-07-26T23:31:20+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "Provide additional OSD regions on Hisilicon-based IPC",
       "stars": 6,
       "score": 4.3,
@@ -5627,15 +5627,15 @@
       ],
       "interesting": true,
       "triage_reason": "hook-reviewed",
-      "triage_at": "2026-08-02T08:50:01+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/coupler",
-      "path": "fpv-library/repos/coupler-Seamless-transition-between-video-camera",
+      "path": "OpenIPC/coupler",
       "added_at": "2026-07-26T23:31:20+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "Seamless transition between video cameras firmware",
-      "stars": 118,
+      "stars": 119,
       "score": 4.0,
       "upstream_updated": "2026-06-07T08:37:54Z",
       "owner": "OpenIPC",
@@ -5651,17 +5651,17 @@
       ],
       "interesting": true,
       "triage_reason": "hook-reviewed",
-      "triage_at": "2026-08-02T08:50:01+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/ipctool",
-      "path": "fpv-library/repos/ipctool-Simple-tool-and-library-for-checking-IP",
+      "path": "OpenIPC/ipctool",
       "added_at": "2026-07-26T23:31:20+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "Simple tool (and library) for checking IP camera hardware",
-      "stars": 241,
+      "stars": 242,
       "score": 4.0,
-      "upstream_updated": "2026-06-27T08:22:48Z",
+      "upstream_updated": "2026-07-31T09:52:24Z",
       "owner": "OpenIPC",
       "size_kb": 1051,
       "topics": [
@@ -5675,15 +5675,15 @@
       ],
       "interesting": true,
       "triage_reason": "hook-reviewed",
-      "triage_at": "2026-08-02T08:50:02+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/wiki",
-      "path": "fpv-library/repos/wiki-Current-Wiki",
+      "path": "OpenIPC/wiki",
       "added_at": "2026-07-26T23:31:20+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "Current Wiki",
-      "stars": 435,
+      "stars": 436,
       "score": 4.0,
       "upstream_updated": "2026-07-23T13:08:25Z",
       "owner": "OpenIPC",
@@ -5699,13 +5699,13 @@
       ],
       "interesting": true,
       "triage_reason": "hook-reviewed",
-      "triage_at": "2026-08-02T08:50:02+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/smolrtsp",
-      "path": "fpv-library/repos/smolrtsp-A-lightweight-real-time-streaming-librar",
+      "path": "OpenIPC/smolrtsp",
       "added_at": "2026-07-26T23:31:20+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "A lightweight real-time streaming library for IP cameras",
       "stars": 495,
       "score": 4.0,
@@ -5736,13 +5736,13 @@
       ],
       "interesting": true,
       "triage_reason": "hook-reviewed",
-      "triage_at": "2026-08-02T08:50:02+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/camerasrnd",
-      "path": "fpv-library/repos/camerasrnd-Experiments-with-cheap-Linux-cameras",
+      "path": "OpenIPC/camerasrnd",
       "added_at": "2026-07-26T23:31:20+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "Experiments with cheap Linux cameras",
       "stars": 152,
       "score": 4.0,
@@ -5765,13 +5765,13 @@
       ],
       "interesting": true,
       "triage_reason": "hook-reviewed",
-      "triage_at": "2026-08-02T08:50:03+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/mini",
-      "path": "fpv-library/repos/mini-OpenSource-Mini-IP-camera-streamer",
+      "path": "OpenIPC/mini",
       "added_at": "2026-07-26T23:31:20+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "OpenSource Mini IP camera streamer",
       "stars": 113,
       "score": 4.0,
@@ -5796,7 +5796,7 @@
       ],
       "interesting": true,
       "triage_reason": "hook-reviewed",
-      "triage_at": "2026-08-02T08:50:03+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "bobberdolle1/GyroChad",
@@ -7044,9 +7044,9 @@
     },
     {
       "source": "OpenIPC/glutinium",
-      "path": "fpv-library/repos/glutinium-Glutinium-OpenWrt-Buildroot-packages-for",
+      "path": "OpenIPC/glutinium",
       "added_at": "2026-07-26T23:35:48+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "Glutinium - OpenWrt & Buildroot packages for extends functionality.",
       "stars": 125,
       "score": 4.0,
@@ -7068,13 +7068,13 @@
       ],
       "interesting": true,
       "triage_reason": "hook-reviewed",
-      "triage_at": "2026-08-02T08:50:19+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/hardware",
-      "path": "fpv-library/repos/hardware-A-collection-of-hardware-developments-by",
+      "path": "OpenIPC/hardware",
       "added_at": "2026-07-26T23:35:48+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "A collection of hardware developments by the OpenIPC team",
       "stars": 31,
       "score": 3.0,
@@ -7091,13 +7091,13 @@
       ],
       "interesting": true,
       "triage_reason": "hook-reviewed",
-      "triage_at": "2026-08-02T08:50:19+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/openhisilicon",
-      "path": "fpv-library/repos/openhisilicon-Opensource-Hisilicon-SoCs-SDK",
+      "path": "OpenIPC/openhisilicon",
       "added_at": "2026-07-26T23:35:48+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "Opensource Hisilicon SoCs SDK",
       "stars": 50,
       "score": 3.0,
@@ -7115,19 +7115,19 @@
       ],
       "interesting": true,
       "triage_reason": "hook-reviewed",
-      "triage_at": "2026-08-02T08:50:20+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/builder",
-      "path": "fpv-library/repos/builder-Experimental-system-for-building-OpenIPC",
+      "path": "OpenIPC/builder",
       "added_at": "2026-07-26T23:35:48+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "Experimental system for building OpenIPC firmware for known devices",
-      "stars": 83,
+      "stars": 84,
       "score": 3.0,
-      "upstream_updated": "2026-07-26T06:31:47Z",
+      "upstream_updated": "2026-08-03T08:10:24Z",
       "owner": "OpenIPC",
-      "size_kb": 7074,
+      "size_kb": 7000,
       "topics": [
         "builder",
         "firmware",
@@ -7139,15 +7139,15 @@
       ],
       "interesting": true,
       "triage_reason": "hook-reviewed",
-      "triage_at": "2026-08-02T08:50:20+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/divinus",
-      "path": "fpv-library/repos/divinus-Multi-platform-open-source-streamer",
+      "path": "OpenIPC/divinus",
       "added_at": "2026-07-26T23:35:48+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "Multi-platform open source streamer",
-      "stars": 74,
+      "stars": 75,
       "score": 3.0,
       "upstream_updated": "2026-07-25T13:58:40Z",
       "owner": "OpenIPC",
@@ -7165,15 +7165,15 @@
       ],
       "interesting": true,
       "triage_reason": "hook-reviewed",
-      "triage_at": "2026-08-02T08:50:20+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/python-dvr",
-      "path": "fpv-library/repos/python-dvr-python-dvr-library-for-configuring-a-wid",
+      "path": "OpenIPC/python-dvr",
       "added_at": "2026-07-26T23:35:48+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "python-dvr - library for configuring a wide range of IP cameras that use the NETsurveillance ActiveX plugin XMeye SDK",
-      "stars": 68,
+      "stars": 69,
       "score": 3.0,
       "upstream_updated": "2026-06-09T10:09:00Z",
       "owner": "OpenIPC",
@@ -7188,13 +7188,13 @@
       ],
       "interesting": true,
       "triage_reason": "hook-reviewed",
-      "triage_at": "2026-08-02T08:50:20+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/u-boot-sigmastar",
-      "path": "fpv-library/repos/u-boot-sigmastar-U-Boot-for-Infinity6xx-SoC-s",
+      "path": "OpenIPC/u-boot-sigmastar",
       "added_at": "2026-07-26T23:35:48+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "U-Boot for Infinity6xx SoC's",
       "stars": 26,
       "score": 3.0,
@@ -7220,17 +7220,17 @@
       ],
       "interesting": true,
       "triage_reason": "hook-reviewed",
-      "triage_at": "2026-08-02T08:50:21+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/majestic-webui",
-      "path": "fpv-library/repos/majestic-webui-Web-interface-for-OpenIPC-firmware",
+      "path": "OpenIPC/majestic-webui",
       "added_at": "2026-07-26T23:35:48+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "Web interface for OpenIPC firmware.",
       "stars": 32,
       "score": 3.0,
-      "upstream_updated": "2026-07-21T19:45:15Z",
+      "upstream_updated": "2026-07-29T13:46:21Z",
       "owner": "OpenIPC",
       "size_kb": 616,
       "topics": [
@@ -7245,13 +7245,13 @@
       ],
       "interesting": true,
       "triage_reason": "hook-reviewed",
-      "triage_at": "2026-08-02T08:50:21+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/webui",
-      "path": "fpv-library/repos/webui-OpenIPC-web-interface",
+      "path": "OpenIPC/webui",
       "added_at": "2026-07-26T23:35:48+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "OpenIPC web interface.",
       "stars": 58,
       "score": 3.0,
@@ -7271,13 +7271,13 @@
       ],
       "interesting": true,
       "triage_reason": "hook-reviewed",
-      "triage_at": "2026-08-02T08:50:21+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/device-mjsxj02hl",
-      "path": "fpv-library/repos/device-mjsxj02hl-OpenIPC-for-Xiaomi-MJSXJ02HL",
+      "path": "OpenIPC/device-mjsxj02hl",
       "added_at": "2026-07-26T23:35:48+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "OpenIPC for Xiaomi MJSXJ02HL",
       "stars": 76,
       "score": 3.0,
@@ -7296,13 +7296,13 @@
       ],
       "interesting": true,
       "triage_reason": "hook-reviewed",
-      "triage_at": "2026-08-02T08:50:22+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/burn",
-      "path": "fpv-library/repos/burn-OpenSource-tool-to-unbrick-HiSilicon-and",
+      "path": "OpenIPC/burn",
       "added_at": "2026-07-26T23:35:48+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "OpenSource tool to unbrick HiSilicon and Goke devices",
       "stars": 49,
       "score": 3.0,
@@ -7319,13 +7319,13 @@
       ],
       "interesting": true,
       "triage_reason": "hook-reviewed",
-      "triage_at": "2026-08-02T08:50:22+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/uget",
-      "path": "fpv-library/repos/uget-Simple-but-compact-wget-replacement-for",
+      "path": "OpenIPC/uget",
       "added_at": "2026-07-26T23:35:48+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "Simple but compact wget replacement for embedded devices",
       "stars": 25,
       "score": 3.0,
@@ -7343,13 +7343,13 @@
       ],
       "interesting": true,
       "triage_reason": "hook-reviewed",
-      "triage_at": "2026-08-02T08:50:22+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/aic8800",
-      "path": "fpv-library/repos/aic8800-The-aic8800-WiFi-diver",
+      "path": "OpenIPC/aic8800",
       "added_at": "2026-07-26T23:35:48+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "The aic8800 WiFi diver",
       "stars": 29,
       "score": 3.0,
@@ -7366,13 +7366,13 @@
       ],
       "interesting": true,
       "triage_reason": "hook-reviewed",
-      "triage_at": "2026-08-02T08:50:23+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/motors",
-      "path": "fpv-library/repos/motors-Various-code-to-manage-motor-hardware",
+      "path": "OpenIPC/motors",
       "added_at": "2026-07-26T23:35:48+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "Various code to manage motor hardware",
       "stars": 34,
       "score": 3.0,
@@ -7389,13 +7389,13 @@
       ],
       "interesting": true,
       "triage_reason": "hook-reviewed",
-      "triage_at": "2026-08-02T08:50:23+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/device-mjsxj03hl",
-      "path": "fpv-library/repos/device-mjsxj03hl-OpenIPC-for-Xiaomi-MJSXJ03HL",
+      "path": "OpenIPC/device-mjsxj03hl",
       "added_at": "2026-07-26T23:35:48+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "OpenIPC for Xiaomi MJSXJ03HL",
       "stars": 74,
       "score": 3.0,
@@ -7414,7 +7414,7 @@
       ],
       "interesting": true,
       "triage_reason": "hook-reviewed",
-      "triage_at": "2026-08-02T08:50:23+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "betaflight/BLHeli_S",
@@ -9556,9 +9556,9 @@
     },
     {
       "source": "OpenIPC/webrtc-c",
-      "path": "fpv-library/repos/webrtc-c-WebRTC-SDK-in-pure-C",
+      "path": "OpenIPC/webrtc-c",
       "added_at": "2026-07-26T23:37:25+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "WebRTC SDK in pure C",
       "stars": 12,
       "score": 3.0,
@@ -9575,13 +9575,13 @@
       ],
       "interesting": true,
       "triage_reason": "hook-reviewed",
-      "triage_at": "2026-08-02T08:50:57+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/yaml-cli",
-      "path": "fpv-library/repos/yaml-cli-Simple-YAML-console-tool",
+      "path": "OpenIPC/yaml-cli",
       "added_at": "2026-07-26T23:37:25+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "Simple YAML console tool",
       "stars": 7,
       "score": 2.5,
@@ -9599,17 +9599,17 @@
       ],
       "interesting": false,
       "triage_reason": "weak-hook",
-      "triage_at": "2026-08-02T08:50:57+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/dashboard",
-      "path": "fpv-library/repos/dashboard-Dashboard-is-a-cross-platform-Lin-Mac-Wi",
+      "path": "OpenIPC/dashboard",
       "added_at": "2026-07-26T23:37:25+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "Dashboard is a cross-platform (Lin/Mac/Win) desktop application for convenient management and monitoring of cameras based on OpenIPC firmware.",
       "stars": 17,
       "score": 2.5,
-      "upstream_updated": "2026-07-23T03:16:40Z",
+      "upstream_updated": "2026-08-02T07:20:49Z",
       "owner": "OpenIPC",
       "size_kb": 404498,
       "topics": [
@@ -9623,13 +9623,13 @@
       ],
       "interesting": true,
       "triage_reason": "weak-hook",
-      "triage_at": "2026-08-02T08:50:58+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/u-boot-ingenic",
-      "path": "fpv-library/repos/u-boot-ingenic-U-Boot-for-Ingenic-SoC-s",
+      "path": "OpenIPC/u-boot-ingenic",
       "added_at": "2026-07-26T23:37:25+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "U-Boot for Ingenic SoC's",
       "stars": 18,
       "score": 2.5,
@@ -9653,13 +9653,13 @@
       ],
       "interesting": true,
       "triage_reason": "weak-hook",
-      "triage_at": "2026-08-02T08:50:58+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/smolrtsp-libevent",
-      "path": "fpv-library/repos/smolrtsp-libevent-SmolRTSP-libevent-2-x",
+      "path": "OpenIPC/smolrtsp-libevent",
       "added_at": "2026-07-26T23:37:25+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "SmolRTSP + libevent 2.x",
       "stars": 13,
       "score": 2.5,
@@ -9676,7 +9676,7 @@
       ],
       "interesting": true,
       "triage_reason": "weak-hook",
-      "triage_at": "2026-08-02T08:50:58+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "dutchdronesquad/fpv-track-viewer",
@@ -10511,11 +10511,11 @@
     },
     {
       "source": "OpenIPC/viewer",
-      "path": "fpv-library/repos/viewer-Cross-platform-viewer-for-OpenIPC-IP-cam",
+      "path": "OpenIPC/viewer",
       "added_at": "2026-07-26T23:41:43+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "Cross-platform viewer for OpenIPC IP cameras — live RTSP with HW decode, multi-camera grid, on-device AI detection, recording & two-way audio, ONVIF discovery and Majestic config. Windows · Linux · macOS · Android.",
-      "stars": 8,
+      "stars": 9,
       "score": 2.5,
       "upstream_updated": "2026-07-22T11:06:18Z",
       "owner": "OpenIPC",
@@ -10535,13 +10535,13 @@
       ],
       "interesting": false,
       "triage_reason": "weak-hook",
-      "triage_at": "2026-08-02T08:51:11+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/u-boot-gk7205v200",
-      "path": "fpv-library/repos/u-boot-gk7205v200-U-Boot-for-gk7205v200-group-SoC-s",
+      "path": "OpenIPC/u-boot-gk7205v200",
       "added_at": "2026-07-26T23:41:43+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "U-Boot for gk7205v200 group SoC's",
       "stars": 15,
       "score": 2.5,
@@ -10562,13 +10562,13 @@
       ],
       "interesting": true,
       "triage_reason": "weak-hook",
-      "triage_at": "2026-08-02T08:51:11+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/sensors",
-      "path": "fpv-library/repos/sensors-About-Source-code-and-ready-to-use-drive",
+      "path": "OpenIPC/sensors",
       "added_at": "2026-07-26T23:41:43+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "About Source code and ready-to-use drivers for video camera sensors",
       "stars": 9,
       "score": 2.5,
@@ -10587,13 +10587,13 @@
       ],
       "interesting": false,
       "triage_reason": "weak-hook",
-      "triage_at": "2026-08-02T08:51:12+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/ipctool_tests",
-      "path": "fpv-library/repos/ipctool_tests-PoC-for-do-CI-on-distributed-collection",
+      "path": "OpenIPC/ipctool_tests",
       "added_at": "2026-07-26T23:41:43+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "PoC for do CI on distributed collection of hardware",
       "stars": 5,
       "score": 2.5,
@@ -10611,7 +10611,7 @@
       ],
       "interesting": false,
       "triage_reason": "weak-hook",
-      "triage_at": "2026-08-02T08:51:12+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "TigeyJewellAlibhai/uav-control",
@@ -18211,11 +18211,11 @@
     },
     {
       "source": "OpenIPC/linux",
-      "path": "fpv-library/repos/linux-Linux-kernels-for-OpenIPC-firmware",
+      "path": "OpenIPC/linux",
       "added_at": "2026-07-27T01:22:43+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "Linux kernels for OpenIPC firmware",
-      "stars": 36,
+      "stars": 37,
       "score": 3.0,
       "upstream_updated": "2026-07-20T16:48:35Z",
       "owner": "OpenIPC",
@@ -18238,13 +18238,13 @@
       ],
       "interesting": true,
       "triage_reason": "hook-reviewed",
-      "triage_at": "2026-08-02T08:52:55+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/debrick",
-      "path": "fpv-library/repos/debrick-Recovering-Hisi-Goke-devices",
+      "path": "OpenIPC/debrick",
       "added_at": "2026-07-27T01:22:43+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "Recovering Hisi/Goke devices",
       "stars": 9,
       "score": 2.5,
@@ -18262,13 +18262,13 @@
       ],
       "interesting": false,
       "triage_reason": "weak-hook",
-      "triage_at": "2026-08-02T08:52:56+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/capjpeg",
-      "path": "fpv-library/repos/capjpeg-Quick-and-dirty-libimp-T31-ingenic-testi",
+      "path": "OpenIPC/capjpeg",
       "added_at": "2026-07-27T01:22:43+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "Quick and dirty libimp (T31 - ingenic) testing for catpure still images using openipc sdk",
       "stars": 6,
       "score": 2.5,
@@ -18287,13 +18287,13 @@
       ],
       "interesting": false,
       "triage_reason": "weak-hook",
-      "triage_at": "2026-08-02T08:52:56+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/u-boot-nt9856x",
-      "path": "fpv-library/repos/u-boot-nt9856x-U-Boot-for-nt9856x-group-SoC-s",
+      "path": "OpenIPC/u-boot-nt9856x",
       "added_at": "2026-07-27T01:22:43+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "U-Boot for nt9856x group SoC's",
       "stars": 5,
       "score": 2.5,
@@ -18313,13 +18313,13 @@
       ],
       "interesting": false,
       "triage_reason": "weak-hook",
-      "triage_at": "2026-08-02T08:52:56+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/hisi-trace",
-      "path": "fpv-library/repos/hisi-trace-A-utility-to-run-Sofia-from-XM-in-a-non",
+      "path": "OpenIPC/hisi-trace",
       "added_at": "2026-07-27T01:22:43+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "A utility to run Sofia from XM in a non-stock environment",
       "stars": 10,
       "score": 2.5,
@@ -18340,13 +18340,13 @@
       ],
       "interesting": true,
       "triage_reason": "weak-hook",
-      "triage_at": "2026-08-02T08:52:57+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/u-boot-hi3516ev200",
-      "path": "fpv-library/repos/u-boot-hi3516ev200-U-Boot-for-hi3516ev200-group-SoC-s",
+      "path": "OpenIPC/u-boot-hi3516ev200",
       "added_at": "2026-07-27T01:22:43+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "U-Boot for hi3516ev200 group SoC's",
       "stars": 8,
       "score": 2.5,
@@ -18367,13 +18367,13 @@
       ],
       "interesting": false,
       "triage_reason": "weak-hook",
-      "triage_at": "2026-08-02T08:52:57+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/device-ezviz",
-      "path": "fpv-library/repos/device-ezviz-OpenIPC-for-EZVIZ",
+      "path": "OpenIPC/device-ezviz",
       "added_at": "2026-07-27T01:22:43+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "OpenIPC for EZVIZ",
       "stars": 8,
       "score": 2.5,
@@ -18391,13 +18391,13 @@
       ],
       "interesting": false,
       "triage_reason": "weak-hook",
-      "triage_at": "2026-08-02T08:52:57+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/.github",
-      "path": "fpv-library/repos/.github-OpenIPC-is-a-Linux-operating-system-targ",
+      "path": "OpenIPC/.github",
       "added_at": "2026-07-27T01:22:43+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "OpenIPC is a Linux operating system targeting IP cameras",
       "stars": 6,
       "score": 2.5,
@@ -18413,13 +18413,13 @@
       ],
       "interesting": false,
       "triage_reason": "noise:github-meta",
-      "triage_at": "2026-08-02T08:52:57+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/ak3918ev200",
-      "path": "fpv-library/repos/ak3918ev200-Reverse-engineering-of-the-AK3918EV200-I",
+      "path": "OpenIPC/ak3918ev200",
       "added_at": "2026-07-27T01:22:43+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "Reverse engineering of the AK3918EV200 ISP: tools, logs, and decompiled analysis to document ioctl mappings, payloads, and initialization sequences for IP camera SoCs.",
       "stars": 7,
       "score": 2.5,
@@ -18437,13 +18437,13 @@
       ],
       "interesting": false,
       "triage_reason": "weak-hook",
-      "triage_at": "2026-08-02T08:52:58+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/packages",
-      "path": "fpv-library/repos/packages-New-OpenIPC-packages-feed-futurum",
+      "path": "OpenIPC/packages",
       "added_at": "2026-07-27T01:22:43+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "New OpenIPC packages feed - futurum",
       "stars": 6,
       "score": 2.5,
@@ -18462,13 +18462,13 @@
       ],
       "interesting": false,
       "triage_reason": "weak-hook",
-      "triage_at": "2026-08-02T08:52:58+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/realtek-wlan",
-      "path": "fpv-library/repos/realtek-wlan-Realtek-WLAN-drivers",
+      "path": "OpenIPC/realtek-wlan",
       "added_at": "2026-07-27T01:22:43+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "Realtek WLAN drivers",
       "stars": 9,
       "score": 2.5,
@@ -18488,13 +18488,13 @@
       ],
       "interesting": false,
       "triage_reason": "weak-hook",
-      "triage_at": "2026-08-02T08:52:58+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/atbm_60xx",
-      "path": "fpv-library/repos/atbm_60xx-AltoBeam-atbm-WiFi-driver",
+      "path": "OpenIPC/atbm_60xx",
       "added_at": "2026-07-27T01:22:43+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "AltoBeam atbm WiFi driver",
       "stars": 5,
       "score": 2.5,
@@ -18511,7 +18511,7 @@
       ],
       "interesting": false,
       "triage_reason": "weak-hook",
-      "triage_at": "2026-08-02T08:52:59+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "nandanahacks/ESP32-ESP-NOW-Telemetry-Bridge",
@@ -44054,9 +44054,9 @@
     },
     {
       "source": "OpenIPC/audioplayer",
-      "path": "fpv-library/repos/audioplayer-Simple-command-line-audioplayer-for-HiSi",
+      "path": "OpenIPC/audioplayer",
       "added_at": "2026-07-27T01:33:57+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "Simple command line audioplayer for HiSilicon IPC",
       "stars": 6,
       "score": 2.5,
@@ -44073,13 +44073,13 @@
       ],
       "interesting": false,
       "triage_reason": "weak-hook",
-      "triage_at": "2026-08-02T08:57:49+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/ssw101b",
-      "path": "fpv-library/repos/ssw101b-SigmaStar-ssw101b-WiFi-driver",
+      "path": "OpenIPC/ssw101b",
       "added_at": "2026-07-27T01:33:57+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "SigmaStar ssw101b WiFi driver",
       "stars": 9,
       "score": 2.5,
@@ -44096,13 +44096,13 @@
       ],
       "interesting": false,
       "triage_reason": "weak-hook",
-      "triage_at": "2026-08-02T08:57:49+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/majestic-plugins",
-      "path": "fpv-library/repos/majestic-plugins-Majestic-plugins-for-OpenIPC",
+      "path": "OpenIPC/majestic-plugins",
       "added_at": "2026-07-27T01:33:57+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "Majestic plugins for OpenIPC",
       "stars": 8,
       "score": 2.5,
@@ -44120,13 +44120,13 @@
       ],
       "interesting": false,
       "triage_reason": "weak-hook",
-      "triage_at": "2026-08-02T08:57:50+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/sandbox",
-      "path": "fpv-library/repos/sandbox-Sandbox-for-experiments-in-the-OpenIPC-p",
+      "path": "OpenIPC/sandbox",
       "added_at": "2026-07-27T01:33:57+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "Sandbox for experiments in the OpenIPC project",
       "stars": 11,
       "score": 2.5,
@@ -44143,13 +44143,13 @@
       ],
       "interesting": true,
       "triage_reason": "weak-hook",
-      "triage_at": "2026-08-02T08:57:50+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/openingenic",
-      "path": "fpv-library/repos/openingenic-Opensource-Ingenic-SoCs-SDK",
+      "path": "OpenIPC/openingenic",
       "added_at": "2026-07-27T01:33:57+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "Opensource Ingenic SoCs SDK",
       "stars": 17,
       "score": 2.5,
@@ -44166,13 +44166,13 @@
       ],
       "interesting": true,
       "triage_reason": "weak-hook",
-      "triage_at": "2026-08-02T08:57:50+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/docs",
-      "path": "fpv-library/repos/docs-The-new-OpenIPC-docs",
+      "path": "OpenIPC/docs",
       "added_at": "2026-07-27T01:33:57+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "The new OpenIPC docs",
       "stars": 14,
       "score": 2.5,
@@ -44190,13 +44190,13 @@
       ],
       "interesting": true,
       "triage_reason": "weak-hook",
-      "triage_at": "2026-08-02T08:57:50+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/openipc.github.io",
-      "path": "fpv-library/repos/openipc.github.io-Alternative-IP-Camera-firmware-from-an-o",
+      "path": "OpenIPC/openipc.github.io",
       "added_at": "2026-07-27T01:33:57+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "Alternative IP Camera firmware from an open community",
       "stars": 35,
       "score": 2.5,
@@ -44222,15 +44222,15 @@
       ],
       "interesting": false,
       "triage_reason": "noise:github\\.io\\b",
-      "triage_at": "2026-08-02T08:57:50+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/snander-mstar",
-      "path": "fpv-library/repos/snander-mstar-CH341A-I2C-MStar-programmer",
+      "path": "OpenIPC/snander-mstar",
       "added_at": "2026-07-27T01:33:57+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "CH341A I2C MStar programmer",
-      "stars": 16,
+      "stars": 17,
       "score": 2.5,
       "upstream_updated": "2024-04-18T11:31:38Z",
       "owner": "OpenIPC",
@@ -44242,13 +44242,13 @@
       ],
       "interesting": true,
       "triage_reason": "weak-hook",
-      "triage_at": "2026-08-02T08:57:50+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/u-boot-hi3516cv200",
-      "path": "fpv-library/repos/u-boot-hi3516cv200-U-Boot-for-hi3516cv200-group-SoC-s",
+      "path": "OpenIPC/u-boot-hi3516cv200",
       "added_at": "2026-07-27T01:33:57+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "U-Boot for hi3516cv200 group SoC's",
       "stars": 8,
       "score": 2.5,
@@ -44268,13 +44268,13 @@
       ],
       "interesting": false,
       "triage_reason": "weak-hook",
-      "triage_at": "2026-08-02T08:57:51+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/u-boot-hi3516cv300",
-      "path": "fpv-library/repos/u-boot-hi3516cv300-U-Boot-for-hi3516cv300-group-SoC-s",
+      "path": "OpenIPC/u-boot-hi3516cv300",
       "added_at": "2026-07-27T01:33:57+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "U-Boot for hi3516cv300 group SoC's",
       "stars": 5,
       "score": 2.5,
@@ -44294,13 +44294,13 @@
       ],
       "interesting": false,
       "triage_reason": "weak-hook",
-      "triage_at": "2026-08-02T08:57:51+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/u-boot-hi3516cv100",
-      "path": "fpv-library/repos/u-boot-hi3516cv100-U-Boot-for-hi3516cv100-group-SoC-s",
+      "path": "OpenIPC/u-boot-hi3516cv100",
       "added_at": "2026-07-27T01:33:57+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "U-Boot for hi3516cv100 group SoC's",
       "stars": 5,
       "score": 2.5,
@@ -44320,13 +44320,13 @@
       ],
       "interesting": false,
       "triage_reason": "weak-hook",
-      "triage_at": "2026-08-02T08:57:51+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/u-boot-hi3519v101",
-      "path": "fpv-library/repos/u-boot-hi3519v101-U-Boot-for-hi3519v101-group-SoC-s",
+      "path": "OpenIPC/u-boot-hi3519v101",
       "added_at": "2026-07-27T01:33:57+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "U-Boot for hi3519v101 group SoC's",
       "stars": 5,
       "score": 2.5,
@@ -44346,7 +44346,7 @@
       ],
       "interesting": false,
       "triage_reason": "weak-hook",
-      "triage_at": "2026-08-02T08:57:51+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "meshtastic/Meshtastic-repeater",
@@ -47592,9 +47592,9 @@
     },
     {
       "source": "OpenIPC/microsnander",
-      "path": "fpv-library/repos/microsnander-Stripped-down-and-modified-version-of-Se",
+      "path": "OpenIPC/microsnander",
       "added_at": "2026-07-28T08:29:54+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "Stripped down and modified version of Serial Nor/nAND/Eeprom programmeR (based on CH341A)",
       "stars": 9,
       "score": 2.5,
@@ -47616,13 +47616,13 @@
       ],
       "interesting": false,
       "triage_reason": "weak-hook",
-      "triage_at": "2026-08-02T08:58:14+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/modding",
-      "path": "fpv-library/repos/modding-IPCam-modding-scripts",
+      "path": "OpenIPC/modding",
       "added_at": "2026-07-28T08:29:54+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "IPCam modding scripts",
       "stars": 8,
       "score": 2.5,
@@ -47636,13 +47636,13 @@
       ],
       "interesting": false,
       "triage_reason": "weak-hook",
-      "triage_at": "2026-08-02T08:58:14+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/openxiongmai",
-      "path": "fpv-library/repos/openxiongmai-Opensource-Xiongmai-SoCs-SDK",
+      "path": "OpenIPC/openxiongmai",
       "added_at": "2026-07-28T08:29:54+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "Opensource Xiongmai SoCs SDK",
       "stars": 13,
       "score": 2.5,
@@ -47662,7 +47662,7 @@
       ],
       "interesting": true,
       "triage_reason": "weak-hook",
-      "triage_at": "2026-08-02T08:58:14+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "Santipap250/OBIX-CONFIG-FPV",
@@ -49738,9 +49738,9 @@
     },
     {
       "source": "OpenIPC/LoTool",
-      "path": "fpv-library/repos/LoTool-Internal-chip-information-extractor-from",
+      "path": "OpenIPC/LoTool",
       "added_at": "2026-07-28T08:32:57+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "Internal chip information extractor from HiSilicon HiTool",
       "stars": 13,
       "score": 2.5,
@@ -49758,13 +49758,13 @@
       ],
       "interesting": true,
       "triage_reason": "weak-hook",
-      "triage_at": "2026-08-02T08:58:29+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/device-cip-37210",
-      "path": "fpv-library/repos/device-cip-37210-OpenIPC-for-Smartwares-CIP-37210",
+      "path": "OpenIPC/device-cip-37210",
       "added_at": "2026-07-28T08:32:57+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "OpenIPC for Smartwares CIP-37210",
       "stars": 5,
       "score": 2.5,
@@ -49783,7 +49783,7 @@
       ],
       "interesting": false,
       "triage_reason": "weak-hook",
-      "triage_at": "2026-08-02T08:58:29+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "ArduPilot/lwip",
@@ -50019,13 +50019,13 @@
     },
     {
       "source": "OpenIPC/fancyweb-ng",
-      "path": "fpv-library/repos/fancyweb-ng-New-generation-of-FancyWeb-interface",
+      "path": "OpenIPC/fancyweb-ng",
       "added_at": "2026-07-28T08:56:51+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "New generation of FancyWeb interface",
       "stars": 1,
       "score": 2.0,
-      "upstream_updated": "2026-07-26T19:42:42Z",
+      "upstream_updated": "2026-07-28T16:30:55Z",
       "owner": "OpenIPC",
       "size_kb": 15592,
       "topics": [
@@ -50039,13 +50039,13 @@
       ],
       "interesting": false,
       "triage_reason": "peripheral",
-      "triage_at": "2026-08-02T08:58:31+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/hisinad",
-      "path": "fpv-library/repos/hisinad-HISINAD-experiments-with-hi3516cv100-and",
+      "path": "OpenIPC/hisinad",
       "added_at": "2026-07-28T08:56:51+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "HISINAD - experiments with hi3516cv100 (and similar v1 Hisilicon SoCs).",
       "stars": 0,
       "score": 2.0,
@@ -50062,13 +50062,13 @@
       ],
       "interesting": false,
       "triage_reason": "peripheral",
-      "triage_at": "2026-08-02T08:58:32+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/u-boot-t41",
-      "path": "fpv-library/repos/u-boot-t41-U-Boot-for-Ingenic-T41",
+      "path": "OpenIPC/u-boot-t41",
       "added_at": "2026-07-28T08:56:51+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "U-Boot for Ingenic T41",
       "stars": 2,
       "score": 2.0,
@@ -50088,13 +50088,13 @@
       ],
       "interesting": false,
       "triage_reason": "peripheral",
-      "triage_at": "2026-08-02T08:58:32+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/intercom",
-      "path": "fpv-library/repos/intercom-SIP-Doorphone-on-OpenIPC",
+      "path": "OpenIPC/intercom",
       "added_at": "2026-07-28T08:56:51+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "SIP Doorphone on OpenIPC",
       "stars": 3,
       "score": 2.0,
@@ -50112,13 +50112,13 @@
       ],
       "interesting": false,
       "triage_reason": "peripheral",
-      "triage_at": "2026-08-02T08:58:32+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/onvif-tt",
-      "path": "fpv-library/repos/onvif-tt-Open-source-headless-CI-and-AI-friendly",
+      "path": "OpenIPC/onvif-tt",
       "added_at": "2026-07-28T08:56:51+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "Open-source, headless, CI- and AI-friendly ONVIF conformance test tool",
       "stars": 3,
       "score": 2.0,
@@ -50141,13 +50141,13 @@
       ],
       "interesting": false,
       "triage_reason": "peripheral",
-      "triage_at": "2026-08-02T08:58:32+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/rnd-player",
-      "path": "fpv-library/repos/rnd-player-A-simple-R-D-player-entirely-created-by",
+      "path": "OpenIPC/rnd-player",
       "added_at": "2026-07-28T08:56:51+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "A simple R&D player, entirely created by AI without human involvement.",
       "stars": 4,
       "score": 2.0,
@@ -50165,13 +50165,13 @@
       ],
       "interesting": false,
       "triage_reason": "peripheral",
-      "triage_at": "2026-08-02T08:58:32+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/hass",
-      "path": "fpv-library/repos/hass-OpenIPC-Ecosystem-for-Home-Assistant",
+      "path": "OpenIPC/hass",
       "added_at": "2026-07-28T08:56:51+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "OpenIPC Ecosystem for Home Assistant",
       "stars": 3,
       "score": 2.0,
@@ -50189,13 +50189,13 @@
       ],
       "interesting": false,
       "triage_reason": "peripheral",
-      "triage_at": "2026-08-02T08:58:32+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/u-boot-xmedia",
-      "path": "fpv-library/repos/u-boot-xmedia-U-Boot-for-xmedia-group-SoC-s",
+      "path": "OpenIPC/u-boot-xmedia",
       "added_at": "2026-07-28T08:56:51+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "U-Boot for xmedia group SoC's",
       "stars": 2,
       "score": 2.0,
@@ -50216,17 +50216,17 @@
       ],
       "interesting": false,
       "triage_reason": "peripheral",
-      "triage_at": "2026-08-02T08:58:33+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/defib",
-      "path": "fpv-library/repos/defib-Universal-camera-recovery-tool-shocking",
+      "path": "OpenIPC/defib",
       "added_at": "2026-07-28T08:56:51+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "Universal camera recovery tool - shocking dead devices back to life",
       "stars": 2,
       "score": 2.0,
-      "upstream_updated": "2026-06-04T10:07:33Z",
+      "upstream_updated": "2026-07-28T13:58:50Z",
       "owner": "OpenIPC",
       "size_kb": 887,
       "topics": [
@@ -50242,13 +50242,13 @@
       ],
       "interesting": false,
       "triage_reason": "peripheral",
-      "triage_at": "2026-08-02T08:58:33+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/vectis",
-      "path": "fpv-library/repos/vectis-Vectis-is-intended-for-fast-debugging-an",
+      "path": "OpenIPC/vectis",
       "added_at": "2026-07-28T08:56:51+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "Vectis is intended for fast debugging and device control during development and integration of embedded systems with the OpenIPC UART 38x38 board.",
       "stars": 1,
       "score": 2.0,
@@ -50266,13 +50266,13 @@
       ],
       "interesting": false,
       "triage_reason": "peripheral",
-      "triage_at": "2026-08-02T08:58:33+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/u-boot-grainmedia",
-      "path": "fpv-library/repos/u-boot-grainmedia-U-Boot-for-GrainMedia-SoC-s",
+      "path": "OpenIPC/u-boot-grainmedia",
       "added_at": "2026-07-28T08:56:51+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "U-Boot for GrainMedia SoC's",
       "stars": 3,
       "score": 2.0,
@@ -50293,13 +50293,13 @@
       ],
       "interesting": false,
       "triage_reason": "peripheral",
-      "triage_at": "2026-08-02T08:58:33+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/br-cache",
-      "path": "fpv-library/repos/br-cache-Buildroot-Cache-Repo-for-CI",
+      "path": "OpenIPC/br-cache",
       "added_at": "2026-07-28T08:56:51+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "Buildroot Cache Repo for CI",
       "stars": 2,
       "score": 2.0,
@@ -50317,13 +50317,13 @@
       ],
       "interesting": false,
       "triage_reason": "peripheral",
-      "triage_at": "2026-08-02T08:58:33+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/opendrm",
-      "path": "fpv-library/repos/opendrm",
+      "path": "OpenIPC/opendrm",
       "added_at": "2026-07-28T08:56:51+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "OpenDRM",
       "stars": 1,
       "score": 2.0,
@@ -50340,13 +50340,13 @@
       ],
       "interesting": false,
       "triage_reason": "peripheral",
-      "triage_at": "2026-08-02T08:58:33+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/mediantrading",
-      "path": "fpv-library/repos/mediantrading-Micro-site-for-MedianTrading-in-collabor",
+      "path": "OpenIPC/mediantrading",
       "added_at": "2026-07-28T08:56:51+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "Micro-site for MedianTrading in collaboration with OpenIPC",
       "stars": 1,
       "score": 2.0,
@@ -50360,13 +50360,13 @@
       ],
       "interesting": false,
       "triage_reason": "peripheral",
-      "triage_at": "2026-08-02T08:58:34+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/web-components",
-      "path": "fpv-library/repos/web-components-WEB-components-for-creating-OpenIPC-reso",
+      "path": "OpenIPC/web-components",
       "added_at": "2026-07-28T08:56:51+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "WEB components for creating OpenIPC resources on the Internet",
       "stars": 2,
       "score": 2.0,
@@ -50383,7 +50383,7 @@
       ],
       "interesting": false,
       "triage_reason": "peripheral",
-      "triage_at": "2026-08-02T08:58:34+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "davidakpele/ExpressLRS",
@@ -52818,9 +52818,9 @@
     },
     {
       "source": "OpenIPC/toolchains",
-      "path": "fpv-library/repos/toolchains-HiSilicon-cross-compilation-toolchains-f",
+      "path": "OpenIPC/toolchains",
       "added_at": "2026-07-28T09:15:18+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "HiSilicon cross-compilation toolchains for OpenIPC",
       "stars": 1,
       "score": 2.0,
@@ -52838,13 +52838,13 @@
       ],
       "interesting": false,
       "triage_reason": "peripheral",
-      "triage_at": "2026-08-02T08:58:53+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/telkam",
-      "path": "fpv-library/repos/telkam-Telkam-a-intellectual-demon-that-turns-a",
+      "path": "OpenIPC/telkam",
       "added_at": "2026-07-28T09:15:18+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "Telkam - a intellectual demon that turns a camera into a smart security detector",
       "stars": 3,
       "score": 2.0,
@@ -52863,13 +52863,13 @@
       ],
       "interesting": false,
       "triage_reason": "peripheral",
-      "triage_at": "2026-08-02T08:58:54+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/interface",
-      "path": "fpv-library/repos/interface-OpenIPC-Common-Interface-Prototype",
+      "path": "OpenIPC/interface",
       "added_at": "2026-07-28T09:15:18+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "OpenIPC Common Interface Prototype",
       "stars": 2,
       "score": 2.0,
@@ -52887,13 +52887,13 @@
       ],
       "interesting": false,
       "triage_reason": "peripheral",
-      "triage_at": "2026-08-02T08:58:54+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/fancyweb",
-      "path": "fpv-library/repos/fancyweb-Fancy-WEB-interface-using-React",
+      "path": "OpenIPC/fancyweb",
       "added_at": "2026-07-28T09:15:18+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "Fancy WEB interface using React",
       "stars": 4,
       "score": 2.0,
@@ -52911,13 +52911,13 @@
       ],
       "interesting": false,
       "triage_reason": "peripheral",
-      "triage_at": "2026-08-02T08:58:54+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/pqtools",
-      "path": "fpv-library/repos/pqtools-Various-testing-stuff",
+      "path": "OpenIPC/pqtools",
       "added_at": "2026-07-28T09:15:18+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "Various testing stuff",
       "stars": 2,
       "score": 2.0,
@@ -52936,13 +52936,13 @@
       ],
       "interesting": false,
       "triage_reason": "peripheral",
-      "triage_at": "2026-08-02T08:58:54+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/mt7601u",
-      "path": "fpv-library/repos/mt7601u-Mediatek-WLAN-drivers",
+      "path": "OpenIPC/mt7601u",
       "added_at": "2026-07-28T09:15:18+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "Mediatek WLAN drivers",
       "stars": 2,
       "score": 2.0,
@@ -52959,13 +52959,13 @@
       ],
       "interesting": false,
       "triage_reason": "peripheral",
-      "triage_at": "2026-08-02T08:58:54+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/faceter",
-      "path": "fpv-library/repos/faceter-Integration-with-the-Faceter-project",
+      "path": "OpenIPC/faceter",
       "added_at": "2026-07-28T09:15:18+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "Integration with the Faceter project",
       "stars": 4,
       "score": 2.0,
@@ -52982,13 +52982,13 @@
       ],
       "interesting": false,
       "triage_reason": "peripheral",
-      "triage_at": "2026-08-02T08:58:54+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/u-boot-t40",
-      "path": "fpv-library/repos/u-boot-t40-About-U-Boot-for-t40-group-SoC-s",
+      "path": "OpenIPC/u-boot-t40",
       "added_at": "2026-07-28T09:15:18+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "About U-Boot for t40 group SoC's",
       "stars": 3,
       "score": 2.0,
@@ -53008,13 +53008,13 @@
       ],
       "interesting": false,
       "triage_reason": "peripheral",
-      "triage_at": "2026-08-02T08:58:55+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/camex",
-      "path": "fpv-library/repos/camex-Minimal-dependency-free-UDP-TCP-tunnel-f",
+      "path": "OpenIPC/camex",
       "added_at": "2026-07-28T09:15:18+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "Minimal dependency-free UDP/TCP tunnel for embedded Linux targets.",
       "stars": 1,
       "score": 2.0,
@@ -53033,13 +53033,13 @@
       ],
       "interesting": false,
       "triage_reason": "peripheral",
-      "triage_at": "2026-08-02T08:58:55+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/gkrcparams",
-      "path": "fpv-library/repos/gkrcparams-Tool-for-changning-HiSilicon-Goke-encode",
+      "path": "OpenIPC/gkrcparams",
       "added_at": "2026-07-28T09:15:18+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "Tool for changning HiSilicon/Goke encoder params",
       "stars": 1,
       "score": 2.0,
@@ -53057,13 +53057,13 @@
       ],
       "interesting": false,
       "triage_reason": "peripheral",
-      "triage_at": "2026-08-02T08:58:55+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/distributor",
-      "path": "fpv-library/repos/distributor-Internal-Workflow-System",
+      "path": "OpenIPC/distributor",
       "added_at": "2026-07-28T09:15:18+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "Internal Workflow System",
       "stars": 2,
       "score": 2.0,
@@ -53080,13 +53080,13 @@
       ],
       "interesting": false,
       "triage_reason": "peripheral",
-      "triage_at": "2026-08-02T08:58:55+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/decoder",
-      "path": "fpv-library/repos/decoder-Miniature-and-universal-H-264-and-H-265",
+      "path": "OpenIPC/decoder",
       "added_at": "2026-07-28T09:15:18+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "Miniature and universal H.264 and H.265 decoder for Android devices",
       "stars": 4,
       "score": 2.0,
@@ -53104,13 +53104,13 @@
       ],
       "interesting": false,
       "triage_reason": "peripheral",
-      "triage_at": "2026-08-02T08:58:55+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/dms",
-      "path": "fpv-library/repos/dms-Device-Management-System",
+      "path": "OpenIPC/dms",
       "added_at": "2026-07-28T09:15:18+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "Device Management System",
       "stars": 3,
       "score": 2.0,
@@ -53127,13 +53127,13 @@
       ],
       "interesting": false,
       "triage_reason": "peripheral",
-      "triage_at": "2026-08-02T08:58:55+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/u-boot-hi3519dv500",
-      "path": "fpv-library/repos/u-boot-hi3519dv500-U-Boot-for-HiSilicon-Hi3519DV500-Hi3516D",
+      "path": "OpenIPC/u-boot-hi3519dv500",
       "added_at": "2026-07-28T09:15:18+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "U-Boot for HiSilicon Hi3519DV500/Hi3516DV500 (ARMv8, from SDK V1.0.1.1 / R001C01SPC011). Mirror of u-boot-hi3516cv6xx.",
       "stars": 0,
       "score": 2.0,
@@ -53147,17 +53147,17 @@
       ],
       "interesting": false,
       "triage_reason": "peripheral",
-      "triage_at": "2026-08-02T08:58:56+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/u-boot-hi3516cv6xx",
-      "path": "fpv-library/repos/u-boot-hi3516cv6xx-U-Boot-for-Hi3516Cv6xx-series-SoC",
+      "path": "OpenIPC/u-boot-hi3516cv6xx",
       "added_at": "2026-07-28T09:15:18+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "U-Boot for Hi3516Cv6xx-series SoC",
       "stars": 0,
       "score": 2.0,
-      "upstream_updated": "2026-06-18T12:10:27Z",
+      "upstream_updated": "2026-07-31T05:28:07Z",
       "owner": "OpenIPC",
       "size_kb": 31970,
       "topics": [
@@ -53170,7 +53170,7 @@
       ],
       "interesting": false,
       "triage_reason": "peripheral",
-      "triage_at": "2026-08-02T08:58:56+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "meshtastic/python",
@@ -54919,9 +54919,9 @@
     },
     {
       "source": "OpenIPC/majestic",
-      "path": "fpv-library/repos/majestic-IP-camera-streamer-for-embedded-Linux",
+      "path": "OpenIPC/majestic",
       "added_at": "2026-07-29T08:55:30+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "IP camera streamer for embedded Linux",
       "stars": 2,
       "score": 2.0,
@@ -54935,19 +54935,19 @@
       ],
       "interesting": false,
       "triage_reason": "peripheral",
-      "triage_at": "2026-08-02T08:59:09+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/xmupdates",
-      "path": "fpv-library/repos/xmupdates-Collection-of-autoupdated-JSON-files",
+      "path": "OpenIPC/xmupdates",
       "added_at": "2026-07-29T08:55:30+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "Collection of autoupdated JSON files",
-      "stars": 2,
+      "stars": 3,
       "score": 2.0,
-      "upstream_updated": "2026-07-28T12:51:16Z",
+      "upstream_updated": "2026-08-03T07:50:41Z",
       "owner": "OpenIPC",
-      "size_kb": 15934,
+      "size_kb": 16044,
       "topics": [],
       "verdict": "watch",
       "categories": [
@@ -54955,13 +54955,13 @@
       ],
       "interesting": false,
       "triage_reason": "peripheral",
-      "triage_at": "2026-08-02T08:59:09+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/python-dhip",
-      "path": "fpv-library/repos/python-dhip-Pure-stdlib-Python-client-for-the-Dahua",
+      "path": "OpenIPC/python-dhip",
       "added_at": "2026-07-29T08:55:31+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "Pure-stdlib Python client for the Dahua DHIP (binary RPC2) protocol used by Dahua and Dahua-derived OEM IP cameras (e.g. Zenointel).",
       "stars": 1,
       "score": 2.0,
@@ -54985,13 +54985,13 @@
       ],
       "interesting": false,
       "triage_reason": "peripheral",
-      "triage_at": "2026-08-02T08:59:10+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/u-boot-hi3520dv200",
-      "path": "fpv-library/repos/u-boot-hi3520dv200-U-Boot-2010-06-for-HiSilicon-Hi3520Dv200",
+      "path": "OpenIPC/u-boot-hi3520dv200",
       "added_at": "2026-07-29T08:55:31+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "U-Boot 2010.06 for HiSilicon Hi3520Dv200 DVR (OpenIPC fork — MVP)",
       "stars": 0,
       "score": 2.0,
@@ -55005,13 +55005,13 @@
       ],
       "interesting": false,
       "triage_reason": "peripheral",
-      "triage_at": "2026-08-02T08:59:10+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/u-boot-hi3516cv500",
-      "path": "fpv-library/repos/u-boot-hi3516cv500-U-Boot-for-hi3516cv500-group-SoC-s",
+      "path": "OpenIPC/u-boot-hi3516cv500",
       "added_at": "2026-07-29T08:55:31+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "U-Boot for hi3516cv500 group SoC's",
       "stars": 3,
       "score": 2.0,
@@ -55031,13 +55031,13 @@
       ],
       "interesting": false,
       "triage_reason": "peripheral",
-      "triage_at": "2026-08-02T08:59:10+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/u-boot-hi3536dv100",
-      "path": "fpv-library/repos/u-boot-hi3536dv100-U-Boot-2010-06-for-HiSilicon-Hi3536Dv100",
+      "path": "OpenIPC/u-boot-hi3536dv100",
       "added_at": "2026-07-29T08:55:31+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "U-Boot 2010.06 for HiSilicon Hi3536Dv100 NVR (OpenIPC fork)",
       "stars": 0,
       "score": 2.0,
@@ -55051,13 +55051,13 @@
       ],
       "interesting": false,
       "triage_reason": "peripheral",
-      "triage_at": "2026-08-02T08:59:10+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/u-boot-hi3536cv100",
-      "path": "fpv-library/repos/u-boot-hi3536cv100-U-Boot-2010-06-for-HiSilicon-Hi3536Cv100",
+      "path": "OpenIPC/u-boot-hi3536cv100",
       "added_at": "2026-07-29T08:55:31+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "U-Boot 2010.06 for HiSilicon Hi3536Cv100 NVR (OpenIPC fork)",
       "stars": 0,
       "score": 2.0,
@@ -55071,13 +55071,13 @@
       ],
       "interesting": false,
       "triage_reason": "peripheral",
-      "triage_at": "2026-08-02T08:59:10+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/u-boot-hi3516av100",
-      "path": "fpv-library/repos/u-boot-hi3516av100-U-Boot-for-hi3516av100-group-SoC-s",
+      "path": "OpenIPC/u-boot-hi3516av100",
       "added_at": "2026-07-29T08:55:31+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "U-Boot for hi3516av100 group SoC's",
       "stars": 4,
       "score": 2.0,
@@ -55097,13 +55097,13 @@
       ],
       "interesting": false,
       "triage_reason": "peripheral",
-      "triage_at": "2026-08-02T08:59:10+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/pristine",
-      "path": "fpv-library/repos/pristine-Streamlined-integration-of-IP-cameras-in",
+      "path": "OpenIPC/pristine",
       "added_at": "2026-07-29T08:55:31+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "Streamlined integration of IP cameras into Windows apps",
       "stars": 4,
       "score": 2.0,
@@ -55122,13 +55122,13 @@
       ],
       "interesting": false,
       "triage_reason": "peripheral",
-      "triage_at": "2026-08-02T08:59:11+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/opendrm-web",
-      "path": "fpv-library/repos/opendrm-web",
+      "path": "OpenIPC/opendrm-web",
       "added_at": "2026-07-29T08:55:31+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "OpenDRM-web",
       "stars": 0,
       "score": 2.0,
@@ -55142,13 +55142,13 @@
       ],
       "interesting": false,
       "triage_reason": "peripheral",
-      "triage_at": "2026-08-02T08:59:11+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/u-boot-allwinner",
-      "path": "fpv-library/repos/u-boot-allwinner-U-Boot-for-Allwinner-SoC-s",
+      "path": "OpenIPC/u-boot-allwinner",
       "added_at": "2026-07-29T08:55:31+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "U-Boot for Allwinner SoC's",
       "stars": 4,
       "score": 2.0,
@@ -55168,13 +55168,13 @@
       ],
       "interesting": false,
       "triage_reason": "peripheral",
-      "triage_at": "2026-08-02T08:59:11+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/u-boot-t20",
-      "path": "fpv-library/repos/u-boot-t20-U-Boot-for-t20-group-SoC-s",
+      "path": "OpenIPC/u-boot-t20",
       "added_at": "2026-07-29T08:55:31+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "U-Boot for t20 group SoC's",
       "stars": 4,
       "score": 2.0,
@@ -55195,13 +55195,13 @@
       ],
       "interesting": false,
       "triage_reason": "peripheral",
-      "triage_at": "2026-08-02T08:59:11+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/u-boot-msc313e",
-      "path": "fpv-library/repos/u-boot-msc313e-U-Boot-for-Infinity3xx-SoC-s",
+      "path": "OpenIPC/u-boot-msc313e",
       "added_at": "2026-07-29T08:55:31+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "U-Boot for Infinity3xx SoC's",
       "stars": 4,
       "score": 2.0,
@@ -55222,13 +55222,13 @@
       ],
       "interesting": false,
       "triage_reason": "peripheral",
-      "triage_at": "2026-08-02T08:59:11+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/ssv6x5x",
-      "path": "fpv-library/repos/ssv6x5x-iComm-Semiconductor-ssv6x5x-WiFi-driver",
+      "path": "OpenIPC/ssv6x5x",
       "added_at": "2026-07-29T08:55:31+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "iComm Semiconductor ssv6x5x WiFi driver",
       "stars": 1,
       "score": 2.0,
@@ -55245,13 +55245,13 @@
       ],
       "interesting": false,
       "triage_reason": "peripheral",
-      "triage_at": "2026-08-02T08:59:11+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "OpenIPC/libde265",
-      "path": "fpv-library/repos/libde265-Fork-of-open-h-265-video-codec-implement",
+      "path": "OpenIPC/libde265",
       "added_at": "2026-07-29T08:55:31+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "Fork of open h.265 video codec implementation (optimized for WASM)",
       "stars": 11,
       "score": 2.0,
@@ -55265,7 +55265,7 @@
       ],
       "interesting": false,
       "triage_reason": "peripheral",
-      "triage_at": "2026-08-02T08:59:11+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "srmatthe/tracker-bridge",
@@ -56387,9 +56387,9 @@
     },
     {
       "source": "OpenIPC/device-msc3xx",
-      "path": "fpv-library/repos/device-msc3xx-Experiments-with-MSC313E-and-MSC316DC",
+      "path": "OpenIPC/device-msc3xx",
       "added_at": "2026-07-29T09:10:25+00:00",
-      "discovered_via": "owner:OpenIPC",
+      "discovered_via": "org:OpenIPC",
       "description": "Experiments with MSC313E and MSC316DC",
       "stars": 0,
       "score": 2.0,
@@ -56406,7 +56406,7 @@
       ],
       "interesting": false,
       "triage_reason": "peripheral",
-      "triage_at": "2026-08-02T08:59:20+00:00"
+      "triage_at": "2026-08-03T23:02:44+00:00"
     },
     {
       "source": "meshtastic/openwrt",
@@ -67982,6 +67982,130 @@
       "interesting": true,
       "triage_reason": "high-score-fpv",
       "triage_at": "2026-08-02T09:00:47+00:00"
+    },
+    {
+      "source": "OpenIPC/chaos_calmer",
+      "path": "OpenIPC/chaos_calmer",
+      "added_at": "2026-08-03T23:02:44+00:00",
+      "discovered_via": "org:OpenIPC",
+      "description": "OpenIPC 1.0 (OpenWRT-based), not maintained anymore",
+      "stars": 189,
+      "score": 3.5,
+      "upstream_updated": "2021-12-12T16:10:11Z",
+      "owner": "OpenIPC",
+      "size_kb": 928947,
+      "topics": [
+        "anyka",
+        "hi35xx",
+        "hisilicon",
+        "ipcam",
+        "openipc",
+        "openwrt",
+        "xm",
+        "zftlab"
+      ],
+      "verdict": "keep",
+      "triage_at": "2026-08-03T23:02:44+00:00",
+      "categories": [
+        "openipc"
+      ],
+      "interesting": true,
+      "triage_reason": "hook-reviewed"
+    },
+    {
+      "source": "OpenIPC/composer",
+      "path": "OpenIPC/composer",
+      "added_at": "2026-08-03T23:02:44+00:00",
+      "discovered_via": "org:OpenIPC",
+      "description": "Creating OpenIPC firmware with custom settings",
+      "stars": 9,
+      "score": 2.5,
+      "upstream_updated": "2024-07-20T09:34:42Z",
+      "owner": "OpenIPC",
+      "size_kb": 11922,
+      "topics": [
+        "openipc",
+        "zftlab"
+      ],
+      "verdict": "watch",
+      "triage_at": "2026-08-03T23:02:44+00:00",
+      "categories": [
+        "openipc"
+      ],
+      "interesting": false,
+      "triage_reason": "weak-hook"
+    },
+    {
+      "source": "OpenIPC/firmware-explorer",
+      "path": "OpenIPC/firmware-explorer",
+      "added_at": "2026-08-03T23:02:44+00:00",
+      "discovered_via": "org:OpenIPC",
+      "description": "Per-build package + kernel-module composition explorer for OpenIPC firmware. Consumes manifest.json from openipc.github.io/{firmware,builder}/.",
+      "stars": 3,
+      "score": 1.5,
+      "upstream_updated": "2026-07-26T08:47:35Z",
+      "owner": "OpenIPC",
+      "size_kb": 200,
+      "topics": [
+        "buildroot",
+        "firmware",
+        "openipc",
+        "size-analysis",
+        "web-tool"
+      ],
+      "verdict": "skip",
+      "triage_at": "2026-08-03T23:02:44+00:00",
+      "categories": [
+        "openipc"
+      ],
+      "interesting": false,
+      "triage_reason": "noise:github\\.io\\b"
+    },
+    {
+      "source": "OpenIPC/quirc",
+      "path": "OpenIPC/quirc",
+      "added_at": "2026-08-03T23:02:44+00:00",
+      "discovered_via": "org:OpenIPC",
+      "description": "QR decoder library",
+      "stars": 0,
+      "score": 1.5,
+      "upstream_updated": "2022-09-04T14:12:47Z",
+      "owner": "OpenIPC",
+      "size_kb": 198,
+      "topics": [
+        "openipc",
+        "qr",
+        "quirc"
+      ],
+      "verdict": "skip",
+      "triage_at": "2026-08-03T23:02:44+00:00",
+      "categories": [
+        "openipc"
+      ],
+      "interesting": false,
+      "triage_reason": "low-relevance"
+    },
+    {
+      "source": "OpenIPC/website",
+      "path": "OpenIPC/website",
+      "added_at": "2026-08-03T23:02:44+00:00",
+      "discovered_via": "org:OpenIPC",
+      "description": "New website of the OpenIPC project",
+      "stars": 9,
+      "score": 1.7,
+      "upstream_updated": "2026-07-19T16:51:57Z",
+      "owner": "OpenIPC",
+      "size_kb": 7016,
+      "topics": [
+        "openipc"
+      ],
+      "verdict": "skip",
+      "triage_at": "2026-08-03T23:02:44+00:00",
+      "categories": [
+        "openipc"
+      ],
+      "interesting": false,
+      "triage_reason": "low-relevance"
     }
   ],
   "search_queries": [

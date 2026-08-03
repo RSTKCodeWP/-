@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Sync tracked repositories from upstream GitHub."""
+"""Sync tracked repositories from upstream GitHub as full git mirrors."""
 
 from __future__ import annotations
 
@@ -8,20 +8,57 @@ import json
 import shutil
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 
-from fpv_lib.catalog import catalog_path, find_entry, library_root, load_catalog, now_iso, save_catalog
-from fpv_lib.gh import default_branch_sha, GhError
+from fpv_lib.catalog import catalog_path, library_root, load_catalog, now_iso, save_catalog
+from fpv_lib.gh import default_branch_sha, GhError, repo_details
 
 
 META_FILE = ".fpv-library.json"
-SKIP_DIRS = {".git", "__pycache__", "node_modules", ".pytest_cache"}
+MIRROR_MODE = "full-git-submodule"
+
+
+def monorepo_root() -> Path:
+    return library_root().parent
+
+
+def is_in_monorepo() -> bool:
+    return (monorepo_root() / ".git").is_dir()
+
+
+def submodule_paths() -> set[str]:
+    root = monorepo_root()
+    result = subprocess.run(
+        ["git", "config", "--file", ".gitmodules", "--get-regexp", r"^submodule\..*\.path$"],
+        cwd=root,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        return set()
+    paths: set[str] = set()
+    for line in result.stdout.splitlines():
+        parts = line.split(None, 1)
+        if len(parts) == 2:
+            paths.add(parts[1].strip())
+    return paths
+
+
+def is_registered_submodule(rel_path: str) -> bool:
+    return rel_path in submodule_paths()
+
+
+class GitError(RuntimeError):
+    pass
 
 
 def write_meta(dest: Path, entry: dict) -> None:
+    """Write sidecar metadata (untracked inside submodules — catalog.json is canonical)."""
+    if is_registered_submodule(str(dest.relative_to(monorepo_root()))):
+        return
     meta = {
         "source": entry["source"],
+        "mirror_mode": MIRROR_MODE,
         "upstream_commit": entry.get("upstream_commit"),
         "upstream_updated": entry.get("upstream_updated"),
         "synced_at": entry.get("synced_at"),
@@ -31,72 +68,138 @@ def write_meta(dest: Path, entry: dict) -> None:
     (dest / META_FILE).write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")
 
 
+def is_git_mirror(dest: Path) -> bool:
+    git_dir = dest / ".git"
+    return dest.is_dir() and git_dir.exists()
+
+
 def is_mirrored(entry: dict) -> bool:
     dest = library_root().parent / entry["path"]
-    return dest.exists() and (dest / META_FILE).exists()
+    return is_git_mirror(dest)
 
 
-def clone_upstream(source: str, dest: Path, *, depth: int = 1) -> None:
+def is_legacy_snapshot(entry: dict) -> bool:
+    """Shallow file copy from older sync runs (no .git directory)."""
+    dest = library_root().parent / entry["path"]
+    return dest.exists() and (dest / META_FILE).exists() and not is_git_mirror(dest)
+
+
+def run_git(args: list[str], *, cwd: Path, check: bool = True) -> subprocess.CompletedProcess[str]:
+    result = subprocess.run(
+        ["git", *args],
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+    )
+    if check and result.returncode != 0:
+        detail = (result.stderr or result.stdout or "").strip()
+        raise GitError(detail or f"git {' '.join(args)} failed")
+    return result
+
+
+def ensure_lfs(cwd: Path) -> None:
+    if shutil.which("git-lfs") is None:
+        return
+    run_git(["lfs", "install", "--local"], cwd=cwd, check=False)
+    run_git(["lfs", "pull"], cwd=cwd, check=False)
+
+
+def init_submodules(cwd: Path) -> None:
+    run_git(["submodule", "update", "--init", "--recursive"], cwd=cwd, check=False)
+
+
+def local_head_sha(dest: Path) -> str | None:
+    result = run_git(["rev-parse", "HEAD"], cwd=dest, check=False)
+    if result.returncode != 0:
+        return None
+    return result.stdout.strip()
+
+
+def clone_full(source: str, dest: Path) -> None:
     url = f"https://github.com/{source}.git"
-    cmd = ["git", "clone"]
-    if depth > 0:
-        cmd += ["--depth", str(depth)]
-    cmd += [url, str(dest)]
-    subprocess.run(cmd, check=True, capture_output=True, text=True)
+    rel_path = str(dest.relative_to(monorepo_root()))
+    dest.parent.mkdir(parents=True, exist_ok=True)
+
+    if is_in_monorepo() and not is_registered_submodule(rel_path):
+        if dest.exists():
+            shutil.rmtree(dest)
+        subprocess.run(
+            ["git", "submodule", "add", "--force", url, rel_path],
+            cwd=monorepo_root(),
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        dest = monorepo_root() / rel_path
+    else:
+        if dest.exists():
+            shutil.rmtree(dest)
+        run_git(["clone", url, str(dest)], cwd=dest.parent)
+
+    ensure_lfs(dest)
+    init_submodules(dest)
 
 
-def sync_entry(entry: dict, *, dry_run: bool = False) -> str:
+def update_mirror(dest: Path, *, branch: str) -> None:
+    run_git(["fetch", "--all", "--tags", "--prune"], cwd=dest)
+    run_git(["reset", "--hard", f"origin/{branch}"], cwd=dest)
+    run_git(["clean", "-fd"], cwd=dest)
+    ensure_lfs(dest)
+    init_submodules(dest)
+
+
+def sync_entry(entry: dict, *, dry_run: bool = False, force_reclone: bool = False) -> str:
     source = entry["source"]
-    rel_path = entry["path"]
-    dest = library_root().parent / rel_path
+    dest = library_root().parent / entry["path"]
 
     try:
+        repo = repo_details(source)
+        branch = repo.get("default_branch", "main")
         sha, pushed_at = default_branch_sha(source)
     except GhError as exc:
         return f"error {source}: {exc}"
 
-    if entry.get("upstream_commit") == sha and dest.exists() and (dest / META_FILE).exists():
-        return f"up-to-date {source}"
+    legacy = is_legacy_snapshot(entry)
+    mirrored = is_mirrored(entry)
+    local_sha = local_head_sha(dest) if mirrored else None
+
+    if mirrored and not force_reclone and not legacy:
+        if entry.get("upstream_commit") == sha and local_sha == sha:
+            return f"up-to-date {source}"
+        action = "update"
+    elif legacy or force_reclone:
+        action = "reclone"
+    elif dest.exists() and not mirrored:
+        action = "reclone"
+    else:
+        action = "clone"
 
     if dry_run:
-        return f"would-update {source} -> {sha[:8]}"
+        return f"would-{action} {source} -> {sha[:8]}"
 
-    url = f"https://github.com/{source}.git"
-    with tempfile.TemporaryDirectory(prefix="fpv-sync-") as tmp:
-        clone_dir = Path(tmp) / "repo"
-        clone_upstream(source, clone_dir)
-        if dest.exists():
-            shutil.rmtree(dest)
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copytree(
-            clone_dir,
-            dest,
-            symlinks=True,
-            ignore_dangling_symlinks=True,
-            ignore=shutil.ignore_patterns(*SKIP_DIRS),
-            dirs_exist_ok=True,
-        )
-        git_dir = dest / ".git"
-        if git_dir.exists():
-            shutil.rmtree(git_dir)
+    if action in ("clone", "reclone"):
+        clone_full(source, dest)
+    else:
+        update_mirror(dest, branch=branch)
 
     entry["upstream_commit"] = sha
     entry["upstream_updated"] = pushed_at
     entry["synced_at"] = now_iso()
     write_meta(dest, entry)
-    return f"updated {source} @ {sha[:8]}"
+    return f"{action}d {source} @ {sha[:8]}"
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Sync FPV library repos from GitHub")
-    parser.add_argument("--all", action="store_true", help="Sync every catalog entry under fpv-library/repos/")
+    parser = argparse.ArgumentParser(description="Sync FPV library repos as full git mirrors")
+    parser.add_argument("--all", action="store_true", help="Sync every catalog entry with a path")
     parser.add_argument("--source", action="append", help="Sync specific owner/repo")
+    parser.add_argument("--owner", help="Sync all catalog entries from this GitHub owner/org")
     parser.add_argument("--verdict", default=None, help="Only sync entries with this triage verdict (e.g. keep)")
     parser.add_argument("--max-size-mb", type=int, default=0, help="Skip mirrors larger than this MB (0=no limit)")
     parser.add_argument(
         "--update-only",
         action="store_true",
-        help="Only refresh repos already mirrored (have synced_at or on disk)",
+        help="Only refresh repos already mirrored (full git clone on disk)",
     )
     parser.add_argument(
         "--new-only",
@@ -121,6 +224,11 @@ def main(argv: list[str] | None = None) -> int:
         default=10,
         help="Save catalog.json every N updates (0=only at end)",
     )
+    parser.add_argument(
+        "--force-reclone",
+        action="store_true",
+        help="Delete and re-clone even if already mirrored (migrates legacy snapshots)",
+    )
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args(argv)
 
@@ -133,16 +241,23 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.source:
         selected = [e for e in entries if e["source"] in args.source]
+    elif args.owner:
+        owner = args.owner.lower()
+        selected = [e for e in entries if e.get("source", "").lower().startswith(f"{owner}/")]
     elif args.all:
         selected = [e for e in entries if e.get("path")]
     else:
-        parser.error("Use --all or --source owner/repo")
+        parser.error("Use --all, --source owner/repo, or --owner OrgName")
 
     if args.verdict:
         selected = [e for e in selected if e.get("verdict") == args.verdict]
 
     if args.update_only:
-        selected = [e for e in selected if is_mirrored(e) or e.get("synced_at")]
+        selected = [
+            e
+            for e in selected
+            if is_mirrored(e) or is_legacy_snapshot(e) or e.get("synced_at")
+        ]
 
     if args.new_only:
         selected = [e for e in selected if not is_mirrored(e)]
@@ -174,11 +289,12 @@ def main(argv: list[str] | None = None) -> int:
 
     changed = 0
     errors = 0
-    for i, entry in enumerate(selected, 1):
+    for entry in selected:
         try:
-            result = sync_entry(entry, dry_run=args.dry_run)
+            force = args.force_reclone or is_legacy_snapshot(entry)
+            result = sync_entry(entry, dry_run=args.dry_run, force_reclone=force)
             print(result)
-            if result.startswith("updated") or result.startswith("would-update"):
+            if result.startswith(("cloned", "updated", "recloned", "would-clone", "would-update", "would-reclone")):
                 changed += 1
                 if args.save_every and changed % args.save_every == 0 and not args.dry_run:
                     save_catalog(catalog)

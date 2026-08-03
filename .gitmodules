@@ -1,0 +1,3 @@
+[submodule "OpenIPC/fpv"]
+	path = OpenIPC/fpv
+	url = https://github.com/OpenIPC/fpv.git

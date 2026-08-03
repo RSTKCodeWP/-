@@ -42,6 +42,10 @@ def list_owner_repos(owner: str, *, per_page: int = 100) -> list[dict[str, Any]]
     return gh_api(f"/users/{owner}/repos?per_page={per_page}&sort=updated", paginate=True)
 
 
+def list_org_repos(org: str, *, per_page: int = 100) -> list[dict[str, Any]]:
+    return gh_api(f"/orgs/{org}/repos?per_page={per_page}&sort=updated", paginate=True)
+
+
 def repo_details(source: str) -> dict[str, Any]:
     return gh_api(f"/repos/{source}")
 

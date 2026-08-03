@@ -22,12 +22,14 @@ fpv-library/
   catalog.json          # manifest of all tracked projects
   STRUCTURE.md          # what each folder/file means (UA + EN)
   repos/                # auto-synced mirrors (discovered repos)
+  ../OpenIPC/           # example: full git copies of a GitHub org
   manifests/            # release SHA256 manifests (Caddx firmware, ground config)
   ground-config/        # downloaded Caddx Ground Configuration binaries (gitignored)
   scripts/
     discover.py         # parse GitHub search + expand owners
     discover_themes.py  # multi-query themed discovery (GCS, fiber, WFB, …)
-    sync.py             # pull upstream updates when commit changes
+    sync.py             # full git mirror: clone, fetch, LFS, submodules
+    discover_org.py     # register all repos from a GitHub org (e.g. OpenIPC)
     generate_repo_index.py  # write ../REPOS.md (full project list)
     register_legacy.py  # register hand-copied example folders at repo root
   THEMED.md             # curated highlights by category
@@ -56,6 +58,10 @@ python3 fpv-library/scripts/discover.py --search Fpv --pages 1-5 --expand-owners
 
 # Themed batch: GCS, fiber, WFB, OpenIPC, DroneBridge, owner ecosystems
 python3 fpv-library/scripts/discover_themes.py --pages 1-2 --min-score 2.5
+
+# Full org library (e.g. all OpenIPC repos → OpenIPC/<repo>/)
+python3 fpv-library/scripts/discover_org.py --org OpenIPC --verdict keep
+python3 fpv-library/scripts/sync.py --owner OpenIPC --verdict keep
 ```
 
 See [`THEMED.md`](THEMED.md) for curated project highlights.
