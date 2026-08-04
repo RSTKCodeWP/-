@@ -43,6 +43,7 @@ import {
 } from 'lucide-react';
 import { useParameterStore } from '../../stores/parameter-store';
 import { useTelemetryStore } from '../../stores/telemetry-store';
+import { useEffectiveRc } from '../../stores/pseudo-tx-store';
 
 import { InfoCard } from '../ui/InfoCard';
 import { PresetSelector, type Preset } from '../ui/PresetSelector';
@@ -329,12 +330,17 @@ const FlightModesTab: React.FC<FlightModesTabProps> = ({ vehicleCategory = 'copt
     return param?.value ?? 5;
   }, [parameters, paramPrefix]);
 
-  // Live RC value for mode channel
+  // Live RC value for the mode channel. Accepts the USB handset stand-in as a source, which
+  // is what lets flight modes be set up and verified with no FC and no receiver attached:
+  // flick the switch, watch the highlighted slot move.
+  const effRc = useEffectiveRc(rcChannels);
+  const rcUsable = effRc.source === 'pseudo' || signalStatus === 'active';
   const liveRcValue = useMemo(() => {
-    if (signalStatus !== 'active' || rcChannels.channels.length === 0) return null;
+    const usable = effRc.source === 'pseudo' || signalStatus === 'active';
+    if (!usable || effRc.channels.length === 0) return null;
     const idx = modeChannel - 1;
-    return rcChannels.channels[idx] ?? null;
-  }, [rcChannels.channels, modeChannel, signalStatus]);
+    return effRc.channels[idx] ?? null;
+  }, [effRc.channels, effRc.source, modeChannel, signalStatus]);
 
   // Determine which mode slot is currently active
   const activeSlot = useMemo(() => {
@@ -418,9 +424,9 @@ const FlightModesTab: React.FC<FlightModesTabProps> = ({ vehicleCategory = 'copt
               </select>
               <button
                 onClick={startDetect}
-                disabled={signalStatus !== 'active'}
+                disabled={!rcUsable}
                 className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm transition-colors ${
-                  signalStatus === 'active'
+                  rcUsable
                     ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30 hover:bg-cyan-500/30'
                     : 'bg-surface-raised text-content-tertiary border border-subtle cursor-not-allowed'
                 }`}

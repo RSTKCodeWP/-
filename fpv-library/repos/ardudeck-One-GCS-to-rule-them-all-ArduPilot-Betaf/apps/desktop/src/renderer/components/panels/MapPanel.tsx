@@ -21,6 +21,8 @@ import { OfflineCachePanel } from '../map/OfflineCachePanel';
 import { useTelemMapBoundsStore } from '../../stores/telem-map-bounds-store';
 import { deselectActiveVehicle } from '../../hooks/useFleet';
 import { useActiveVehicleStore } from '../../stores/active-vehicle-store';
+import { useMessagesStore } from '../../stores/messages-store';
+import { isFleetCommandTarget } from '../../lib/command-target';
 import { useVehicleColor } from '../../stores/vehicle-appearance-store';
 import { useTelemMissionViewStore } from '../../stores/telem-mission-view-store';
 import { mavTypeToTacticalClass, type VehicleState } from '../map/tactical-icon-pool';
@@ -1833,16 +1835,14 @@ const TelemetryMap2D = React.memo(function TelemetryMap2D() {
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
   const VEHICLE_ID = 'vehicle-1';
 
-  // Fleet mode: there is no primary connection, but an active fleet vehicle is
-  // always selected (auto-promoted / clicked in the fleet strip or its map
-  // marker). The big primary marker below renders that active vehicle, so in
-  // fleet mode it IS the selected command target - clicking a fleet marker sets
-  // the global active vehicle, and right-click commands that vehicle (commands
-  // route via activeFlightTarget() in the main process). Single-vehicle mode is
-  // unchanged: you must click the marker to select before commanding.
+  // Fleet mode: the active fleet vehicle IS the map's command target (it was chosen in
+  // the fleet strip or by clicking its map marker; commands route via activeFlightTarget()
+  // in the main process). Single-vehicle mode is unchanged: click the marker to select
+  // before commanding. See isFleetCommandTarget for why this is not "primary link down".
   const activeVehicleKey = useActiveVehicleStore((s) => s.activeVehicleKey);
   const formations = useActiveVehicleStore((s) => s.formations);
-  const fleetActive = !connectionState.isConnected && activeVehicleKey !== null;
+  const knownVehicleCount = useActiveVehicleStore((s) => Object.keys(s.knownVehicles).length);
+  const fleetActive = isFleetCommandTarget(activeVehicleKey, knownVehicleCount, connectionState.isConnected);
   // The big primary marker renders the active vehicle; mark it as leader when the
   // active vehicle leads a formation (after "form up", the leader IS active).
   const activeIsLeader = fleetActive && activeVehicleKey !== null && activeVehicleKey in formations;
@@ -1975,10 +1975,17 @@ const TelemetryMap2D = React.memo(function TelemetryMap2D() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [commandPopup]);
 
-  // Right-click handler: open go-to popup (only when vehicle selected AND armed)
+  // Right-click handler: open go-to popup (only when vehicle selected AND armed).
+  // Both refusals say WHY. Silence here reads as "the fleet ignores right-click".
   const handleMapContextMenu = useCallback((lat: number, lon: number) => {
-    if (!selectedVehicleId && !fleetActive) return;
-    if (!useTelemetryStore.getState().flight.armed) return; // safety: no commands when disarmed
+    if (!selectedVehicleId && !fleetActive) {
+      useMessagesStore.getState().addMessage(4, 'WARNING', 'No vehicle selected: click a vehicle marker before commanding.');
+      return;
+    }
+    if (!useTelemetryStore.getState().flight.armed) {
+      useMessagesStore.getState().addMessage(4, 'WARNING', 'Map commands need an armed vehicle.');
+      return;
+    }
     setCommandPopup({ lat, lon });
   }, [selectedVehicleId, fleetActive]);
 
@@ -2013,6 +2020,7 @@ const TelemetryMap2D = React.memo(function TelemetryMap2D() {
   const handleCommandConfirm = useCallback(async (command: MapCommand, options?: { preferScript?: boolean }) => {
     // Safety: verify still armed before sending any flight command
     if (!useTelemetryStore.getState().flight.armed) {
+      useMessagesStore.getState().addMessage(4, 'WARNING', 'Command dropped: vehicle disarmed.');
       setCommandPopup(null);
       return;
     }

@@ -47,6 +47,38 @@ fn init_logging() {
 #[tokio::main]
 async fn main() -> Result<()> {
     init_logging();
+
+    // The store is opt-in. It is ~96% of everything this box writes to its card
+    // and the largest single lump of space it occupies, so it does not run
+    // unless somebody asked for it. Exiting BEFORE `run_daemon` is what makes
+    // "off" mean no store file is created, rather than an empty one that grows
+    // the moment anything connects.
+    //
+    // The installer also declines to enable the unit when the key is off; this
+    // second read covers the unit being started by hand or left enabled by an
+    // older install. Exit 0, because declining to run is not a failure and
+    // `Restart=on-failure` must not turn it into a loop.
+    if !ados_logd::gate::store_enabled() {
+        tracing::info!(
+            key = "logging.store.enabled",
+            "logging store is disabled; not starting (journalctl is the log of record)"
+        );
+        // Announce readiness before exiting. The unit is `Type=notify`, so
+        // systemd waits for this and treats a process that exits without ever
+        // sending it as `result 'protocol'` — a FAILURE — no matter that the
+        // exit code is 0. Both rigs therefore carried a permanently failed
+        // ados-logd after the store was switched off by default, which is worse
+        // than useless: a node that always shows a failed unit teaches its
+        // operator to stop reading failed units, and the next one that matters
+        // is read the same way.
+        //
+        // READY then exit is the correct handshake for "started successfully,
+        // and there is nothing to do" — systemd records a clean start and a
+        // clean stop, and `Restart=on-failure` has no failure to act on.
+        ados_logd::daemon::sd_ready();
+        return Ok(());
+    }
+
     tracing::info!(
         db = %ados_logd::paths::db_path(),
         ingest = %ados_logd::paths::ingest_socket(),

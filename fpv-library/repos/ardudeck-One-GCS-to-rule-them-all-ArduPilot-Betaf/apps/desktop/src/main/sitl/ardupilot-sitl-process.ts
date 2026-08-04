@@ -20,6 +20,7 @@ import type {
 } from '../../shared/ipc-channels.js';
 import { IPC_CHANNELS } from '../../shared/ipc-channels.js';
 import type { AuthoredObstacle, SimObstacleStoreSchema } from '../../shared/sim-obstacle-types.js';
+import { resolveCopterFrame, sitlFrameForMotorCount } from '../../shared/sitl-frame-geometry.js';
 import { ardupilotSitlDownloader } from './ardupilot-sitl-downloader.js';
 import { simEngineProcess } from '../sim/sim-engine-process.js';
 
@@ -135,20 +136,10 @@ const DEFAULT_MODELS: Record<ArduPilotVehicleType, string> = {
   sub: 'vectored',
 };
 
-// Model → FRAME_CLASS mapping for ArduPilot Copter
-// See: https://ardupilot.org/copter/docs/parameters.html#frame-class
-const COPTER_FRAME_CLASS: Record<string, number> = {
-  'quad': 1,       // Quad
-  '+': 1,          // Quad
-  'hexa': 2,       // Hexa
-  'octa': 3,       // Octa
-  'octaquad': 4,   // OctaQuad
-  'y6': 5,         // Y6
-  'heli': 6,       // Heli
-  'tri': 7,        // Tri
-  'singlecopter': 8,
-  'coax': 9,       // CoaxCopter
-};
+// Model → FRAME_CLASS / FRAME_TYPE now lives in shared/sitl-frame-geometry.ts,
+// which pairs each SITL physics frame with the mixer that matches it and is
+// machine-verified against shared/ap-motor-layouts.json. See that file for why
+// writing FRAME_CLASS without FRAME_TYPE produces an unflyable vehicle.
 
 /**
  * Generate a defaults param file for SITL based on vehicle type and model.
@@ -164,8 +155,16 @@ export function generateDefaultParams(
   const lines: string[] = [];
 
   if (vehicleType === 'copter') {
-    const frameClass = COPTER_FRAME_CLASS[model] ?? 1; // Default to Quad
+    // FRAME_CLASS *and* FRAME_TYPE, together. SITL's simulated motor positions
+    // come from the `-M<model>` frame table; the mixer comes from these two
+    // params. Writing only FRAME_CLASS left FRAME_TYPE at the firmware default
+    // of 1 (X) while every model we launch is a Plus layout, so the controller
+    // commanded motors that were physically 22.5 deg (octa) to 45 deg (quad)
+    // away from where it thought. That is unflyable and reads as a wobble.
+    // ArduPilot's own copter.parm writes both for exactly this reason.
+    const { frameClass, frameType } = resolveCopterFrame(model);
     lines.push(`FRAME_CLASS ${frameClass}`);
+    if (frameType !== undefined) lines.push(`FRAME_TYPE ${frameType}`);
   }
 
   if (vehicleType === 'plane') {
@@ -373,14 +372,12 @@ class ArduPilotSitlProcessManager {
     if (config.useArduDeckSim) {
       args.push('-MJSON:127.0.0.1');
     } else if (config.customFramePath && config.customFrameMotors) {
-    // Custom frame JSON overrides the built-in -M model when provided. SITL
-    // expects `<type>:<absolute path>` where type is the physics class
-    // (quad/hexa/octa) — derived from the frame's motor count.
-      const typePrefix =
-        config.customFrameMotors === 8 ? 'octa' :
-        config.customFrameMotors === 6 ? 'hexa' :
-        'quad';
-      args.push(`-M${typePrefix}:${config.customFramePath}`);
+      // Custom frame JSON overrides the built-in -M model when provided. SITL
+      // expects `<frame>:<absolute path>`. The JSON carries mass / prop / battery
+      // numbers but NOT the motor layout, so the layout still comes from this
+      // frame name and must stay paired with the FRAME_TYPE that
+      // generateDefaultParams writes for the same name.
+      args.push(`-M${sitlFrameForMotorCount(config.customFrameMotors)}:${config.customFramePath}`);
     } else {
       const model = config.model || DEFAULT_MODELS[config.vehicleType];
       args.push(`-M${model}`);
@@ -468,7 +465,15 @@ class ArduPilotSitlProcessManager {
       // win on conflicts. ArduPilot loads `--defaults a,b,c` left-to-right
       // with later files overriding earlier — same semantics Mission Planner
       // relies on for its identity.parm overlay.
-      const model = config.model || DEFAULT_MODELS[config.vehicleType];
+      // The model whose PHYSICS actually runs, which is what FRAME_CLASS/TYPE must
+      // match. With a custom frame active the layout comes from the motor count
+      // (see buildArgs), not from the Frame/Model dropdown, so prefer that here.
+      // Otherwise a user who activated an octa custom frame and then nudged the
+      // dropdown would get a mixer for one airframe and physics for another.
+      const model =
+        config.vehicleType === 'copter' && config.customFramePath && config.customFrameMotors
+          ? sitlFrameForMotorCount(config.customFrameMotors)
+          : config.model || DEFAULT_MODELS[config.vehicleType];
       const defaultsStack: string[] = [];
 
       if (!config.defaultsFile) {

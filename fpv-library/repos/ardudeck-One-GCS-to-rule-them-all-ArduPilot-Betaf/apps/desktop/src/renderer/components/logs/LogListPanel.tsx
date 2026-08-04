@@ -1,6 +1,50 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import { useLogStore, type LogListEntry } from '../../stores/log-store';
 import { useConnectionStore } from '../../stores/connection-store';
+
+/** Section collapsed-state, persisted so the layout survives restarts. */
+function useCollapsed(key: string): [boolean, () => void] {
+  const [collapsed, setCollapsed] = useState(() => localStorage.getItem(key) === '1');
+  const toggle = () => {
+    setCollapsed((v) => {
+      localStorage.setItem(key, v ? '0' : '1');
+      return !v;
+    });
+  };
+  return [collapsed, toggle];
+}
+
+/** Clickable section header: chevron + label + count, optional right-side action. */
+function SectionHeader({
+  label,
+  count,
+  collapsed,
+  onToggle,
+  action,
+}: {
+  label: string;
+  count: string;
+  collapsed: boolean;
+  onToggle: () => void;
+  action?: ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between mb-2">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={!collapsed}
+        className="flex items-center gap-1 text-xs text-content-secondary uppercase tracking-wider hover:text-content transition-colors"
+      >
+        {collapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+        {label}
+        <span className="ml-0.5 text-content-tertiary normal-case tracking-normal">{count}</span>
+      </button>
+      {action}
+    </div>
+  );
+}
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -96,6 +140,29 @@ export function LogListPanel() {
   const [openingRecent, setOpeningRecent] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [errorToast, setErrorToast] = useState<string | null>(null);
+  const [filter, setFilter] = useState('');
+  const [recentsCollapsed, toggleRecents] = useCollapsed('logs.recents.collapsed');
+  const [fcCollapsed, toggleFc] = useCollapsed('logs.fc.collapsed');
+
+  const filterQuery = filter.trim().toLowerCase();
+
+  // Persisted stores from before the newest-first ordering existed can be in
+  // any order, so sort on read rather than trusting insertion order.
+  const visibleRecents = useMemo(() => {
+    const list = [...recentLogs].sort((a, b) => b.openedAt - a.openedAt);
+    return filterQuery ? list.filter((l) => l.name.toLowerCase().includes(filterQuery)) : list;
+  }, [recentLogs, filterQuery]);
+
+  // The FC answers LOG_ENTRY oldest-first, which puts the log you almost
+  // always want (yesterday's) at the bottom of a season's worth of rows.
+  const visibleFcLogs = useMemo(() => {
+    const list = [...availableLogs].sort((a, b) => (b.timeUtc - a.timeUtc) || (b.id - a.id));
+    return filterQuery
+      ? list.filter(
+          (l) => String(l.id).includes(filterQuery) || formatDate(l.timeUtc).toLowerCase().includes(filterQuery),
+        )
+      : list;
+  }, [availableLogs, filterQuery]);
 
   /**
    * Map of FC log ID -> recent file path for that log, derived from the
@@ -241,6 +308,15 @@ export function LogListPanel() {
         >
           Open .bin File
         </button>
+        {recentLogs.length + availableLogs.length > 8 && (
+          <input
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            placeholder="Filter logs"
+            aria-label="Filter logs"
+            className="ml-auto w-44 px-3 py-2 text-sm bg-surface-raised border border-subtle rounded-lg text-content placeholder:text-content-tertiary focus:outline-none focus:ring-1 focus:ring-blue-500/50"
+          />
+        )}
       </div>
 
       {/* Parse progress */}
@@ -268,17 +344,23 @@ export function LogListPanel() {
       {/* Recent logs */}
       {recentLogs.length > 0 && (
         <div>
-          <div className="flex items-center justify-between mb-2">
-            <div className="text-xs text-content-secondary uppercase tracking-wider">Recent Logs</div>
-            <button
-              onClick={handleClearRecents}
-              disabled={openingRecent !== null}
-              title="Clear list (files stay on disk)"
-              className="text-xs text-content-tertiary hover:text-red-400 disabled:opacity-50 transition-colors"
-            >
-              Clear all
-            </button>
-          </div>
+          <SectionHeader
+            label="Recent Logs"
+            count={filterQuery ? `${visibleRecents.length} of ${recentLogs.length}` : String(recentLogs.length)}
+            collapsed={recentsCollapsed && !filterQuery}
+            onToggle={toggleRecents}
+            action={
+              <button
+                onClick={handleClearRecents}
+                disabled={openingRecent !== null}
+                title="Clear list (files stay on disk)"
+                className="text-xs text-content-tertiary hover:text-red-400 disabled:opacity-50 transition-colors"
+              >
+                Clear all
+              </button>
+            }
+          />
+          {(!recentsCollapsed || filterQuery) && (
           <div className="bg-surface rounded-xl border border-subtle overflow-hidden">
             <table className="w-full text-sm">
               <thead>
@@ -290,19 +372,17 @@ export function LogListPanel() {
                 </tr>
               </thead>
               <tbody>
-                {recentLogs.map((log) => (
+                {visibleRecents.map((log) => (
                   <tr key={log.path} className="border-b border-subtle hover:bg-surface-overlay-subtle">
-                    <td className="px-4 py-2.5">
-                      <div className="text-content truncate max-w-[240px]" title={log.path}>{log.name}</div>
-                      <div className="text-[11px] text-content-tertiary truncate max-w-[240px]" title={log.path}>
-                        {log.path.split(/[\\/]/).slice(0, -1).join('/')}
-                      </div>
+                    <td className="px-4 py-2">
+                      <div className="text-content truncate max-w-[280px]" data-tip={log.path}>{log.name}</div>
                     </td>
-                    <td className="px-4 py-2.5 text-content-secondary text-right whitespace-nowrap">{formatBytes(log.size)}</td>
-                    <td className="px-4 py-2.5 text-content-secondary text-right whitespace-nowrap text-xs">
-                      {new Date(log.openedAt).toLocaleDateString()}
+                    <td className="px-4 py-2 text-content-secondary text-right whitespace-nowrap">{formatBytes(log.size)}</td>
+                    <td className="px-4 py-2 text-content-secondary text-right whitespace-nowrap text-xs">
+                      {new Date(log.openedAt).toLocaleDateString()}{' '}
+                      {new Date(log.openedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </td>
-                    <td className="px-4 py-2.5 text-right">
+                    <td className="px-4 py-2 text-right">
                       <div className="flex items-center justify-end gap-1.5">
                         <button
                           onClick={() => handleOpenRecent(log)}
@@ -329,6 +409,7 @@ export function LogListPanel() {
               </tbody>
             </table>
           </div>
+          )}
         </div>
       )}
 
@@ -348,9 +429,24 @@ export function LogListPanel() {
         </div>
       )}
 
-      {/* Log list */}
-      {availableLogs.length > 0 && (
-        <div className="bg-surface rounded-xl border border-subtle overflow-hidden">
+      {/* No matches for the filter anywhere */}
+      {filterQuery && visibleRecents.length === 0 && visibleFcLogs.length === 0 && (recentLogs.length > 0 || availableLogs.length > 0) && (
+        <div className="bg-surface rounded-xl border border-subtle p-4 text-center">
+          <p className="text-content-secondary text-sm">No logs match "{filter.trim()}"</p>
+        </div>
+      )}
+
+      {/* Log list (newest first) */}
+      {visibleFcLogs.length > 0 && (
+        <div>
+          <SectionHeader
+            label="On Flight Controller"
+            count={filterQuery ? `${visibleFcLogs.length} of ${availableLogs.length}` : String(availableLogs.length)}
+            collapsed={fcCollapsed && !filterQuery}
+            onToggle={toggleFc}
+          />
+          {(!fcCollapsed || filterQuery) && (
+          <div className="bg-surface rounded-xl border border-subtle overflow-hidden">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-subtle">
@@ -361,7 +457,7 @@ export function LogListPanel() {
               </tr>
             </thead>
             <tbody>
-              {availableLogs.map((log) => {
+              {visibleFcLogs.map((log) => {
                 const downloaded = downloadedById.get(log.id) ?? null;
                 return (
                   <tr key={log.id} className="border-b border-subtle hover:bg-surface-overlay-subtle">
@@ -426,6 +522,8 @@ export function LogListPanel() {
               })}
             </tbody>
           </table>
+          </div>
+          )}
         </div>
       )}
     </div>

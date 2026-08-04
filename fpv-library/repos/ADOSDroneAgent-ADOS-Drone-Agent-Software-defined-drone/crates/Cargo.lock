@@ -78,7 +78,9 @@ dependencies = [
 name = "ados-capabilities-codegen"
 version = "0.1.0"
 dependencies = [
+ "hex",
  "serde",
+ "sha2",
  "toml",
 ]
 
@@ -360,6 +362,7 @@ dependencies = [
 name = "ados-installer"
 version = "0.1.0"
 dependencies = [
+ "ados-config",
  "ados-macpin",
  "ados-supervisor",
  "anyhow",
@@ -385,6 +388,7 @@ dependencies = [
 name = "ados-logd"
 version = "0.1.0"
 dependencies = [
+ "ados-config",
  "ados-protocol",
  "anyhow",
  "async-stream",
@@ -522,6 +526,7 @@ dependencies = [
  "hex",
  "hmac",
  "mavlink",
+ "nix 0.29.0",
  "raptorq",
  "rmp-serde",
  "rmpv",

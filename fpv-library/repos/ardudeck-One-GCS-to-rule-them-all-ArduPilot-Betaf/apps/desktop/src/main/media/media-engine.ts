@@ -24,6 +24,7 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { app } from 'electron';
 import { mediaBinariesDownloader } from './media-binaries-downloader.js';
 import { buildWfbngSdp, buildWfbngFfmpegArgs, wfbngPort, wfbngShouldTranscode } from './wfbng.js';
+import { needsH264Relay, buildH264RelayArgs } from './h264-relay.js';
 import { wfbngReceiver } from './wfbng-receiver.js';
 import type {
   CameraSourceConfig,
@@ -47,6 +48,8 @@ interface ActiveSession {
   /** ffmpeg recording process, if recording. */
   record?: ChildProcess;
   recordPath?: string;
+  /** Hub path registered via the API (pull sources) — must be deleted on stop. */
+  configuredPath?: string;
   /** True when this session started the wfb-ng dongle receiver sidecar. */
   usesWfbReceiver?: boolean;
 }
@@ -264,6 +267,18 @@ export class MediaEngine {
     return line.replace(/^\S+\s+\S+\s+/, '').replace(/ERR\s*/i, '').replace(/\[[^\]]*\]\s*/g, '').trim() || null;
   }
 
+  /** Track codec names ("H264", "H265", "Generic", ...) of a hub path. */
+  private async pathTracks(name: string): Promise<string[]> {
+    try {
+      const res = await fetch(`http://${HOST}:${API_PORT}/v3/paths/get/${encodeURIComponent(name)}`);
+      if (!res.ok) return [];
+      const info = (await res.json()) as { tracks?: string[] };
+      return info.tracks ?? [];
+    } catch {
+      return [];
+    }
+  }
+
   /** Poll the hub API until the named path is publishing, or time out. */
   private async waitPathReady(name: string, timeoutMs: number): Promise<boolean> {
     const deadline = Date.now() + timeoutMs;
@@ -395,15 +410,50 @@ export class MediaEngine {
       };
     }
 
+    // A pulled stream can be un-playable over WebRTC even though the hub
+    // ingested it fine: an H.265 camera, or a misdeclared H.264 track ingested
+    // as "Generic" (old SIYI firmware). WHEP answers those with a bare 400, so
+    // normalize through an ffmpeg H.264 relay instead and play that.
+    let playPath = name;
+    if (!needsBridge) {
+      const tracks = await this.pathTracks(name);
+      if (needsH264Relay(tracks)) {
+        if (!this.ffmpegPath) {
+          await this.removeHubPath(name);
+          return {
+            ok: false,
+            error: `Camera is sending ${tracks.join('+')}, which the built-in player cannot decode. Click Install to enable live conversion, or switch the camera encoder to H.264.`,
+          };
+        }
+        const relayName = `${name}h264`;
+        ingest = spawn(this.ffmpegPath, buildH264RelayArgs(this.rtspUrl(name), this.rtspUrl(relayName)), {
+          stdio: ['ignore', 'ignore', 'pipe'],
+          shell: process.platform === 'win32',
+        });
+        ingest.on('exit', () => {
+          const a = this.sessions.get(source.id);
+          if (a && a.session.status !== 'stopped') a.session.status = 'error';
+        });
+        const relayReady = await this.waitPathReady(relayName, 12000);
+        if (!relayReady) {
+          killProc(ingest);
+          await this.removeHubPath(name);
+          return { ok: false, error: `Camera is sending ${tracks.join('+')} and the H.264 conversion failed to start` };
+        }
+        playPath = relayName;
+      }
+    }
+
     const session: CameraStreamSession = {
       sourceId: source.id,
       vehicleKey: source.vehicleKey,
-      playback: { kind: 'webrtc', whepUrl: this.whepUrl(name) },
+      playback: { kind: 'webrtc', whepUrl: this.whepUrl(playPath) },
       status: 'live',
-      path: name,
+      path: playPath,
     };
     const active: ActiveSession = { session };
     if (ingest) active.ingest = ingest;
+    if (!needsBridge) active.configuredPath = name;
     if (source.kind === 'wfbng' && (source.wfbMode ?? 'dongle') === 'dongle') active.usesWfbReceiver = true;
     this.sessions.set(source.id, active);
     return { ok: true, session };
@@ -415,7 +465,7 @@ export class MediaEngine {
     active.session.status = 'stopped';
     if (active.record) killProc(active.record);
     if (active.ingest) killProc(active.ingest);
-    if (active.session.path && !active.ingest) await this.removeHubPath(active.session.path);
+    if (active.configuredPath) await this.removeHubPath(active.configuredPath);
     this.sessions.delete(sourceId);
     // Last dongle-mode session gone -> release the dongle receiver.
     if (active.usesWfbReceiver && ![...this.sessions.values()].some((s) => s.usesWfbReceiver)) {

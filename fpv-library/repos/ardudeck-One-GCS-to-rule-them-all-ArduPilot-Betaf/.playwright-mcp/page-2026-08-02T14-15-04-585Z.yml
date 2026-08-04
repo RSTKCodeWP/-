@@ -1,0 +1,105 @@
+- generic [ref=f10e3]:
+  - banner [ref=f10e4]:
+    - generic [ref=f10e5]:
+      - generic [ref=f10e6]: RCTESTFLIGHT
+      - generic [ref=f10e8]: Boat Ground Station
+    - generic [ref=f10e9]: Simulator
+    - link "ArduDeck Built by ArduDeck" [ref=f10e12] [cursor=pointer]:
+      - /url: https://ardudeck.com
+      - img "ArduDeck" [ref=f10e13]
+      - generic [ref=f10e14]: Built by ArduDeck
+  - generic [ref=f10e289]:
+    - paragraph [ref=f10e291]: Simulated boat. Nothing here is real hardware, and nothing you press reaches a boat.
+    - button "Turn it off" [ref=f10e292] [cursor=pointer]
+  - generic [ref=f10e15]:
+    - navigation [ref=f10e16]:
+      - button "Telemetry" [active] [ref=f10e17] [cursor=pointer]
+      - button "Mission Planning" [ref=f10e20] [cursor=pointer]
+      - button "Hardware" [ref=f10e24] [cursor=pointer]
+      - button "Parameters" [ref=f10e27] [cursor=pointer]
+      - button "Settings" [ref=f10e30] [cursor=pointer]
+      - 'button "Theme: dark. Switch to light." [ref=f10e34] [cursor=pointer]'
+    - main [ref=f10e37]:
+      - generic [ref=f10e297]:
+        - generic [ref=f10e299]:
+          - button "Save Layout" [ref=f10e300] [cursor=pointer]
+          - button "Load Layout" [ref=f10e301] [cursor=pointer]
+          - button "Reset Layout" [ref=f10e302] [cursor=pointer]
+        - generic [ref=f10e311]:
+          - generic [ref=f10e317]:
+            - generic [ref=f10e319]:
+              - generic [ref=f10e320]: Map
+              - generic [ref=f10e332]:
+                - button "Base map layers" [ref=f10e335] [cursor=pointer]:
+                  - generic [ref=f10e340]: Layers
+                - generic: Imagery © Google
+            - generic [ref=f10e342]:
+              - generic [ref=f10e343]: Boat Control
+              - generic [ref=f10e356]:
+                - generic [ref=f10e357]: Simulator
+                - generic [ref=f10e362]:
+                  - button "Start" [disabled] [ref=f10e363]
+                  - button "Return home" [disabled] [ref=f10e366]
+                  - button "Stop" [disabled] [ref=f10e370]
+                - generic [ref=f10e374]:
+                  - generic [ref=f10e375]:
+                    - generic [ref=f10e376]: Mode
+                    - generic [ref=f10e377]: Idle
+                  - generic [ref=f10e378]:
+                    - generic [ref=f10e379]: To next
+                    - generic [ref=f10e380]: "--"
+                  - generic [ref=f10e381]:
+                    - generic [ref=f10e382]: To launch
+                    - generic [ref=f10e383]: "--"
+                - button "Follow" [ref=f10e385] [cursor=pointer]
+          - generic [ref=f10e393]:
+            - generic [ref=f10e395]:
+              - generic [ref=f10e396]: Boat
+              - generic [ref=f10e408]:
+                - generic [ref=f10e409]:
+                  - img [ref=f10e410]:
+                    - generic [ref=f10e412]: "N"
+                    - generic [ref=f10e424]: E
+                    - generic [ref=f10e436]: S
+                    - generic [ref=f10e448]: W
+                  - generic [ref=f10e461]:
+                    - generic [ref=f10e462]:
+                      - generic [ref=f10e463]: Speed
+                      - generic [ref=f10e464]:
+                        - generic [ref=f10e465]: "0.0"
+                        - generic [ref=f10e466]: m/s
+                      - generic [ref=f10e467]: aiming for 1.5 m/s
+                    - generic [ref=f10e468]:
+                      - generic [ref=f10e469]: Heading
+                      - generic [ref=f10e470]: "--°"
+                - generic [ref=f10e472]:
+                  - generic [ref=f10e473]: Battery
+                  - generic [ref=f10e474]:
+                    - generic [ref=f10e477]: 12.6 V
+                    - generic [ref=f10e478]: 100%
+            - generic [ref=f10e482]:
+              - generic [ref=f10e483]: Mission
+              - generic [ref=f10e495]:
+                - heading "Route" [level=3] [ref=f10e496]
+                - generic [ref=f10e497]:
+                  - generic [ref=f10e498]:
+                    - generic [ref=f10e499]: Stops reached
+                    - generic [ref=f10e500]: "--"
+                  - generic [ref=f10e501]:
+                    - generic [ref=f10e502]: Distance
+                    - generic [ref=f10e503]: 0 m
+                  - generic [ref=f10e504]:
+                    - generic [ref=f10e505]: Est. time
+                    - generic [ref=f10e506]: 0s
+                - generic [ref=f10e507]:
+                  - heading "Now" [level=3] [ref=f10e508]
+                  - generic [ref=f10e509]:
+                    - generic [ref=f10e510]:
+                      - generic [ref=f10e511]: Mode
+                      - generic [ref=f10e512]: Idle
+                    - generic [ref=f10e513]:
+                      - generic [ref=f10e514]: Doing item
+                      - generic [ref=f10e515]: "--"
+                    - generic [ref=f10e516]:
+                      - generic [ref=f10e517]: To next
+                      - generic [ref=f10e518]: "--"

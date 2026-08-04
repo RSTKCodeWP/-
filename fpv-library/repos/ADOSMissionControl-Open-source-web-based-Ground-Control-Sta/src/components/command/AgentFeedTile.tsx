@@ -53,6 +53,7 @@ import { Badge } from "@/components/ui/badge";
 import { NodeGlyph } from "@/components/command/nodes/node-glyph";
 import { linkStateReach } from "@/components/hardware/radio/labels";
 import { profileTint, type EffProfile } from "@/lib/nodes/node-profile";
+import { useDeviceControlAuthority, useControlAuthorityNotice } from "@/hooks/use-node-control-authority";
 
 interface AgentFeedTileProps {
   agent: CommandAgentSummary;
@@ -191,6 +192,12 @@ function TileBadges({
   agent: CommandAgentSummary;
 }) {
   const t = useTranslations("commandFleet");
+  const tNode = useTranslations("nodeConsole");
+  // Separate from the liveness badge on purpose: a tile can be live and
+  // uncommandable at once, and one badge cannot carry both.
+  const authority = useControlAuthorityNotice(
+    useDeviceControlAuthority(agent.identity.deviceId),
+  );
   const live = agent.liveness;
   const liveLevel = livenessLevel(live);
   const liveVariant = live === "live" ? "success" : live === "stale" ? "warning" : "neutral";
@@ -213,8 +220,8 @@ function TileBadges({
       : effProfile === "drone"
         ? t("profileDrone")
         : effProfile === "workstation"
-          ? "Workstation" // i18n: nodeConsole workstation type badge
-          : "Flight Controller"; // i18n: nodeConsole flight-controller type badge
+          ? tNode("type.workstation")
+          : tNode("type.flightController");
 
   return (
     <div className="flex flex-wrap items-center gap-1.5">
@@ -223,6 +230,20 @@ function TileBadges({
         {t(live)}
       </Badge>
       <Badge variant="info">{typeBadge}</Badge>
+      {authority.show && (
+        <Badge
+          variant={authority.level === "warning" ? "warning" : "neutral"}
+          className="gap-1"
+        >
+          {/* The dot carries the full sentence as its aria-label and title. */}
+          <StatusDot
+            status={authority.level}
+            size="xs"
+            label={authority.detail}
+          />
+          {authority.label}
+        </Badge>
+      )}
       {effProfile === "drone" && (
         <>
           <Badge variant={agent.system.fcReachable ? "success" : "neutral"}>

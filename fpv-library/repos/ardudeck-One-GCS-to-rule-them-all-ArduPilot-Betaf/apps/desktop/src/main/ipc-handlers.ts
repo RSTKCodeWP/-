@@ -6739,7 +6739,8 @@ export function setupIpcHandlers(mainWindow: BrowserWindow): void {
       // When arming without a transmitter, ArduPilot needs RC input.
       // Auto-start the SITL RC sender if SITL is running so ArduPilot
       // gets continuous 50Hz RC input and doesn't trigger RC failsafe.
-      if (arm && ardupilotSitlProcess.isRunning && !ardupilotRcSender.isRunning) {
+      if (arm && ardupilotSitlProcess.isRunning && !ardupilotRcSender.isRunning
+          && !ardupilotRcSender.hasExternalSource) {
         ardupilotRcSender.start();
         sendLog(mainWindow, 'info', 'Auto-started RC sender for SITL arming');
         // Give ArduPilot time to see RC input before arm command
@@ -6750,7 +6751,9 @@ export function setupIpcHandlers(mainWindow: BrowserWindow): void {
       // arming without a transmitter. Aux channels MUST be UINT16_MAX ("ignore")
       // or we hijack FLTMODE_CH and can slam the vehicle into a non-armable mode
       // right as we arm (this bit rovers, whose FLTMODE_CH commonly sits in 5-8).
-      if (arm) {
+      // Only stand in for a missing transmitter. With a handset actually driving RC, this
+      // override would OUTRANK it and freeze the sticks at centre/idle the moment we armed.
+      if (arm && !ardupilotRcSender.hasExternalSource) {
         const IGNORE = 65535;
         const rcPayload = serializeRcChannelsOverride({
           targetSystem: target.sysid,
@@ -10180,9 +10183,17 @@ export function setupIpcHandlers(mainWindow: BrowserWindow): void {
   // Start ArduPilot SITL process
   ipcMain.handle(IPC_CHANNELS.ARDUPILOT_SITL_START, async (_event, config: ArduPilotSitlConfig): Promise<{ success: boolean; command?: string; error?: string }> => {
     const result = await ardupilotSitlProcess.start(config);
-    if (result.success && !ardupilotRcSender.isRunning) {
-      ardupilotRcSender.start();
-    }
+    // Do NOT auto-start the RC sender here.
+    //
+    // It streams roll/pitch/yaw = 1500 and throttle = 1000 at 50 Hz to 127.0.0.1:5501, which is
+    // the SAME port a real RC source uses. Starting SITL therefore silently HIJACKED any external
+    // transmitter: measured in a dataflash log, roll/pitch/yaw sat at exactly 1500 for ~93% of a
+    // flight and throttle snapped by >300 PWM between consecutive samples 46% of the time, because
+    // two senders were alternating. Rudder arming became impossible (yaw never held full deflection
+    // long enough) and the aircraft was barely controllable.
+    //
+    // Arming without a transmitter still works: the arm handler starts the sender on demand, and
+    // the Start RC button starts it explicitly.
     return result;
   });
 
@@ -10265,6 +10276,8 @@ export function setupIpcHandlers(mainWindow: BrowserWindow): void {
   // ArduPilot SITL RC control - send RC values
   ipcMain.handle(IPC_CHANNELS.ARDUPILOT_SITL_RC_SEND, async (_event, state: Partial<VirtualRCState>): Promise<void> => {
     ardupilotRcSender.setState(state);
+    // Flag a live external source so arming does not clobber it with an override.
+    ardupilotRcSender.noteExternalSource();
     ardupilotRcSender.sendOnce();
   });
 

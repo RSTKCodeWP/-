@@ -710,7 +710,7 @@ impl SimVehicle for CopterVehicle {
     fn motor_layout(&self) -> Option<Vec<MotorInfo>> {
         // Authoritative per-motor geometry (same table the mixer/FC uses): body
         // FRD position (x forward, y right) and spin. yaw_factor: CCW = +1, CW = -1.
-        let mounts = crate::frame_geometry::frame_geometry(self.params.num_motors, self.params.diagonal_size);
+        let mounts = crate::frame_geometry::frame_geometry(self.params.num_motors, self.params.diagonal_size, self.params.frame_class.zip(self.params.frame_type));
         Some(
             mounts
                 .iter()
@@ -1365,7 +1365,7 @@ mod tests {
         // Octa spin order (ArduPilot SIM_Frame): 0/CW 180/CW 45/CCW 135/CCW
         // -45/CCW -135/CCW -90/CW 90/CW.
         let expect_spin = ["cw", "cw", "ccw", "ccw", "ccw", "ccw", "cw", "cw"];
-        let mounts = frame_geometry(8, diag);
+        let mounts = frame_geometry(8, diag, None);
         for (i, m) in layout.iter().enumerate() {
             assert_eq!(m.spin, expect_spin[i], "MOT_{} spin", i + 1);
             assert!((m.x - mounts[i].position.x).abs() < 1e-12, "MOT_{} x", i + 1);
@@ -1378,9 +1378,17 @@ mod tests {
 
     // Golden final-state values for the calm/no-command CopterVehicle::step path,
     // captured from the engine (locks the live-control drain as a no-op).
-    const GOLDEN_CALM_POS_X: f64 = -0.9835422576500131;
-    const GOLDEN_CALM_POS_Z: f64 = -17.004641100181487;
-    const GOLDEN_CALM_WZ: f64 = 0.06501985381620896;
+    // Re-captured when the no-frame default quad's motor layout was corrected from
+    // X to Plus. `default_params()` states no FRAME_CLASS/FRAME_TYPE, so its layout
+    // comes from the motor-count fallback, and that fallback now yields Plus to
+    // match the `-Mquad` physics frame and FRAME_TYPE 0 the desktop app configures
+    // (see apps/desktop/src/shared/sitl-frame-geometry.ts). Different motor
+    // positions mean different moments for the same PWMs, so these values moved.
+    // The invariant under test (an empty control queue changes nothing) is
+    // unaffected; only the trajectory it is pinned against.
+    const GOLDEN_CALM_POS_X: f64 = -0.1883246780581227;
+    const GOLDEN_CALM_POS_Z: f64 = -17.06391625400502;
+    const GOLDEN_CALM_WZ: f64 = 0.06853134980887862;
 
     #[test]
     fn calm_no_command_step_is_bit_identical_golden() {

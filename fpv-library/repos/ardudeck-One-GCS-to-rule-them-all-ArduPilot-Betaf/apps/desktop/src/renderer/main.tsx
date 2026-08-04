@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import { DetachedRoot } from './detached/DetachedRoot';
+import { initPseudoTx } from './stores/pseudo-tx-store';
 import './styles/globals.css';
 
 // Pop-out windows share this same renderer bundle/entry. The main window opens
@@ -10,6 +11,10 @@ import './styles/globals.css';
 // entry and keeps Zustand/Tailwind/etc. cached between windows.
 const params = new URLSearchParams(window.location.search);
 const isDetached = params.get('detached') === '1';
+
+// Every window, main and pop-out alike: the handset has to follow you into the popped-out
+// 3D view, and only whichever window has focus gets to drive (see the store).
+initPseudoTx();
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

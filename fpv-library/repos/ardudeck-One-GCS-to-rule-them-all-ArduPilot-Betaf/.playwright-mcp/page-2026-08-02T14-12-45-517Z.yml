@@ -1,0 +1,80 @@
+- generic [ref=f10e3]:
+  - banner [ref=f10e4]:
+    - generic [ref=f10e5]:
+      - generic [ref=f10e6]: RCTESTFLIGHT
+      - generic [ref=f10e8]: Boat Ground Station
+    - generic [ref=f10e9]: Reconnecting
+    - link "ArduDeck Built by ArduDeck" [ref=f10e12] [cursor=pointer]:
+      - /url: https://ardudeck.com
+      - img "ArduDeck" [ref=f10e13]
+      - generic [ref=f10e14]: Built by ArduDeck
+  - generic [ref=f10e15]:
+    - navigation [ref=f10e16]:
+      - button "Telemetry" [ref=f10e17] [cursor=pointer]
+      - button "Mission Planning" [ref=f10e20] [cursor=pointer]
+      - button "Hardware" [ref=f10e24] [cursor=pointer]
+      - button "Parameters" [ref=f10e27] [cursor=pointer]
+      - button "Settings" [active] [ref=f10e30] [cursor=pointer]
+      - 'button "Theme: dark. Switch to light." [ref=f10e34] [cursor=pointer]'
+    - main [ref=f10e37]:
+      - generic [ref=f10e199]:
+        - generic [ref=f10e200]:
+          - generic [ref=f10e206]:
+            - heading "Link" [level=3] [ref=f10e207]
+            - paragraph [ref=f10e208]: How this page is talking to the boat
+          - generic [ref=f10e209]:
+            - generic [ref=f10e210]:
+              - generic [ref=f10e211]: Status
+              - generic [ref=f10e213]: Reconnecting
+            - generic [ref=f10e214]:
+              - generic [ref=f10e215]: Served from
+              - generic [ref=f10e217]: A development server
+            - generic [ref=f10e218]:
+              - generic [ref=f10e219]: Board
+              - generic [ref=f10e221]: Boat kit, ESP32
+            - paragraph [ref=f10e222]: The boat went away. This is also what a restart after a write looks like
+            - button "Try a simulated boat" [ref=f10e223] [cursor=pointer]
+        - generic [ref=f10e224]:
+          - generic [ref=f10e230]:
+            - heading "Units" [level=3] [ref=f10e231]
+            - paragraph [ref=f10e232]: Applies to distances and speeds throughout the app
+          - generic [ref=f10e234]:
+            - generic [ref=f10e235]: Measurement system
+            - radiogroup "Measurement system" [ref=f10e238]:
+              - radio "Metric" [checked] [ref=f10e239] [cursor=pointer]
+              - radio "Imperial" [ref=f10e240] [cursor=pointer]
+        - generic [ref=f10e241]:
+          - generic [ref=f10e247]:
+            - heading "Map" [level=3] [ref=f10e248]
+            - paragraph [ref=f10e249]: Base imagery and on-water behaviour
+          - generic [ref=f10e250]:
+            - generic [ref=f10e251]:
+              - generic [ref=f10e252]: Base layer
+              - combobox "Base layer" [ref=f10e253]:
+                - option "Satellite" [selected]
+                - option "Hybrid"
+                - option "Street"
+                - option "Topographic"
+            - generic [ref=f10e254]:
+              - generic [ref=f10e255]:
+                - generic [ref=f10e256]: Scale bar
+                - generic [ref=f10e257]: Useful when planning without a satellite layer
+              - switch "Scale bar" [checked] [ref=f10e258] [cursor=pointer]
+            - generic [ref=f10e260]:
+              - generic [ref=f10e261]:
+                - generic [ref=f10e262]: Keep screen awake
+                - generic [ref=f10e263]: Stops the phone sleeping mid-mission
+              - switch "Keep screen awake" [checked] [ref=f10e264] [cursor=pointer]
+        - generic [ref=f10e266]:
+          - generic [ref=f10e272]:
+            - heading "Appearance" [level=3] [ref=f10e273]
+            - paragraph [ref=f10e274]: Dark reads better on the water, light reads better in direct sun
+          - generic [ref=f10e276]:
+            - generic [ref=f10e277]: Theme
+            - radiogroup "Theme" [ref=f10e280]:
+              - radio "Dark" [checked] [ref=f10e281] [cursor=pointer]
+              - radio "Light" [ref=f10e282] [cursor=pointer]
+              - radio "System" [ref=f10e283] [cursor=pointer]
+        - generic [ref=f10e286]:
+          - generic [ref=f10e287]: RCTESTFLIGHT
+          - paragraph [ref=f10e288]: Boat Ground Station, built by ArduDeck.

@@ -1,8 +1,8 @@
 {
   "source": "altnautica/ADOSDroneAgent",
-  "upstream_commit": "6823f2612ccb3a51e6310f92f00ead666b1924d2",
-  "upstream_updated": "2026-08-03T09:50:36Z",
-  "synced_at": "2026-08-03T10:04:23+00:00",
+  "upstream_commit": "5f32a901628fcb2561c0dbe36758bd4ee30510c8",
+  "upstream_updated": "2026-08-04T08:35:38Z",
+  "synced_at": "2026-08-04T08:54:40+00:00",
   "discovered_via": "owner:altnautica",
   "score": 2.5
 }

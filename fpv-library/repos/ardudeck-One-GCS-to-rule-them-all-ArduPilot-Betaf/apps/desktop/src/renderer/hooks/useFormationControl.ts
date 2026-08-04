@@ -11,12 +11,16 @@
  * the engine won't release a dropped vehicle from a merely-shrunk follow.leader, any
  * op that removes a vehicle from a fleet (move, peel, remove) stops that fleet's loop
  * and reforms the remainder; adds just re-issue follow.leader, which supersedes.
+ *
+ * Geometry (shape / spacing / alt-step) is PER FLEET - see formation-store. Every
+ * follow.leader issued here reads the geometry of the fleet it is commanding, so
+ * reshaping one fleet can never leak into another's next re-issue.
  */
 
 import { useOrchestrationStore } from '../stores/orchestration-store';
 import { useActiveVehicleStore, formationOf } from '../stores/active-vehicle-store';
 import { useMissionStore } from '../stores/mission-store';
-import { useFormationStore } from '../stores/formation-store';
+import { useFormationStore, formationConfigOf, type FleetFormationConfig } from '../stores/formation-store';
 import { SHAPE_BY_VALUE } from '../components/fleet/FormationGlyphs';
 import { useFleetVehicles, selectActiveVehicle, type FleetVehicle } from './useFleet';
 
@@ -32,12 +36,15 @@ export interface FormationControl {
   formations: Record<string, string[]>;
   /** The default leader for a NEW formation (the selected vehicle, else first). */
   leader: FleetVehicle | undefined;
-  shape: string;
-  spacing: number;
-  altStep: number;
+  /**
+   * A fleet's live geometry, by leader key. Pass null/undefined (or a key that leads no
+   * fleet) for the seed applied to the next fleet formed. Per fleet, so one fleet's
+   * glyph bar never reflects or overwrites another's shape.
+   */
+  configFor: (leaderKey?: string | null) => FleetFormationConfig;
   busy: boolean;
-  setSpacing: (m: number) => void;
-  setAltStep: (m: number) => void;
+  /** Patch a fleet's geometry, or the defaults when leaderKey is null. */
+  setConfig: (leaderKey: string | null, patch: Partial<FleetFormationConfig>) => void;
   /** Form up / re-form a group on a leader. Optional shape and leader overrides. */
   formUp: (shapeValue?: string, leaderKeyOverride?: string) => Promise<void>;
   /** Re-form ONE existing fleet with a new shape, touching only its current members. */
@@ -69,14 +76,22 @@ export function useFormationControl(): FormationControl {
   const removeFormation = useActiveVehicleStore((s) => s.removeFormation);
   const clearFormations = useActiveVehicleStore((s) => s.clearFormations);
   const vehicles = useFleetVehicles();
-  const shape = useFormationStore((s) => s.shape);
-  const spacing = useFormationStore((s) => s.spacing);
-  const altStep = useFormationStore((s) => s.altStep);
-  const setShape = useFormationStore((s) => s.setShape);
-  const setSpacing = useFormationStore((s) => s.setSpacing);
-  const setAltStep = useFormationStore((s) => s.setAltStep);
+  const defaults = useFormationStore((s) => s.defaults);
+  const byFleet = useFormationStore((s) => s.byFleet);
+  const setConfig = useFormationStore((s) => s.setConfig);
+  const dropConfig = useFormationStore((s) => s.dropConfig);
+  const clearConfigs = useFormationStore((s) => s.clearConfigs);
   const busy = useFormationStore((s) => s.busy);
   const setBusy = useFormationStore((s) => s.setBusy);
+
+  const configFor = (leaderKey?: string | null): FleetFormationConfig =>
+    formationConfigOf(byFleet, defaults, leaderKey);
+  // Reads the store directly so an action that just wrote a config sees it, rather than
+  // the render-time snapshot closed over above.
+  const liveConfig = (leaderKey: string): FleetFormationConfig => {
+    const s = useFormationStore.getState();
+    return formationConfigOf(s.byFleet, s.defaults, leaderKey);
+  };
 
   // Prefer an engine that advertises capabilities; fall back to any connected one so a
   // stale build with empty caps doesn't hide the actions (our orchestrator always
@@ -102,15 +117,16 @@ export function useFormationControl(): FormationControl {
   };
 
   const formUp = async (shapeValue?: string, leaderKeyOverride?: string): Promise<void> => {
-    const nextShape = shapeValue ?? shape;
     const target = vehicles.find((v) => v.key === (leaderKeyOverride ?? leader?.key));
     if (!target) return;
-    if (shapeValue && shapeValue !== shape) {
-      setShape(shapeValue);
+    // Geometry belongs to THIS fleet: an explicit shape is written to its config (with
+    // the shape's preset spacing, if any), otherwise it keeps what it already had, or
+    // inherits the defaults on a first form-up.
+    if (shapeValue) {
       const preset = SHAPE_BY_VALUE.get(shapeValue)?.spacing;
-      if (preset) setSpacing(preset);
+      setConfig(target.key, preset ? { shape: shapeValue, spacing: preset } : { shape: shapeValue });
     }
-    const spacingM = (shapeValue && SHAPE_BY_VALUE.get(shapeValue)?.spacing) || spacing;
+    const cfg = liveConfig(target.key);
     // Followers, in priority order:
     //  1. explicit checkbox selection, when any are checked;
     //  2. the target's own current wingmen, when it already leads a fleet (this is a
@@ -128,7 +144,7 @@ export function useFormationControl(): FormationControl {
     const followers = checkedWingmen.length > 0 ? checkedWingmen : ownWingmen.length > 0 ? ownWingmen : free;
     if (followers.length === 0) return;
     const ordered = [target.sysid, ...followers.map((v) => v.sysid)];
-    await submit('follow.leader', ordered, { spacingM, altStepM: altStep, shape: nextShape });
+    await submit('follow.leader', ordered, { spacingM: cfg.spacing, altStepM: cfg.altStep, shape: cfg.shape });
     setFormation(target.key, [target.key, ...followers.map((v) => v.key)]);
     // CRITICAL: command the leader now, else map/flight commands still target whatever
     // wingman was selected, the follow loop overrides them, and "nothing moves".
@@ -144,10 +160,10 @@ export function useFormationControl(): FormationControl {
   const reshapeFleet = async (leaderKey: string, shapeValue: string): Promise<void> => {
     const members = useActiveVehicleStore.getState().formations[leaderKey];
     if (!members || members.length < 2) return;
-    setShape(shapeValue);
     const preset = SHAPE_BY_VALUE.get(shapeValue)?.spacing;
-    if (preset) setSpacing(preset);
-    await submit('follow.leader', sysidsFor(members), { spacingM: preset ?? spacing, altStepM: altStep, shape: shapeValue });
+    setConfig(leaderKey, preset ? { shape: shapeValue, spacing: preset } : { shape: shapeValue });
+    const cfg = liveConfig(leaderKey);
+    await submit('follow.leader', sysidsFor(members), { spacingM: cfg.spacing, altStepM: cfg.altStep, shape: cfg.shape });
   };
 
   // (Re)issue the follow loop for a fleet that GAINED a member or changed shape. The
@@ -156,7 +172,8 @@ export function useFormationControl(): FormationControl {
   const pushFleet = async (leaderKey: string): Promise<void> => {
     const members = useActiveVehicleStore.getState().formations[leaderKey];
     if (!members || members.length < 2) return;
-    await submit('follow.leader', sysidsFor(members), { spacingM: spacing, altStepM: altStep, shape });
+    const cfg = liveConfig(leaderKey);
+    await submit('follow.leader', sysidsFor(members), { spacingM: cfg.spacing, altStepM: cfg.altStep, shape: cfg.shape });
   };
 
   // Reconcile a fleet that LOST a member: stop its loop first (the engine won't drop a
@@ -179,9 +196,11 @@ export function useFormationControl(): FormationControl {
     if (memberKey === leaderKey) return;
     const src = formationOf(useActiveVehicleStore.getState().formations, memberKey);
     if (src && src.leaderKey === memberKey) {
-      // Moving a leader into another fleet dissolves its old fleet; stop that loop.
+      // Moving a leader into another fleet dissolves its old fleet; stop that loop and
+      // forget its geometry so a future fleet on this key starts from the defaults.
       const oldLeaderV = vehicles.find((v) => v.key === memberKey);
       await submit('formation.stop', oldLeaderV ? [oldLeaderV.sysid] : undefined, null);
+      dropConfig(memberKey);
     }
     useActiveVehicleStore.getState().addToFleet(leaderKey, memberKey);
     await pushFleet(leaderKey); // dest gains the member (also aborts src loop, shared)
@@ -199,6 +218,7 @@ export function useFormationControl(): FormationControl {
     if (grp.leaderKey === memberKey) {
       const leaderV = vehicles.find((v) => v.key === memberKey);
       await submit('formation.stop', leaderV ? [leaderV.sysid] : undefined, null);
+      dropConfig(memberKey);
     } else {
       await reformFleet(grp.leaderKey);
     }
@@ -212,9 +232,11 @@ export function useFormationControl(): FormationControl {
       // Scoped stop: the engine drops only the formation(s) containing this sysid.
       await submit('formation.stop', leaderV ? [leaderV.sysid] : undefined, null);
       removeFormation(leaderKey);
+      dropConfig(leaderKey);
     } else {
       await submit('formation.stop', undefined, null);
       clearFormations();
+      clearConfigs();
     }
   };
 
@@ -235,7 +257,8 @@ export function useFormationControl(): FormationControl {
     // from a re-issued follow.leader doesn't make the orchestrator let it go.
     await submit('formation.stop', [leaderV.sysid], null);
     const ordered = [leaderV.sysid, ...remaining.map((v) => v.sysid)];
-    await submit('follow.leader', ordered, { spacingM: spacing, altStepM: altStep, shape });
+    const cfg = liveConfig(leaderV.key);
+    await submit('follow.leader', ordered, { spacingM: cfg.spacing, altStepM: cfg.altStep, shape: cfg.shape });
     setFormation(leaderV.key, [leaderV.key, ...remaining.map((v) => v.key)]);
     selectActiveVehicle(leaderV.key, leaderV.transportId);
   };
@@ -276,12 +299,9 @@ export function useFormationControl(): FormationControl {
     forming,
     formations,
     leader,
-    shape,
-    spacing,
-    altStep,
+    configFor,
     busy,
-    setSpacing,
-    setAltStep,
+    setConfig,
     formUp,
     reshapeFleet,
     createFleet,

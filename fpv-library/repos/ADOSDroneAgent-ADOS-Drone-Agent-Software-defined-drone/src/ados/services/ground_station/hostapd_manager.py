@@ -53,8 +53,6 @@ log = get_logger("ground_station.hostapd")
 # ``network.hotspot.password`` from config; the agent never auto-generates.
 _PASSPHRASE_PATH = AP_PASSPHRASE_PATH
 
-# The shared built-in, kept only as the entropy-failure fallback.
-BUILTIN_PASSPHRASE = "altnautica"
 
 # Characters an operator can read off a screen and type without guessing:
 # 0/O and 1/I/L are excluded. Mirrors the Rust `UNAMBIGUOUS_CHARSET`.
@@ -131,6 +129,75 @@ _HOSTAPD_CONF_PATH = HOSTAPD_CONF_PATH
 _DNSMASQ_CONF_PATH = DNSMASQ_CONF_PATH
 
 _AP_IFACE = "wlan0"
+
+
+def resolve_ap_interface(
+    configured: str = "",
+    fallback: str = _AP_IFACE,
+    net_root: Path | None = None,
+) -> str:
+    """Return the interface the access point should bind, resolved by DRIVER.
+
+    Interface names are not stable. Measured across three reboots of a ground
+    station, ``wlan0`` was the onboard chip twice and the USB WFB flight radio
+    once -- so binding the AP to a name meant a one-in-three chance of running
+    hostapd on the aircraft's radio link.
+
+    Classification uses the generated deny-set the radio itself consults to make
+    sure it never grabs management WiFi for injection. Read the other way round,
+    that set is exactly "the interface the access point wants".
+
+    Mirrors ``EthernetManager``/``UplinkRouter``, which already resolve their NIC
+    at construction time for this same udev-race reason, and the Rust twin in
+    ``ados_protocol::netif``. Falls back to the previous constant rather than
+    raising: the caller's start path refuses separately if the fallback turns
+    out to be the radio.
+    """
+    from ados.services.wfb._wfb_tables_generated import (
+        WFB_COMPATIBLE_DRIVERS,
+        WFB_DENY_DRIVER_PREFIXES,
+    )
+
+    root = net_root or Path("/sys/class/net")
+
+    def driver_of(iface: str) -> str:
+        try:
+            return (root / iface / "device" / "driver").resolve().name
+        except OSError:
+            return ""
+
+    def is_radio(driver: str) -> bool:
+        return driver.strip().lower() in {d.lower() for d in WFB_COMPATIBLE_DRIVERS}
+
+    def is_onboard(driver: str) -> bool:
+        d = driver.strip().lower()
+        return any(d.startswith(p) for p in WFB_DENY_DRIVER_PREFIXES)
+
+    try:
+        wireless = sorted(
+            p.name
+            for p in root.iterdir()
+            if (p / "phy80211").exists() or (p / "wireless").exists()
+        )
+    except OSError:
+        return configured.strip() or fallback
+
+    configured = configured.strip()
+    if configured:
+        if configured in wireless and is_radio(driver_of(configured)):
+            log.error(
+                "ap_interface_configured_is_the_wfb_radio",
+                interface=configured,
+            )
+            return fallback
+        return configured
+
+    for iface in wireless:
+        if is_onboard(driver_of(iface)):
+            return iface
+
+    log.error("ap_interface_no_onboard_wifi", candidates=wireless)
+    return fallback
 _AP_ADDR = "192.168.4.1"
 _AP_CIDR = f"{_AP_ADDR}/24"
 _DHCP_RANGE = "192.168.4.10,192.168.4.100,12h"
@@ -275,16 +342,19 @@ class HostapdManager:
                     error=str(exc),
                 )
         except OSError as exc:
-            # Fail-closed on entropy, like every other secret the agent
-            # draws: a predictable passphrase is worse than the shared
-            # default it replaces, because nobody would know to distrust
-            # it. The built-in stands in only when the system cannot
-            # provide randomness at all.
-            log.warning(
-                "ap_passphrase_generate_failed_using_builtin_default",
+            # Actually fail closed. This used to substitute a single passphrase
+            # compiled into every unit, while the comment above it claimed to be
+            # failing closed.
+            #
+            # One published string shared by every ground station ever shipped
+            # is worse than having no access point: the network presents as
+            # protected, so nobody knows to distrust it. An empty passphrase
+            # stops the config write, so the AP simply does not come up.
+            log.error(
+                "ap_passphrase_generate_failed_refusing_to_start_ap",
                 error=str(exc),
             )
-            self._passphrase = BUILTIN_PASSPHRASE
+            self._passphrase = ""
         return self._passphrase
 
     def _render_hostapd_conf(self) -> str:
@@ -339,6 +409,14 @@ class HostapdManager:
         """
         if not self._passphrase:
             self.ensure_passphrase()
+
+        # Still empty means the RNG failed and there is no passphrase to use.
+        # Refuse here rather than emitting a conf: WPA requires 8-63 characters,
+        # so an empty one either yields an open network or a start-time failure
+        # from hostapd that reads as an unrelated fault.
+        if not self._passphrase:
+            log.error("ap_config_refused_no_passphrase")
+            raise OSError("refusing to write hostapd.conf without a passphrase")
 
         _HOSTAPD_CONF_PATH.parent.mkdir(parents=True, exist_ok=True)
 
@@ -624,6 +702,9 @@ async def main() -> None:
         ssid=ssid_override,
         channel=hotspot.channel,
         passphrase=hotspot.password,
+        # Resolved here rather than defaulted: the interface names race at boot,
+        # so "wlan0" is right only about two boots in three on this hardware.
+        interface=resolve_ap_interface(hotspot.interface),
     )
     manager.ensure_passphrase()
 

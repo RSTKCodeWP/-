@@ -722,8 +722,23 @@ ados-mavlink-router.service loaded active running ADOS MAVLink router
         }
     }
 
+    /// Serializes the tests that steer `fold_fc` with `ADOS_STATE_SOCK`.
+    ///
+    /// The variable is process-global while Rust runs tests on several threads
+    /// in one process, so without this the socket-present test can have its path
+    /// swapped out from under it by the socket-absent test and read `None` for
+    /// every FC field. It fails only under the load of a full workspace run,
+    /// which is the worst kind of flake: the narrow `-p ados-cloud` run that a
+    /// change gets checked with passes, and the gate goes red somewhere else.
+    /// Poisoning is recovered rather than propagated — one failing test should
+    /// not cascade into its neighbour.
+    static STATE_SOCK_ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     #[test]
     fn read_state_snapshot_lifts_fc_fields_from_a_socket() {
+        let _guard = STATE_SOCK_ENV_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         // Stand up a one-shot Unix socket that replays a state frame, point the
         // enrichment at it, and assert the FC fields fold in. Exercise BOTH wire
         // forms — v1 newline-JSON and v2 length-prefixed msgpack — because the
@@ -745,7 +760,17 @@ ados-mavlink-router.service loaded active running ADOS MAVLink router
         });
 
         // Serve `wire` bytes on a fresh socket and return the folded enrichment.
-        let fold_over_wire = |tag: &str, wire: Vec<u8>| -> Map<String, Value> {
+        //
+        // Retried, deliberately. `read_state_snapshot` gives the socket a 200 ms
+        // read timeout, which is the right production bound but is a real wall
+        // clock: under a full `cargo test --workspace` the writer thread is not
+        // always scheduled inside it, the read times out, and every FC field
+        // comes back absent. The assertion here is about which fields get lifted
+        // off which wire version, not about latency, so a scheduling miss must
+        // not be reported as a parsing failure. An earlier attempt at this blamed
+        // the shared `ADOS_STATE_SOCK` env var — that race is real and is still
+        // serialized above, but it was not what made this test red.
+        let fold_over_wire_once = |tag: &str, wire: Vec<u8>| -> Map<String, Value> {
             let dir = std::env::temp_dir();
             let sock = dir.join(format!(
                 "ados-enrich-state-{}-{}.sock",
@@ -770,6 +795,20 @@ ados-mavlink-router.service loaded active running ADOS MAVLink router
             std::env::remove_var("ADOS_STATE_SOCK");
             let _ = handle.join();
             obj
+        };
+
+        // Up to five attempts; in practice the first succeeds. Five consecutive
+        // misses is not scheduler noise, it is a real regression.
+        let fold_over_wire = |tag: &str, wire: Vec<u8>| -> Map<String, Value> {
+            let mut last = Map::new();
+            for attempt in 0..5 {
+                last = fold_over_wire_once(tag, wire.clone());
+                if last.contains_key("fcConnected") {
+                    return last;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(20 * (attempt + 1)));
+            }
+            last
         };
 
         let assert_fc = |obj: &Map<String, Value>| {
@@ -798,6 +837,9 @@ ados-mavlink-router.service loaded active running ADOS MAVLink router
 
     #[test]
     fn fold_fc_omits_everything_when_the_socket_is_absent() {
+        let _guard = STATE_SOCK_ENV_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         std::env::set_var("ADOS_STATE_SOCK", "/nonexistent/ados/state.sock");
         let mut obj = Map::new();
         fold_fc(&mut obj);

@@ -1,8 +1,8 @@
 {
   "source": "qqqlab/madflight",
-  "upstream_commit": "34627a503cdc5a8cfb8180310b145a228707561f",
-  "upstream_updated": "2026-08-01T23:34:27Z",
-  "synced_at": "2026-08-02T08:32:56+00:00",
+  "upstream_commit": "1221e8adb7a013c6a0b30a42ae9c27646de6538d",
+  "upstream_updated": "2026-08-04T02:26:16Z",
+  "synced_at": "2026-08-04T08:53:02+00:00",
   "discovered_via": "search:mavlink fpv:p1",
   "score": 18.2
 }

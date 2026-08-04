@@ -347,7 +347,7 @@ fn step_copter_core(
     let voltage = opts.voltage.unwrap_or(p.voltage_max);
 
     // 1-5. Sum per-motor thrust, torque and current (SIM_Motor / SIM_Frame).
-    let mounts = frame_geometry(p.num_motors, p.diagonal_size);
+    let mounts = frame_geometry(p.num_motors, p.diagonal_size, p.frame_class.zip(p.frame_type));
     let mut force_body = Vec3::zero(); // body-frame thrust, Newtons (Z down)
     let mut torque = Vec3::zero(); // body-frame torque, N*m
     let mut total_current = 0.0;
@@ -645,6 +645,7 @@ fn step_copter_core(
 mod tests {
     use super::*;
     use crate::frame::{multirotor_params, FrameModel, MultirotorParams};
+    use ardudeck_frame::{FrameClass, FrameType};
     const G: f64 = 9.80665;
     const DT: f64 = 1.0 / 400.0;
     fn params() -> MultirotorParams {
@@ -652,6 +653,13 @@ mod tests {
         // values, our mass/size). The calibrated model no longer hovers at a
         // hand-picked PWM, so hover-dependent tests derive the hover PWM below.
         multirotor_params(&FrameModel {
+            // Pinned to Quad X on purpose. The mixing tests below hand-write PWM
+            // patterns that are only a pure roll / pure yaw on an X layout, and the
+            // golden values were captured with it, so state it rather than inherit
+            // whatever the motor-count fallback happens to be. The fallback itself is
+            // covered by frame_geometry::tests::motor_count_fallback_is_plus.
+            frame_class: Some(FrameClass::Quad),
+            frame_type: Some(FrameType::X),
             mass: 1.5,
             diagonal_size: 0.4,
             ..Default::default()
@@ -1083,7 +1091,7 @@ mod tests {
         let pwms = [1500.0, 1500.0, 1350.0, 1350.0];
         let (p, e) = (params(), env());
         let (_s, d) = step_copter_diag(&pwms, &initial_state(), &p, &e, DT, StepOptions::default());
-        let mounts = frame_geometry(p.num_motors, p.diagonal_size);
+        let mounts = frame_geometry(p.num_motors, p.diagonal_size, p.frame_class.zip(p.frame_type));
         let mut torque = Vec3::zero();
         for (i, mount) in mounts.iter().enumerate() {
             let m = motor_forces(pwms[i], mount, &p, e.air_density, p.voltage_max, Vec3::zero(), Vec3::zero(), true);
@@ -1116,7 +1124,7 @@ mod tests {
         // Balanced hover: thrust-weighted centroid ~ origin.
         assert!(d.cg_hover_est.length() < 1e-6, "balanced cg_hover {:?}", d.cg_hover_est);
         // Kill MOT_1 (front-right, +x/+y quadrant): centroid swings away from it.
-        let mounts = frame_geometry(4, params().diagonal_size);
+        let mounts = frame_geometry(4, params().diagonal_size, None);
         let dead = mounts[0].position;
         let (_s2, d2) = diag_at(&[1000.0, hp, hp, hp], initial_state());
         // Moves opposite the dead motor: dot(shift, dead_dir) < 0.
@@ -1156,7 +1164,7 @@ mod tests {
         assert!(d.momentum_drag_bf.length() > 0.0, "momentum drag should be non-zero");
         // Independent no-drag sum with the same inflow.
         let vel_air_bf = start.attitude.rotate_world_to_body(start.velocity);
-        let mounts = frame_geometry(p.num_motors, p.diagonal_size);
+        let mounts = frame_geometry(p.num_motors, p.diagonal_size, p.frame_class.zip(p.frame_type));
         let mut pure = Vec3::zero();
         for (i, mount) in mounts.iter().enumerate() {
             let m = motor_forces([hp; 4][i], mount, &p, e.air_density, p.voltage_max, vel_air_bf, start.angular_velocity, false);
@@ -1470,7 +1478,7 @@ mod tests {
         let n = p.num_motors as usize;
         let t_h = w / n as f64;
         let (c_h, dtdc) = hover_command_and_dtdc(p, rho, t_h);
-        let mounts = frame_geometry(p.num_motors, p.diagonal_size);
+        let mounts = frame_geometry(p.num_motors, p.diagonal_size, p.frame_class.zip(p.frame_type));
         let rows = mounts
             .iter()
             .enumerate()
@@ -1621,7 +1629,7 @@ mod tests {
         let f = 0.30_f64;
         let healthy = MotorFault::default();
         let lossy = MotorFault { prop_area_scale: 1.0 - f, ..MotorFault::default() };
-        let mount = &frame_geometry(p.num_motors, p.diagonal_size)[0];
+        let mount = &frame_geometry(p.num_motors, p.diagonal_size, p.frame_class.zip(p.frame_type))[0];
         let h = crate::motor::motor_forces_faulted(pwm_h, mount, &p, rho, p.voltage_max, Vec3::zero(), Vec3::zero(), false, 1.0, &healthy, 0.0);
         let l = crate::motor::motor_forces_faulted(pwm_h, mount, &p, rho, p.voltage_max, Vec3::zero(), Vec3::zero(), false, 1.0, &lossy, 0.0);
         let deficit = h.thrust_mag - l.thrust_mag;

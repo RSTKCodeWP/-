@@ -97,7 +97,7 @@ pub struct Guidance {
 impl Guidance {
     pub fn new(p: &MultirotorParams, profile: GuidanceProfile) -> Guidance {
         Guidance {
-            mounts: frame_geometry(p.num_motors, p.diagonal_size),
+            mounts: frame_geometry(p.num_motors, p.diagonal_size, p.frame_class.zip(p.frame_type)),
             arm: p.diagonal_size.max(1e-3),
             pwm_min: p.pwm_min,
             pwm_max: p.pwm_max,
@@ -281,6 +281,7 @@ pub fn tilt_deg(state: &crate::copter::VehicleState) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ardudeck_frame::{FrameClass, FrameType};
     use crate::copter::{initial_state, step_copter, Environment, StepOptions, VehicleState, DEFAULT_ENVIRONMENT};
     use crate::frame::{multirotor_params, FrameModel};
 
@@ -292,6 +293,8 @@ mod tests {
 
     fn heavy_octa() -> MultirotorParams {
         multirotor_params(&FrameModel {
+            frame_class: Some(FrameClass::Octa),
+            frame_type: Some(FrameType::Plus),
             mass: 32.5,
             diagonal_size: 1.325,
             ref_spd: 25.0,

@@ -93,7 +93,7 @@ def test_catalog_size_matches_spec() -> None:
     # plugin's tool/resource/prompt exposure to the MCP surface, and
     # video.source.set lets a camera/pod driver reconfigure the video pipeline's
     # stream sources.
-    assert len(AGENT_CAPABILITIES) == 50
+    assert len(AGENT_CAPABILITIES) == 49
 
 
 def test_gated_caps_are_marked_enforced() -> None:
@@ -113,6 +113,7 @@ def test_gated_caps_are_marked_enforced() -> None:
             "compute.job.read",
             "compute.job.submit",
             "compute.stream.open",
+            "button.subscribe",
             "display.oled.page",
             "estimator.pose.inject",
             "event.publish",

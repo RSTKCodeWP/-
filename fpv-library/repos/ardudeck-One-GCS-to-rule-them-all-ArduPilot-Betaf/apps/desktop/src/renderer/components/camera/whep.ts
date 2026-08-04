@@ -44,8 +44,12 @@ export async function playWhep(video: HTMLVideoElement, whepUrl: string): Promis
     break; // other statuses are real errors — don't spin
   }
   if (!res || !res.ok) {
+    // MediaMTX writes the actual reason into the body ("the stream doesn't
+    // contain any supported codec", ...); statusText alone is just "Bad
+    // Request" and useless in a user report.
+    const reason = res ? (await res.text().catch(() => '')).trim().slice(0, 200) : '';
     pc.close();
-    throw new Error(`WHEP ${res?.status ?? 'no-response'} ${res?.statusText ?? ''}`.trim());
+    throw new Error(`WHEP ${res?.status ?? 'no-response'} ${reason || res?.statusText || ''}`.trim());
   }
   const answer = await res.text();
   await pc.setRemoteDescription({ type: 'answer', sdp: answer });

@@ -39,6 +39,25 @@ class ArduPilotRcSender {
   }
 
   /**
+   * True when something outside (a USB handset) has pushed RC within the last second.
+   *
+   * Arming normally fires a one-shot MAVLink RC_CHANNELS_OVERRIDE as a stand-in for a missing
+   * transmitter. That override TAKES PRECEDENCE over RC input in ArduPilot, so firing it while
+   * a handset is actually flying pins roll/pitch to centre and throttle to 1000 - the sticks go
+   * dead the instant you arm. When a real source is live, that fallback must be skipped.
+   */
+  get hasExternalSource(): boolean {
+    return Date.now() - this._lastExternalMs < 1000;
+  }
+
+  private _lastExternalMs = 0;
+
+  /** Mark that an outside source just supplied channels. */
+  noteExternalSource(): void {
+    this._lastExternalMs = Date.now();
+  }
+
+  /**
    * Start sending RC packets
    */
   start(): void {

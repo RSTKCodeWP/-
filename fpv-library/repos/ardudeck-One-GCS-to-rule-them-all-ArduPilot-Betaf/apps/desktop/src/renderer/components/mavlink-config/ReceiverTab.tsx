@@ -13,6 +13,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Radio, Signal, SignalZero, Activity, AlertTriangle, HelpCircle } from 'lucide-react';
 import { useParameterStore } from '../../stores/parameter-store';
 import { useTelemetryStore } from '../../stores/telemetry-store';
+import { useEffectiveRc, usePseudoTxStore } from '../../stores/pseudo-tx-store';
 import { useSettingsStore } from '../../stores/settings-store';
 import { PRIMARY_CHANNEL_COUNT, getMavlinkChannelNames, reorderChannelsWithRcmap } from '../../utils/rc-channel-constants';
 
@@ -133,7 +134,8 @@ function InfoBanner({ children, color = 'teal' }: { children: React.ReactNode; c
 
 const ReceiverTab: React.FC = () => {
   const { parameters, setParameter } = useParameterStore();
-  const rcChannels = useTelemetryStore((s) => s.rcChannels);
+  const fcRc = useTelemetryStore((s) => s.rcChannels);
+  const rcChannels = useEffectiveRc(fcRc);
   const lastRcChannels = useTelemetryStore((s) => s.lastRcChannels);
 
   // RCMAP parameters — which physical channel carries which function (1-based)
@@ -167,6 +169,14 @@ const ReceiverTab: React.FC = () => {
   // at "No Signal" even while channels stream in.
   useEffect(() => {
     const interval = setInterval(() => {
+      // A USB handset acting as the RC source IS a live signal. Judging this from the
+      // telemetry store alone left the bars moving from the handset while the badge next to
+      // them insisted there was no signal, and anything gated on `signalStatus` stayed dead.
+      const tx = usePseudoTxStore.getState();
+      if (tx.enabled && tx.connected) {
+        setSignalStatus('active');
+        return;
+      }
       const { lastRcChannels: last, rcChannels: rc } = useTelemetryStore.getState();
       if (last === 0 || rc.chancount === 0) {
         setSignalStatus('none');

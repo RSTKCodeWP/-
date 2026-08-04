@@ -4,6 +4,461 @@ All notable changes to the ADOS Drone Agent are recorded here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 the project follows [Semantic Versioning](https://semver.org/).
 
+## [0.99.355] - 2026-08-03
+
+### Fixed
+
+- **HLS is remuxed only while something is watching it.** `hlsAlwaysRemux` kept
+  a low-latency muxer segmenting the stream at one second whether or not any
+  HLS client existed.
+
+  Measured on a ground station while an operator's video was freezing: the muxer
+  sat attached to the main path as a third reader with `bytesSent=0` — it had
+  never delivered a single byte to anyone — while the box ran at load 4.94 on
+  four cores and two WebRTC sessions competed with the on-screen browser.
+
+  HLS stays available; the on-box dashboard's video panel uses it, and mediamtx
+  now starts the muxer on the first request instead of holding one open forever.
+  The cost is a slightly slower first HLS frame, paid by whoever asks for it.
+
+## [0.99.354] - 2026-08-03
+
+### Fixed
+
+- **The access point finds its radio by driver, not by name.** Interface names
+  are not stable: measured across three reboots of a ground station, `wlan0` was
+  the onboard Broadcom chip twice and the USB long-range radio once. A hardcoded
+  `wlan0` therefore meant a one-in-three chance of configuring the access point
+  on the aircraft's radio link.
+
+  Resolution reads the same generated adapter tables the radio itself consults,
+  so the two cannot disagree about which adapter is which. Two independent
+  guards, because the cost of being wrong is taking the aircraft's link down:
+  resolution avoids the radio by driver, and the config write refuses outright
+  if the interface it ended up with is the one the radio reports it opened. A
+  box with no onboard WiFi gets no access point rather than stealing the radio.
+
+- `network.hotspot.interface` is now a real setting. A status route already
+  reported it while nothing consumed it, so a value an operator set was shown
+  back to them and then ignored.
+
+## [0.99.353] - 2026-08-03
+
+### Fixed
+
+- **The HDMI cockpit no longer comes up black.** The kiosk unit exported an
+  `XDG_RUNTIME_DIR` that logind only creates for a real login session. A system
+  service never gets one, so on a freshly installed appliance the directory was
+  simply absent and the compositor failed at startup with "Unable to open
+  Wayland socket".
+
+  The compositor process stays alive after that failure, so the unit read
+  `active running` while the screen showed nothing but the framebuffer cursor.
+  It only ever appeared to work on boxes where a desktop session had already
+  created the directory. The kiosk now points at a path the agent creates and
+  owns.
+
+## [0.99.352] - 2026-08-03
+
+### Fixed
+
+- **Every unit generates its own access-point passphrase.** Two paths still put
+  the same passphrase on every unit: the entropy-failure branch substituted a
+  single compiled-in string while its own comment claimed to be failing closed,
+  and — more damagingly — that same string was the shipped configuration
+  default. A configured passphrase takes precedence over a generated one, so
+  per-unit generation was skipped on any box that read the default.
+
+  The default is now empty, which means "generate one". Losing the access point
+  when the random number generator fails is recoverable and visible; a network
+  that presents as protected while sharing one published key across every unit
+  is neither. The generated value is shown on the display page, the on-box
+  console and the installer's completion card.
+
+- **A factory reset erases identity as well as credentials.** The shell script
+  erased the device identity, configuration and logs while the API path
+  preserved them, so the two disagreed about what a factory reset meant. They
+  now share one list: a reset unit comes back indistinguishable from a freshly
+  flashed one. The profile marker is still preserved — it records what the
+  hardware is rather than who holds it.
+
+## [0.99.351] - 2026-08-03
+
+### Fixed
+
+- **The hardware watchdog is off by default, and now arms last.** It turned a
+  slow startup into a board that would not boot.
+
+  The step arms a timer that HARD-RESETS the SoC — no shutdown, no log, no trace
+  — when PID 1 is late by more than a few seconds. It ran BEFORE the step that
+  starts every service. On a ground station whose service startup exceeded the
+  timeout, the board reset itself mid-install and mid-write, then did the same on
+  the next boot, and the one after. Each reset landed during a write, so the card
+  degraded, so boot got slower, so the reset came sooner. It ends in a card that
+  will not boot at all.
+
+  This is the same failure this tree already removed once by another mechanism.
+  `kernel.hung_task_panic` was turned off because "a hung task is nearly always
+  slow hardware, and the box is still correct — it needs to be allowed to finish,
+  not shot." The hardware watchdog was doing exactly that by a different route,
+  and was left armed.
+
+  Three changes: the default is off (`network.watchdog.enabled: true` opts in);
+  an unreadable config resolves to off rather than open, because failing open
+  arms a hard-reset timer on precisely the box whose config could not be read;
+  and an upgrade now REMOVES an existing drop-in even on a board where the device
+  check would have skipped, so a rig already carrying it is actively reverted
+  rather than left looping.
+
+  The step also moved after `health`. It is default-off now, but someone will opt
+  in, and arming a reset-on-stall before the step most likely to stall is wrong
+  on its own merits.
+
+  The capability is kept rather than deleted, and that is deliberate: a genuinely
+  frozen kernel in the field cannot be recovered by any software, and the SoC
+  watchdog brings the box back with nobody driving out to it. That is a field
+  property. On a bench, where a human can power-cycle, it has cost more outages
+  than it has prevented.
+
+## [0.99.350] - 2026-08-03
+
+### Fixed
+
+- **One aircraft could occupy two fleet slots.** A device id is
+  `uuid4().hex[:12]`, and an 8-character form of the same id is derived from it
+  for naming. The slot registry compared ids as exact strings, so the two forms
+  of one drone were two drones: it took a second slot, and the hero fan-out
+  promoted and demoted the same airframe in a single call.
+
+  Slot lookup now recognises the short form as the aircraft it was derived from.
+  The rule is deliberately narrow — the exact 8-from-12 hex derivation, both
+  sides hex, nothing else. A general "one starts with the other" rule was written
+  first and was wrong: it merged `drone-1` into `drone-11`, which an existing
+  fleet-full test caught on the first run. Identifiers that merely share a
+  leading substring are not the same aircraft, and a rule loose enough to merge
+  them would eventually bind a command to the wrong airframe — worse than the
+  duplicate slot it fixes.
+
+  An ambiguous short form, where two registered ids share it, resolves to nothing
+  rather than to whichever was found first. An empty id matches nothing; absent
+  is not a wildcard.
+
+## [0.99.349] - 2026-08-03
+
+### Fixed
+
+- **A node with the logging store switched off carried a permanently failed
+  unit.** Both rigs showed `ados-logd.service` failed after the store shipped off
+  by default, on every boot, forever.
+
+  The daemon does the right thing: it reads the toggle, logs that it is
+  declining, and exits 0. But the unit is `Type=notify`, so systemd waits for a
+  readiness notification and records a process that exits without ever sending
+  one as `result 'protocol'` — a failure — however clean the exit code. The
+  installer's `mask` could not paper over it either, because the unit file is a
+  real file at the exact path `systemctl mask` needs for its symlink, so masking
+  silently did nothing.
+
+  The disabled path now announces readiness and then exits, which is the correct
+  handshake for "started successfully, and there is nothing to do": systemd
+  records a clean start and a clean stop, and `Restart=on-failure` has no failure
+  to act on.
+
+  Worth stating why this was not cosmetic. A node that always shows a failed unit
+  teaches its operator to stop reading failed units, and the next one that
+  matters gets read the same way. The whole point of switching the store off was
+  to stop the box lying about its own health.
+
+## [0.99.348] - 2026-08-03
+
+### Fixed
+
+- **The Link tab crashed the moment it was opened.** "Objects are not valid as a
+  React child", with the offending keys named in the error itself:
+  `{chipset, driver, supports_monitor}`.
+
+  The agent sends `adapter` as an object. The screen had it hand-typed as a
+  string and rendered it directly, so the type and the wire disagreed and
+  nothing existed to notice. The whole tab went down, not just that row -- an
+  error thrown during render takes its subtree with it.
+
+  The field is now typed as it actually is and read through a helper that
+  returns a string or nothing, whatever the wire sends. Blank fields (a ground
+  station whose radio has not been probed reports empty strings for all of them)
+  render as absent rather than as a stray separator.
+
+  The same endpoint carries two other object-valued fields, `aux_lane` and
+  `enabled_channels`. Neither is rendered anywhere, so nothing else of this shape
+  is waiting to fire.
+
+## [0.99.347] - 2026-08-03
+
+### Fixed
+
+- **The cockpit showed telemetry and a black video frame from any browser other
+  than the panel's own.** Closing the LAN video hole in 0.99.328 routed the media
+  plane through the auth edge, and the edge refused the operator's dashboard-PIN
+  session for video while accepting it for everything else. On-box requests
+  returned 200 and off-box returned 403, so the ground station's own screen
+  played and a laptop did not -- which is exactly the shape that hides a
+  regression.
+
+  Two session validators exist, because an unpaired node has no pairing key to
+  key its HMAC with and mints sessions under a different issuer. The edge called
+  the paired-only one, which returns false whenever the node is unpaired. A
+  dispatcher that picks the right one per pairing state already existed, and its
+  own comment described this divergence as "harmless only by accident: an
+  unpaired node's data plane was open anyway, so the stricter one was never
+  consulted". Gating the media plane made it consulted. The edge now calls the
+  dispatcher.
+
+  The hole stays closed. A caller with no PIN and no key still gets nothing.
+
+### Added
+
+- **The media plane accepts the session as a query parameter.** A `<video>`
+  element issues its own requests for a playlist and its segments and offers no
+  hook to attach a header, so a header-only credential is unreachable for
+  element-driven playback -- the operator gets a black frame with no way to
+  authenticate it.
+
+  Confined to `/whep` and `/hls`. A credential in a URL lands in access logs,
+  browser history and `Referer`, so it is not accepted anywhere on `/api/*`,
+  where every caller is code that can set a header. An empty value reads as
+  absent rather than as a credential, and the parameter name is matched exactly.
+
+- **The battery warning requires a measured voltage.** A flight controller with
+  no battery monitor reports 0% at 0.0V, and the banner accepted that as an empty
+  pack, so every bench session without a battery raised a red "Battery low - 0%
+  remaining" over the video. A real pack at 0% still has voltage. A critical
+  alarm that fires every session is one an operator learns to dismiss, and it
+  gets dismissed just as fast on the flight where it is true.
+
+## [0.99.346] - 2026-08-03
+
+### Added
+
+- **Release one drone's fleet slot without dropping the fleet.** The only reset
+  a ground station offered was station-wide: it wipes the radio keys and drops
+  every member. That is the wrong tool for "this airframe is being retired or
+  re-flashed", and with nothing better available a bench removed a drone by
+  editing the registry file by hand -- a runtime patch of the kind that leaves a
+  box in a state no install can reproduce.
+
+  `DELETE /api/v1/ground-station/wfb/pair/:device_id` frees one slot. The
+  registry already had the operation; nothing exposed it.
+
+  It does not touch keys. A fleet shares one radio keypair, so the released
+  drone keeps working until it is re-paired or re-flashed. What is freed is the
+  slot number, so the next drone to pair takes it rather than the station
+  reporting itself full while holding registrations for airframes that no longer
+  exist. Releasing a device that holds no slot reports it absent rather than
+  succeeding, because a typo that reads as a completed release is a typo nobody
+  goes looking for.
+
+## [0.99.345] - 2026-08-03
+
+### Fixed
+
+- **A rig holding a radio key from a peer that no longer exists had no way
+  back.** Auto-pair decided "am I paired?" by looking at the shape of the key
+  file — 64 bytes, hashable second half — and disarmed permanently when the
+  answer was yes. A key left behind by a ground station that was since reflashed
+  passes that check perfectly.
+
+  Two rigs sat unlinked for a whole session on exactly that. One held a
+  structurally valid key from a peer that no longer existed and injected into a
+  void, its own radio reporting `rf_unverified`, which means transmitting with
+  zero confirmed reception. The other had been reflashed, had no key at all, and
+  blocked. Neither attempted recovery. Every surface reported health.
+
+  The signal that means "this key does not work" was already being computed, and
+  already being surfaced by `ados diag link`. Nothing consumed it. Now something
+  does: auto-pair may re-arm itself for a key whose fingerprint has never once
+  been confirmed to work, and never for one that has.
+
+  That single rule is what makes this safe. A stale key from a reflashed peer
+  re-arms, because the peer that would have proven its fingerprint is gone. A
+  pair that has worked is latched for life, so an outage of any length — a
+  minute, a week — is structurally incapable of re-opening a bind window on it,
+  which matters far more than the recovery does. Silently re-binding a working
+  pair would be a worse failure than the deadlock being fixed. And a successful
+  re-bind writes a new key whose different fingerprint resets the record, so the
+  new key starts with a clean lifetime rather than inheriting the old one's.
+
+  The two rigs need different evidence and neither transfers. A drone reads
+  `rf_unverified` rather than an absent channel lock, because `rf_unverified`
+  requires the transmitter to be live — so an idle radio, or one that never
+  started, accumulates nothing. A ground station never measures a transmit path
+  at all, so its equivalent is `searching`: key present, receive chain running,
+  nothing decoding. Pointedly not the blocked states, which mean the chain never
+  ran and there is therefore no verdict on the key to act on.
+
+  Bounded so that recovery cannot become a bind storm: a ten-minute confirm hold
+  that restarts in full on any release, five episodes per key ever, and a
+  half-hour cooldown between them. The budget and the cooldown live in
+  `/var/lib/ados/wfb-pair-proof.json` rather than under `/run`, because on tmpfs
+  a reboot would erase both and a rig in a boot loop would reintroduce the storm
+  the budget exists to bound. A stale radio sidecar resets the hold rather than
+  freezing it; a bind already running suspends the trigger, since a bind window
+  is `rf_unverified` by construction and would otherwise feed itself. All of it
+  is tunable under `video.wfb.pair_rearm`, and on by default — the deadlock is
+  silent and permanent, so it must not need enabling.
+
+- **An unpaired ground station published nothing at all.** The pairing gate sits
+  at the very top of the receive loop, ahead of adapter resolution, and returned
+  to the top without writing a sidecar. Not a degraded reading — the absence of
+  one: no state, no interface, no reason. That is why the failure above took a
+  live session to find, with one half of an unlinked pair missing from every
+  surface except the journal.
+
+  It now writes a `blocked_unpaired` sidecar alongside the existing reg-blocked
+  and no-injection ones. Nothing has been examined at that point in the loop, so
+  every hardware verdict is null rather than a confident boolean about an adapter
+  the gate never looked at; the one thing the body asserts is why the plane is
+  deaf. Refreshed every twenty seconds rather than on all twelve polls a minute:
+  the gate still polls at five so a key landing is picked up promptly, but the
+  file only has to stay inside a reader's staleness window, and this is a flash
+  card.
+
+### Added
+
+- **`PUT /api/wfb/pair/auto-pair` takes an optional `force`.** Re-arming a rig
+  that already holds a key was refused outright, which left exactly one route:
+  unpair first, which deletes the key. If the key was in fact fine — a peer
+  merely off, a radio merely down — that turns "possibly stale" into "definitely
+  gone" and makes things strictly worse while trying to diagnose them.
+
+  A forced re-arm records a one-shot against the key's own fingerprint and leaves
+  the key exactly where it is. If the bind that follows fails, the rig still has
+  what it had. Keying it to the fingerprint is what keeps it honest: a key
+  replaced between the request and the supervisor's next tick no longer matches,
+  so the request is discarded rather than firing at whatever key is there now.
+  The field defaults off, so a client that does not send it sees the refusal
+  exactly as before.
+
+
+## [0.99.344] - 2026-08-03
+
+### Changed
+
+- **The janitor is now bounded by how much space the agent occupies, not by how
+  full the card happens to be.** Free-space percentage was the wrong signal and
+  would have caught none of the failures this work exists to prevent: a 128 GB
+  card at 3% used can carry a store growing by a gigabyte a day, and no
+  percentage threshold fires until the day there is nothing left to trim
+  gracefully. Occupied space is what breaks these nodes — the card fills, a
+  rewrite cannot get its scratch, a write tears, the filesystem corrupts and the
+  box will not boot. That sequence caused the reflashes; wear did not.
+
+  There is now a total footprint budget, 5 GB by default, split into per-category
+  caps that sum to it: the logging store, quarantined copies of a torn store,
+  recordings, plugin logs, the audit trail, the journal, and apt. Each cap is
+  enforced at every rung, so a category over its share is trimmed even on a box
+  with room to spare — recordings cannot quietly take the store's allowance on a
+  node that happens not to be logging. Within a category, oldest goes first.
+  Free-space percentage is kept as the secondary net for a card the agent shares
+  with something else, and the harsher of the two signals picks the rung.
+
+  `/opt/ados` — the venv, the runtime, the models and the binaries, 605 MB on a
+  drone — is measured and reported but never reclaimed, and deliberately sits
+  **outside** the budget. It is the installed product rather than accumulation:
+  it does not grow while the box runs, deleting any of it breaks the agent
+  rather than freeing space, and counting it inside would mean a release
+  shipping a bigger model silently ate the allowance for recordings.
+
+  The floors are unchanged and still outrank the caps. A single quarantined
+  store larger than the entire quarantine share is not a hypothetical — it is
+  what the drone was holding — so it survives, and the residue is reported as a
+  category the janitor declined to fix rather than quietly accepted.
+
+- **`ados diag storage` now leads with the footprint.** Total against budget,
+  then each category against its own cap with any excess named, then the
+  installed agent marked as not counted. The write rate is still reported,
+  because wear is still real, but it follows rather than leads. A box whose
+  janitor has not measured yet says so instead of printing a total of zero,
+  which would claim the agent occupies nothing at all.
+
+## [0.99.343] - 2026-08-03
+
+### Changed
+
+- **The cockpit no longer blurs its chrome over live video by default.** The
+  page draws its chrome over full-bleed video behind a backdrop blur, and a
+  blurred region above a surface that changes every frame makes the compositor
+  re-read and re-blur its backdrop at the video's frame rate. The cockpit's own
+  source already named it the most expensive thing the page does; nobody had
+  switched it off on this board.
+
+  Measured on a ground station with video actually arriving over the radio,
+  which is the first time this was measured under real conditions rather than on
+  an idle page: 292.9% of 400% CPU with the full layer against 137.9% with the
+  reduced one, and board idle rising from 36% to 68%. Same video, same frame
+  rate, 53% less CPU.
+
+  It had been gated on the board having under 3 GiB of RAM, which is the wrong
+  quantity — the blur costs compositor time, not memory. A 3.8 GiB four-core
+  panel sat above that threshold, paid full price for an effect invisible behind
+  a HUD, and was the board the reduced path helps most. Reduced is now the
+  default and an operator who wants the blur asks for it; the RAM heuristic is
+  deleted rather than left as a second unreachable route to the same flag.
+
+- **The durable logging and telemetry store now ships OFF by default. This is a
+  deliberate capability regression, not an optimisation.** While it is off the
+  node has no durable flight recorder: nothing survives a reboot except the
+  journal, and the journal does not survive a reflash. That is the cost, stated
+  plainly, and it is the reason the persistent journal is being kept rather than
+  volatilised.
+
+  What it buys: measured on a drone, the node wrote 904 KB/s with the store
+  running and 49 KB/s with it stopped. The store is roughly 96% of everything
+  reaching the card and the largest single lump of space it occupies. Cards were
+  filling, tearing and being reflashed largely because of it. It is a real
+  feature and it will come back, but it currently costs more than it returns.
+
+  One key controls it: `logging.store.enabled`, default false, in the config
+  schema so it renders in the settings UI. Off means the unit is disabled and
+  masked and the daemon declines to start, so no store file is created — the
+  installer decides from the key, and the daemon reads it again so a unit
+  started by hand or left enabled by an older install still declines. Turning it
+  back on is that one key plus a re-run of the installer, never a reinstall; the
+  binary is placed either way. The legacy pin from `ados rust disable logd` is
+  still honoured as a force-off, so a box an operator turned off by hand is not
+  quietly turned back on by an upgrade.
+
+  The gate defaults to off when the config is absent, malformed, or predates the
+  key — the opposite direction from every other gate in the agent, and on
+  purpose. The others default their feature on because a config a box cannot
+  read must not silently disable a safety net. This one is not a safety net: a
+  typo that turned it on would hand the node back the write volume that has been
+  destroying cards, and losing history is recoverable with one key where a
+  reflash is not.
+
+### Fixed
+
+- **Everything that reads the store now degrades honestly rather than reporting
+  a fault.** With the store off, "could not connect" is the ordinary case on
+  most nodes.
+  - `ados logs` says the store is off, that this is the default, how to reach
+    live logs through `journalctl`, and how to turn it back on. It no longer
+    asks whether `ados-logd` is running, and it never returns an empty result
+    that would read as "this box has no logs".
+  - `ados diag storage` reports the store as disabled rather than as a store
+    that exists and holds zero bytes — a different and much more alarming claim.
+    The verdict no longer collapses to `unknown`, because the write rate is
+    measured directly now.
+  - A healthy verdict no longer says "no throttle events recorded" when the
+    store is off. The sticky power and thermal bits are recorded nowhere else,
+    so with it off nobody looked, and claiming a clean history for something
+    unread is the fabrication this surface exists to refuse. It now says the
+    history was not checked and why.
+  - The resource routes' fallback to a direct host read is now covered by a test
+    that asserts against the real host rather than a fixture. That path used to
+    run for a few seconds at boot; it is now the only path on most nodes,
+    forever, and a gap in it would blank every CPU, memory and disk reading on a
+    normally-configured box.
+
+||||||| 6823f261
 ## [0.99.342] - 2026-08-03
 
 ### Fixed

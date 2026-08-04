@@ -1,0 +1,178 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   Theme tokens, the ArduDeck design system.
+   Source of truth: apps/desktop/src/renderer/styles/globals.css.
+   This is the subset the launcher uses (no dockview, leaflet or map tokens).
+   Components MUST use these tokens, never hardcoded grays.
+   ============================================================ */
+:root {
+  /* Backgrounds */
+  --bg-base: #0a0a0f;
+  --bg-surface: rgb(31 41 55 / 0.5);
+  --bg-surface-raised: rgb(55 65 81 / 0.5);
+  --bg-inset: #374151;
+  --bg-input: rgb(17 24 39 / 0.5);
+  --bg-nav: rgb(17 24 39 / 0.5);
+  --bg-tooltip: #1f2937;
+
+  /* Overlays (glass panels, baked-in opacity for Tailwind compat) */
+  --bg-overlay: rgba(10, 10, 15, 0.88);
+  --bg-overlay-light: rgba(10, 10, 15, 0.75);
+  --bg-overlay-subtle: rgba(31, 41, 55, 0.2);
+  --bg-solid: #1f2937;
+
+  /* Borders */
+  --border-default: rgb(55 65 81 / 0.5);
+  --border-subtle: rgb(55 65 81 / 0.3);
+  --border-strong: rgb(55 65 81 / 0.8);
+
+  /* Text */
+  --text-primary: #ffffff;
+  --text-secondary: #9ca3af;
+  --text-tertiary: #6b7280;
+  --text-disabled: #4b5563;
+
+  /* Misc */
+  --shadow-color: rgb(0 0 0 / 0.3);
+  --scrollbar-thumb: #374151;
+  --scrollbar-thumb-hover: #4b5563;
+  --ring-offset: #0a0a0f;
+
+  /* Semantic status colours. `-solid` = the dot/accent, `-fg` = text on a tint,
+     `-bg` = the tint fill. Tailwind's fixed emerald-300/red-300 never adapt to the
+     theme, so any tinted chip, dot or state button uses these instead. */
+  --status-success: #34d399;  --status-success-fg: #6ee7b7;  --status-success-bg: rgba(16, 185, 129, 0.15);
+  --status-warn:    #fbbf24;  --status-warn-fg:    #fcd34d;  --status-warn-bg:    rgba(245, 158, 11, 0.15);
+  --status-danger:  #f87171;  --status-danger-fg:  #fca5a5;  --status-danger-bg:  rgba(239, 68, 68, 0.15);
+  --status-info:    #60a5fa;  --status-info-fg:    #93c5fd;  --status-info-bg:    rgba(59, 130, 246, 0.15);
+}
+
+.light {
+  --bg-base: #f5f6f8;
+  --bg-surface: #ffffff;
+  --bg-surface-raised: #e5e7ec;
+  --bg-inset: #e0e2e7;
+  --bg-input: #ffffff;
+  --bg-nav: rgba(255, 255, 255, 0.95);
+  --bg-tooltip: #ffffff;
+
+  --bg-overlay: rgba(255, 255, 255, 0.92);
+  --bg-overlay-light: rgba(255, 255, 255, 0.82);
+  --bg-overlay-subtle: rgba(0, 10, 30, 0.08);
+  --bg-solid: #ffffff;
+
+  --border-default: #d1d5db;
+  --border-subtle: #e5e7eb;
+  --border-strong: #9ca3af;
+
+  --text-primary: #111827;
+  --text-secondary: #4b5563;
+  --text-tertiary: #9ca3af;
+  --text-disabled: #d1d5db;
+
+  --shadow-color: rgb(0 0 0 / 0.1);
+  --scrollbar-thumb: #c4c8cf;
+  --scrollbar-thumb-hover: #9ca3af;
+  --ring-offset: #eef0f4;
+
+  --status-success: #16a34a;  --status-success-fg: #15803d;  --status-success-bg: rgba(22, 163, 74, 0.12);
+  --status-warn:    #d97706;  --status-warn-fg:    #b45309;  --status-warn-bg:    rgba(217, 119, 6, 0.12);
+  --status-danger:  #dc2626;  --status-danger-fg:  #b91c1c;  --status-danger-bg:  rgba(220, 38, 38, 0.10);
+  --status-info:    #2563eb;  --status-info-fg:    #1d4ed8;  --status-info-bg:    rgba(37, 99, 235, 0.10);
+}
+
+@layer base {
+  * {
+    border-color: var(--border-default);
+  }
+
+  body {
+    background-color: var(--bg-base);
+    color: var(--text-primary);
+    @apply antialiased;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+}
+
+@layer components {
+  .card {
+    background-color: var(--bg-surface);
+    border-color: var(--border-default);
+    @apply backdrop-blur-sm border rounded-xl;
+    box-shadow: 0 1px 3px var(--shadow-color);
+  }
+
+  .card-header {
+    border-bottom-color: var(--border-default);
+    @apply px-4 py-3 border-b;
+  }
+
+  .card-body {
+    @apply p-4;
+  }
+
+  .btn {
+    @apply px-4 py-2.5 rounded-lg font-medium transition-all duration-200
+           disabled:opacity-50 disabled:cursor-not-allowed
+           focus:outline-none focus:ring-2 focus:ring-offset-2;
+    --tw-ring-offset-color: var(--ring-offset);
+  }
+
+  .btn-primary {
+    @apply bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400
+           text-white shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40
+           focus:ring-blue-500;
+  }
+
+  .btn-secondary {
+    background-color: var(--bg-surface-raised);
+    border-color: var(--border-default);
+    color: var(--text-primary);
+    @apply border focus:ring-gray-500;
+  }
+
+  .btn-secondary:hover {
+    background-color: var(--bg-surface);
+    border-color: var(--border-strong);
+  }
+
+  .btn-danger {
+    @apply bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400
+           text-white shadow-lg shadow-red-500/25 hover:shadow-red-500/40
+           focus:ring-red-500;
+  }
+
+  .label {
+    color: var(--text-secondary);
+    @apply block text-sm font-medium mb-1.5;
+  }
+
+  .status-dot {
+    @apply w-2.5 h-2.5 rounded-full;
+  }
+}
+
+button {
+  user-select: none;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}

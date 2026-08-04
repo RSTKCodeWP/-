@@ -17,7 +17,7 @@
 # Edit here, then run codegen. Do not edit the generated files by hand.
 
 # ===========================================================================
-# AGENT capabilities (50)
+# AGENT capabilities (49)
 # ===========================================================================
 
 [[agent]]
@@ -255,15 +255,6 @@ risk_reason = "Reconfigures which video sources the vehicle serves and restarts 
 enforced = true
 
 [[agent]]
-id = "hardware.audio"
-label = "Access audio capture and playback devices"
-description = "Lets the plugin record from microphones or play to speakers connected to the host. Required by audio alert and voice plugins."
-category = "hardware"
-risk = "medium"
-risk_reason = "Audio capture may pick up private conversations near the aircraft."
-enforced = false
-
-[[agent]]
 id = "vehicle.command"
 label = "Issue high-level vehicle commands"
 description = "Lets the plugin send high-level vehicle commands (arm, takeoff, RTL, land, mode change) through the agent's command pipeline rather than raw MAVLink."
@@ -378,7 +369,7 @@ description = "Lets the plugin receive press events (short, long, chord) from th
 category = "hardware"
 risk = "medium"
 risk_reason = "Button events drive plugin actions; an input source should be reviewed like any other."
-enforced = false
+enforced = true
 
 [[agent]]
 id = "flight.guided_setpoint"
@@ -389,6 +380,11 @@ risk = "high"
 risk_reason = "Commands vehicle motion in guided mode; a faulty stream can fly the aircraft."
 enforced = true
 
+# RESERVED, not dead: this capability is the plugin-facing half of the rate/stick
+# control-output work. The ados-rate-control crate exists (pure, tested) and is
+# inert by construction; the method + sender land when that work reaches a live
+# FC command path. Kept declared so the manifest vocabulary and the grant surface
+# stay stable across its arrival, rather than churning the capability in and out.
 [[agent]]
 id = "flight.rate_setpoint"
 label = "Emit attitude/rate setpoints"
@@ -640,7 +636,7 @@ risk = "medium"
 risk_reason = "Publishes a callable interface to an AI client; effect is bounded by the plugin's other capabilities and the token scope."
 
 # ===========================================================================
-# Plugin RPC dispatch table (43): wire method -> dispatch-level required cap.
+# Plugin RPC dispatch table (44): wire method -> dispatch-level required cap.
 #
 # The single source of truth for the gate the plugin IPC server applies BEFORE
 # routing a request. Codegen emits this into both the Rust host
@@ -804,6 +800,16 @@ required_cap = "vision.track.designate"
 [[method]]
 id = "display.page.set"
 required_cap = "display.oled.page"
+
+# ---- front-panel buttons ----
+# Subscribe to the host's front-panel button presses. Arms a per-connection push
+# stream (like the vision subscriptions): the host reads the already-decoded
+# events off the button fanout socket and pushes each one to the plugin as a
+# `button.deliver` event. Read-only — a subscriber observes presses and neither
+# remaps them nor consumes them from the other consumers on that bus.
+[[method]]
+id = "button.subscribe"
+required_cap = "button.subscribe"
 
 # ---- gpio output (status buzzer / LED) ----
 # Drive a host GPIO output line, and play a bounded buzzer/LED beep pattern. The

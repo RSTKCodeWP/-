@@ -33,7 +33,7 @@ function NumChip({ label, value, min, max, onChange }: { label: string; value: n
 export function FleetContextMenu(): JSX.Element | null {
   const menu = useFormationStore((s) => s.contextMenu);
   const close = useFormationStore((s) => s.closeContextMenu);
-  const { canFollow, busy, leader, formations, shape, spacing, altStep, vehicles, setSpacing, setAltStep, formUp, reshapeFleet, createFleet, addToFleet, removeFromFleet, disbandFleet } = useFormationControl();
+  const { canFollow, busy, leader, formations, configFor, setConfig, vehicles, formUp, reshapeFleet, createFleet, addToFleet, removeFromFleet, disbandFleet } = useFormationControl();
 
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
@@ -77,6 +77,11 @@ export function FleetContextMenu(): JSX.Element | null {
     .filter((x): x is FleetVehicle => !!x)
     .sort((a, b) => a.sysid - b.sysid);
   const hasWingmen = isLeader && (group?.memberKeys.length ?? 0) >= 2;
+  // Geometry of THIS fleet (falls back to the new-fleet defaults for a free vehicle),
+  // so the lit glyph and the gap/alt chips describe the fleet in front of you and
+  // editing them cannot touch another fleet.
+  const cfg = configFor(isLeader ? v.key : null);
+  const editConfig = (patch: Parameters<typeof setConfig>[1]) => setConfig(isLeader ? v.key : null, patch);
   const freeCount = vehicles.filter((x) => x.key !== v.key && formationOf(formations, x.key) === null).length;
   const subOnLeft = (pos?.left ?? menu.x) + MENU_WIDTH + 180 > window.innerWidth;
 
@@ -136,13 +141,13 @@ export function FleetContextMenu(): JSX.Element | null {
                 <div className="flex items-center justify-between gap-2 px-1.5 pt-1">
                   <span className="text-[9px] font-semibold uppercase tracking-[0.12em] text-content-tertiary">Formation shape</span>
                   <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                    <NumChip label="gap" value={spacing} min={2} max={500} onChange={setSpacing} />
-                    <NumChip label="alt" value={altStep} min={0} max={100} onChange={setAltStep} />
+                    <NumChip label="gap" value={cfg.spacing} min={2} max={500} onChange={(spacing) => editConfig({ spacing })} />
+                    <NumChip label="alt" value={cfg.altStep} min={0} max={100} onChange={(altStep) => editConfig({ altStep })} />
                   </div>
                 </div>
                 <div className="grid grid-cols-4 gap-1 px-0.5">
                   {SHAPE_OPTIONS.map((o) => {
-                    const lit = shape === o.value;
+                    const lit = cfg.shape === o.value;
                     return (
                       <button
                         key={o.value}

@@ -9,6 +9,7 @@ import { create } from 'zustand';
 import type { MSPModeRange } from '@ardudeck/msp-ts';
 import { PRESETS, type ModePreset } from '../components/modes/presets/mode-presets';
 import { useSettingsStore } from './settings-store';
+import { preferredRcChannels } from './pseudo-tx-store';
 
 // Wizard steps
 export type WizardStep =
@@ -274,9 +275,15 @@ export const useModesWizardStore = create<ModesWizardState>((set, get) => ({
 
       rcPollPending = true;
       try {
-        const result = await window.electronAPI?.mspGetRc();
-        if (result?.channels) {
-          get().updateRcChannels(result.channels);
+        // The handset switch is checked FIRST, not as a fallback. Under SITL (and with any
+        // responding FC) `mspGetRc` returns channels, so a fallback-only path would never fire
+        // and the switch would silently do nothing.
+        const pseudo = preferredRcChannels(undefined);
+        if (pseudo.source === 'pseudo') {
+          get().updateRcChannels(pseudo.channels);
+        } else {
+          const result = await window.electronAPI?.mspGetRc();
+          if (result?.channels) get().updateRcChannels(result.channels);
         }
       } catch {
         // Silently ignore polling errors

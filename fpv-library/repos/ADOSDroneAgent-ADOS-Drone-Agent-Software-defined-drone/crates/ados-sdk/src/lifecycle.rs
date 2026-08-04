@@ -96,6 +96,10 @@ pub struct RunnerArgs {
     pub socket_path: Option<String>,
     pub token: Option<String>,
     pub agent_id: String,
+    /// The plugin's per-drone data directory, from `ADOS_PLUGIN_DATA_DIR`. The
+    /// host sets this on the unit; a plugin reads it through `ctx.data_dir`
+    /// rather than re-deriving a path it might get wrong.
+    pub data_dir: Option<String>,
 }
 
 impl RunnerArgs {
@@ -157,6 +161,7 @@ impl RunnerArgs {
             agent_id: agent_id
                 .or_else(|| env("ADOS_PLUGIN_AGENT_ID"))
                 .unwrap_or_default(),
+            data_dir: env("ADOS_PLUGIN_DATA_DIR"),
         })
     }
 }
@@ -210,10 +215,13 @@ where
     ));
     ipc.connect().await?;
 
+    ensure_data_dir(args.data_dir.as_deref());
+
     let ctx = PluginContext::new(
         ipc.clone(),
         plugin_version,
         args.agent_id,
+        args.data_dir,
         static_config.clone(),
     );
 
@@ -223,6 +231,21 @@ where
     // Always close the client, success or failure.
     ipc.close().await;
     result
+}
+
+/// Create the plugin's data directory so it exists before the plugin writes to
+/// it. The host delivers the path but nothing upstream makes the per-drone leaf
+/// (`.../plugin-data/<id>/drones/<agent_id>`) — only the base is installed — so
+/// without this the plugin's first write under `ctx.data_dir` hits ENOENT. The
+/// path is inside the unit's `ReadWritePaths`, so the plugin (running as `ados`)
+/// may create it. Best-effort: a failure is logged and left to surface as the
+/// plugin's own write error rather than aborting the runner. `None` is a no-op.
+fn ensure_data_dir(data_dir: Option<&str>) {
+    if let Some(dir) = data_dir {
+        if let Err(e) = std::fs::create_dir_all(dir) {
+            tracing::warn!(dir, error = %e, "could not create plugin data dir");
+        }
+    }
 }
 
 /// Drive the hook sequence. Separated so the teardown hooks run even when a
@@ -354,6 +377,33 @@ mod tests {
         assert!(!p.started);
     }
 
+    #[test]
+    fn ensure_data_dir_creates_the_nested_leaf() {
+        // The bug this closes: the per-drone leaf never existed, so a plugin's
+        // first write failed. Prove the nested path is created and a file can be
+        // written under it — not just that a path string was produced.
+        let base = std::env::temp_dir().join(format!("ados-ddir-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        let leaf = base.join("com.example.plugin/drones/drone-xyz");
+        assert!(!leaf.exists());
+
+        ensure_data_dir(Some(leaf.to_str().unwrap()));
+        assert!(
+            leaf.is_dir(),
+            "the nested data dir must exist after the call"
+        );
+
+        // A plugin can now actually write there.
+        std::fs::write(leaf.join("state.json"), b"{}").expect("write under data dir");
+
+        // Idempotent: a second call on an existing dir is fine.
+        ensure_data_dir(Some(leaf.to_str().unwrap()));
+        // None is a no-op (does not panic).
+        ensure_data_dir(None);
+
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
     #[tokio::test]
     async fn no_bridge_when_socket_or_token_absent() {
         // plugin id present but no socket/token -> NoBridge, before any connect.
@@ -362,6 +412,7 @@ mod tests {
             socket_path: None,
             token: None,
             agent_id: String::new(),
+            data_dir: None,
         };
         let err = run_plugin_with::<DummyPlugin, _>(
             args,

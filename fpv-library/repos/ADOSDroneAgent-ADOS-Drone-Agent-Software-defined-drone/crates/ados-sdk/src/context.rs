@@ -176,6 +176,155 @@ impl CameraClient {
 
 /// `ctx.config` — live config kv plus the manifest-supplied static config.
 ///
+/// `ctx.gpio` — host GPIO output.
+///
+/// Drive a status line or play a bounded buzzer pattern. The gpio service owns
+/// the safe bounds, so a plugin requests a pattern and the service clamps it —
+/// there is deliberately no client-side clamp to drift from the real ceiling.
+#[derive(Clone)]
+pub struct GpioClient {
+    ipc: Arc<PluginIpcClient>,
+}
+
+impl GpioClient {
+    /// Drive a line high or low.
+    pub async fn set(&self, chip: i64, pin: i64, high: bool) -> Result<Value, ClientError> {
+        self.ipc.gpio_output_set(chip, pin, high).await
+    }
+
+    /// Play a bounded beep. `off_ms`/`freq_hz` ride through when given.
+    pub async fn beep(
+        &self,
+        chip: i64,
+        pin: i64,
+        on_ms: i64,
+        cycles: i64,
+        off_ms: Option<i64>,
+        freq_hz: Option<i64>,
+    ) -> Result<Value, ClientError> {
+        self.ipc
+            .gpio_buzzer_beep(chip, pin, on_ms, cycles, off_ms, freq_hz)
+            .await
+    }
+}
+
+/// `ctx.display` — the reserved data-driven display page.
+///
+/// A plugin owns one page of title, `(label, value)` rows and touch zones
+/// without recompiling the display service; the host renders it from the sidecar
+/// this writes.
+#[derive(Clone)]
+pub struct DisplayClient {
+    ipc: Arc<PluginIpcClient>,
+}
+
+impl DisplayClient {
+    /// Set the page content. `zones` are `(x, y, w, h, key, label)` rectangles in
+    /// page-local content coordinates; a tap in one delivers `key` back to the
+    /// plugin.
+    pub async fn set_page(
+        &self,
+        title: &str,
+        rows: &[(String, String)],
+        zones: &[(i64, i64, i64, i64, String, String)],
+    ) -> Result<Value, ClientError> {
+        self.ipc.display_page_set(title, rows, zones).await
+    }
+}
+
+/// `ctx.radio` — the additive auxiliary application stream on the link.
+///
+/// Opens a plugin-owned lane alongside the existing telemetry/video planes,
+/// gated so it only exists while the plugin is active.
+#[derive(Clone)]
+pub struct RadioClient {
+    ipc: Arc<PluginIpcClient>,
+}
+
+impl RadioClient {
+    /// Open the auxiliary stream.
+    pub async fn open_aux_stream(&self) -> Result<Value, ClientError> {
+        self.ipc.radio_aux_stream_open().await
+    }
+
+    /// Close the auxiliary stream.
+    pub async fn close_aux_stream(&self) -> Result<Value, ClientError> {
+        self.ipc.radio_aux_stream_close().await
+    }
+}
+
+/// `ctx.buttons` — front-panel presses.
+///
+/// The on-device input surface for a plugin whose operator has no screen and no
+/// ground station. The host owns the bus and the short/long decode, so a plugin
+/// never re-implements debounce or the action mapping and cannot drift from what
+/// the panel's own UI thinks a press means.
+///
+/// Read-only and non-exclusive: several consumers watch the same bus, so
+/// subscribing observes presses without consuming or remapping them.
+#[derive(Clone)]
+pub struct ButtonClient {
+    ipc: Arc<PluginIpcClient>,
+}
+
+impl ButtonClient {
+    /// Receive every front-panel press.
+    ///
+    /// The callback gets the decoded [`ados_protocol::buttons::ButtonPress`].
+    /// `action` is `None` for an unmapped button — the press is still delivered,
+    /// so a plugin can bind one the operator has not assigned.
+    ///
+    /// A board with no front panel never fires the callback. That is the resting
+    /// state, not an error, so this does not fail on a node without buttons.
+    pub async fn subscribe(
+        &self,
+        callback: Arc<dyn Fn(ados_protocol::buttons::ButtonPress) + Send + Sync>,
+    ) -> Result<(), ClientError> {
+        let on_deliver = move |args: Value| {
+            let Some(press) = args
+                .as_map()
+                .and_then(|m| m.iter().find(|(k, _)| k.as_str() == Some("press")))
+                .map(|(_, v)| v.clone())
+            else {
+                return;
+            };
+            // Round-trip through msgpack so the field mapping is the contract's
+            // single source of truth rather than a hand-written reader here.
+            let Ok(blob) = rmp_serde::to_vec_named(&press) else {
+                return;
+            };
+            let Ok(decoded) = rmp_serde::from_slice::<ados_protocol::buttons::ButtonPress>(&blob)
+            else {
+                return;
+            };
+            callback(decoded);
+        };
+        self.ipc.register_button_callback(Arc::new(on_deliver));
+        self.ipc.button_subscribe().await?;
+        Ok(())
+    }
+}
+
+/// `ctx.flight` — the scoped guided-setpoint sender.
+///
+/// A flight-behaviour plugin commands the vehicle through this rather than raw
+/// MAVLink writes, so the host gates the whole flight-command surface with one
+/// capability. Single-shot by design: the host owns no flight mode and no
+/// schedule, so a caller holding a velocity must re-send above the autopilot's
+/// setpoint timeout or the vehicle brakes.
+#[derive(Clone)]
+pub struct FlightClient {
+    ipc: Arc<PluginIpcClient>,
+}
+
+impl FlightClient {
+    /// Send one guided-mode setpoint. `args` is the setpoint map the host
+    /// validates (`kind`, `coordinate_frame`, `type_mask`, axis fields).
+    pub async fn guided_setpoint(&self, args: Value) -> Result<Value, ClientError> {
+        self.ipc.flight_guided_setpoint(args).await
+    }
+}
+
 /// The static config is the manifest dict read at runner start; `get`/`set`
 /// reach the host's live kv. Read order on the host side is drone scope (when
 /// bound) -> global -> default, mirroring `_ConfigClient`.
@@ -254,6 +403,10 @@ pub struct PluginContext {
     pub plugin_id: String,
     pub plugin_version: String,
     pub agent_id: String,
+    /// The plugin's per-drone data directory, when the host set one on the unit.
+    /// `None` on a host that did not — a plugin must handle its absence rather
+    /// than assume a path.
+    pub data_dir: Option<std::path::PathBuf>,
     pub events: EventsClient,
     pub mavlink: MavlinkClient,
     pub telemetry: TelemetryClient,
@@ -265,6 +418,16 @@ pub struct PluginContext {
     /// inference, publish detections, and inject visual-odometry pose.
     pub vision: VisionClient,
     pub config: ConfigClient,
+    /// Front-panel button presses; quiet on a board with no panel.
+    pub buttons: ButtonClient,
+    /// The scoped guided-setpoint sender.
+    pub flight: FlightClient,
+    /// Host GPIO output (status line, buzzer).
+    pub gpio: GpioClient,
+    /// The reserved data-driven display page.
+    pub display: DisplayClient,
+    /// The additive auxiliary radio stream.
+    pub radio: RadioClient,
     pub process: ProcessClient,
     pub lifecycle: LifecycleClient,
     ipc: Arc<PluginIpcClient>,
@@ -277,6 +440,7 @@ impl PluginContext {
         ipc: Arc<PluginIpcClient>,
         plugin_version: impl Into<String>,
         agent_id: impl Into<String>,
+        data_dir: Option<String>,
         static_config: BTreeMap<String, Value>,
     ) -> Self {
         let plugin_id = ipc.plugin_id().to_string();
@@ -285,6 +449,7 @@ impl PluginContext {
             plugin_id,
             plugin_version: plugin_version.into(),
             agent_id: agent_id.into(),
+            data_dir: data_dir.map(std::path::PathBuf::from),
             events: EventsClient { ipc: ipc.clone() },
             mavlink: MavlinkClient { ipc: ipc.clone() },
             telemetry: TelemetryClient { ipc: ipc.clone() },
@@ -292,6 +457,11 @@ impl PluginContext {
             peripheral_manager,
             camera: CameraClient { ipc: ipc.clone() },
             vision: VisionClient::new(ipc.clone()),
+            buttons: ButtonClient { ipc: ipc.clone() },
+            flight: FlightClient { ipc: ipc.clone() },
+            gpio: GpioClient { ipc: ipc.clone() },
+            display: DisplayClient { ipc: ipc.clone() },
+            radio: RadioClient { ipc: ipc.clone() },
             config: ConfigClient {
                 ipc: ipc.clone(),
                 static_config: Arc::new(static_config),
@@ -327,7 +497,7 @@ mod tests {
         ));
         let mut cfg = BTreeMap::new();
         cfg.insert("palette".to_string(), Value::from("ironbow"));
-        let ctx = PluginContext::new(ipc, "1.0.0", "agent-1", cfg);
+        let ctx = PluginContext::new(ipc, "1.0.0", "agent-1", None, cfg);
         assert_eq!(
             ctx.config.static_get("palette"),
             Some(&Value::from("ironbow"))

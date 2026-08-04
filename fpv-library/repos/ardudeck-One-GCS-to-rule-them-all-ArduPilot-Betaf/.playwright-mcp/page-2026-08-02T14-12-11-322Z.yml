@@ -1,0 +1,60 @@
+- generic [ref=f10e3]:
+  - banner [ref=f10e4]:
+    - generic [ref=f10e5]:
+      - generic [ref=f10e6]: RCTESTFLIGHT
+      - generic [ref=f10e8]: Boat Ground Station
+    - generic [ref=f10e9]: Connecting
+    - link "ArduDeck Built by ArduDeck" [ref=f10e12] [cursor=pointer]:
+      - /url: https://ardudeck.com
+      - img "ArduDeck" [ref=f10e13]
+      - generic [ref=f10e14]: Built by ArduDeck
+  - generic [ref=f10e15]:
+    - navigation [ref=f10e16]:
+      - button "Telemetry" [ref=f10e17] [cursor=pointer]
+      - button "Mission Planning" [ref=f10e20] [cursor=pointer]
+      - button "Hardware" [ref=f10e24] [cursor=pointer]
+      - button "Parameters" [ref=f10e27] [cursor=pointer]
+      - button "Settings" [ref=f10e30] [cursor=pointer]
+      - 'button "Theme: dark. Switch to light." [ref=f10e34] [cursor=pointer]'
+    - main [ref=f10e37]:
+      - generic [ref=f10e39]:
+        - generic [ref=f10e40]:
+          - generic [ref=f10e41]:
+            - 'button "Download from boat: available when the firmware link lands" [disabled] [ref=f10e42]'
+            - 'button "Upload to boat: available when the firmware link lands" [disabled] [ref=f10e46]'
+          - generic [ref=f10e51]:
+            - button "Undo" [disabled] [ref=f10e52]
+            - button "Redo" [disabled] [ref=f10e56]
+          - generic [ref=f10e60]:
+            - button "New mission" [ref=f10e61] [cursor=pointer]
+            - button "Open mission file" [ref=f10e65] [cursor=pointer]
+            - button "Save mission to file" [ref=f10e68] [cursor=pointer]
+            - button "Clear mission" [disabled] [ref=f10e73]
+          - generic [ref=f10e78]:
+            - button "Run the mission on the simulated boat" [disabled] [ref=f10e79]
+            - button "Stop" [disabled] [ref=f10e82]
+          - generic [ref=f10e86]:
+            - textbox "Mission name" [ref=f10e87]: Untitled mission
+            - generic [ref=f10e88]:
+              - button "Save Layout" [ref=f10e89] [cursor=pointer]
+              - button "Load Layout" [ref=f10e90] [cursor=pointer]
+              - button "Reset Layout" [ref=f10e91] [cursor=pointer]
+        - generic [ref=f10e94]:
+          - textbox "Go to place or lat, lon" [ref=f10e101]
+          - button "Base map layers" [ref=f10e103] [cursor=pointer]:
+            - generic [ref=f10e108]: Layers
+          - generic [ref=f10e109]:
+            - button "Add WP" [ref=f10e110] [cursor=pointer]
+            - generic [ref=f10e112]: Shift+click to add
+          - generic: Imagery © Google
+        - generic [ref=f10e113]:
+          - generic [ref=f10e114]:
+            - generic [ref=f10e115]: "0"
+            - generic [ref=f10e116]: waypoints
+          - generic [ref=f10e118]:
+            - generic [ref=f10e119]: 0 m
+            - generic [ref=f10e120]: total
+          - generic [ref=f10e122]:
+            - generic [ref=f10e123]: 0s
+            - generic [ref=f10e124]: est.
+          - generic [ref=f10e125]: Add items to begin

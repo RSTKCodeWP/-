@@ -18,13 +18,38 @@ import { rcOverrideCall } from '../utils/rc-override-dispatch';
  * Transmit one RC-override frame over the correct protocol. MAVLink links use
  * RC_CHANNELS_OVERRIDE (RC1..RC4); MSP links use MSP_SET_RAW_RC. Fire-and-forget.
  */
+/**
+ * Send one override frame, and REPORT what happened.
+ *
+ * The handlers signal failure by RETURNING `{ success: false, error }` rather than throwing, so
+ * a bare `.catch(() => {})` discards every reason a frame did not land: not connected, wrong
+ * protocol, transport closed. That produced the worst possible symptom - sticks move, nothing
+ * flies, and nothing anywhere says why. The last outcome is kept so the UI can show it.
+ */
 function sendRcOverrideFrame(channels: number[]): void {
   const protocol = useConnectionStore.getState().connectionState.protocol;
   const call = rcOverrideCall(protocol, channels);
+  // The two IPC calls disagree about their result shape: MAVLink returns
+  // `{ success, error }`, MSP returns a bare boolean. Normalise both.
+  const report = (r: boolean | { success?: boolean; error?: string } | undefined) => {
+    const failed = r === false || (typeof r === 'object' && r !== null && r.success === false);
+    const err = failed
+      ? (typeof r === 'object' && r !== null && r.error) || 'rejected by the link'
+      : null;
+    if (useFlightControlStore.getState().overrideError !== err) {
+      useFlightControlStore.setState({ overrideError: err });
+    }
+  };
   if (call.kind === 'mavlink') {
-    void window.electronAPI.rcOverrideSet(call.roll, call.pitch, call.throttle, call.yaw).catch(() => {});
+    void window.electronAPI
+      .rcOverrideSet(call.roll, call.pitch, call.throttle, call.yaw)
+      .then(report)
+      .catch((e: unknown) => report({ success: false, error: String(e) }));
   } else {
-    void window.electronAPI.mspSetRawRc(call.channels).catch(() => {});
+    void window.electronAPI
+      .mspSetRawRc(call.channels)
+      .then(report)
+      .catch((e: unknown) => report({ success: false, error: String(e) }));
   }
 }
 
@@ -185,6 +210,8 @@ interface FlightControlStore {
 
   // RC Override State
   isOverrideActive: boolean;
+  /** Why the last override frame did not land, or null when it did. */
+  overrideError: string | null;
   overrideInterval: ReturnType<typeof setInterval> | null;
 
   // Actions
@@ -254,6 +281,7 @@ export const useFlightControlStore = create<FlightControlStore>((set, get) => ({
   canArm: false,
   canNavWp: false,
   isOverrideActive: false,
+  overrideError: null,
   overrideInterval: null,
 
   // Set single channel value

@@ -32,6 +32,7 @@ import { droneLiveness } from "../fleet/types";
 import { NodeBadgeSet } from "./NodeBadgeSet";
 import { useNodePersonalizationStore } from "@/stores/node-personalization-store";
 import { resolveFeatureDot } from "@/lib/nodes/node-feature-dots";
+import { useNodeControlAuthorityNotice } from "@/hooks/use-node-control-authority";
 import { useTranslations } from "next-intl";
 
 /** Map a merged fleet entry to the presentation profile discriminator. A paired
@@ -83,6 +84,31 @@ export const STATUS_BORDER: Record<StatusLevel, string> = {
 };
 
 /**
+ * The resolved `nodeConsole.*` strings `nodeSubtitle` needs. Passed in rather
+ * than read from a hook so the function stays pure and unit-testable.
+ */
+export interface NodeSubtitleLabels {
+  /** `nodeConsole.liveness.offline` */
+  offline: string;
+  /** `nodeConsole.role.relay` */
+  relay: string;
+  /** `nodeConsole.role.receiver` */
+  receiver: string;
+}
+
+/** Resolve the subtitle labels from a `nodeConsole` translator. Shared so the
+ * sidebar row and the board identity cell cannot drift apart. */
+export function nodeSubtitleLabels(
+  t: (key: string) => string,
+): NodeSubtitleLabels {
+  return {
+    offline: t("liveness.offline"),
+    relay: t("role.relay"),
+    receiver: t("role.receiver"),
+  };
+}
+
+/**
  * Profile-correct subtitle: role/type first, then board, collapsing to a single
  * "Offline" line when the freshness signal says the node is unreachable (Rule 44
  * — no stale sub-metrics). `typeLabel` is the resolved `type.*` string.
@@ -91,16 +117,16 @@ export function nodeSubtitle(
   node: FleetNodeEntry,
   effProfile: EffProfile,
   typeLabel: string,
+  labels: NodeSubtitleLabels,
 ): string {
-  if (droneLiveness(node) === "offline") return "Offline"; // i18n
+  if (droneLiveness(node) === "offline") return labels.offline;
   const parts: string[] = [];
   if (
     effProfile === "ground-station" &&
     node.role &&
     node.role !== "direct"
   ) {
-    // i18n — role label
-    parts.push(node.role === "relay" ? "Relay" : "Receiver");
+    parts.push(node.role === "relay" ? labels.relay : labels.receiver);
   } else {
     parts.push(typeLabel);
   }
@@ -154,6 +180,13 @@ export function NodeRow({
   const { backgroundColor } = tintStyle(tileCssVar, { bg: 14 });
   const accentColor = `var(${tileCssVar})`;
   const featureDots = personalization?.dots ?? [];
+
+  // Command authority is its own badge, NEVER folded into `status` above: the
+  // ring is health-only by contract and shared with two other surfaces, and a
+  // live node this browser cannot publish FC frames to is healthy and
+  // uncommandable at the same time. Grading the row on liveness alone is what
+  // left that state invisible.
+  const authority = useNodeControlAuthorityNotice(node._id);
 
   const row = (
     <div
@@ -215,7 +248,7 @@ export function NodeRow({
         {node.isLocal && (
           <span
             className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3 items-center justify-center rounded-full bg-bg-secondary text-accent-primary"
-            title="LAN" // i18n
+            title={t("badge.lan")}
           >
             <Wifi size={8} />
           </span>
@@ -251,8 +284,8 @@ export function NodeRow({
                   const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
                   onContext(node._id, rect.right, rect.bottom);
                 }}
-                title="Actions" // i18n
-                aria-label="Node actions" // i18n
+                title={t("actions.menu")}
+                aria-label={t("actions.nodeActions")}
                 className="shrink-0 p-0.5 text-text-tertiary opacity-60 transition-all hover:text-text-primary group-hover:opacity-100"
               >
                 <MoreHorizontal size={14} />
@@ -280,6 +313,21 @@ export function NodeRow({
               {personalization?.badge && (
                 <Badge variant="neutral" className="rounded normal-case tracking-normal">
                   {personalization.badge}
+                </Badge>
+              )}
+              {authority.show && (
+                <Badge
+                  variant={authority.level === "warning" ? "warning" : "neutral"}
+                  className="gap-1 rounded normal-case tracking-normal"
+                >
+                  {/* The dot carries the full sentence as its aria-label and
+                      title, so the reason survives the short badge text. */}
+                  <StatusDot
+                    status={authority.level}
+                    size="xs"
+                    label={authority.detail}
+                  />
+                  {authority.label}
                 </Badge>
               )}
               <NodeBadgeSet node={node} effProfile={effProfile} max={3} />

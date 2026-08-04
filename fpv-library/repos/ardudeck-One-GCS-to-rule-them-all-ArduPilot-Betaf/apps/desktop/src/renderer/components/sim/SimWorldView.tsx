@@ -164,6 +164,14 @@ export default function SimWorldView() {
   const sitlVehicleType = useArduPilotSitlStore((s) => s.vehicleType);
   const activeVehicle = useSettingsStore((s) => s.getActiveVehicle());
   const rafRef = useRef<number | null>(null);
+  // Mission waypoints projected to scene-local NED, cached against the mission
+  // items array identity + origin so the render loop reprojects only on change.
+  const wpCacheRef = useRef<{
+    items: unknown;
+    lat: number;
+    lon: number;
+    wps: SimWaypoint[] | undefined;
+  }>({ items: null, lat: NaN, lon: NaN, wps: undefined });
   // Geo origin (first valid fix) for converting MAVLink lat/lon to local metres
   // when driving the world from telemetry rather than the ArduDeck Sim engine.
   const geoOriginRef = useRef<{ lat: number; lon: number } | null>(null);
@@ -405,17 +413,27 @@ export default function SimWorldView() {
         }
       }
 
-      // Mission waypoints from the FC → NED for the scene.
+      // Mission waypoints from the FC → NED for the scene. Cached on the mission
+      // items array identity + origin: this runs every frame, and a 573-waypoint
+      // survey re-projected and re-allocated the whole list 60 times a second for
+      // a result that only changes when the mission or the origin does.
       let waypoints: SimWaypoint[] | undefined;
       if (origin) {
         const items = useMissionStore.getState().missionItems;
-        const wps = items
-          .filter((it) => it.latitude !== 0 || it.longitude !== 0)
-          .map((it) => {
-            const local = latLngToLocal({ lat: origin.lat, lng: origin.lon }, { lat: it.latitude, lng: it.longitude });
-            return { seq: it.seq, position: [local.y, local.x, -it.altitude] as [number, number, number] };
-          });
-        if (wps.length > 0) waypoints = wps;
+        const cache = wpCacheRef.current;
+        if (cache.items !== items || cache.lat !== origin.lat || cache.lon !== origin.lon) {
+          const wps = items
+            .filter((it) => it.latitude !== 0 || it.longitude !== 0)
+            .map((it) => {
+              const local = latLngToLocal({ lat: origin.lat, lng: origin.lon }, { lat: it.latitude, lng: it.longitude });
+              return { seq: it.seq, position: [local.y, local.x, -it.altitude] as [number, number, number] };
+            });
+          cache.items = items;
+          cache.lat = origin.lat;
+          cache.lon = origin.lon;
+          cache.wps = wps.length > 0 ? wps : undefined;
+        }
+        waypoints = cache.wps;
       }
 
       // Geofences from the FC → NED rings for the scene.

@@ -602,8 +602,32 @@ export class MSPAdapter implements DroneProtocol {
 
   // ── Info ────────────────────────────────────────────────────
   getVehicleInfo(): VehicleInfo | null { return this.vehicleInfo }
+
+  /**
+   * Why the RC override is inert, or null when it will reach `rcData[]`.
+   *
+   * The override object computes this once at connect from the feature word
+   * and the configured mode ranges. Before connect there is no override, and
+   * a link with no override sends nothing.
+   */
+  getManualControlBlockedReason(): string | null {
+    if (!this.rcOverride) return this._connected ? 'the RC override is not set up on this link' : null
+    return this.rcOverride.blockedReason
+  }
+
   getCapabilities(): ProtocolCapabilities {
-    return this.firmwareHandler?.getCapabilities() ?? {
+    const base = this.firmwareHandler?.getCapabilities() ?? this.emptyCapabilities()
+    // The firmware handler declares the rate its flight controller expects; it
+    // cannot know whether this particular flight controller is configured to
+    // read the frames at all. When the override is blocked or absent nothing
+    // is transmitted, and reporting a rate would describe traffic that does
+    // not exist.
+    const sends = this.rcOverride !== null && this.rcOverride.blockedReason === null
+    return sends ? base : { ...base, manualControlHz: 0 }
+  }
+
+  private emptyCapabilities(): ProtocolCapabilities {
+    return {
       supportsArming: false, supportsFlightModes: false, supportsMissionUpload: false,
       supportsMissionDownload: false, supportsManualControl: false, supportsParameters: false,
       supportsCalibration: false, supportsSerialPassthrough: false, supportsMotorTest: false,
@@ -624,7 +648,7 @@ export class MSPAdapter implements DroneProtocol {
       supportsMixerProfile: false, supportsBatteryProfile: false, supportsTempSensors: false,
       supportsServoMixer: false, supportsOutputMappingExt: false, supportsRateDynamics: false,
       supportsMcBraking: false, supportsSettings: false, supportsCliSettings: false,
-      manualControlHz: 50, parameterCount: 0,
+      manualControlHz: 0, parameterCount: 0,
     }
   }
   getFirmwareHandler(): FirmwareHandler | null { return this.firmwareHandler }

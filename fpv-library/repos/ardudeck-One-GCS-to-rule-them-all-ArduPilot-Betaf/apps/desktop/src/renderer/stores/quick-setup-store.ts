@@ -15,6 +15,7 @@ import {
   getPresetSummary,
 } from '../components/quick-setup/presets/quick-setup-presets';
 import { useConnectionStore } from './connection-store';
+import { preferredRcChannels } from './pseudo-tx-store';
 
 // ============================================================================
 // Types
@@ -316,9 +317,15 @@ export const useQuickSetupStore = create<QuickSetupState>((set, get) => ({
 
       rcPollPending = true;
       try {
-        const result = await window.electronAPI?.mspGetRc();
-        if (result?.channels) {
-          get().updateRcChannels(result.channels);
+        // The handset switch is checked FIRST, not as a fallback. Under SITL (and with any
+        // responding FC) `mspGetRc` returns channels, so a fallback-only path would never fire
+        // and the switch would silently do nothing.
+        const pseudo = preferredRcChannels(undefined);
+        if (pseudo.source === 'pseudo') {
+          get().updateRcChannels(pseudo.channels);
+        } else {
+          const result = await window.electronAPI?.mspGetRc();
+          if (result?.channels) get().updateRcChannels(result.channels);
         }
       } catch {
         // Silently ignore polling errors

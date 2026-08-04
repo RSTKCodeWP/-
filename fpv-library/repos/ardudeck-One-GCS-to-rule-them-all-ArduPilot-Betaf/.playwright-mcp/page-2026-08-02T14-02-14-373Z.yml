@@ -1,0 +1,102 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]: RCTESTFLIGHT
+      - generic [ref=e8]: Boat Ground Station
+    - generic [ref=e9]: Connecting
+    - link "ArduDeck Built by ArduDeck" [ref=e12] [cursor=pointer]:
+      - /url: https://ardudeck.com
+      - img "ArduDeck" [ref=e13]
+      - generic [ref=e14]: Built by ArduDeck
+  - generic [ref=e15]:
+    - navigation [ref=e16]:
+      - button "Telemetry" [active] [ref=e17] [cursor=pointer]
+      - button "Mission Planning" [ref=e20] [cursor=pointer]
+      - button "Hardware" [ref=e24] [cursor=pointer]
+      - button "Parameters" [ref=e27] [cursor=pointer]
+      - button "Settings" [ref=e30] [cursor=pointer]
+      - 'button "Theme: dark. Switch to light." [ref=e34] [cursor=pointer]'
+    - main [ref=e37]:
+      - generic [ref=e178]:
+        - generic [ref=e180]:
+          - button "Save Layout" [ref=e181] [cursor=pointer]
+          - button "Load Layout" [ref=e182] [cursor=pointer]
+          - button "Reset Layout" [ref=e183] [cursor=pointer]
+        - generic [ref=e192]:
+          - generic [ref=e198]:
+            - generic [ref=e200]:
+              - generic [ref=e201]: Map
+              - generic [ref=e213]:
+                - button "Base map layers" [ref=e216] [cursor=pointer]:
+                  - generic [ref=e221]: Layers
+                - generic: Imagery © Google
+            - generic [ref=e223]:
+              - generic [ref=e224]: Boat Control
+              - generic [ref=e237]:
+                - generic [ref=e238]: Connecting
+                - generic [ref=e243]:
+                  - button "Start" [disabled] [ref=e244]
+                  - button "Return home" [disabled] [ref=e247]
+                  - button "Stop" [disabled] [ref=e251]
+                - generic [ref=e255]:
+                  - generic [ref=e256]:
+                    - generic [ref=e257]: Mode
+                    - generic [ref=e258]: Offline
+                  - generic [ref=e259]:
+                    - generic [ref=e260]: To next
+                    - generic [ref=e261]: "--"
+                  - generic [ref=e262]:
+                    - generic [ref=e263]: To launch
+                    - generic [ref=e264]: "--"
+                - button "Follow" [ref=e266] [cursor=pointer]
+          - generic [ref=e274]:
+            - generic [ref=e276]:
+              - generic [ref=e277]: Boat
+              - generic [ref=e289]:
+                - generic [ref=e290]:
+                  - img [ref=e291]:
+                    - generic [ref=e293]: "N"
+                    - generic [ref=e305]: E
+                    - generic [ref=e317]: S
+                    - generic [ref=e329]: W
+                  - generic [ref=e342]:
+                    - generic [ref=e343]:
+                      - generic [ref=e344]: Speed
+                      - generic [ref=e345]:
+                        - generic [ref=e346]: "--"
+                        - generic [ref=e347]: m/s
+                      - generic [ref=e348]: aiming for 1.5 m/s
+                    - generic [ref=e349]:
+                      - generic [ref=e350]: Heading
+                      - generic [ref=e351]: "--°"
+                - generic [ref=e353]:
+                  - generic [ref=e354]: Battery
+                  - generic [ref=e355]:
+                    - generic [ref=e358]: "-- V"
+                    - generic [ref=e359]: "--"
+            - generic [ref=e362]:
+              - generic [ref=e363]: Mission
+              - generic [ref=e375]:
+                - heading "Route" [level=3] [ref=e376]
+                - generic [ref=e377]:
+                  - generic [ref=e378]:
+                    - generic [ref=e379]: Stops reached
+                    - generic [ref=e380]: "--"
+                  - generic [ref=e381]:
+                    - generic [ref=e382]: Distance
+                    - generic [ref=e383]: 0 m
+                  - generic [ref=e384]:
+                    - generic [ref=e385]: Est. time
+                    - generic [ref=e386]: 0s
+                - generic [ref=e387]:
+                  - heading "Now" [level=3] [ref=e388]
+                  - generic [ref=e389]:
+                    - generic [ref=e390]:
+                      - generic [ref=e391]: Mode
+                      - generic [ref=e392]: Offline
+                    - generic [ref=e393]:
+                      - generic [ref=e394]: Doing item
+                      - generic [ref=e395]: "--"
+                    - generic [ref=e396]:
+                      - generic [ref=e397]: To next
+                      - generic [ref=e398]: "--"

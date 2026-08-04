@@ -88,6 +88,13 @@ pub struct PluginIpcClient {
     /// camera's frames. The reader loop routes a delivered descriptor by its
     /// `camera_id` to the matching key plus the wildcard.
     vision_callbacks: CallbackMap,
+    /// Detection-batch callbacks, keyed by camera id (plus the wildcard key).
+    /// Separate from `vision_callbacks` because a frame descriptor and a
+    /// detection batch are different payloads on different subscriptions.
+    detection_callbacks: CallbackMap,
+    /// Front-panel button callbacks. Keyed on the wildcard only: a press has no
+    /// subject to filter on, so every subscriber sees every press.
+    button_callbacks: CallbackMap,
     reader_task: Mutex<Option<JoinHandle<()>>>,
     next_id: AtomicU64,
     request_timeout: Duration,
@@ -114,6 +121,8 @@ impl PluginIpcClient {
             event_callbacks: Arc::new(Mutex::new(HashMap::new())),
             mavlink_callbacks: Arc::new(Mutex::new(HashMap::new())),
             vision_callbacks: Arc::new(Mutex::new(HashMap::new())),
+            detection_callbacks: Arc::new(Mutex::new(HashMap::new())),
+            button_callbacks: Arc::new(Mutex::new(HashMap::new())),
             reader_task: Mutex::new(None),
             next_id: AtomicU64::new(0),
             request_timeout: DEFAULT_REQUEST_TIMEOUT,
@@ -420,6 +429,232 @@ impl PluginIpcClient {
         register_callback(&self.vision_callbacks, key, callback);
     }
 
+    /// Register a callback for `vision.deliver_detection` pushes.
+    ///
+    /// `camera_id` of `None` receives every camera's batches. The engine fans
+    /// all cameras out on one stream, so the filter is applied here rather than
+    /// at the engine — the same posture the Python client takes.
+    pub fn register_detection_callback(&self, camera_id: Option<&str>, callback: EventCallback) {
+        let key = camera_id.unwrap_or(VISION_ANY_CAMERA);
+        register_callback(&self.detection_callbacks, key, callback);
+    }
+
+    /// Register a callback for `button.deliver` pushes.
+    pub fn register_button_callback(&self, callback: EventCallback) {
+        register_callback(&self.button_callbacks, VISION_ANY_CAMERA, callback);
+    }
+
+    /// Arm the host's detection-batch push stream for this connection.
+    pub async fn vision_subscribe_detections(
+        &self,
+        camera_id: Option<&str>,
+    ) -> Result<Value, ClientError> {
+        let args = Value::Map(vec![(
+            Value::from("camera_id"),
+            Value::from(camera_id.unwrap_or("")),
+        )]);
+        Ok(self
+            .send_request(
+                ados_protocol::framebus::methods::SUBSCRIBE_DETECTIONS,
+                "vision.detection.subscribe",
+                args,
+            )
+            .await?
+            .args)
+    }
+
+    /// Designate the tracker's locked target, overriding its auto-lock.
+    pub async fn vision_designate_track(
+        &self,
+        camera_id: &str,
+        detection: Value,
+    ) -> Result<Value, ClientError> {
+        let args = Value::Map(vec![
+            (Value::from("camera_id"), Value::from(camera_id)),
+            (Value::from("detection"), detection),
+        ]);
+        Ok(self
+            .send_request(
+                ados_protocol::framebus::methods::DESIGNATE_TRACK,
+                "vision.track.designate",
+                args,
+            )
+            .await?
+            .args)
+    }
+
+    /// Arm the host's front-panel button push stream for this connection.
+    pub async fn button_subscribe(&self) -> Result<Value, ClientError> {
+        Ok(self
+            .send_request(
+                ados_protocol::buttons::SUBSCRIBE,
+                ados_protocol::buttons::SUBSCRIBE,
+                Value::Map(vec![]),
+            )
+            .await?
+            .args)
+    }
+
+    /// Drive a host GPIO output line high or low.
+    pub async fn gpio_output_set(
+        &self,
+        chip: i64,
+        pin: i64,
+        high: bool,
+    ) -> Result<Value, ClientError> {
+        let args = Value::Map(vec![
+            (Value::from("chip"), Value::Integer(chip.into())),
+            (Value::from("pin"), Value::Integer(pin.into())),
+            (
+                Value::from("level"),
+                Value::from(if high { "high" } else { "low" }),
+            ),
+        ]);
+        Ok(self
+            .send_request("gpio.output.set", "hardware.gpio_out", args)
+            .await?
+            .args)
+    }
+
+    /// Play a bounded beep pattern on a host GPIO line.
+    ///
+    /// The gpio service is the single owner of the safe bounds and clamps the
+    /// pattern itself, so this sends the requested values verbatim rather than
+    /// pre-clamping them to a second, drifting opinion of what is safe.
+    pub async fn gpio_buzzer_beep(
+        &self,
+        chip: i64,
+        pin: i64,
+        on_ms: i64,
+        cycles: i64,
+        off_ms: Option<i64>,
+        freq_hz: Option<i64>,
+    ) -> Result<Value, ClientError> {
+        let mut entries = vec![
+            (Value::from("chip"), Value::Integer(chip.into())),
+            (Value::from("pin"), Value::Integer(pin.into())),
+            (Value::from("on_ms"), Value::Integer(on_ms.into())),
+            (Value::from("cycles"), Value::Integer(cycles.into())),
+        ];
+        if let Some(v) = off_ms {
+            entries.push((Value::from("off_ms"), Value::Integer(v.into())));
+        }
+        if let Some(v) = freq_hz {
+            entries.push((Value::from("freq_hz"), Value::Integer(v.into())));
+        }
+        Ok(self
+            .send_request("gpio.buzzer.beep", "hardware.gpio_out", Value::Map(entries))
+            .await?
+            .args)
+    }
+
+    /// Set the content of the host's reserved data-driven display page.
+    ///
+    /// `rows` are `(label, value)` pairs and `zones` are
+    /// `(x, y, w, h, key, label)` touch rectangles in page-local content
+    /// coordinates. The host writes the page sidecar the display service renders.
+    pub async fn display_page_set(
+        &self,
+        title: &str,
+        rows: &[(String, String)],
+        zones: &[(i64, i64, i64, i64, String, String)],
+    ) -> Result<Value, ClientError> {
+        let rows_v: Vec<Value> = rows
+            .iter()
+            .map(|(label, value)| {
+                Value::Map(vec![
+                    (Value::from("label"), Value::from(label.as_str())),
+                    (Value::from("value"), Value::from(value.as_str())),
+                ])
+            })
+            .collect();
+        let zones_v: Vec<Value> = zones
+            .iter()
+            .map(|(x, y, w, h, key, label)| {
+                Value::Map(vec![
+                    (Value::from("x"), Value::Integer((*x).into())),
+                    (Value::from("y"), Value::Integer((*y).into())),
+                    (Value::from("w"), Value::Integer((*w).into())),
+                    (Value::from("h"), Value::Integer((*h).into())),
+                    (Value::from("key"), Value::from(key.as_str())),
+                    (Value::from("label"), Value::from(label.as_str())),
+                ])
+            })
+            .collect();
+        let args = Value::Map(vec![
+            (Value::from("title"), Value::from(title)),
+            (Value::from("rows"), Value::Array(rows_v)),
+            (Value::from("zones"), Value::Array(zones_v)),
+        ]);
+        Ok(self
+            .send_request("display.page.set", "display.oled.page", args)
+            .await?
+            .args)
+    }
+
+    /// Open the additive auxiliary application stream on the radio link.
+    pub async fn radio_aux_stream_open(&self) -> Result<Value, ClientError> {
+        Ok(self
+            .send_request(
+                "radio.aux_stream.open",
+                "radio.aux_stream",
+                Value::Map(vec![]),
+            )
+            .await?
+            .args)
+    }
+
+    /// Close the auxiliary application stream.
+    pub async fn radio_aux_stream_close(&self) -> Result<Value, ClientError> {
+        Ok(self
+            .send_request(
+                "radio.aux_stream.close",
+                "radio.aux_stream",
+                Value::Map(vec![]),
+            )
+            .await?
+            .args)
+    }
+
+    /// Send one application payload over a MAVLink TUNNEL frame.
+    ///
+    /// `payload_type` must be a private type (> 32767); the host validates it
+    /// before anything is sent.
+    pub async fn mavlink_tunnel_send(
+        &self,
+        payload_type: u16,
+        payload: &[u8],
+    ) -> Result<Value, ClientError> {
+        let args = Value::Map(vec![
+            (
+                Value::from("payload_type"),
+                Value::Integer(payload_type.into()),
+            ),
+            (Value::from("payload"), Value::Binary(payload.to_vec())),
+        ]);
+        Ok(self
+            .send_request("mavlink.tunnel.send", "mavlink.tunnel", args)
+            .await?
+            .args)
+    }
+
+    /// Send one guided-mode setpoint through the scoped sender.
+    ///
+    /// `args` is the setpoint map the host validates (`kind`, `coordinate_frame`,
+    /// `type_mask` and the axis fields). Single-shot by design: the host owns no
+    /// flight mode and no schedule, so a caller holding a velocity re-sends above
+    /// the autopilot's setpoint timeout or the vehicle brakes.
+    pub async fn flight_guided_setpoint(&self, args: Value) -> Result<Value, ClientError> {
+        Ok(self
+            .send_request(
+                "flight.guided_setpoint.send",
+                "flight.guided_setpoint",
+                args,
+            )
+            .await?
+            .args)
+    }
+
     /// Subscribe to vision frame descriptors. The host starts (or widens) the
     /// engine's frame stream toward this plugin and then delivers descriptors
     /// as `vision.deliver` events. `camera_id` of `None` requests every
@@ -583,6 +818,8 @@ impl PluginIpcClient {
         let event_callbacks = self.event_callbacks.clone();
         let mavlink_callbacks = self.mavlink_callbacks.clone();
         let vision_callbacks = self.vision_callbacks.clone();
+        let detection_callbacks = self.detection_callbacks.clone();
+        let button_callbacks = self.button_callbacks.clone();
         let plugin_id = self.plugin_id.clone();
         tokio::spawn(async move {
             let mut reader = read_half;
@@ -595,6 +832,12 @@ impl PluginIpcClient {
                             } else if env.method == ados_protocol::framebus::methods::DELIVER_FRAME
                             {
                                 dispatch_vision(&vision_callbacks, &env);
+                            } else if env.method
+                                == ados_protocol::framebus::methods::DELIVER_DETECTION
+                            {
+                                dispatch_detection(&detection_callbacks, &env);
+                            } else if env.method == ados_protocol::buttons::DELIVER {
+                                dispatch_button(&button_callbacks, &env);
                             } else {
                                 dispatch_event(&event_callbacks, &env);
                             }
@@ -669,6 +912,50 @@ fn dispatch_mavlink(map: &CallbackMap, env: &Envelope) {
         return;
     };
     invoke_matching(map, msg_name, &env.args);
+}
+
+/// Dispatch a `vision.deliver_detection` batch push.
+///
+/// This arm exists because the envelope carries **no `topic`**. Without it the
+/// batch fell through to [`dispatch_event`], which returns early when the topic
+/// lookup fails — so every detection a Rust plugin subscribed to was dropped
+/// with no error and no log. Routing is by the batch's decoded `camera_id`,
+/// mirroring the frame push: callbacks keyed on that camera plus the wildcard.
+/// An undecodable batch is dropped rather than guessed at.
+fn dispatch_detection(map: &CallbackMap, env: &Envelope) {
+    let Some(Value::Binary(blob)) = map_get(&env.args, "batch") else {
+        return;
+    };
+    let Ok(batch) = ados_protocol::framebus::DetectionBatch::from_msgpack(&blob) else {
+        return;
+    };
+    let matched: Vec<EventCallback> = {
+        let guard = map.lock().expect("callback lock");
+        guard
+            .iter()
+            .filter(|(key, _)| {
+                key.as_str() == batch.camera_id.as_str() || key.as_str() == VISION_ANY_CAMERA
+            })
+            .flat_map(|(_, cbs)| cbs.iter().cloned())
+            .collect()
+    };
+    for cb in matched {
+        cb(env.args.clone());
+    }
+}
+
+/// Dispatch a `button.deliver` press.
+///
+/// A press has no subject to filter on, so every registered callback fires. The
+/// callback receives the envelope args; the press itself is under `press`.
+fn dispatch_button(map: &CallbackMap, env: &Envelope) {
+    let matched: Vec<EventCallback> = {
+        let guard = map.lock().expect("callback lock");
+        guard.values().flat_map(|cbs| cbs.iter().cloned()).collect()
+    };
+    for cb in matched {
+        cb(env.args.clone());
+    }
 }
 
 /// Dispatch a `vision.deliver` frame push. The envelope carries the encoded
@@ -808,6 +1095,137 @@ fn fnmatch(pattern: &str, text: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::AtomicUsize;
+
+    fn batch_for(camera_id: &str) -> ados_protocol::framebus::DetectionBatch {
+        ados_protocol::framebus::DetectionBatch {
+            v: ados_protocol::framebus::VISION_DETECTION_VERSION,
+            model_id: "m".to_string(),
+            camera_id: camera_id.to_string(),
+            frame_id: 1,
+            ts_ms: 0,
+            frame_width: 640,
+            frame_height: 480,
+            detections: Vec::new(),
+        }
+    }
+
+    fn event_envelope(method: &str, args: Value) -> Envelope {
+        Envelope {
+            version: ados_protocol::plugin::PROTOCOL_VERSION,
+            kind: "event".to_string(),
+            method: method.to_string(),
+            capability: String::new(),
+            args,
+            request_id: "e1".to_string(),
+            token: String::new(),
+            error: None,
+        }
+    }
+
+    #[test]
+    fn a_pushed_detection_batch_reaches_a_subscribed_callback() {
+        // The regression this whole arm exists for. The deliver envelope carries
+        // NO `topic`, so before the DELIVER_DETECTION arm existed every batch
+        // fell through to dispatch_event, failed the topic lookup and was
+        // dropped silently — a Rust plugin could subscribe and never be told
+        // anything was wrong.
+        let map: CallbackMap = Arc::new(Mutex::new(HashMap::new()));
+        let hits = Arc::new(AtomicUsize::new(0));
+        let seen = hits.clone();
+        register_callback(
+            &map,
+            VISION_ANY_CAMERA,
+            Arc::new(move |_args| {
+                seen.fetch_add(1, Ordering::Relaxed);
+            }),
+        );
+
+        let batch = batch_for("main");
+        let env = event_envelope(
+            ados_protocol::framebus::methods::DELIVER_DETECTION,
+            Value::Map(vec![(
+                Value::from("batch"),
+                Value::Binary(batch.to_msgpack().unwrap()),
+            )]),
+        );
+
+        dispatch_detection(&map, &env);
+        assert_eq!(
+            hits.load(Ordering::Relaxed),
+            1,
+            "the batch must be delivered"
+        );
+    }
+
+    #[test]
+    fn a_detection_for_another_camera_does_not_wake_a_filtered_subscriber() {
+        let map: CallbackMap = Arc::new(Mutex::new(HashMap::new()));
+        let hits = Arc::new(AtomicUsize::new(0));
+        let seen = hits.clone();
+        register_callback(
+            &map,
+            "left",
+            Arc::new(move |_args| {
+                seen.fetch_add(1, Ordering::Relaxed);
+            }),
+        );
+
+        let batch = batch_for("right");
+        let env = event_envelope(
+            ados_protocol::framebus::methods::DELIVER_DETECTION,
+            Value::Map(vec![(
+                Value::from("batch"),
+                Value::Binary(batch.to_msgpack().unwrap()),
+            )]),
+        );
+
+        dispatch_detection(&map, &env);
+        assert_eq!(hits.load(Ordering::Relaxed), 0);
+    }
+
+    #[test]
+    fn an_undecodable_batch_is_dropped_rather_than_panicking() {
+        let map: CallbackMap = Arc::new(Mutex::new(HashMap::new()));
+        register_callback(&map, VISION_ANY_CAMERA, Arc::new(|_| unreachable!()));
+        let env = event_envelope(
+            ados_protocol::framebus::methods::DELIVER_DETECTION,
+            Value::Map(vec![(
+                Value::from("batch"),
+                Value::Binary(vec![0xff, 0x00, 0x13]),
+            )]),
+        );
+        dispatch_detection(&map, &env); // must not panic, must not deliver
+    }
+
+    #[test]
+    fn a_pushed_button_press_reaches_every_subscriber() {
+        // A press has no subject to filter on, so both subscribers fire.
+        let map: CallbackMap = Arc::new(Mutex::new(HashMap::new()));
+        let hits = Arc::new(AtomicUsize::new(0));
+        for key in ["a", "b"] {
+            let seen = hits.clone();
+            register_callback(
+                &map,
+                key,
+                Arc::new(move |_args| {
+                    seen.fetch_add(1, Ordering::Relaxed);
+                }),
+            );
+        }
+        let env = event_envelope(
+            ados_protocol::buttons::DELIVER,
+            Value::Map(vec![(
+                Value::from("press"),
+                Value::Map(vec![
+                    (Value::from("pin"), Value::Integer(5.into())),
+                    (Value::from("kind"), Value::from("short")),
+                ]),
+            )]),
+        );
+        dispatch_button(&map, &env);
+        assert_eq!(hits.load(Ordering::Relaxed), 2);
+    }
 
     #[test]
     fn request_ids_increment_and_are_r_prefixed() {

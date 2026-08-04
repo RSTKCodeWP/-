@@ -1,6 +1,6 @@
 # FPV Library — discovery hooks
 
-Updated: 2026-08-03 10:44 UTC
+Updated: 2026-08-04 09:19 UTC
 
 ## Interesting (auto-flagged)
 
@@ -19,6 +19,7 @@ Updated: 2026-08-03 10:44 UTC
 | [Li-T-1025/ardudeck](https://github.com/Li-T-1025/ardudeck) | keep | 14.8 | gcs, osd, fc, tools | One GCS to rule them all. ArduPilot, Betaflight, iNav - all  |
 | [brendan779/ardudeck](https://github.com/brendan779/ardudeck) | keep | 14.8 | gcs, osd, fc, tools | One GCS to rule them all. ArduPilot, Betaflight, iNav - all  |
 | [xznhj8129/ardudeck](https://github.com/xznhj8129/ardudeck) | keep | 14.8 | gcs, osd, fc, tools | One GCS to rule them all. ArduPilot, Betaflight, iNav - all  |
+| [Maoyaoo/fy_fly](https://github.com/Maoyaoo/fy_fly) | keep | 14.8 | gcs, osd, fc, tools | One GCS to rule them all. ArduPilot, Betaflight, iNav - all  |
 | [wkumik/Digital-FPV-OSD-Tool](https://github.com/wkumik/Digital-FPV-OSD-Tool) | keep | 14.5 | osd, fc | MSP-OSD overlay tool for FPV DVR video — Betaflight / INAV / |
 | [vkopitsa/vtx_emulator](https://github.com/vkopitsa/vtx_emulator) | keep | 14.3 | fc, tools | A Python-based emulator for Video Transmitter (VTX) devices  |
 | [judahpaul16/canarygc](https://github.com/judahpaul16/canarygc) | keep | 14.2 | gcs, fc, tools | A web-based ground control station (GCS) for remote autopilo |
@@ -65,7 +66,6 @@ Updated: 2026-08-03 10:44 UTC
 | [ibrahimsn98/fpv-ground-station](https://github.com/ibrahimsn98/fpv-ground-station) | keep | 11.0 | fc | FPV LTM Ground Telemetry Client for INAV and Betaflight |
 | [Extelligence-ai/bagel](https://github.com/Extelligence-ai/bagel) | keep | 10.8 | fc, ai | Chat with your robotics, drone, and IoT data — ChatGPT for t |
 | [ExperimentalDesignBureau-1571/fpv-ground-control-station](https://github.com/ExperimentalDesignBureau-1571/fpv-ground-control-station) | keep | 10.7 | gcs | Modular Ground Control Station for FPV Drones |
-| [m-heidary/ApexControl](https://github.com/m-heidary/ApexControl) | keep | 10.7 | gcs, fc | ApexControl Ground Station is a cross-platform MAVLink groun |
 
 ## Watch list (weak hook — review manually)
 
@@ -110,4 +110,4 @@ Updated: 2026-08-03 10:44 UTC
 | [texas112/IMD](https://github.com/texas112/IMD) | 3.8 | weak-hook |
 | [godstargod/inav-osd](https://github.com/godstargod/inav-osd) | 3.8 | weak-hook |
 | [DIII-SDU-Group/MP4D-AI-Acceleration](https://github.com/DIII-SDU-Group/MP4D-AI-Acceleration) | 3.8 | weak-hook |
-| [TigeyJewellAlibhai/uav-control](https://github.com/TigeyJewellAlibhai/uav-control) | 3.7 | weak-hook |
+| [RespawnDespair/wifibroadcast-osd-orig](https://github.com/RespawnDespair/wifibroadcast-osd-orig) | 3.8 | weak-hook |

@@ -1,0 +1,248 @@
+- generic [ref=f4e3]:
+  - banner [ref=f4e4]:
+    - generic [ref=f4e5]:
+      - generic [ref=f4e6]: RCTESTFLIGHT
+      - generic [ref=f4e8]: Boat Ground Station
+    - generic [ref=f4e9]: Simulator
+    - link "ArduDeck Built by ArduDeck" [ref=f4e12] [cursor=pointer]:
+      - /url: https://ardudeck.com
+      - img "ArduDeck" [ref=f4e13]
+      - generic [ref=f4e14]: Built by ArduDeck
+  - generic [ref=f4e15]:
+    - navigation [ref=f4e16]:
+      - button "Telemetry" [ref=f4e17] [cursor=pointer]
+      - button "Mission Planning" [ref=f4e20] [cursor=pointer]
+      - button "Hardware" [active] [ref=f4e24] [cursor=pointer]
+      - button "Parameters" [ref=f4e27] [cursor=pointer]
+      - button "Settings" [ref=f4e30] [cursor=pointer]
+      - 'button "Theme: dark. Switch to light." [ref=f4e34] [cursor=pointer]'
+    - main [ref=f4e37]:
+      - generic [ref=f4e209]:
+        - generic [ref=f4e210]:
+          - generic [ref=f4e211]:
+            - heading "Hardware" [level=1] [ref=f4e212]
+            - paragraph [ref=f4e213]: Tell the boat which pin each part is wired to. Nothing here is compiled in.
+          - generic [ref=f4e214]:
+            - radiogroup "Hardware view" [ref=f4e215]:
+              - radio "Build" [checked] [ref=f4e216] [cursor=pointer]
+              - radio "Table" [ref=f4e217] [cursor=pointer]
+            - button "Restore kit wiring" [ref=f4e218] [cursor=pointer]
+        - generic [ref=f4e219]:
+          - generic [ref=f4e224]:
+            - heading "Boat kit, ESP32" [level=3] [ref=f4e225]
+            - paragraph [ref=f4e226]: Firmware 0.1.0. Every pin list below came from the boat.
+          - generic [ref=f4e228]:
+            - generic [ref=f4e229]: Main
+            - generic [ref=f4e230]: Navigation, WiFi, mission
+        - paragraph [ref=f4e235]: "How this works: Each row is a part of the boat. Pick the pin you soldered it to. The list only offers pins that can do that job on this board, so a choice that would not work is not on the menu. Writing saves the wiring to the boat and reboots it."
+        - generic [ref=f4e236]:
+          - generic [ref=f4e237]:
+            - img "Boat layout, seen from above with the bow at the top" [ref=f4e238]:
+              - generic [ref=f4e240]: BOW
+              - generic [ref=f4e241]: STERN
+              - generic [ref=f4e242]: PORT
+              - generic [ref=f4e243]: STBD
+              - generic [ref=f4e244]:
+                - generic [ref=f4e246]: Thrust L
+                - generic [ref=f4e247]: IO25
+              - generic [ref=f4e248]:
+                - generic [ref=f4e250]: Thrust R
+                - generic [ref=f4e251]: IO26
+              - generic [ref=f4e252]:
+                - generic [ref=f4e254]: Rudder
+                - generic [ref=f4e255]: IO27
+              - generic [ref=f4e256]:
+                - generic [ref=f4e258]: Light
+                - generic [ref=f4e259]: IO2
+              - generic [ref=f4e260]:
+                - generic [ref=f4e262]: GPS
+                - generic [ref=f4e263]: IO16
+              - generic [ref=f4e264]:
+                - generic [ref=f4e266]: Sensor bus
+                - generic [ref=f4e267]: IO21
+              - generic [ref=f4e268]:
+                - generic [ref=f4e270]: IMU
+                - generic [ref=f4e271]: no pin
+              - generic [ref=f4e274]:
+                - generic [ref=f4e276]: Battery
+                - generic [ref=f4e277]: IO35
+              - generic [ref=f4e278]:
+                - generic [ref=f4e280]: Switch
+                - generic [ref=f4e281]: no pin
+            - paragraph [ref=f4e282]: 2 thrusters, 1 rudder. Steers with both thrust and rudder.
+            - generic [ref=f4e283]:
+              - button "Reset positions" [ref=f4e284] [cursor=pointer]
+              - generic [ref=f4e285]: Drag a part to move it
+          - generic [ref=f4e287]:
+            - generic [ref=f4e288]:
+              - generic [ref=f4e289]:
+                - heading "Parts you fitted" [level=3] [ref=f4e290]
+                - paragraph [ref=f4e291]: 4 of 8 channels still free
+              - generic [ref=f4e292]:
+                - generic [ref=f4e293]: Add a part
+                - combobox "Add a part" [ref=f4e295]:
+                  - option "Add a part" [selected]
+                  - option "Left thruster"
+                  - option "Right thruster"
+                  - option "Centre thruster"
+                  - option "Rudder"
+                  - option "Status light"
+                  - option "Something else"
+            - generic [ref=f4e296]:
+              - generic [ref=f4e297]:
+                - generic [ref=f4e298]:
+                  - generic [ref=f4e299]: CH1
+                  - combobox "Channel 1 function" [ref=f4e300]:
+                    - option "Not used"
+                    - option "Left thruster" [selected]
+                    - option "Right thruster"
+                    - option "Centre thruster"
+                    - option "Rudder"
+                    - option "Status light"
+                    - option "Something else"
+                  - button "Remove this part" [ref=f4e301] [cursor=pointer]
+                - generic [ref=f4e305]:
+                  - combobox "Channel 1 pin" [ref=f4e306]:
+                    - option "No pin"
+                    - option "GPIO 0"
+                    - option "GPIO 2"
+                    - option "GPIO 4"
+                    - option "GPIO 5"
+                    - option "GPIO 12"
+                    - option "GPIO 13"
+                    - option "GPIO 14"
+                    - option "GPIO 15"
+                    - option "GPIO 16"
+                    - option "GPIO 17"
+                    - option "GPIO 18"
+                    - option "GPIO 19"
+                    - option "GPIO 21"
+                    - option "GPIO 22"
+                    - option "GPIO 23"
+                    - option "GPIO 25" [selected]
+                    - option "GPIO 26"
+                    - option "GPIO 27"
+                    - option "GPIO 32"
+                    - option "GPIO 33"
+                  - generic [ref=f4e307]:
+                    - text: Reversed
+                    - switch "Channel 1 reversed" [ref=f4e308] [cursor=pointer]
+                  - button "Test" [ref=f4e310] [cursor=pointer]
+              - generic [ref=f4e311]:
+                - generic [ref=f4e312]:
+                  - generic [ref=f4e313]: CH2
+                  - combobox "Channel 2 function" [ref=f4e314]:
+                    - option "Not used"
+                    - option "Left thruster"
+                    - option "Right thruster" [selected]
+                    - option "Centre thruster"
+                    - option "Rudder"
+                    - option "Status light"
+                    - option "Something else"
+                  - button "Remove this part" [ref=f4e315] [cursor=pointer]
+                - generic [ref=f4e319]:
+                  - combobox "Channel 2 pin" [ref=f4e320]:
+                    - option "No pin"
+                    - option "GPIO 0"
+                    - option "GPIO 2"
+                    - option "GPIO 4"
+                    - option "GPIO 5"
+                    - option "GPIO 12"
+                    - option "GPIO 13"
+                    - option "GPIO 14"
+                    - option "GPIO 15"
+                    - option "GPIO 16"
+                    - option "GPIO 17"
+                    - option "GPIO 18"
+                    - option "GPIO 19"
+                    - option "GPIO 21"
+                    - option "GPIO 22"
+                    - option "GPIO 23"
+                    - option "GPIO 25"
+                    - option "GPIO 26" [selected]
+                    - option "GPIO 27"
+                    - option "GPIO 32"
+                    - option "GPIO 33"
+                  - generic [ref=f4e321]:
+                    - text: Reversed
+                    - switch "Channel 2 reversed" [ref=f4e322] [cursor=pointer]
+                  - button "Test" [ref=f4e324] [cursor=pointer]
+              - generic [ref=f4e325]:
+                - generic [ref=f4e326]:
+                  - generic [ref=f4e327]: CH3
+                  - combobox "Channel 3 function" [ref=f4e328]:
+                    - option "Not used"
+                    - option "Left thruster"
+                    - option "Right thruster"
+                    - option "Centre thruster"
+                    - option "Rudder" [selected]
+                    - option "Status light"
+                    - option "Something else"
+                  - button "Remove this part" [ref=f4e329] [cursor=pointer]
+                - generic [ref=f4e333]:
+                  - combobox "Channel 3 pin" [ref=f4e334]:
+                    - option "No pin"
+                    - option "GPIO 0"
+                    - option "GPIO 2"
+                    - option "GPIO 4"
+                    - option "GPIO 5"
+                    - option "GPIO 12"
+                    - option "GPIO 13"
+                    - option "GPIO 14"
+                    - option "GPIO 15"
+                    - option "GPIO 16"
+                    - option "GPIO 17"
+                    - option "GPIO 18"
+                    - option "GPIO 19"
+                    - option "GPIO 21"
+                    - option "GPIO 22"
+                    - option "GPIO 23"
+                    - option "GPIO 25"
+                    - option "GPIO 26"
+                    - option "GPIO 27" [selected]
+                    - option "GPIO 32"
+                    - option "GPIO 33"
+                  - generic [ref=f4e335]:
+                    - text: Reversed
+                    - switch "Channel 3 reversed" [ref=f4e336] [cursor=pointer]
+                  - button "Test" [ref=f4e338] [cursor=pointer]
+              - generic [ref=f4e339]:
+                - generic [ref=f4e340]:
+                  - generic [ref=f4e341]: CH4
+                  - combobox "Channel 4 function" [ref=f4e342]:
+                    - option "Not used"
+                    - option "Left thruster"
+                    - option "Right thruster"
+                    - option "Centre thruster"
+                    - option "Rudder"
+                    - option "Status light" [selected]
+                    - option "Something else"
+                  - button "Remove this part" [ref=f4e343] [cursor=pointer]
+                - generic [ref=f4e347]:
+                  - combobox "Channel 4 pin" [ref=f4e348]:
+                    - option "No pin"
+                    - option "GPIO 0"
+                    - option "GPIO 2" [selected]
+                    - option "GPIO 4"
+                    - option "GPIO 5"
+                    - option "GPIO 12"
+                    - option "GPIO 13"
+                    - option "GPIO 14"
+                    - option "GPIO 15"
+                    - option "GPIO 16"
+                    - option "GPIO 17"
+                    - option "GPIO 18"
+                    - option "GPIO 19"
+                    - option "GPIO 21"
+                    - option "GPIO 22"
+                    - option "GPIO 23"
+                    - option "GPIO 25"
+                    - option "GPIO 26"
+                    - option "GPIO 27"
+                    - option "GPIO 32"
+                    - option "GPIO 33"
+                  - generic [ref=f4e349]:
+                    - text: Reversed
+                    - switch "Channel 4 reversed" [ref=f4e350] [cursor=pointer]
+                  - button "Test" [ref=f4e352] [cursor=pointer]
+                - paragraph [ref=f4e354]: Drives the onboard LED on most dev boards.

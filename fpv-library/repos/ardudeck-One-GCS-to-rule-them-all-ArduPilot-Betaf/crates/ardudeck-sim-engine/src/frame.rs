@@ -1,6 +1,7 @@
 use serde::Deserialize;
 
 use crate::math::Vec3;
+use ardudeck_frame::{FrameClass, FrameType};
 
 /// Standard gravity, matching ArduPilot's GRAVITY_MSS.
 pub const GRAVITY_MSS: f64 = 9.80665;
@@ -73,6 +74,18 @@ impl From<&SlungLoadFrame> for SlungLoadParams {
 /// Custom-frame JSON as authored by the user. All 22 numeric fields.
 #[derive(Debug, Clone, Deserialize)]
 pub struct SitlCustomFrame {
+    /// Motor layout the flight controller's mixer is configured for, i.e. its
+    /// FRAME_CLASS / FRAME_TYPE. The simulated motors MUST be placed to match, or
+    /// the controller commands motors that are not where it thinks they are and
+    /// the vehicle oscillates in a rotating limit cycle no tuning can fix.
+    ///
+    /// Optional for backward compatibility with frame files written before this
+    /// existed; when absent, `frame_geometry` falls back to inferring a layout
+    /// from the motor count. Prefer setting it.
+    #[serde(rename = "frameClass", default)]
+    pub frame_class: Option<FrameClass>,
+    #[serde(rename = "frameType", default)]
+    pub frame_type: Option<FrameType>,
     pub mass: f64,
     pub diagonal_size: f64,
     #[serde(rename = "refSpd")]
@@ -119,6 +132,9 @@ pub struct SitlCustomFrame {
 /// (the small 3 kg quad), so a no-frame run flies like stock SITL.
 #[derive(Debug, Clone)]
 pub struct FrameModel {
+    /// Mixer layout to match, when the frame declares one. See SitlCustomFrame.
+    pub frame_class: Option<FrameClass>,
+    pub frame_type: Option<FrameType>,
     pub mass: f64,
     pub diagonal_size: f64,
     pub ref_spd: f64,
@@ -143,6 +159,14 @@ impl Default for FrameModel {
     fn default() -> Self {
         // Verbatim from ArduPilot SIM_Frame.h default_model.
         FrameModel {
+            // Deliberately None, NOT Quad/Plus. Callers routinely build a frame as
+            // `FrameModel { num_motors: 8.0, ..Default::default() }`, and a default
+            // class here would then override that motor count and silently produce
+            // a 4-motor airframe. An assumed layout winning over the real one is
+            // the whole bug this field exists to prevent; leave it unset so the
+            // motor-count fallback applies until someone states the layout.
+            frame_class: None,
+            frame_type: None,
             mass: 3.0,
             diagonal_size: 0.35,
             ref_spd: 15.08,
@@ -168,6 +192,8 @@ impl Default for FrameModel {
 impl From<&SitlCustomFrame> for FrameModel {
     fn from(f: &SitlCustomFrame) -> Self {
         FrameModel {
+            frame_class: f.frame_class,
+            frame_type: f.frame_type,
             mass: f.mass,
             diagonal_size: f.diagonal_size,
             ref_spd: f.ref_spd,
@@ -196,6 +222,9 @@ impl From<&SitlCustomFrame> for FrameModel {
 /// ArduPilot motor and drag models ported in motor.rs / copter.rs.
 #[derive(Debug, Clone)]
 pub struct MultirotorParams {
+    /// Mixer layout the simulated motors must match. See SitlCustomFrame.
+    pub frame_class: Option<FrameClass>,
+    pub frame_type: Option<FrameType>,
     pub mass: f64,
     pub diagonal_size: f64,
     pub num_motors: u32,
@@ -290,6 +319,8 @@ pub fn multirotor_params(m: &FrameModel) -> MultirotorParams {
     let power_factor = hover_power / hover_thrust;
 
     MultirotorParams {
+        frame_class: m.frame_class,
+        frame_type: m.frame_type,
         mass: m.mass,
         diagonal_size: m.diagonal_size,
         num_motors: num_motors as u32,

@@ -334,7 +334,7 @@ class mavfile(object):
         '''default recv method'''
         raise RuntimeError('no recv() method supplied')
 
-    def close(self, n=None):
+    def close(self):
         '''default close method'''
         raise RuntimeError('no close() method supplied')
 
@@ -690,7 +690,7 @@ class mavfile(object):
             return None
         return mode_mapping_byname(mav_type)
 
-    def set_mode_apm(self, mode, custom_mode = 0, custom_sub_mode = 0):
+    def set_mode_apm(self, mode):
         '''enter arbitrary mode'''
         if isinstance(mode, str):
             mode_map = self.mode_mapping()
@@ -1152,7 +1152,7 @@ class mavudp(mavfile):
 
 class mavmcast(mavfile):
     '''a UDP multicast mavlink socket'''
-    def __init__(self, device, broadcast=False, source_system=255, source_component=0, use_native=default_native):
+    def __init__(self, device, source_system=255, source_component=0, use_native=default_native):
         a = device.split(':')
         mcast_ip = "239.255.145.50"
         mcast_port = 14550
@@ -1885,7 +1885,6 @@ class mavwebsocket_client(mavfile):
                  device,
                  source_system=255,
                  source_component=0,
-                 retries=6,
                  use_native=default_native):
         self.resource = "/"
         a = device.split(':')

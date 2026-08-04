@@ -8,7 +8,7 @@ import type { MapCommand } from './map-command-types';
 import { useScriptHealth } from '../script-installer/useScriptHealth';
 import { useSettingsStore } from '../../stores/settings-store';
 import { useConnectionStore } from '../../stores/connection-store';
-import { useActiveVehicleStore } from '../../stores/active-vehicle-store';
+import { useActiveVehicleStore, formationOf } from '../../stores/active-vehicle-store';
 import { mavTypeToTacticalClass, type TacticalVehicleClass } from './tactical-icon-pool';
 import { ScriptInstallModal } from '../script-installer/ScriptInstallModal';
 import { fenceWarningForPoint } from '../../utils/fence-check';
@@ -170,6 +170,23 @@ export const MapCommandPopup: React.FC<MapCommandPopupProps> = ({
   const altitudeUnit = useSettingsStore(s => s.unitPreferences.altitude);
   const speedUnit = useSettingsStore(s => s.unitPreferences.speed);
   const verticalSpeedUnit = useSettingsStore(s => s.unitPreferences.verticalSpeed);
+
+  // Who this actually commands. Map commands route to the ACTIVE vehicle in the main
+  // process, which in a swarm is not self-evidently the drone the operator last looked
+  // at, so name it in the header. And a wingman flying under an orchestrator follow loop
+  // has its target rewritten every tick: the command goes out, gets ack'd, and the
+  // vehicle never deviates - indistinguishable from "the fleet ignores right-click".
+  const activeVehicleKey = useActiveVehicleStore(s => s.activeVehicleKey);
+  const knownVehicles = useActiveVehicleStore(s => s.knownVehicles);
+  const formations = useActiveVehicleStore(s => s.formations);
+  const fleetSize = Object.keys(knownVehicles).length;
+  const targetSysid = activeVehicleKey ? knownVehicles[activeVehicleKey]?.sysid : undefined;
+  const targetLabel = fleetSize > 1 && targetSysid !== undefined ? `SYS ${targetSysid}` : null;
+  const followGroup = activeVehicleKey ? formationOf(formations, activeVehicleKey) : null;
+  const heldByFollowLoop = !!followGroup
+    && followGroup.leaderKey !== activeVehicleKey
+    && followGroup.memberKeys.length >= 2;
+  const leaderSysid = followGroup ? knownVehicles[followGroup.leaderKey]?.sysid : undefined;
 
   // Vehicle-class gating: prefer the ACTIVE fleet vehicle's type; default to
   // copter when unknown so power users on flaky links don't lose access.
@@ -339,9 +356,16 @@ export const MapCommandPopup: React.FC<MapCommandPopupProps> = ({
 
   return (
     <div className="w-full text-xs" onClick={(e) => e.stopPropagation()}>
-      {/* Header: coordinates + distance */}
+      {/* Header: commanded vehicle (fleet only) + coordinates + distance */}
       <div className="flex items-baseline justify-between gap-2 border-b border-subtle px-1 pb-2 mb-2">
-        <span className="font-mono text-[11px] text-content truncate">{lat.toFixed(6)}, {lon.toFixed(6)}</span>
+        <span className="flex min-w-0 items-baseline gap-1.5">
+          {targetLabel && (
+            <span className="shrink-0 rounded border border-cyan-500/50 px-1 font-mono text-[9.5px] font-bold text-cyan-500" data-tip="Vehicle this command will be sent to">
+              {targetLabel}
+            </span>
+          )}
+          <span className="font-mono text-[11px] text-content truncate">{lat.toFixed(6)}, {lon.toFixed(6)}</span>
+        </span>
         <span className="text-[10px] text-content-tertiary shrink-0">
           <span className="font-mono text-content-secondary">{formatDistanceFromMeters(distanceMeters, distanceUnit)}</span> away
         </span>
@@ -533,6 +557,14 @@ export const MapCommandPopup: React.FC<MapCommandPopupProps> = ({
                 </span>
               )}
             </div>
+
+            {heldByFollowLoop && meta.id !== 'look' && (
+              <div className="mt-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-[10px] leading-snug text-amber-500">
+                {targetLabel ?? 'This vehicle'} is a wingman{leaderSysid !== undefined ? ` of SYS ${leaderSysid}` : ''}.
+                The formation loop re-targets it every tick, so this command will be accepted and
+                immediately overridden. Command the leader, or drop it from the fleet first.
+              </div>
+            )}
 
             {fenceWarning && (
               <div className="mt-1.5 rounded-md border border-rose-500/40 bg-rose-500/10 px-2 py-1 text-[10px] leading-snug text-rose-500">

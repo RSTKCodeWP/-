@@ -1,8 +1,8 @@
 {
   "source": "skybrush-io/skybrush-server",
-  "upstream_commit": "ececf25eb676e63008c8eed98cd4cb4b5881fa4e",
-  "upstream_updated": "2026-07-28T23:27:14Z",
-  "synced_at": "2026-07-29T08:51:16+00:00",
+  "upstream_commit": "1653ce85340ace0f666523381299ee4a4dbc7551",
+  "upstream_updated": "2026-08-03T21:14:27Z",
+  "synced_at": "2026-08-04T08:53:45+00:00",
   "discovered_via": "owner:skybrush-io",
   "score": 4.7
 }

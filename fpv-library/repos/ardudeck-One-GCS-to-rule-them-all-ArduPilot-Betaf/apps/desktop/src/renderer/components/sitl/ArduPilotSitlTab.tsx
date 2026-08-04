@@ -14,6 +14,8 @@ import { getElevation } from '../../utils/elevation-api';
 import SitlEnvironmentPanel from './SitlEnvironmentPanel';
 import SitlFailurePanel from './SitlFailurePanel';
 import { CustomFramePanel } from './CustomFramePanel';
+import { PseudoTxSwitch } from '../PseudoTxSwitch';
+import { usePseudoTxStore } from '../../stores/pseudo-tx-store';
 import { useSwarmSitlStore } from '../../stores/swarm-sitl-store';
 import {
   altitudeValueFromMeters,
@@ -134,6 +136,10 @@ export default function ArduPilotSitlTab() {
   // Run mode: a single vehicle, or a swarm fleet. Both share the airframe/home
   // config above; they're mutually exclusive at runtime (same base port).
   const [runMode, setRunMode] = useState<'single' | 'swarm'>('single');
+
+  // A USB handset overwrites the RC state at 50Hz, so while it is live the sliders below are
+  // inert - saying so beats letting someone drag a control that cannot win.
+  const txLive = usePseudoTxStore((s) => s.enabled && s.connected);
 
   const { connectionState } = useConnectionStore();
   const { setPendingSitlSwitch, unitPreferences } = useSettingsStore();
@@ -1131,8 +1137,8 @@ export default function ArduPilotSitlTab() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
               </svg>
               <h3 className="text-sm font-medium text-content">Virtual RC Control (UDP)</h3>
-              <span className={`px-1.5 py-0.5 text-[10px] font-medium rounded ${isRcSending ? 'bg-green-500/20 text-green-400' : 'bg-surface-raised text-content-secondary'}`}>
-                {isRcSending ? '50Hz' : 'Off'}
+              <span className={`px-1.5 py-0.5 text-[10px] font-medium rounded ${isRcSending || txLive ? 'bg-green-500/20 text-green-400' : 'bg-surface-raised text-content-secondary'}`}>
+                {txLive ? 'USB TX' : isRcSending ? '50Hz' : 'Off'}
               </span>
             </div>
             <div className="flex items-center gap-2">
@@ -1155,6 +1161,12 @@ export default function ArduPilotSitlTab() {
             </div>
           </div>
 
+          {/* A USB handset drives these same channels, in place of the sliders. */}
+          <div className="mb-3">
+            <PseudoTxSwitch />
+          </div>
+
+          <div className={txLive ? 'opacity-40 pointer-events-none' : undefined}>
           {/* Main sticks */}
           <div className="grid grid-cols-4 gap-3 mb-3">
             {/* Throttle */}
@@ -1235,6 +1247,7 @@ export default function ArduPilotSitlTab() {
                 />
               </div>
             ))}
+          </div>
           </div>
         </div>
       )}

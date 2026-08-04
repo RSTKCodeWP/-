@@ -16,12 +16,15 @@ import { useState, useCallback } from 'react';
 import { useConnectionStore } from '../../stores/connection-store';
 import { useFlightControlStore } from '../../stores/flight-control-store';
 import { useTelemetryStore } from '../../stores/telemetry-store';
+import { useEffectiveRc } from '../../stores/pseudo-tx-store';
 import { OsdModeSwitchPanel } from './OsdModeSwitchPanel';
 import { buildLiveRcRows, rssiPercent } from '../../utils/osd/osd-live-rc';
 
 export function OsdLivePanel() {
   const connectionState = useConnectionStore((s) => s.connectionState);
-  const rcChannels = useTelemetryStore((s) => s.rcChannels);
+  const fcRc = useTelemetryStore((s) => s.rcChannels);
+  // Falls back to a USB handset when no FC is streaming, so the panel is usable on the bench.
+  const rcChannels = useEffectiveRc(fcRc);
   const channels = useFlightControlStore((s) => s.channels);
   const setChannel = useFlightControlStore((s) => s.setChannel);
   const isOverrideActive = useFlightControlStore((s) => s.isOverrideActive);

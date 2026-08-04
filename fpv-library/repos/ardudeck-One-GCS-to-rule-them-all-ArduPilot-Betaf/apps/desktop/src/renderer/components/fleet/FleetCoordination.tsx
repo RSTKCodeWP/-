@@ -15,7 +15,7 @@ import { FleetChevron, FleetCountHeader } from './FleetDisclosure';
 import { tacButton } from './tactical';
 
 export function FleetCoordination() {
-  const { hasServer, vehicles, canTakeoff, canFollow, formations, shape, spacing, altStep, busy, takeOffAll, takeOffFleet, startLeaderMission, reshapeFleet } = useFormationControl();
+  const { hasServer, vehicles, canTakeoff, canFollow, formations, configFor, busy, takeOffAll, takeOffFleet, startLeaderMission, reshapeFleet } = useFormationControl();
   const uiOverrides = useFleetUiStore((s) => s.overrides);
   const toggleFleet = useFleetUiStore((s) => s.toggle);
   const [alt, setAlt] = useState(10);
@@ -95,7 +95,9 @@ export function FleetCoordination() {
                 {canFollow && g.wingmen > 0 && (
                   <div className="grid grid-cols-4 gap-1">
                     {SHAPE_OPTIONS.map((o) => {
-                      const lit = shape === o.value;
+                      // This fleet's own shape - not a shared one, or picking a shape on
+                      // one fleet would light it on every fleet's row.
+                      const lit = configFor(g.leader.key).shape === o.value;
                       return (
                         <button
                           key={o.value}
