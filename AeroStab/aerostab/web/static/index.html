@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>AeroStab</title>
+  <link rel="stylesheet" href="/static/app.css"/>
+</head>
+<body>
+  <div id="armBanner" class="arm-banner hidden">Не армити — навігація не готова</div>
+
+  <header>
+    <h1>AeroStab <span id="badge" class="badge">...</span></h1>
+    <p class="hint header-hint">Optical nav → MAVLink → PosHold · arm лише з пульта при <b>FLIGHT OK</b></p>
+  </header>
+
+  <main class="layout">
+    <section class="card video-card">
+      <img src="/video.mjpg" alt="camera"/>
+    </section>
+
+    <aside class="side">
+      <div class="card">
+        <h2>Перевірки</h2>
+        <ol id="flySteps" class="fly-steps"></ol>
+        <ul id="healthList" class="health-compact"></ul>
+      </div>
+      <div class="card stats" id="stats"></div>
+    </aside>
+  </main>
+
+  <details class="card panel-fold">
+    <summary>Маска ROI (ніжки / кабель)</summary>
+    <p class="hint">Червона зона ігнорується optical flow.</p>
+    <canvas id="maskCanvas" width="640" height="360"></canvas>
+    <div class="row">
+      <button type="button" id="maskClear">Очистити</button>
+      <button type="button" id="maskSave" class="primary">Зберегти</button>
+    </div>
+  </details>
+
+  <details class="card panel-fold">
+    <summary>Налаштування</summary>
+    <div class="row setup-toolbar">
+      <button type="button" id="cfgSave" class="primary">Зберегти</button>
+      <button type="button" id="resetOdo">Скинути позицію</button>
+    </div>
+    <div id="settingsSections" class="settings-grid"></div>
+  </details>
+
+  <footer>Pi Zero 2W · Frank-S01 OV5647 · http://aerostab.local:8080</footer>
+  <script src="/static/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+[Unit]
+Description=AeroStab SD first-boot installer
+After=network-online.target
+ConditionPathExists=!/var/lib/aerostab/firstboot.done
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash -c 'for s in /boot/firmware/aerostab/install-on-first-boot.sh /boot/aerostab/install-on-first-boot.sh; do if [[ -f "$s" ]]; then exec bash "$s"; fi; done; echo "aerostab install script not found"; exit 1'
+RemainAfterExit=yes
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

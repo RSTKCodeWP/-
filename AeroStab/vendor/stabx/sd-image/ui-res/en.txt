@@ -1,0 +1,115 @@
+@ID_CHECKS_HINT
+Mandatory checks:
+1) Take an A4 sheet, draw an arrow, place it under the Raspberry camera in the direction of the drone's nose. The arrow in the camera image should point in the same direction as the arrow in the schematic image of the drone. If the arrow points in the wrong direction, set the "rotation" parameter in the personal settings so that the arrow points in the correct direction.
+2) Check the correctness of the FOV: take a stick 1 meter long and place it under the camera at a distance of 1 meter.
+Press Grid, there you will see a hint on how to check the FOV. If the FOV does not match reality, select another camera.
+3) Before the first launch, check whether the disarm stick works.
+
+@ID_LOCKSD
+Lock SD
+@ID_UNLOCKSD
+Unlock SD
+@ID_CAMERA
+Camera:
+@ID_CAM_ROTATION
+Camera rotation:
+@ID_FOV
+FOV(°):
+@ID_POSITIONING
+Positioning (%):
+@ID_PARAMS
+Settings
+@ID_SETPASS
+Set password
+@ID_CAM_ROTATION_HINT
+Additional camera rotation in degrees. The arrow under the camera in the direction of the drone's nose should point in the same direction as the arrow on the schematic image of the drone. Remember that this is a temporary setting, after Download this value is taken from the settings in your account.
+@ID_PRECISSION_HINT
+Additional position accuracy multiplier. A value less than 100% – the position is held more precisely, but if it is too low – stability will be lost. A value greater than 100% – position is held less precisely, but more reliably, for example for drones with significant vibrations.
+@ID_CAM_SELECT_HINT
+Camera selection. After selecting, you need to restart using the 'Reboot' button.
+@ID_COMPASS_HINT
+Use the optical compass for heading stabilization. If you have a reliably (!) calibrated compass, it is better to disable this function.
+@ID_NO_RECORDS_HIINT
+Do not record flight video. If you use this function, you will not be able to watch flight videos later. Also, all old recordings will be deleted.
+@ID_ARDUPILOT_HINT
+Takeoff, landing speed, Ardupilot parameter editing.
+@ID_GRID_HINT
+Show grid for FOV calibration. If you place a 1 m long ruler at a distance of 1 m under the camera, it should match the length of the green grid on the image. If the green grid does not fit in the field of view, take a ruler 50 cm long – it should match half the length of the green grid (its inner squares). If that is still too large (for a very small FOV), take a 25 cm ruler – it should match a quarter of the green grid (the small inner squares).
+@ID_TEST_FOV_HINT
+FOV check. Enter the FOV value that you use in the camera settings. After pressing the button, enter the FOV and check whether it is correct (see the hint for Grid).
+@ID_LEVEL_CALIBRATION_HINT
+Level calibration in Ardupilot. Place the drone on a flat surface, press this button. The drone must not be armed!
+@ID_GNGP_HELP
+Switch the drone to GUIDED_NO_GPS mode. Then it will arm periodically, which is sometimes convenient for cooling and status indication.
+@ID_LOG_HELP
+View system logs for detailed diagnostics.
+@ID_SETTINGS_HELP
+View system settings.
+@ID_RECORDS_HELP
+View previous flight recordings.
+@ID_REBOOT_HELPER
+Reboot the system. This is usually required after changing the camera.
+@ID_SHUTDOWN_HELPER
+Shut down the system. It is recommended to use this button before turning off the drone’s power, as Linux does not like sudden power-offs.
+@ID_STOP_HELPER
+Stop autopilot
+@ID_LOCKSD_HELP
+Lock the SD card to prevent data loss during sudden power-offs. Flight recordings will still be saved to another partition of the SD card. After this, the system needs to be rebooted.
+@ID_UNLOCKSD_HELP
+Unlock the SD card to change settings. After this, the system needs to be rebooted.
+@ID_CAMERAFEED_HELP
+Drone camera image. If it suddenly disappears – refresh the page.
+@ID_DRONEIMAGE_HELP
+Schematic image of the drone with an arrow to correctly adjust the camera rotation. Place the drawn arrow under the camera, it should point in the same direction as the arrow in this image.
+@ID_FULL_IMAGE_BTN
+Open full screen
+@ID_PAUSE_PLAY_BTN
+Pause/Play
+@ID_USER_FOV_HINT
+Temporary camera FOV setting, it resets after Download. Usually, the actual camera FOV is smaller than specified in the documentation, so it needs to be measured rather than just taken from the spec.
+@ID_RECORDS_STATE_HINT
+Select recording state. Options:<br> <b>Images and logs</b> – record images and logs;<br> <b>Logs, no images</b> – record only logs;<br> <b>Nothing</b> – record nothing;<br> <b>Images, logs, grey</b> – record images, logs, and small black-and-white images;<br> <b>Logs, grey</b> – record only logs and small black-and-white images.
+@ID_ENTER_FOV
+Enter FOV value:
+@ID_FOV_INFO
+Place a printed 4×4 grid with a total size of 400×400 mm at a distance of 400 mm from the camera lens (or 200×200 at 200 mm, or proportionally larger/smaller). Press TestFOV, enter the value. Check if the printed grid matches the grid on the image.
+@ID_REBOOT_MESSAGE
+Autopilot is rebooting. Wait 20–30 seconds, then refresh the page.
+@ID_REBOOT_CONFIRM
+Do you want to reboot the system?
+@ID_LOCK_CONFIRM
+Do you want to lock the SD card to prevent data loss during sudden power-offs? This requires a system reboot.
+@ID_UNLOCK_CONFIRM
+Do you want to unlock the SD card to change settings? This requires a system reboot.
+@ID_NOREC_CONFIRM
+All recordings will be deleted after reboot. Do you also want to lock the SD card to prevent data loss during sudden power-offs?
+@ID_MANDATORY_CHECKS
+Mandatory checks!
+@ID_CALIBRATE
+Calibrate level
+@ID_ARM
+Arm
+@ID_GRID
+Grid
+@ID_TESTFOV
+Test FOV
+@ID_VIEWLOG
+View log
+@ID_VIEWSETTINGS
+View settings
+@ID_LOCALSETTINGS
+Local settings
+@ID_RECORDS
+Records
+@ID_SCRIPTS
+Scripts
+@ID_REBOOT
+Reboot
+@ID_TURNOFF
+Shut down
+@ID_STOP
+Stop
+@ID_RECMSG
+Records:
+@ID_EDITOR_LOCLED
+SD card is locked, you may not edit the parameters. Unlock SD to edit, now any changes will not be applied.

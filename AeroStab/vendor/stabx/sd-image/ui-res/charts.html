@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>CSV Multi-Column Chart</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@1.4.0"></script>
+
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            box-sizing: border-box;
+            overflow: hidden;
+            font-family: 'Consolas','Lucida Console','Roboto Mono',monospace;
+            background:#15170b; color:#e5e7eb;
+        }
+
+        #topContainer{
+            text-align:left;
+            margin: 0.5em;
+            float: left;
+        }
+
+        #fileTitle {
+            text-align: center;
+            padding: 0.5em;
+            margin: 0;
+            background-color: #232613;
+            border-bottom: 1px solid #5D6532;
+        }
+
+        #checkboxContainer {
+            float: left;
+            width: 250px;
+            height: calc(100vh - 48px); /* adjust if fileTitle height changes */
+            overflow-y: auto;
+            padding: 1em;
+            box-sizing: border-box;
+            border-right: 1px solid #5D6532;
+            background:#232613;
+        }
+
+        #checkboxContainer label {
+            display: block;
+            margin-bottom: 0.5em;
+            width: 100%;
+        }
+        #checkboxContainer label:last-child {
+            padding-bottom: 2em; 
+        }
+        
+
+
+        #chartContainer {
+            margin-left: 250px;
+            height: calc(100vh - 55px);
+            position: relative;
+            
+        }
+
+        #chart {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100% !important;
+            height: 100% !important;
+        }
+
+        #warningBox {
+            display: none;
+            color: #C06100;
+            padding: 1em;
+            text-align: center;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div>
+        <div id="topContainer">
+            <button onclick="toggleCheckboxContainer()" id="toggleButton">Hide Panel</button>
+        </div>
+        <h2 id="fileTitle">CSV Data Viewer</h2>
+    </div>
+    <div id="checkboxContainer"></div>
+    <div id="warningBox"></div>
+    <div id="chartContainer">
+        <canvas id="chart"></canvas>
+    </div>
+
+    <script>
+        function getCSVFilePath() {
+            const params = new URLSearchParams(window.location.search);
+            return params.get("csvfile") || "";
+        }
+
+        // uncomment for charts.html
+        const filePath = "CSVFILE";
+        //const filePath = getCSVFilePath();
+
+        if (!filePath) {
+            document.body.innerHTML = "<p style='color:red;'>Error: Missing csvfile query parameter.</p>";
+            throw new Error("Missing csvfile");
+        }
+        // Set the file path as the page title
+        document.getElementById("fileTitle").textContent = filePath;
+
+        const columnLabels = {
+            "filtered_height":      { label: "Baro height", color: "blue" },
+            "vfralt":               { label: "FC altitude", color: "green" },
+            "vfrclimb":             { label: "Climb rate", color: "purple" },
+            "cam_fps":              { label: "Camera FPS", color: "red" },
+            "match_fps":            { label: "Tracking FPS", color: "orange" },
+            "cpu":                  { label: "CPU%", color: "darkorange" },
+            "_thr_all":             { label: "Autopilot CPU usage(%)", color: "deepskyblue" },
+            "flight_mode":          { label: "Flight mode", color: "violet" },
+            "mem":                  { label: "RPI Free mem (MB)", color: "brown" },
+            "mheight":              { label: "Vision Height", color: "teal" },
+            "p_error":              { label: "Pos Error", color: "magenta" },
+            "pitch_stick":          { label: "Pitch stick", color: "olive" },
+            "roll_stick":           { label: "Roll stick", color: "navy" },
+            "yaw_stick":            { label: "Yaw stick", color: "maroon" },
+            "yaw":                  { label: "Yaw", color: "darkviolet" },
+            "q.y":                  { label: "NED Y angle", color: "darkcyan" },
+            "rawacc.x":             { label: "BODY AX", color: "limegreen" },
+            "rawacc.y":             { label: "BODY AY", color: "orangered" },
+            "rawacc.z":             { label: "BODY AZ", color: "indigo" },
+            "acc.x":                { label: "NED AX", color: "crimson" },
+            "acc.y":                { label: "NED AY", color: "darkgreen" },
+            "acc.z":                { label: "NED AZ", color: "steelblue" },            
+            "vis_x":                { label: "X", color: "mediumslateblue" },
+            "vis_y":                { label: "Y", color: "slategray" },
+            "vgps.x":               { label: "VisionX", color: "darkslategray" },
+            "vgps.y":               { label: "VisionY", color: "darkslateblue" },
+            "wind.x":               { label: "Wind X acc", color: "goldenrod" },
+            "wind.y":               { label: "Wind Y acc", color: "chocolate" },
+            "gwind.x":              { label: "Average Wind X acc", color: "darkgoldenrod" },
+            "gwind.y":              { label: "Average Wind Y acc", color: "saddlebrown" },
+            "rpiT":                 { label: "RPI CPU Temp", color: "darkorchid" },
+            "temperature":          { label: "FC Temp", color: "darkkhaki" },
+            "thrust":               { label: "Thrust", color: "darkseagreen" },
+            "jitter":               { label: "CAM Latency (postprocess)", color: "mediumturquoise" },
+            "x_acc_bias":           { label: "X acc bias", color: "lightcoral" },
+            "y_acc_bias":           { label: "Y acc bias", color: "lightsalmon" },
+            "current":              { label: "Current", color: "cadetblue" },
+            "voltage":              { label: "Voltage", color: "slateblue" },
+            "optical_dbaro_xy":     { label: "Ground Level", color: "forestgreen" },  
+            "groundspeed":          { label: "Ground speed", color: "mediumvioletred" },
+            "used_latency":         { label: "CAM Latency (realtime)", color: "lightsteelblue" },
+            "speed_corr.x":         { label: "Speed corr X", color: "peru" },        
+            "speed_corr.y":         { label: "Speed corr Y", color: "seagreen" },
+            "bias_distance":        { label: "Bias distance", color: "mediumaquamarine" },
+            "acc_imu_relaxed.x":    { label: "IMU AccX relaxed", color: "lightseagreen" },
+            "acc_imu_relaxed.y":    { label: "IMU AccY relaxed", color: "lightskyblue" },
+            "acc_vis_relaxed.x":    { label: "Vision AccX relaxed", color: "lightpink" },
+            "acc_vis_relaxed.y":    { label: "Vision AccY relaxed", color: "plum" },
+            "imuvis_corresponence": { label: "IMU-Vision Acc correspondence", color: "darkolivegreen" }  
+        };
+
+
+
+        const flightModeLabels = {
+            0: "STABILIZE", 1: "ACRO", 2: "ALT_HOLD", 3: "AUTO", 4: "GUIDED", 5: "LOITER",
+            6: "RTL", 7: "CIRCLE", 8: "POSITION", 9: "LAND", 10: "RT_GUIDED", 11: "DRIFT",
+            12: "HYBRID", 13: "SPORT", 14: "FLIP", 15: "AUTOTUNE", 16: "POSHOLD", 17: "BRAKE",
+            18: "THROW", 19: "AVOID_ADSB", 20: "GUIDED_NOGPS", 21: "SMART_RTL", 22: "FLOWHOLD",
+            23: "FOLLOW", 24: "ZIGZAG", 25: "SYSTEMID", 26: "AUTOROTATE", 27: "AUTO_RTL"
+        };
+
+
+
+        const checkboxContainer = document.getElementById("checkboxContainer");
+        const chartCanvas = document.getElementById("chart");
+        let chart;
+
+        // Create checkboxes with color dots
+        const columnKeys = Object.keys(columnLabels);
+
+        columnKeys.forEach(col => {
+            const label = document.createElement("label");
+
+            const checkbox = document.createElement("input");
+            checkbox.type = "checkbox";
+            checkbox.value = col;
+            checkbox.checked = (col === "filtered_height");
+            //checkbox.addEventListener("change", drawChartFromSelection);
+
+            checkbox.addEventListener("change", () => {
+                saveSelectedCheckboxes();
+                drawChartFromSelection();
+            });
+
+            const text = document.createTextNode(columnLabels[col].label);
+
+            const dot = document.createElement("span");
+            dot.className = "color-dot";
+            dot.style.backgroundColor = columnLabels[col].color;
+
+            label.appendChild(checkbox);
+            label.appendChild(text);
+            label.appendChild(dot);
+
+            checkboxContainer.appendChild(label);
+        });
+
+        function saveSelectedCheckboxes() {
+            const selected = Array.from(checkboxContainer.querySelectorAll("input[type=checkbox]"))
+                .filter(cb => cb.checked)
+                .map(cb => cb.value);
+
+                const normalizedKey = "csvChartSelected_height";
+                localStorage.setItem(normalizedKey, JSON.stringify(selected));
+        }
+
+        function loadSelectedCheckboxes() {
+            const saved = localStorage.getItem("csvChartSelected_height");
+            if (!saved) return;
+
+            const selected = JSON.parse(saved);
+            checkboxContainer.querySelectorAll("input[type=checkbox]").forEach(cb => {
+                cb.checked = selected.includes(cb.value);
+            });
+            drawChartFromSelection();
+        }
+
+        function countNegativeValuesInArr(arr){
+            let number_negative = 0;
+            for (let i = 0; i < arr.length; i++) {
+                const value = arr[i];
+                if(value < 0.0){
+                    number_negative++;
+                }
+            }
+            return number_negative;
+        }
+
+        loadSelectedCheckboxes(); // Restore state before initial chart draw
+
+        async function fetchWithRetries(url, options = {}, retries = 3, delayMs = 200) {
+            for (let attempt = 0; attempt <= retries; attempt++) {
+                try {
+                    const response = await fetch(url, options);
+                    if (!response.ok) throw new Error(`HTTP error ${response.status}`);
+                    return await response.json();
+                } catch (error) {
+                    console.warn(`Fetch attempt ${attempt + 1} failed:`, error);
+                    if (attempt === retries) throw error;
+                    await new Promise(resolve => setTimeout(resolve, delayMs));
+                }
+            }
+        }
+
+        var dataCache = {};
+
+        // Incremental fetching function
+        async function getColumnsIfMissing(columns) {
+            if (!dataCache || typeof dataCache !== "object") dataCache = {};            
+            // columns: array of names, always includes "timestamp"
+            const missing = columns.filter(c => !(c in dataCache));
+            if (missing.length === 0) return dataCache;
+            const url = `/csvdata/${filePath}?columns=${encodeURIComponent(missing.join(","))}`;
+            console.log("Requesting data:", url);
+
+            const responseRaw = await fetchWithRetries(url);
+            // If fetchWithRetries returns the raw fetch Response, parse as JSON
+            const response = typeof responseRaw.json === 'function' ? await responseRaw.json() : responseRaw;
+        
+            for (const col of missing) {
+                if (response[col] !== undefined) {
+                    console.log(`Caching column: ${col}`);
+                    dataCache[col] = response[col];
+                } else {
+                    console.warn(`Column ${col} not found in response`);
+                }
+            }
+            return dataCache;
+        }
+
+        async function drawChartFromSelection() {
+            if (chart) {
+                chart.destroy();
+                chart = null;
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+
+            const selected = Array.from(checkboxContainer.querySelectorAll("input[type=checkbox]"))
+                .filter(cb => cb.checked)
+                .map(cb => cb.value);
+
+            // Always request timestamp for the x-axis
+            const requestedCols = ["timestamp", ...selected];            
+              
+            const allData = await getColumnsIfMissing(requestedCols);                
+
+            const timestamp = allData["timestamp"];
+            const labels = Array.isArray(timestamp)
+                ? timestamp.map(t => typeof t === "string" ? Date.parse(t) / 1000 : t / 1000)
+                : Array.from({ length: selected.length > 0 ? allData[selected[0]].length : 0 }, (_, i) => i);
+
+            const annotations = {};
+
+            if (selected.includes("flight_mode")) {
+                const modes = allData["flight_mode"];
+                let lastMode = null;
+
+                for (let i = 0; i < modes.length; i++) {
+                    const mode = modes[i];
+                    if (mode !== lastMode) {
+                        lastMode = mode;
+                        const label = flightModeLabels[mode] || `Mode ${mode}`;
+                        annotations[`modeLine${i}`] = {
+                            type: 'line',
+                            xMin: i,
+                            xMax: i,
+                            borderColor: 'black',
+                            borderWidth: 1,
+                            label: {
+                                content: label,
+                                enabled: true,
+                                position: 'start',
+                                backgroundColor: 'rgba(0,0,0,0.7)',
+                                color: 'white',
+                                font: { size: 10 }
+                            }
+                        };
+                    }
+                }
+            }
+
+            // Warning box logic
+            const max_speed_corr_negative = 100;
+            const warningText = "Увага: Неправильна орієнтація камери!";
+            let warningShown = false;
+
+            if (selected.includes("speed_corr.x") && countNegativeValuesInArr(allData["speed_corr.x"]) > max_speed_corr_negative) {
+                warningShown = true;
+            }
+
+            if (selected.includes("speed_corr.y") && countNegativeValuesInArr(allData["speed_corr.y"]) > max_speed_corr_negative) {
+                warningShown = true;
+            }
+
+            const warningBox = document.getElementById("warningBox");
+            warningBox.style.display = warningShown ? "block" : "none";
+            warningBox.innerText = warningShown ? warningText : "";
+
+            // Build dataset
+            const datasets = selected
+                .filter(col => allData[col])
+                .map(col => ({
+                    label: columnLabels[col].label,
+                    data: allData[col],
+                    borderWidth: 1,
+                    fill: false,
+                    borderColor: columnLabels[col].color,
+                    tension: 0.1,
+                    pointRadius: 0
+                }));
+
+            // Draw chart
+            var chart_options = {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    scales: {
+                        x: {
+                            display: true,
+                            title: { display: true, text: Array.isArray(timestamp) ? 'Time (seconds)' : 'Index' }
+                        },
+                        y: {
+                            display: true,
+                            title: { display: true, text: 'Value' }
+                        }
+                    },
+                    plugins: {
+                        zoom: {
+                            pan: {
+                                enabled: true,
+                                mode: 'x',
+                                modifierKey: 'ctrl'
+                            },
+                            zoom: {
+                                wheel: { enabled: true },
+                                pinch: { enabled: true },
+                                mode: 'x'
+                            }
+                        },
+                        annotation: {
+                            annotations: annotations
+                        }
+                    }
+                }
+            };
+            do{
+                try {
+                    chart = new Chart(chartCanvas, chart_options);
+                    break; // Exit loop if successful
+                } catch (error) {
+                    console.error("Chart initialization failed, trying again:", error);
+                    // Wait and retry
+                    await new Promise(resolve => setTimeout(resolve, 200));
+                    if(chart) {
+                        console.warn("Destroying previous chart instance before retrying.");
+                        chart.destroy(); // Clean up previous chart instance
+                        chart = null;
+                    }
+                }
+            } while (true);
+
+            
+        }
+
+        function toggleCheckboxContainer() {
+            const container = document.getElementById("checkboxContainer");
+            const button = document.getElementById("toggleButton");
+
+            if (container.style.display === "none") {
+                container.style.display = "block";
+                document.getElementById("chartContainer").style.marginLeft = "250px";
+                button.textContent = "Hide Panel";
+            } else {
+                container.style.display = "none";
+                document.getElementById("chartContainer").style.marginLeft = "0";
+                button.textContent = "Show Panel";
+            }
+        }
+
+    </script>
+</body>
+</html>

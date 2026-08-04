@@ -1,0 +1,9 @@
+# AeroStab profile: IMX219 CSI (StabX-style)
+camera_auto_detect=0
+arm_64bit=1
+enable_uart=1
+dtoverlay=miniuart-bt
+dtoverlay=imx219
+force_turbo=1
+gpu_mem=128
+dtparam=spi=on

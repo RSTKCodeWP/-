@@ -7,14 +7,8 @@ import argparse
 import sys
 from typing import Any
 
-from fpv_lib.catalog import (
-    default_repo_path,
-    find_entry,
-    load_catalog,
-    save_catalog,
-    upsert_entry,
-)
-from fpv_lib.gh import GhError, list_owner_repos, search_repos
+from fpv_lib.catalog import default_repo_path, find_entry, load_catalog, org_repo_path, save_catalog, upsert_entry
+from fpv_lib.gh import GhError, is_github_org, list_owner_repos, search_repos
 from fpv_lib.scoring import is_candidate, score_repo
 from fpv_lib.triage import triage_entry
 from fpv_lib.blocklist import is_blocked
@@ -43,6 +37,7 @@ def add_repo(
     discovered_via: str,
     min_score: float,
     dry_run: bool,
+    path: str | None = None,
 ) -> str | None:
     source = repo["full_name"]
     if is_blocked(source):
@@ -57,7 +52,7 @@ def add_repo(
     upsert_entry(
         catalog,
         source=source,
-        path=default_repo_path(source, repo.get("description")),
+        path=path or default_repo_path(source, repo.get("description")),
         description=repo.get("description") or "",
         stars=int(repo.get("stargazers_count") or 0),
         discovered_via=discovered_via,
@@ -91,9 +86,10 @@ def expand_owner(
         return messages
 
     ranked = sorted(repos, key=score_repo, reverse=True)
+    use_org_paths = is_github_org(owner)
     added = 0
     for repo in ranked:
-        if added >= max_repos:
+        if max_repos > 0 and added >= max_repos:
             break
         if not is_candidate(repo, min_score=min_score):
             continue
@@ -103,6 +99,7 @@ def expand_owner(
             discovered_via=f"owner:{owner}",
             min_score=min_score,
             dry_run=dry_run,
+            path=org_repo_path(repo["full_name"]) if use_org_paths else None,
         )
         if result and result.startswith(("added", "would-add")):
             added += 1

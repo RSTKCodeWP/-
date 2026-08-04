@@ -1,0 +1,12 @@
+#cloud-config
+# Вставте в Raspberry Pi Imager → Advanced → Custom cloud-init user-data
+# АБО збережіть як user-data на boot-розділі (разом із prepare-sd.sh --auto-install)
+#
+# Потрібно: Wi-Fi в Imager + інтернет на першому boot (apt/pip).
+
+package_update: true
+packages:
+  - rsync
+
+runcmd:
+  - [ bash, -c, "for p in /boot/firmware/aerostab /boot/aerostab; do test -f $p/install-on-first-boot.sh && bash $p/install-on-first-boot.sh && exit 0; done; echo aerostab bundle not found; exit 1" ]

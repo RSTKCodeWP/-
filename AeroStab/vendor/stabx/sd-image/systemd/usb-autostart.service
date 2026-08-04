@@ -1,0 +1,11 @@
+[Unit]
+Description=USB Auto Run Service
+After=media-pi-*.mount
+
+[Service]
+
+Type=oneshot
+ExecStart=/usr/bin/run_usb.sh
+
+[Install]
+WantedBy=multi-user.target

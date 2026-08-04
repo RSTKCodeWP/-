@@ -1,0 +1,23 @@
+[Unit]
+Description=AeroStab optical navigation (Pi Zero 2W)
+After=network-online.target
+Wants=network-online.target
+# Wait for UART if present (Bookworm may use different unit names)
+After=dev-serial0.device
+After=systemd-udev-settle.service
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+SupplementaryGroups=dialout video spi i2c
+WorkingDirectory=/opt/aerostab
+Environment=AEROSTAB_CONFIG=/etc/aerostab/config.yaml
+ExecStartPre=/bin/sleep 3
+ExecStart=/opt/aerostab/.venv/bin/python -m aerostab -c /etc/aerostab/config.yaml
+Restart=always
+RestartSec=3
+Nice=-5
+
+[Install]
+WantedBy=multi-user.target

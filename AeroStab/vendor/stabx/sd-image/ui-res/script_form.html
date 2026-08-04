@@ -1,0 +1,101 @@
+<meta charset="utf-8">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/lua/lua.min.js"></script>
+
+<style>
+    body {
+        font-family: 'Consolas','Lucida Console','Roboto Mono',monospace;
+        background-color: #15170b;
+        color: #e5e7eb;
+        margin: 20px;
+    }
+
+    h1 {
+        color: #2c3e50;
+        margin-bottom: 20px;
+    }
+
+    label {
+        display: block;
+        margin: 12px 0 6px;
+        font-weight: bold;
+    }
+
+    input[type="text"] {
+        width: 300px;
+        padding: 6px;
+        font-size: 1em;
+        border: 1px solid #5D6532;
+        border-radius: 6px;
+        background:#3D4221; color:#e5e7eb;
+    }
+
+    input[readonly] {
+        background-color: #232613;
+        color: #b5be97;
+    }
+
+    textarea {
+        width: 100%;
+        height: 300px;
+    }
+
+    .CodeMirror {
+        border: 1px solid #5D6532;
+        font-size: 14px;
+        height: 60%;
+        min-height: 300px;
+    }
+
+    button {
+        background-color: #AFBD5E;
+        color: #0e1006;
+        border: 1px solid #AFBD5E;
+        padding: 8px 16px;
+        margin: 10px 5px 0 0;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 1em;
+    }
+
+    button:hover {
+        background-color: #9EAD54;
+    }
+</style>
+
+<h1>###TITLE###</h1>
+<form method="POST" action="###ACTION###" onsubmit="return onLuaFormSubmit();">
+    <input type="hidden" name="path" value="###PATH###">
+
+    <label for="filename">Filename (without `.lua`):</label>
+    <input type="text" id="filename" name="filename" value="###FILENAME###">
+
+    <label for="lua-editor">Lua Script Content:</label>
+    <textarea id="lua-editor" name="content">###CONTENT###</textarea>
+
+    <div>
+        <button type="submit">💾 Save</button>
+        <button type="button" onclick="location.href='/scripts'">↩️ Cancel</button>
+    </div>
+</form>
+
+<script>
+    var editor = CodeMirror.fromTextArea(document.getElementById("lua-editor"), {
+        lineNumbers: true,
+        mode: "lua",
+        theme: "default"
+    });
+
+    function onLuaFormSubmit() {
+        document.getElementById('lua-editor').value = editor.getValue();
+        return true;
+    }
+
+    window.addEventListener("DOMContentLoaded", function () {
+        var input = document.getElementById("filename");
+        if (input.value.trim() !== "") {
+            input.readOnly = true;
+        }
+    });
+</script>

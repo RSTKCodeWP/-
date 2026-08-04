@@ -1,0 +1,12 @@
+[Unit]
+Description=Automount USB drives for %u
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/devmon --no-gui
+User=pilot
+Restart=on-abort
+
+[Install]
+WantedBy=default.target

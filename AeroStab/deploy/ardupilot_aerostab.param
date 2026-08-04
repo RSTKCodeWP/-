@@ -1,0 +1,49 @@
+# AeroStab — ArduPilot Copter 4.5/4.6 ExternalNav PosHold (NO GPS)
+# 1) Wire Pi UART ↔ FC TELEM2 (or chosen port)
+# 2) Load this file in Mission Planner → Write Params
+# 3) Reboot FC
+
+# --- EKF3 + ExternalNav ---
+AHRS_EKF_TYPE,3
+EK3_ENABLE,1
+VISO_TYPE,1
+EK3_SRC1_POSXY,6
+EK3_SRC1_VELXY,6
+EK3_SRC1_POSZ,1
+EK3_SRC1_VELZ,0
+EK3_SRC1_YAW,1
+
+# Disable GPS position
+GPS1_TYPE,0
+AHRS_GPS_USE,0
+AHRS_GPS_GAIN,0
+FS_GCS_ENABLE,0
+
+# Frame (props toward camera = 12)
+FRAME_TYPE,12
+
+# Arming: BARO+COMPASS+INS+RC+BATTERY+SYSTEM+VISION (no GPS)
+# Bitmask: 1+2+4+16+32+128+512+8192 = 8775
+ARMING_CHECK,8775
+
+# UART — TELEM2 / SERIAL2 (adjust if different)
+SERIAL2_PROTOCOL,2
+SERIAL2_BAUD,230
+
+# PosHold soft start
+PHLD_BRAKE_ANGLE,2400
+PHLD_BRAKE_RATE,8
+PSC_POSXY_P,0.8
+EK3_ACC_P_NSE,0.7
+EK3_POSNE_M_NSE,1.5
+EK3_VELNE_M_NSE,1.5
+FS_EKF_THRESH,1.5
+EK3_IMU_MASK,1
+
+RC1_DZ,40
+RC2_DZ,40
+RC2_REVERSED,1
+
+# Optional: rangefinder for scale (strongly recommended)
+# RNGFND1_TYPE,...
+# RNGFND1_ORIENT,25

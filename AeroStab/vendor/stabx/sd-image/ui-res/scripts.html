@@ -1,0 +1,148 @@
+<meta charset="utf-8">
+<title>Lua Scripts</title>
+<style>
+    body {
+        font-family: 'Consolas','Lucida Console','Roboto Mono',monospace;
+        background-color: #15170b;
+        color: #e5e7eb;
+        margin: 0;
+        padding: 0;
+    }
+    .container {
+        max-width: 800px;
+        margin: 20px auto;
+        padding: 0 20px;
+    }
+    h1 {
+        color: #2c3e50;
+        margin-bottom: 10px;
+    }
+    .top-link {
+        display: inline-block;
+        margin-bottom: 20px;
+        color: #AFBD5E;
+        text-decoration: none;
+    }
+    .top-link:hover {
+        text-decoration: underline;
+    }
+    button {
+        background-color: #AFBD5E;
+        color: #0e1006;
+        border: 1px solid #AFBD5E;
+        padding: 8px 16px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.95em;
+        margin-bottom: 20px;
+    }
+    button:hover {
+        background-color: #9EAD54;
+    }
+    .script-card {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background-color: #232613;
+        padding: 12px 16px;
+        margin-bottom: 12px;
+        border-radius: 6px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    }
+    .script-name {
+        font-weight: 500;
+    }
+    .script-actions a {
+        margin-left: 12px;
+        font-size: 0.9em;
+        color: #AFBD5E;
+        text-decoration: none;
+    }
+    .script-actions a:hover {
+        text-decoration: underline;
+    }
+</style>
+
+<body>
+
+
+    <div class="container">
+        <h1>Lua Scripts</h1>
+        
+        <hr>
+        <progress id="uploadProgress" value="0" max="100" style="width: 100%; display: none;"></progress>
+        <a class="top-link" href="/">🏠 Home</a>
+        <br>
+        <div id="dropzone" style="border: 2px dashed #888; padding: 20px; text-align: center;">
+            Перетягніть сюди .lua файл для завантаження
+        </div>
+        <br>
+        <button onclick="location.href='/script/new?folder=###FOLDER###'">➕ Add New Script</button>
+        <hr>
+        
+        
+        ###CONTENT###
+    </div>
+
+<script>
+    const dropzone = document.getElementById("dropzone");
+
+    dropzone.addEventListener("dragover", e => {
+        e.preventDefault(); // ⬅️ Prevent default to allow drop
+    });
+
+    dropzone.addEventListener("drop", e => {
+        e.preventDefault(); // ⬅️ Prevent default to stop file opening in browser
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        handleFiles(files);
+    });
+
+    function handleFiles(files) {
+        const file = files[0];
+        if (file && (file.name.endsWith(".lua") )) {
+            console.log("Selected file name:", file.name);
+
+            const formData = new FormData();
+            formData.append("file", file);
+
+            const xhr = new XMLHttpRequest();
+
+            const progressBar = document.getElementById("uploadProgress");
+            progressBar.style.display = "block";
+            progressBar.value = 0;
+
+            xhr.upload.addEventListener("progress", (e) => {
+                if (e.lengthComputable) {
+                    const percent = (e.loaded / e.total) * 100;
+                    progressBar.value = percent;
+                }
+            });
+
+            xhr.onreadystatechange = () => {
+                if (xhr.readyState === XMLHttpRequest.DONE) {
+                    progressBar.style.display = "none";
+                    const response = xhr.responseText;
+                    console.log("Server response:", response);
+                    if (response.includes("успішно")) {
+                        alert(response);
+                        location.reload();
+                    } else {
+                        alert("Помилка: " + response);
+                    }
+                }
+            };
+
+            xhr.onerror = () => {
+                progressBar.style.display = "none";
+                alert("Помилка мережі або сервера");
+            };
+
+            xhr.open("POST", "/script/upload");
+            xhr.send(formData);
+        } else {
+            alert("Будь ласка, завантажте .lua файл");
+        }
+    }
+</script>
+</body>

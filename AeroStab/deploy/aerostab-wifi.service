@@ -1,0 +1,12 @@
+[Unit]
+Description=AeroStab WiFi connect from wifi.txt
+After=NetworkManager.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/aerostab-wifi
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

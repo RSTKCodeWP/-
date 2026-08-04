@@ -1,0 +1,2 @@
+AeroStab/image/*.rar filter=lfs diff=lfs merge=lfs -text
+AeroStab/image/*.img filter=lfs diff=lfs merge=lfs -text

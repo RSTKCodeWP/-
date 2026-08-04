@@ -1,0 +1,844 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Local Settings Editor</title>
+  <style>
+    :root {
+      --bg: #15170b;            /* page background */
+      --panel: #232613;         /* header / sticky areas */
+      --ink: #e5e7eb;           /* primary text */
+      --muted: #b5be97;         /* secondary text */
+      --accent: #AFBD5E;        /* green accent */
+      --warn: #fb923c;          /* orange */
+      --bad: #C06100;           /* danger */
+      --good: #AFBD5E;          /* success */
+      --border: #3e4522;        /* separators */
+      --input-bg: #3D4221;      /* input background */
+      --input-border: #5D6532;  /* input border */
+      --section-bg: #232613;
+      --section-open: #232613;
+      --head-fade: rgba(35,38,19,0);
+    }
+
+    html, body { height: 100%; }
+    body {
+      font-family: 'Consolas', 'Lucida Console', 'Roboto Mono', monospace;
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: 14px;
+    }
+
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+      background: var(--panel);
+      position: sticky; top: 0; z-index: 3;
+    }
+
+    h1 { font-size: 16px; margin: 0; letter-spacing: 0.3px; }
+
+    .tools { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+    .btn {
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: #3D4221;
+      color: var(--ink);
+      padding: 8px 12px;
+      border-radius: 10px;
+      font-weight: 600;
+    }
+    .btn:hover { border-color: var(--accent); }
+    .btn.accent { background: var(--accent); color: #0e1006; border-color: var(--accent); }
+
+    #search {
+      width: 340px; max-width: calc(100vw - 260px);
+      background: var(--input-bg);
+      color: var(--ink);
+      border: 1px solid var(--input-border);
+      padding: 10px 12px; border-radius: 10px; outline: none;
+    }
+    #search::placeholder { color: var(--muted); }
+
+    main { padding: 6px 16px 22px; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr minmax(220px, 420px) 140px;
+      gap: 12px; align-items: center;
+      border-bottom: 1px dashed var(--border);
+      padding: 12px 0;
+    }
+
+    .head.grid {
+      font-weight: 700; color: var(--muted);
+      position: sticky; top: 62px;
+      background: linear-gradient(var(--panel), var(--head-fade));
+      padding-top: 8px; padding-bottom: 8px; z-index: 2;
+    }
+
+    .item-title { display: flex; flex-direction: column; gap: 6px; }
+    .label { font-weight: 700; }
+    .ref { color: var(--muted); font-size: 12px; }
+    .desc { color: var(--muted); font-size: 12px; }
+
+    .control { display: flex; align-items: center; gap: 8px; }
+    input[type="number"], input[type="text"], select {
+      width: 100%;
+      background: var(--input-bg);
+      color: var(--ink);
+      border: 1px solid var(--input-border);
+      padding: 4px 4px;
+      text-align: center;
+      border-radius: 4px;
+      outline: none;
+    }
+    input[type="checkbox"] {
+      width: 18px; height: 18px;
+      accent-color: var(--accent);
+    }
+
+    .status {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-size: 12px; color: var(--muted);
+    }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border);
+           box-shadow: 0 0 0 2px rgba(0,0,0,0.06) inset; }
+    .status.saving .dot { background: var(--warn); }
+    .status.ok .dot { background: var(--good); }
+    .status.err .dot { background: var(--bad); }
+
+    .hidden { display: none !important; }
+
+    details.section {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      margin: 10px 0 18px;
+      background: var(--section-bg);
+    }
+    details.section[open] { background: var(--section-open); }
+    details.section > summary {
+      list-style: none; cursor: pointer; padding: 10px 12px;
+      font-weight: 800; color: var(--ink);
+      display: flex; align-items: center; gap: 10px;
+    }
+    details.section > summary::-webkit-details-marker { display: none; }
+    .chev {
+      width: 10px; height: 10px;
+      border-right: 2px solid var(--muted);
+      border-bottom: 2px solid var(--muted);
+      transform: rotate(-45deg);
+      transition: transform .15s ease;
+    }
+    details[open] > summary .chev { transform: rotate(45deg); }
+    .section-body { padding: 6px 10px 6px; }
+
+    /* Table editor styles */
+    .table-editor {
+      border: 1px solid var(--input-border);
+      border-radius: 10px;
+      background: var(--input-bg);
+      overflow: hidden;
+    }
+    
+    .table-editor-header {
+      background: #232613;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: 600;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    
+    .table-editor-header:has(.table-editor-controls:empty) {
+      justify-content: flex-start;
+    }
+    
+    /* Fallback for browsers without :has() support */
+    .table-editor-header .table-editor-controls:empty {
+      display: none;
+    }
+    
+    .table-editor-controls {
+      display: flex;
+      gap: 8px;
+    }
+    
+    .table-btn {
+      background: var(--accent);
+      color: #0e1006;
+      border: none;
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 11px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    
+    .table-btn:hover {
+      background: #9EAD54;
+    }
+    
+    .table-btn.secondary {
+      background: var(--border);
+      color: var(--ink);
+    }
+    
+    .table-btn.secondary:hover {
+      background: var(--muted);
+    }
+    
+    .table-editor-content {
+      /* Removed max-height and overflow to prevent unnecessary scrolling */
+      display: block;
+    }
+    
+    .table-editor table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    
+    .table-editor th,
+    .table-editor td {
+      border: 1px solid var(--border);
+      padding: 6px 8px;
+      text-align: left;
+    }
+    
+    .table-editor th {
+      background: #232613;
+      font-weight: 600;
+      color: var(--muted);
+      position: sticky;
+      top: 0;
+    }
+    
+    .table-editor td input {
+      width: 100%;
+      border: none;
+      background: transparent;
+      padding: 2px 4px;
+      font-size: 12px;
+      outline: none;
+    }
+    
+    .table-editor td input:focus {
+      background: #f0f8ff;
+    }
+    
+    .table-editor .row-actions {
+      text-align: center;
+      width: 60px;
+    }
+    
+    .table-editor .row-actions button {
+      background: var(--bad);
+      color: white;
+      border: none;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 10px;
+      cursor: pointer;
+    }
+    
+    .table-editor .row-actions button:hover {
+      background: #dc2626;
+    }
+
+    @media (max-width: 860px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Local Settings</h1>
+    <div class="tools">
+      <input id="search" type="search" placeholder="Filter by label/reference…" />
+      <button class="btn" id="refresh">Refresh</button>
+      <button class="btn" id="saveLocals">Save settings</button>
+      <button class="btn" id="loadLocals">Load</button>
+      <a class="btn" id="changePassword" href="/password">Change password</a>
+      <input type="file" id="localsFile" accept=".uapilot,text/plain" class="hidden" />
+    </div>
+  </header>
+
+  <main>
+    <div id="list"></div>
+  </main>
+
+  <template id="row-tpl">
+    <div class="grid row">
+      <div class="item-title">
+        <div class="label"></div>
+        <div class="ref"></div>
+        <div class="desc"></div>
+      </div>
+      <div class="control"></div>
+      <div class="status"><span class="dot"></span><span class="txt"></span></div>
+    </div>
+  </template>
+
+  <script>
+  (function(){
+    const listEl = document.getElementById('list');
+    const rowTpl = document.getElementById('row-tpl');
+    const searchEl = document.getElementById('search');
+
+    const baseType = (t) => {
+      if (!t) return 'string';
+      if (t.endsWith('_variant')) t = t.slice(0, -8);
+      if (t === 'int01') return 'int';
+      if (t === 'float_gps') return 'float';
+      return t;
+    };
+    const typeMapForPath = (value_type) => baseType(value_type);
+
+    const debouncers = new WeakMap();
+    const debouncePerEl = (el, fn, ms=180) => {
+      clearTimeout(debouncers.get(el));
+      const t = setTimeout(fn, ms);
+      debouncers.set(el, t);
+    };
+
+    function createNumber(min, max, step='any'){
+      const inp = document.createElement('input');
+      inp.type = 'number';
+      if (min !== undefined) inp.min = String(min);
+      if (max !== undefined) inp.max = String(max);
+      inp.step = String(step);
+      return inp;
+    }
+
+    function normalizeVariants(value_type, variants){
+      if (!variants) return [];
+      const bt = baseType(value_type);
+      const coerce = (x) => {
+        if (bt === 'int') return parseInt(x, 10);
+        if (bt === 'float') return parseFloat(x);
+        return String(x);
+      };
+      if (Array.isArray(variants)){
+        return variants.map(v => ({ value: coerce(v), label: String(v) }));
+      }
+      return Object.entries(variants).map(([k, lbl]) => ({ value: coerce(k), label: String(lbl) }));
+    }
+
+    function createTableEditor(tableData, config = {}) {
+      const {
+        columns = ['Column 1', 'Column 2', 'Column 3'],
+        remove_all = true,
+        remove_row = true,
+        add_row = true
+      } = config;
+      
+      const container = document.createElement('div');
+      container.className = 'table-editor';
+      
+      // Table content
+      const content = document.createElement('div');
+      content.className = 'table-editor-content';
+      
+      const table = document.createElement('table');
+      const thead = document.createElement('thead');
+      const tbody = document.createElement('tbody');
+      
+      // Create header row with dynamic columns
+      const headerRow = document.createElement('tr');
+      columns.forEach(headerText => {
+        const th = document.createElement('th');
+        th.textContent = headerText;
+        headerRow.appendChild(th);
+      });
+      
+      // Add Actions column if remove_row is enabled
+      if (remove_row) {
+        const actionsTh = document.createElement('th');
+        actionsTh.textContent = 'Actions';
+        actionsTh.className = 'row-actions';
+        headerRow.appendChild(actionsTh);
+      }
+      
+      thead.appendChild(headerRow);
+      
+      table.appendChild(thead);
+      table.appendChild(tbody);
+      content.appendChild(table);
+      
+      container.appendChild(content);
+      
+      // Add control buttons directly to container if needed
+      if (add_row || remove_all) {
+        const controls = document.createElement('div');
+        controls.className = 'table-editor-controls';
+        controls.style.marginTop = '8px';
+        controls.style.display = 'flex';
+        controls.style.gap = '8px';
+        controls.style.justifyContent = 'flex-end';
+        
+        // Add row button (conditional)
+        if (add_row) {
+          const addRowBtn = document.createElement('button');
+          addRowBtn.className = 'table-btn';
+          addRowBtn.textContent = '+ Add Row';
+          addRowBtn.type = 'button';
+          controls.appendChild(addRowBtn);
+        }
+        
+        // Clear all button (conditional)
+        if (remove_all) {
+          const clearBtn = document.createElement('button');
+          clearBtn.className = 'table-btn secondary';
+          clearBtn.textContent = 'Clear All';
+          clearBtn.type = 'button';
+          controls.appendChild(clearBtn);
+        }
+        
+        container.appendChild(controls);
+      }
+      
+      // Store table data and configuration
+      container._tableData = Array.isArray(tableData) ? [...tableData] : [];
+      container._tbody = tbody;
+      container._columns = columns;
+      container._removeRow = remove_row;
+      
+      // Function to render table rows
+      function renderTable() {
+        tbody.innerHTML = '';
+        container._tableData.forEach((row, index) => {
+          const tr = document.createElement('tr');
+          
+          // Create input cells for each column
+          for (let i = 0; i < columns.length; i++) {
+            const td = document.createElement('td');
+            const input = document.createElement('input');
+            input.type = 'number';
+            input.step = 'any';
+            input.value = row[i] !== undefined ? row[i] : '';
+            input.addEventListener('input', () => {
+              if (!container._tableData[index]) {
+                container._tableData[index] = new Array(columns.length).fill(0);
+              }
+              container._tableData[index][i] = parseFloat(input.value) || 0;
+              container.dispatchEvent(new Event('change'));
+            });
+            td.appendChild(input);
+            tr.appendChild(td);
+          }
+          
+          // Add delete button if remove_row is enabled
+          if (remove_row) {
+            const actionsTd = document.createElement('td');
+            actionsTd.className = 'row-actions';
+            const deleteBtn = document.createElement('button');
+            deleteBtn.textContent = '×';
+            deleteBtn.type = 'button';
+            deleteBtn.addEventListener('click', () => {
+              container._tableData.splice(index, 1);
+              renderTable();
+              container.dispatchEvent(new Event('change'));
+            });
+            actionsTd.appendChild(deleteBtn);
+            tr.appendChild(actionsTd);
+          }
+          
+          tbody.appendChild(tr);
+        });
+      }
+      
+      // Add row functionality (conditional)
+      if (add_row) {
+        const addRowBtn = container.querySelector('.table-btn');
+        addRowBtn.addEventListener('click', () => {
+          const newRow = new Array(columns.length).fill(0);
+          container._tableData.push(newRow);
+          renderTable();
+          container.dispatchEvent(new Event('change'));
+        });
+      }
+      
+      // Clear all functionality (conditional)
+      if (remove_all) {
+        const clearBtn = container.querySelector('.table-btn.secondary');
+        clearBtn.addEventListener('click', () => {
+          if (confirm('Are you sure you want to clear all rows?')) {
+            container._tableData = [];
+            renderTable();
+            container.dispatchEvent(new Event('change'));
+          }
+        });
+      }
+      
+      // Initial render
+      renderTable();
+      
+      return container;
+    }
+
+    function buildRow(key, item){
+      const { label, description, reference, value_type, value, variants } = item;
+
+      const row = rowTpl.content.firstElementChild.cloneNode(true);
+      const titleEl = row.querySelector('.label');
+      const refEl = row.querySelector('.ref');
+      const descEl = row.querySelector('.desc');
+      const controlEl = row.querySelector('.control');
+      const statusEl = row.querySelector('.status');
+      const statusTxt = statusEl.querySelector('.txt');
+
+      titleEl.textContent = label || key;
+      refEl.textContent = reference || key;
+      descEl.textContent = description || '';
+      descEl.classList.toggle('hidden', !description);
+
+      const bt = baseType(value_type);
+      const pathType = typeMapForPath(value_type);
+
+      let ctrl;
+      const vlist = normalizeVariants(value_type, variants);
+
+      if (vlist.length){
+        ctrl = document.createElement('select');
+        for (const {value: vv, label: ll} of vlist){
+          const opt = document.createElement('option');
+          opt.value = String(vv);
+          opt.textContent = ll;
+          opt.dataset.raw = JSON.stringify(vv);
+          if (String(value) === String(vv)) opt.selected = true;
+          ctrl.appendChild(opt);
+        }
+        ctrl.dataset.kind = 'select-variant';
+        ctrl.dataset.bt = bt;
+      } else if (value_type === 'int01') {
+        const wrap = document.createElement('label');
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = Number(value) === 1;
+        cb.dataset.kind = 'checkbox';
+
+        const txt = document.createElement('span');
+        txt.textContent = cb.checked ? 'On' : 'Off';
+        txt.style.minWidth = '28px';
+
+        wrap.style.display = 'inline-flex';
+        wrap.style.alignItems = 'center';
+        wrap.style.gap = '8px';
+
+        // 🔧 add this line so the listener below detects it's a checkbox control
+        wrap.dataset.kind = 'checkbox';
+
+        wrap.append(cb, txt);
+        ctrl = wrap;
+      } else if (bt === 'int') {
+        ctrl = createNumber(undefined, undefined, 1);
+        ctrl.value = String(value);
+        ctrl.dataset.kind = 'number-int';
+      } else if (value_type === 'float_gps') {
+        const isLat = /lat/i.test(key) || /lat/i.test(reference||'');
+        const isLon = /lon/i.test(key) || /lon/i.test(reference||'');
+        const min = isLat ? -90 : (isLon ? -180 : undefined);
+        const max = isLat ? 90  : (isLon ? 180  : undefined);
+        ctrl = createNumber(min, max, 'any');
+        ctrl.value = String(value);
+        ctrl.dataset.kind = 'number-float';
+      } else if (bt === 'float') {
+        ctrl = createNumber(undefined, undefined, 'any');
+        ctrl.value = String(value);
+        ctrl.dataset.kind = 'number-float';
+      } else if (value_type === 'table') {
+        const tableConfig = {
+          columns: item.columns || ['Column 1', 'Column 2', 'Column 3'],
+          remove_all: item.remove_all !== false,
+          remove_row: item.remove_row !== false,
+          add_row: item.add_row !== false
+        };
+        ctrl = createTableEditor(value || [], tableConfig);
+        ctrl.dataset.kind = 'table';
+      } else {
+        ctrl = document.createElement('input');
+        ctrl.type = 'text';
+        ctrl.value = String(value);
+        ctrl.dataset.kind = 'text';
+      }
+
+      const sendContext = { pathType, reference: reference || key };
+
+      function setStatus(kind, text){
+        statusEl.classList.remove('saving','ok','err');
+        if (kind) statusEl.classList.add(kind);
+        statusTxt.textContent = text || ({saving:'Saving…', ok:'Saved', err:'Error'})[kind] || '';
+      }
+
+      function deserializeOptionRaw(selectEl){
+        try {
+          const opt = selectEl.selectedOptions[0];
+          if (!opt) return null;
+          return JSON.parse(opt.dataset.raw);
+        } catch(e){ return null; }
+      }
+
+      function currentValue(){
+        const kind = ctrl.dataset.kind || (ctrl.firstElementChild && ctrl.firstElementChild.dataset.kind);
+        let v;
+        if (kind === 'checkbox') {
+          const cb = ctrl.querySelector('input[type="checkbox"]');
+          v = cb.checked ? 1 : 0;
+        } else if (kind === 'select-variant') {
+          const raw = deserializeOptionRaw(ctrl);
+          if (raw !== null) return raw;
+          const bt = ctrl.dataset.bt;
+          if (bt === 'int') return parseInt(ctrl.value, 10);
+          if (bt === 'float') return parseFloat(ctrl.value);
+          return String(ctrl.value);
+        } else if (kind === 'table') {
+          return ctrl._tableData || [];
+        } else if (kind && kind.startsWith('number')) {
+          if (ctrl.value === '' || /^[-.]$/.test(ctrl.value)) return null;
+          v = (kind === 'number-int') ? parseInt(ctrl.value, 10) : parseFloat(ctrl.value);
+          if (!Number.isFinite(v)) return null;
+        } else {
+          v = String(ctrl.value);
+        }
+        return v;
+      }
+
+      function send(){
+        const v = currentValue();
+        if (v === null) return;
+        setStatus('saving', 'Saving…');
+        
+        // For table data, we need to JSON stringify it
+        const valueToSend = (ctrl.dataset.kind === 'table') ? JSON.stringify(v) : String(v);
+        const url = `/prefs/${encodeURIComponent(sendContext.pathType)}/${encodeURIComponent(sendContext.reference)}/${encodeURIComponent(valueToSend)}`;
+        
+        fetch(url, { method: 'GET', credentials: 'same-origin', cache: 'no-store' })
+          .then(r => {
+            if (!r.ok) throw new Error(`HTTP ${r.status}`);
+            setStatus('ok', 'Saved');
+          })
+          .catch(err => {
+            console.error('Save error', err);
+            setStatus('err', 'Error');
+          });
+      }
+
+      if (ctrl.dataset.kind === 'checkbox') {
+        const cb = ctrl.querySelector('input[type="checkbox"]');
+        const labelTxt = ctrl.querySelector('span');
+        cb.addEventListener('change', () => { labelTxt.textContent = cb.checked ? 'On' : 'Off'; send(); });
+        cb.addEventListener('input', () => { labelTxt.textContent = cb.checked ? 'On' : 'Off'; send(); });
+      } else if (ctrl.dataset.kind === 'table') {
+        ctrl.addEventListener('change', () => debouncePerEl(ctrl, send, 140));
+      } else if (ctrl.tagName === 'SELECT') {
+        ctrl.addEventListener('change', send);
+        ctrl.addEventListener('input', send);
+      } else {
+        ctrl.addEventListener('input', () => debouncePerEl(ctrl, send, 140));
+        ctrl.addEventListener('change', send);
+      }
+
+      controlEl.appendChild(ctrl);
+      row.querySelector('.item-title').addEventListener('click', () => {
+        (ctrl.querySelector('input,select,textarea') || ctrl).focus();
+      });
+
+      row.dataset.key = key.toLowerCase();
+      row.dataset.label = (label||'').toLowerCase();
+      row.dataset.reference = (reference||'').toLowerCase();
+
+      return row;
+    }
+
+    function buildSection(title, defaultState = 'expanded'){
+      const details = document.createElement('details');
+      details.className = 'section';
+      
+      // Get section state from localStorage or use default
+      const sectionKey = `section_${String(title).toLowerCase()}`;
+      const savedState = localStorage.getItem(sectionKey);
+      const isOpen = savedState !== null ? savedState === 'true' : defaultState === 'expanded';
+      
+      details.open = isOpen;
+      
+      const summary = document.createElement('summary');
+      const chev = document.createElement('span');
+      chev.className = 'chev';
+      const txt = document.createElement('span');
+      txt.textContent = title;
+      summary.appendChild(chev); summary.appendChild(txt);
+      const body = document.createElement('div');
+      body.className = 'section-body';
+      details.appendChild(summary); details.appendChild(body);
+      details.dataset.section = String(title).toLowerCase();
+      
+      // Save state to localStorage when toggled
+      details.addEventListener('toggle', () => {
+        localStorage.setItem(sectionKey, details.open.toString());
+      });
+      
+      return { details, body };
+    }
+
+    async function load(){
+      listEl.innerHTML = '';
+      try {
+        const res = await fetch('/localsettings', { cache: 'no-store' });
+        const data = await res.json();
+        const entries = Object.entries(data);
+
+        let currentContainer = listEl;
+        for (const [key, item] of entries){
+          const hasRef = !!item.reference;
+          if (!hasRef && (item.label || key)){
+            const title = item.label || key;
+            const defaultState = item.default_state || 'expanded';
+            const { details, body } = buildSection(title, defaultState);
+            listEl.appendChild(details);
+            currentContainer = body;
+            continue;
+          }
+          const rowEl = buildRow(key, item);
+          currentContainer.appendChild(rowEl);
+        }
+
+      } catch (e) {
+        console.error('Failed to load /localsettings', e);
+        const msg = document.createElement('div');
+        msg.textContent = 'Failed to load /localsettings';
+        listEl.appendChild(msg);
+      }
+    }
+
+    searchEl.addEventListener('input', () => {
+      const q = searchEl.value.trim().toLowerCase();
+      const sections = Array.from(listEl.querySelectorAll('details.section'));
+      const rows = Array.from(listEl.querySelectorAll('.row'));
+      
+      // Track which sections have visible items
+      const sectionsWithMatches = new Set();
+      
+      for (const r of rows){
+        const hay = `${r.dataset.key} ${r.dataset.label} ${r.dataset.reference}`;
+        const hide = q && !hay.includes(q);
+        r.classList.toggle('hidden', hide);
+        
+        // If this row is visible and we're searching, mark its parent section
+        if (!hide && q) {
+          const parentSection = r.closest('details.section');
+          if (parentSection) {
+            sectionsWithMatches.add(parentSection);
+          }
+        }
+      }
+      
+      if (sections.length){
+        for (const s of sections){
+          const titleHit = !q || (s.dataset.section||'').includes(q);
+          const childHit = !!s.querySelector('.row:not(.hidden)');
+          const shouldShow = titleHit || childHit;
+          
+          s.classList.toggle('hidden', !shouldShow);
+          
+          // Only auto-expand sections that contain matching items (not just title matches)
+          if (q && shouldShow && sectionsWithMatches.has(s)) {
+            s.open = true;
+          }
+        }
+      }
+    });
+
+    document.getElementById('refresh').addEventListener('click', load);
+
+    // ---------- Save & Load handlers ----------
+    const saveBtn = document.getElementById('saveLocals');
+    const loadBtn = document.getElementById('loadLocals');
+    const fileInput = document.getElementById('localsFile');
+
+    function downloadText(filename, text){
+      const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    function timestampFilename(base, ext){
+      const t = new Date();
+      const yyyy = t.getFullYear();
+      const mm = String(t.getMonth()+1).padStart(2,'0');
+      const dd = String(t.getDate()).padStart(2,'0');
+      const hh = String(t.getHours()).padStart(2,'0');
+      const mi = String(t.getMinutes()).padStart(2,'0');
+      const ss = String(t.getSeconds()).padStart(2,'0');
+      return `${base}_${yyyy}-${mm}-${dd}_${hh}-${mi}-${ss}.${ext}`;
+    }
+
+    async function handleSaveLocals(){
+      try {
+        const r = await fetch('/locals', { method: 'GET', cache: 'no-store', credentials: 'same-origin' });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const text = await r.text();
+        const fname = timestampFilename('locals', 'uapilot');
+        downloadText(fname, text);
+      } catch (e){
+        console.error('Save settings failed:', e);
+        alert('Failed to fetch /locals for saving.');
+      }
+    }
+
+    // NOTE: fixed endpoint name to /setlocals as requested
+    async function postSetLocals(payload){
+      const r = await fetch('/setlocals', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+        body: payload
+      });
+      const txt = await r.text().catch(()=> '');
+      if (!r.ok) throw new Error(`HTTP ${r.status}: ${txt}`);
+      return txt;
+    }
+
+    function handleLoadClick(){
+      fileInput.value = '';
+      fileInput.click();
+    }
+
+    fileInput.addEventListener('change', async () => {
+      const f = fileInput.files && fileInput.files[0];
+      if (!f) return;
+      try {
+        const txt = await f.text();
+        const resp = await postSetLocals(txt);
+        alert(`Server accepted settings:\n${resp}`);
+        await load();
+      } catch (e){
+        console.error('Load settings failed:', e);
+        alert(`Failed to send file to /setlocals.\n${e.message || e}`);
+      }
+    });
+
+    saveBtn.addEventListener('click', handleSaveLocals);
+    loadBtn.addEventListener('click', handleLoadClick);
+    // -----------------------------------------
+
+    load();
+  })();
+  </script>
+</body>
+</html>

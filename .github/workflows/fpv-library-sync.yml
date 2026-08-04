@@ -2,7 +2,7 @@ name: FPV Library Sync
 
 on:
   schedule:
-    # Daily at 06:00 UTC — discover, triage hooks, sync upstream
+    # Daily at 06:00 UTC — discover, triage, full mirror sync
     - cron: "0 6 * * *"
   workflow_dispatch:
     inputs:
@@ -18,6 +18,10 @@ on:
         description: "Minimum relevance score"
         required: false
         default: "2.0"
+      backfill_per_run:
+        description: "New keep repos to clone per run (gradual backfill)"
+        required: false
+        default: "25"
 
 permissions:
   contents: write
@@ -25,6 +29,7 @@ permissions:
 jobs:
   sync:
     runs-on: ubuntu-latest
+    timeout-minutes: 360
     steps:
       - uses: actions/checkout@v4
 
@@ -37,7 +42,16 @@ jobs:
             --min-score "${{ github.event.inputs.min_score || '2.0' }}" \
             --batch-size "${{ github.event.inputs.keyword_batch || '12' }}" \
             --expand-owners \
-            --owner-limit 3
+            --owner-limit 0
+
+      - name: Expand from catalog base (owners, orgs, similarity)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 fpv-library/scripts/discover_expand.py \
+            --owner-batch 12 \
+            --org-batch 5 \
+            --similar-batch 8
 
       - name: Themed discovery (weekly slice — pages 1 only)
         env:
@@ -53,20 +67,26 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python3 fpv-library/scripts/triage_catalog.py --force
 
-      - name: Sync keep-worthy repositories
+      - name: Register root-level project folders
+        run: python3 fpv-library/scripts/register_legacy.py
+
+      - name: Discover org libraries (OpenIPC full copy)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 fpv-library/scripts/discover_org.py --org OpenIPC --verdict keep
+
+      - name: Install Git LFS
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq git-lfs
+          git lfs install
+
+      - name: Daily mirror — update existing + backfill new keep repos
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Refresh existing mirrors; skip cloning hundreds of new repos per day
-          python3 fpv-library/scripts/sync.py \
-            --all \
-            --verdict keep \
-            --update-only
-          # Priority new mirrors (curated list)
-          while read -r src; do
-            [[ "$src" =~ ^#|^$ ]] && continue
-            python3 fpv-library/scripts/sync.py --source "$src" || true
-          done < fpv-library/priority-sync.txt
+          python3 fpv-library/scripts/sync_daily.py \
+            --backfill-per-run "${{ github.event.inputs.backfill_per_run || '25' }}"
 
       - name: Check Caddx Ground Configuration releases
         run: python3 fpv-library/scripts/sync_caddx_ground_config.py --check-only
@@ -81,14 +101,33 @@ jobs:
       - name: Regenerate REPOS.md index
         run: python3 fpv-library/scripts/generate_repo_index.py
 
+      - name: Regenerate MAP.md (folder tree)
+        run: python3 fpv-library/scripts/generate_library_map.py
+
       - name: Commit updates
         run: |
           git config user.name "fpv-library-bot"
           git config user.email "fpv-library-bot@users.noreply.github.com"
-          git add fpv-library/ REPOS.md
+          git add fpv-library/ REPOS.md MAP.md docs/MIRROR_POLICY.md docs/STRUCTURE.md .gitmodules
+          # Org/user mirror folders at monorepo root (e.g. OpenIPC/firmware)
+          python3 - <<'PY' | while read -r d; do [ -n "$d" ] && git add "$d/"; done
+          import json
+          from pathlib import Path
+          catalog = json.loads(Path("fpv-library/catalog.json").read_text(encoding="utf-8"))
+          roots = set()
+          for e in catalog.get("repos", []):
+              p = e.get("path") or ""
+              if p.startswith("fpv-library/"):
+                  continue
+              if "/" in p:
+                  roots.add(p.split("/")[0])
+          for r in sorted(roots):
+              if Path(r).is_dir():
+                  print(r)
+          PY
           if git diff --staged --quiet; then
             echo "No changes to commit"
           else
-            git commit -m "fpv-library: automated discover, triage, sync"
+            git commit -m "fpv-library: daily discover, triage, and full-git mirror sync"
             git push
           fi

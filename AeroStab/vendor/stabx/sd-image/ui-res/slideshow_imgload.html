@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Slideshow</title>
+<style>
+    body {
+        height: 100vh;
+        text-align: center;
+        background:#15170b;
+        color:#e5e7eb;
+        font-family:'Consolas','Lucida Console','Roboto Mono',monospace;
+    }
+    #sliderContainer {
+        margin: 1em auto;
+        width: 90%;
+    }
+    #sliderContainer input[type="range"] {
+        width: 100%;
+    }
+</style>
+
+<img id="slideshowImage" style="max-height: 80%;">
+<hr>
+
+<!-- Navigation Buttons -->
+<a href="#" onclick="rewind(-1); return false;">⇦</a>&nbsp;&nbsp;
+<a href="#" onclick="togglePause(); return false;">⏯</a>&nbsp;&nbsp;
+<a href="#" onclick="rewind(1); return false;">⇨</a>&nbsp;&nbsp;
+
+<!-- Slider to jump to a specific image -->
+<div id="sliderContainer">
+    <input type="range" id="slideSlider" min="0" max="1000" value="0" oninput="slideTo(this.value)">
+</div>
+
+<script>
+    let currentIndex = 0;
+    let totalSlides = 0;
+    let imagesList = [];
+    let paused = false;
+    let loading = false;
+    let imageCache = {};
+
+    const imgElement = document.getElementById("slideshowImage");
+    const slider = document.getElementById("slideSlider");
+
+    slider.addEventListener("mousedown", () => paused = true);
+    slider.addEventListener("input", (e) => slideTo(e.target.value));
+
+    function rewind(amount) {
+        currentIndex = Math.max(0, Math.min(totalSlides - 1, currentIndex + amount));
+        paused = true;
+        updateImage();
+    }
+
+    function togglePause() {
+        paused = !paused;
+        if (!paused && !loading) {
+            updateImage(); // resume slideshow
+        }
+        console.log("Paused:", paused);
+    }
+
+    function fetchImageList() {
+        fetch('/slides_info')
+            .then(res => res.json())
+            .then(data => {
+                imagesList = data.files;
+                totalSlides = imagesList.length;
+                document.getElementById("slideSlider").max = totalSlides - 1;
+                updateImage();
+            });
+    }
+
+    function updateImage() {
+        if (imagesList.length === 0 || currentIndex >= imagesList.length) return;
+
+        const imgPath = imagesList[currentIndex];
+
+        if (imageCache[imgPath]) {
+            // Use cached image
+            imgElement.src = imageCache[imgPath].src;
+            slider.value = currentIndex;
+            if (!paused) {
+                currentIndex = (currentIndex + 1) % totalSlides;
+                setTimeout(updateImage, 100);
+            }
+            return;
+        }
+
+        loading = true;
+        const fullUrl = "/slideshow_image/" + encodeURIComponent(imgPath) + "?ts=" + Date.now();
+
+        const tempImg = new Image();
+        tempImg.onload = () => {
+            imageCache[imgPath] = tempImg;
+            imgElement.src = tempImg.src;
+            loading = false;
+            slider.value = currentIndex;
+            if (!paused) {
+                currentIndex = (currentIndex + 1) % totalSlides;
+                setTimeout(updateImage, 100);
+            }
+        };
+        tempImg.onerror = () => {
+            console.warn("Image failed to load:", imgPath);
+            loading = false;
+            if (!paused) {
+                currentIndex = (currentIndex + 1) % totalSlides;
+                updateImage();
+            }
+        };
+        tempImg.src = fullUrl;
+    }
+
+
+    function slideTo(index) {
+        currentIndex = Math.max(0, Math.min(totalSlides - 1, parseInt(index)));
+        paused = true;
+        updateImage();
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+        fetchImageList();
+    });
+</script>
+</html>

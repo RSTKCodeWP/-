@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Autopilot</title>
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <style>
+        * {
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+
+        /* Light grey background around everything */
+        html, body {
+            font-family: 'Consolas', 'Lucida Console', 'Roboto Mono', monospace;
+            font-size: 16px;
+            height: 100%;
+            width: 100%;
+            background: #15170b; /* Army Green background */
+            color: #e5e7eb; /* light text */
+            margin: 0;
+            padding: 0;
+        }
+
+        /* A single continuous white central area */
+        .main-wrapper {
+            max-width: clamp(960px, 92vw, 1280px);
+            margin: 0 auto; /* center horizontally */
+            background: #232613; /* side/background surface */
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06); /* subtle shadow */
+            min-height: 100vh; /* stretch full viewport height */
+            display: flex;
+            flex-direction: column;
+        }
+
+
+        /* Site-like centered max-width container */
+        .container {
+            max-width: clamp(960px, 92vw, 1280px);
+            margin: 0 auto;
+            padding: 0 12px;
+        }
+
+        /* Desktop / Mobile toggles (unchanged) */
+        .desktop-ui {
+            display: block;
+            margin: 4px 4px;
+            gap: 1px;
+        }
+
+        .mobile-ui {
+            display: none;
+        }
+
+        /* Head menu with overflow “more” */
+        .headmenu-wrap {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            background: #3D4221;
+        }
+
+        .headmenu {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            width: 100%;
+            padding: 6px 0 8px 0;
+            border-bottom: 1px solid #3e4522;
+        }
+
+        .headmenu-main {
+            display: flex;
+            flex-wrap: nowrap;
+            gap: 6px;
+            overflow: hidden;
+            flex: 1 1 auto;
+            min-width: 0;
+        }
+
+        .headmenu-right {
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .button {
+            background-color: #AFBD5E;
+            border: none;
+            color: #0e1006;
+            padding: 6px 10px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            margin: 0;
+            cursor: pointer;
+            transition: background-color .2s ease, transform .1s ease;
+            border-radius: 2pt;
+            white-space: nowrap;
+        }
+
+        .button:hover {
+            background-color: #9EAD54;
+        }
+
+        .button:active {
+            transform: scale(0.95);
+        }
+
+        /* Muted danger button */
+        .button-danger {
+            background-color: #C06100;
+            color: #fff;
+        }
+
+        .button-danger:hover {
+            background-color: #A85400;
+        }
+
+        /* “More” dropdown */
+        .more {
+            position: relative;
+            flex: 0 0 auto;
+        }
+
+        .more-toggle {
+            background: #3D4221;
+            color: #e5e7eb;
+            border-radius: 4px;
+            padding: 6px 10px;
+            border: 1px solid #5D6532;
+            cursor: pointer;
+            line-height: 1;
+        }
+
+        .more-menu {
+            position: absolute;
+            right: 0;
+            top: calc(100% + 6px);
+            background: #3D4221;
+            border: 1px solid #5D6532;
+            border-radius: 6px;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, .5);
+            display: none;
+            min-width: 220px;
+            padding: 8px;
+            max-height: 60vh;
+            overflow: auto;
+        }
+
+        .more.open .more-menu {
+            display: block;
+        }
+
+        .more-menu .button {
+            display: block;
+            width: 100%;
+            text-align: left;
+            margin: 4px 0;
+        }
+
+        /* Neutralize link buttons inside dark dropdown */
+        .more-menu .button:not(.button-danger) {
+            background-color: #5D6532;
+            color: #fff;
+        }
+
+        .more-menu .button:not(.button-danger):hover {
+            background-color: #51592d;
+        }
+
+        .text-block {
+            white-space: pre-wrap;
+            line-height: 1.5;
+        }
+
+        p {
+            font-size: 16px;
+            line-height: 1.5;
+        }
+
+        hr {
+            border: 0;
+            height: 2px;
+            background-color: #5D6532;
+        }
+
+        /* Form controls for dark theme */
+        label {
+            color: #e5e7eb;
+        }
+
+        input[type="number"], select {
+            background: #3D4221;
+            color: #e5e7eb;
+            border: 1px solid #5D6532;
+            padding: 4px 4px;
+            text-align: center;
+            text-decoration: none;
+            border-radius: 4px;
+        }
+
+        hr {
+            height: 1px!important;
+            margin: 8px!important;
+        }
+
+        /* Touch / orientation (kept) */
+        /*@media (any-pointer: coarse) and (orientation: landscape) {*/
+        /*    .desktop-ui {*/
+        /*        display: none;*/
+        /*    }*/
+
+        /*    .mobile-ui {*/
+        /*        display: block;*/
+        /*        position: relative;*/
+        /*        width: 100%;*/
+        /*        height: 100%;*/
+        /*    }*/
+
+        /*    #cameraFeedContainer {*/
+        /*        position: relative;*/
+        /*        width: 100%;*/
+        /*        height: 100%;*/
+        /*        display: flex;*/
+        /*        justify-content: center;*/
+        /*        align-items: center;*/
+        /*        overflow: hidden;*/
+        /*    }*/
+
+        /*    #cameraFeed {*/
+        /*        width: 100%;*/
+        /*        height: auto;*/
+        /*        max-height: 100%;*/
+        /*        object-fit: contain;*/
+        /*        transform-origin: center;*/
+        /*        transition: transform .3s ease;*/
+        /*    }*/
+
+        /*    .button-land {*/
+        /*        position: absolute;*/
+        /*        bottom: 10px;*/
+        /*        left: 10px;*/
+        /*        background-color: #AFBD5E;*/
+        /*        font-family: Arial, sans-serif;*/
+        /*        font-size: 18px;*/
+        /*        border: none;*/
+        /*        color: white;*/
+        /*        padding: 5px 5px;*/
+        /*        text-align: center;*/
+        /*        cursor: pointer;*/
+        /*        transition: background-color .3s ease, transform .1s ease;*/
+        /*        z-index: 1;*/
+        /*    }*/
+
+        /*    .button-land:hover {*/
+        /*        background-color: #9EAD54;*/
+        /*    }*/
+
+        /*    .button-land:active {*/
+        /*        transform: scale(0.95);*/
+        /*    }*/
+        /*}*/
+
+        @media (any-pointer: fine) or (orientation: portrait) {
+            .desktop-ui {
+                display: block;
+            }
+
+            .mobile-ui {
+                display: none;
+            }
+        }
+
+        .custom-tooltip {
+            background: #3D4221;
+            color: #e5e7eb;
+            padding: 8px 12px;
+            border-radius: 4px;
+            border: 1px solid #5D6532;
+            max-width: 600px;
+            font-size: 16px;
+            line-height: 1.4;
+            box-sizing: border-box;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+            white-space: normal;
+        }
+
+        /* Optional negate (invert) filter for images */
+        .invert-filter {
+            filter: invert(1) hue-rotate(180deg);
+        }
+    </style>
+    <script src="/res/tailwind.js"></script>
+</head>
+
+<body>
+<div class="main-wrapper">
+    <!-- Desktop UI -->
+    <div class="desktop-ui">
+        <div class="headmenu-wrap">
+            <div class="container">
+                <div class="headmenu" id="headmenu">
+                    <div class="headmenu-main" id="headmenuMain">
+                        <!-- All your original top buttons live here and will be auto-overflowed into [...] when needed -->
+                        <a class="button button-danger" onclick="testCamera()">@ID_MANDATORY_CHECKS</a>
+                        <a class="button" onclick="more()" id="more_btn" style="display: block;" data-helper="more_btn">@ID_PARAMS</a>
+                        <a class="button" href="/records" data-helper="records_help">@ID_RECORDS</a>
+                        <a class="button" href="/completelog" data-helper="log_help" target="_blank">@ID_VIEWLOG</a>
+                        <a class="button" href="/ardupilot" data-helper="ardupilot_hint" target="_blank">Ardupilot</a>
+                        <a class="button" onclick="sendRequest('/grid')" data-helper="grid_hint">@ID_GRID</a>
+                        <a class="button" onclick="showFOVDialog()" data-helper="test_fov_hint">@ID_TESTFOV</a>
+                        <a class="button button-danger" onclick="sendRequest('/exit')" data-helper="shutdown_helper">@ID_TURNOFF</a>
+                        <a class="button button-danger" onclick="reboot()" data-helper="reboot_helper">@ID_REBOOT</a>
+                        <a class="button button-danger" onclick="sendRequest('/stop')" data-helper="stop_helper">@ID_STOP</a>
+                        <a class="button" onclick="sendRequest('/calibrate')" data-helper="level_calibration_hint">@ID_CALIBRATE</a>
+                        <a class="button" onclick="sendRequest('/arm')">@ID_ARM</a>
+                        <a class="button" onclick="sendRequest('/gngp')" data-helper="gngp_help">GNGP</a>
+                        <a class="button" href="/settings" data-helper="settings_help"
+                           target="_blank">@ID_VIEWSETTINGS</a>
+                        <a class="button" href="/locals" data-helper="locals_help" target="_blank">@ID_LOCALSETTINGS</a>
+                        <a class="button" href="/scripts" data-helper="scripts_help">@ID_SCRIPTS</a>
+                    </div>
+
+                    <div class="headmenu-right">
+                        <div class="more" id="more">
+                            <button class="button more-toggle" aria-haspopup="true" aria-expanded="false" title="More">
+                                ...
+                            </button>
+                            <div class="more-menu" id="moreMenu" role="menu" aria-label="Overflow menu"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="container" style="margin-top:10px;">
+            <div class="grid grid-cols-3 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                <span class="col-span-2 md:col-span-1 max-w-sm" data-helper="camerafeed_help"
+                      style="position: relative;">
+                  <img class="w-full" id="cameraFeedJpegs" src="/camera"
+                       style="object-fit: fill;">
+                  <button data-helper="full_image_btn" id="fullImageBtn" style="
+                      position: absolute; top: 5px; right: 5px; padding: 4px 8px;
+                      background: rgba(0,0,0,0.6); color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 12px;">⛶</button>
+                  <button data-helper="pause_play_btn" id="pauseBtn" style="
+                      position: absolute; bottom: 10px; right: 5px; padding: 4px 8px;
+                      background: rgba(0,0,0,0.6); color: white; border: none; border-radius: 5px; cursor: pointer;">⏸</button>
+                </span>
+
+                <span class="m-auto" data-helper="droneimage_help">
+                    <img id="drone" class="invert-filter md:max-w-32 lg:max-w-48"
+                         src="/dronecam"
+                         style="transform: rotate(270deg);">
+                </span>
+                <!--div id="pids" data-helper="ardupilot_hint"></div-->
+            </div>
+
+            <br>
+
+            <div class="flex flex-wrap items-center gap-5" style="margin-top: 10px;">
+                <a class="button" onclick="lockSD()" id="lock_sd" style="display: none;" data-helper="locksd_help">@ID_LOCKSD</a>
+                <a class="button" onclick="unlockSD()" id="unlock_sd" style="display: none;"
+                   data-helper="unlocksd_help">@ID_UNLOCKSD</a>
+                <div>
+                    <label for="nav_dropdown" style="display: none;">Навігация:</label>
+                    <select class="p-1" id="nav_dropdown" name="nav_dropdown" onchange="onChangeNav()" style="display: none;">
+                        <option value="EXTERNAL_NAV">EXTERNAL NAV</option>
+                        <option value="GPS_INPUT">FAKE GPS</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label for="cam_dropdown" data-helper="cam_select_hint">@ID_CAMERA</label>
+                    <select class="p-1" id="cam_dropdown" name="cam_dropdown" onchange="onChangeCamera()"></select>
+                </div>
+
+                <div>
+                    <label for="cam_rotation" data-helper="cam_rotation_hint">@ID_CAM_ROTATION</label>
+<!--                    <input class="min-w-20" type="number" style="width: 50px;" id="cam_rotation" name="cam_rotation" value="0" step="any"-->
+<!--                           oninput="onChangeRotation()">-->
+                    <select class="p-1" id="cam_rotation" name="cam_rotation" onchange="onChangeRotation()">
+                        <option value="0">0</option>
+                        <option value="90">90</option>
+                        <option value="180">180</option>
+                        <option value="270">270</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label for="user_fov" data-helper="user_fov_hint">@ID_FOV</label>
+                    <input class="min-w-20" type="number" id="user_fov" style="width: 50px;" name="user_fov" step="1"
+                           oninput="onChangeFov()"
+                           data-helper="user_fov_hint">
+                </div>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-5" style="margin-top: 5px;">
+                <div class="flex items-center">
+                    <label class="mr-3" for="records_state" data-helper="records_state_hint">@ID_RECMSG</label>
+                    <select class="p-1" id="records_state" name="records_state" onchange="onChangeRecMethod()"
+                            style="display: none;"
+                            data-helper="records_state_hint">
+                        <option value="0">Images and logs</option>
+                        <option value="1">Logs, no images</option>
+                        <option value="2">Nothing</option>
+                        <option value="3">Images, logs, grey</option>
+                        <option value="4">Logs, grey</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label for="user_pos_error" data-helper="precission_hint">@ID_POSITIONING</label>
+                    <input class="min-w-20" type="number" id="user_pos_error" style="width: 50px;" name="user_pos_error" value="100"
+                           step="any" oninput="onChangeError()">
+                </div>
+                <label id="gps-error" style="font-size: 12px; color: gray; display: none;"></label>
+            </div>
+
+            <div id="checks" style="display: none;" class="text-block">@ID_CHECKS_HINT</div>
+
+            <hr>
+
+            <p id="cpuUsageContent"></p>
+
+            <hr>
+
+            <div class="text-block" id="logContent">!LOG!</div>
+
+            <!-- Version indicator -->
+            <div style="position: fixed; bottom: 10px; right: 10px; background: rgba(0,0,0,0.7); color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px; z-index: 1000;">
+                UI v2.1 - <span id="lastUpdate"></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mobile UI for landscape mode (kept) -->
+    <div class="mobile-ui">
+        <div id="cameraFeedContainer">
+            <img id="cameraFeed" src="/stream" alt="Camera Feed" style="height: 100pt">
+        </div>
+    </div>
+</div>
+
+<script>
+    // ---- Overflow menu logic (packs extra buttons into […]) ----
+    (function () {
+        const main = document.getElementById('headmenuMain');
+        const more = document.getElementById('more');
+        const moreMenu = document.getElementById('moreMenu');
+        const toggle = more.querySelector('.more-toggle');
+
+        // Close on outside click / ESC
+        document.addEventListener('click', (e) => {
+            if (!more.contains(e.target)) more.classList.remove('open');
+        });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') more.classList.remove('open');
+        });
+        toggle.addEventListener('click', (e) => {
+            e.stopPropagation();
+            more.classList.toggle('open');
+        });
+
+        // Items that may overflow are all direct children of main
+        // We'll keep them in order and move tail items to the dropdown when needed.
+        function layout() {
+            // Move everything back first (so we can recompute)
+            const overflowItems = Array.from(moreMenu.children);
+            overflowItems.forEach(el => main.appendChild(el));
+
+            // Hide the toggle while measuring
+            more.style.visibility = 'hidden';
+            more.classList.remove('open');
+
+            const container = document.getElementById('headmenu');
+            const maxWidth = container.clientWidth;
+
+            // If content too wide, start moving items (from end) into dropdown
+            function contentWidth() {
+                return main.scrollWidth + more.offsetWidth; // account for more button
+            }
+
+            // Ensure we show the toggle only if anything will overflow
+            let needToggle = contentWidth() > maxWidth;
+
+            // If we need space, show toggle, then move items until it fits
+            if (needToggle) {
+                more.style.visibility = 'visible';
+
+                while (main.children.length && contentWidth() > maxWidth) {
+                    // Move the last visible button into the dropdown (but not the toggle)
+                    const last = main.lastElementChild;
+                    if (!last) break;
+                    moreMenu.insertBefore(last, moreMenu.firstChild);
+                }
+            }
+
+            // If nothing overflowed, hide toggle
+            if (moreMenu.children.length === 0) {
+                more.style.visibility = 'hidden';
+            } else {
+                more.style.visibility = 'visible';
+            }
+        }
+
+        // Run on load + resize (debounced)
+        let rAF = null;
+
+        function schedule() {
+            if (rAF) cancelAnimationFrame(rAF);
+            rAF = requestAnimationFrame(layout);
+        }
+
+        window.addEventListener('resize', schedule);
+        window.addEventListener('load', schedule);
+        schedule();
+    })();
+
+    // ---- Your original JS (unchanged) ----
+    const tooltips = {
+        cam_rotation_hint: "@ID_CAM_ROTATION_HINT",
+        precission_hint: "@ID_PRECISSION_HINT<br>",
+        cam_select_hint: "@ID_CAM_SELECT_HINT <br>",
+        compass_hint: "@ID_COMPASS_HINT <br>",
+        no_records_hint: "@ID_NO_RECORDS_HINT <br>",
+        ardupilot_hint: "@ID_ARDUPILOT_HINT <br>",
+        grid_hint: "@ID_GRID_HINT",
+        test_fov_hint: "@ID_TEST_FOV_HINT",
+        level_calibration_hint: "@ID_LEVEL_CALIBRATION_HINT",
+        gngp_help: "@ID_GNGP_HELP",
+        log_help: "@ID_LOG_HELP",
+        settings_help: "@ID_SETTINGS_HELP",
+        records_help: "@ID_RECORDS_HELP",
+        reboot_helper: "@ID_REBOOT_HELPER",
+        shutdown_helper: "@ID_SHUTDOWN_HELPER",
+        stop_helper: "@ID_STOP_HELPER",
+        locksd_help: "@ID_LOCKSD_HELP",
+        unlocksd_help: "@ID_UNLOCKSD_HELP",
+        camerafeed_help: "@ID_CAMERAFEED_HELP",
+        droneimage_help: "@ID_DRONEIMAGE_HELP",
+        full_image_btn: "@ID_FULL_IMAGE_BTN",
+        pause_play_btn: "@ID_PAUSE_PLAY_BTN",
+        user_fov_hint: "@ID_USER_FOV_HINT",
+        records_state_hint: "@ID_RECORDS_STATE_HINT"
+    };
+
+    function sendRequest(url) {
+        return fetch(url, {method: 'GET'})
+            .then(response => response.ok ? response.text() : null)
+            .catch(() => null);
+    }
+
+    global_rotation = 0;
+    feed_image_width = 0;
+    feed_image_height = 0;
+    feed_image_valid = false;
+
+
+    function update_rotation_scale() {
+        if (!feed_image_valid) return;
+        const aspect = Math.sqrt(feed_image_width * feed_image_width + feed_image_height * feed_image_height) / feed_image_height;
+        const theta = Math.atan(feed_image_width / feed_image_height) * 180 / Math.PI;
+        const _scale1 = Math.abs(aspect * Math.cos((theta - global_rotation) * Math.PI / 180.0));
+        const _scale2 = Math.abs(aspect * Math.cos((theta + global_rotation) * Math.PI / 180.0));
+        const _scale = 1.0 / Math.max(_scale1, _scale2);
+        const cam = document.getElementById('cameraFeedJpegs');
+        cam.style.transform = `rotate(${global_rotation}deg) scale(${_scale})`;
+        cam.style.transformOrigin = 'center center';
+        cam.style.objectFit = 'fill';
+        cam.style.height = '100%';
+        cam.style.display = 'block';
+    }
+
+    async function send_rotation_request() {
+        while (true) {
+            try {
+                const data = await sendRequest('/camrotate');
+                if (data) {
+                    const _rotscale = data.split(' ');
+                    console.log(`[1] data: ${data} rotscale: ${_rotscale[0]} ${_rotscale[1]}`);
+                    const _rot = (parseFloat(_rotscale[0]) + 270) % 360;
+                    const cam = document.getElementById('cameraFeedJpegs');
+                    feed_image_valid = true;
+                    global_rotation = _rot;
+                    console.log(`[1] Rotation set to ${global_rotation} using ${_rotscale[0]}`);
+                    // Apply rotation and scaling using the new formula
+                    break;
+                }
+            } catch (e) {
+            }
+            await new Promise(r => setTimeout(r, 500));
+        }
+    }
+
+    send_rotation_request();
+
+    var _got_state = false;
+
+    function updateCamState() {
+        sendRequest('/camstate').then(data => {
+            if (data) {
+                _got_state = true;
+                const _camstate = JSON.parse(data);
+                const _cameras = _camstate.cameras;
+                const _cam_dropdown = document.getElementById('cam_dropdown');
+                const _records_state = document.getElementById('records_state');
+                _records_state.value = _camstate.records_state;
+                const _locked = _camstate.locked;
+                const _ro = _camstate.readonly;
+                const _camrot = document.getElementById('cam_rotation');
+                const _user_pos_error = document.getElementById('user_pos_error');
+                const _user_fov = document.getElementById('user_fov');
+                _user_fov.value = _camstate.fov;
+                _user_pos_error.value = _camstate.user_pos_error;
+                _records_state.style.display = 'block';
+
+                _cam_dropdown.innerHTML = '';
+                let selectedIndex = 0;
+                for (let i = 0; i < _cameras.length; i++) {
+                    const _option = document.createElement('option');
+                    _option.value = _cameras[i];
+                    _option.text = _cameras[i];
+                    _cam_dropdown.appendChild(_option);
+                    if (_cameras[i] === _camstate.camera) selectedIndex = i;
+                }
+                _cam_dropdown.selectedIndex = selectedIndex;
+                _camrot.value = _camstate.rotation;
+
+                if (_locked) {
+                    _cam_dropdown.disabled = true;
+                    _user_fov.disabled = true;
+                    _user_pos_error.disabled = true;
+                    _records_state.disabled = true;
+                    _camrot.disabled = true;
+                    document.getElementById('unlock_sd').style.display = 'block';
+                } else {
+                    document.getElementById('lock_sd').style.display = _ro ? 'none' : 'block';
+                }
+            }
+        }).catch(() => {
+            if (!_got_state) setTimeout(updateCamState, 500);
+        });
+    }
+
+    updateCamState();
+
+    function showFOVDialog() {
+        const fovValue = prompt("@ID_ENTER_FOV");
+        if (fovValue !== null && fovValue.trim() !== "") {
+            sendRequest(`/testfov/${encodeURIComponent(fovValue)}`).then(() => {
+                location.reload();
+            });
+        }
+    }
+
+    function onChangeMethod() {
+        var nav_method = document.getElementById('nav_method');
+        sendRequest(`/setnav/${nav_method.value}`);
+    }
+
+    async function pollLog() {
+        while (true) {
+            try {
+                const data = await sendRequest('/log');
+                if (data) document.getElementById('logContent').textContent = data;
+            } catch {
+            }
+            await new Promise(r => setTimeout(r, 1000));
+        }
+    }
+
+    async function pollCpu() {
+        while (true) {
+            try {
+                const data = await sendRequest('/cpu');
+                if (data) document.getElementById('cpuUsageContent').innerHTML = data;
+            } catch {
+            }
+            await new Promise(r => setTimeout(r, 1000));
+        }
+    }
+
+    pollLog();
+    pollCpu();
+
+    let paused = false;
+
+    function updateImage() {
+        if (paused) return setTimeout(updateImage, 100);
+        const img = document.getElementById('cameraFeedJpegs');
+        const newSrc = `/camera?${Date.now()}`;
+        const newImg = new Image();
+        newImg.onload = () => {
+            img.src = newSrc;
+            feed_image_width = newImg.width;
+            feed_image_height = newImg.height;
+            update_rotation_scale();
+            setTimeout(updateImage, 50);
+        };
+        newImg.onerror = () => {
+            setTimeout(updateImage, 100);
+        };
+        newImg.src = newSrc;
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const pauseBtn = document.getElementById('pauseBtn');
+        const fullBtn = document.getElementById('fullImageBtn');
+        pauseBtn.addEventListener('click', () => {
+            paused = !paused;
+            pauseBtn.textContent = paused ? '▶' : '⏸';
+        });
+        fullBtn.addEventListener('click', () => {
+            if (!paused) {
+                paused = true;
+                pauseBtn.textContent = '▶';
+            }
+            window.open('/full_camera/', '_blank');
+        });
+
+        // Update version timestamp
+        const lastUpdate = document.getElementById('lastUpdate');
+        if (lastUpdate) {
+            lastUpdate.textContent = new Date().toLocaleTimeString();
+        }
+
+        // Always-inverted drone image in dark scheme (no toggle)
+
+      updateImage();
+    });
+
+    function showFOVInfo() {
+        alert("@ID_FOV_INFO");
+        location.reload();
+    }
+
+    function testCamera() {
+        var checks = document.getElementById('checks');
+        checks.style.display = checks.style.display === 'none' ? 'block' : 'none';
+    }
+
+    function onChangeCamera() {
+        var cam_dropdown = document.getElementById('cam_dropdown');
+        sendRequest(`/setcamid/${cam_dropdown.value}`).then(() => {
+            updateCamState();
+        });
+        alert('You need reboot to apply the camera type changes.');
+    }
+
+    function onChangeRotation() {
+        var cam_rotation = document.getElementById('cam_rotation');
+        sendRequest(`/setrotation/${cam_rotation.value}`).then(() => {
+            send_rotation_request();
+        });
+    }
+
+    function rebootMessage() {
+        alert("@ID_REBOOT_MESSAGE");
+    }
+
+    function lserv(command) {
+        return `/lserv/${command}`;
+    }
+
+    function more() {
+        // in case if SD card is locked, ask for confirmation
+        if (document.getElementById('unlock_sd').style.display === 'block') {
+            // show warning thta all is readd only
+            alert('@ID_EDITOR_LOCLED');
+        }
+        window.open('/editor', '_blank');
+    }
+
+    function reboot() {
+        var reboot = confirm('@ID_REBOOT_CONFIRM');
+        if (reboot) sendRequest(lserv('reboot')).then(rebootMessage);
+    }
+
+    function lockSD() {
+        var lock = confirm('@ID_LOCK_CONFIRM');
+        if (lock) {
+            sendRequest(lserv('lock'));
+            rebootMessage();
+        }
+    }
+
+    function unlockSD() {
+        var unlock = confirm('@ID_UNLOCK_CONFIRM');
+        if (unlock) {
+            sendRequest(lserv('unlock'));
+            rebootMessage();
+        }
+    }
+
+    function onChangeRecords() {
+        var no_records = document.getElementById('no_records');
+        var records = no_records.checked ? 0 : 1;
+        sendRequest(`/setrecords/${records}`).then(() => {
+            if (records === 0) {
+                var lock = confirm('@ID_NOREC_CONFIRM');
+                if (lock) lockSD();
+            }
+        });
+    }
+
+    function onChangeNav() {
+        var nav_dropdown = document.getElementById('nav_dropdown');
+        if (nav_dropdown.value == 'EXTERNAL_NAV') sendRequest("/setnav/2");
+        else if (nav_dropdown.value == 'GPS_INPUT') sendRequest("/setnav/4");
+    }
+
+    function onChangeRecMethod() {
+        var rec_method = document.getElementById('records_state');
+        sendRequest(`/setrecmethod/${rec_method.value}`);
+    }
+
+    function onChangeError() {
+        var user_pos_error = document.getElementById('user_pos_error');
+        sendRequest(`/setuserposerror/${user_pos_error.value}`);
+    }
+
+    function onChangeFov() {
+        var user_fov = document.getElementById('user_fov');
+        sendRequest(`/setuserfov/${user_fov.value}`);
+    }
+
+    // Tooltips (unchanged)
+    document.querySelectorAll('[data-helper]').forEach(el => {
+        const key = el.getAttribute('data-helper');
+        if (!tooltips[key]) return;
+        const tooltext = tooltips[key];
+        let showTimer = null;
+        el.addEventListener('mouseenter', () => {
+            showTimer = setTimeout(() => {
+                const tooltip = document.createElement('div');
+                tooltip.className = 'custom-tooltip';
+                tooltip.innerHTML = tooltext;
+                document.body.appendChild(tooltip);
+                const rect = el.getBoundingClientRect();
+                tooltip.style.position = 'absolute';
+                tooltip.style.left = (rect.left + window.scrollX) + 'px';
+                tooltip.style.top = (rect.bottom + window.scrollY + 8) + 'px';
+                tooltip.style.zIndex = 9999;
+                el._activeTooltip = tooltip;
+            }, 400);
+        });
+        el.addEventListener('mouseleave', () => {
+            clearTimeout(showTimer);
+            showTimer = null;
+            if (el._activeTooltip) {
+                el._activeTooltip.remove();
+                el._activeTooltip = null;
+            }
+        });
+    });
+</script>
+</body>
+</html>

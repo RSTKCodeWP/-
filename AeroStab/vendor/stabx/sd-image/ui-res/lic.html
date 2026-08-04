@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>UA-PILOT license server</title>
+  <style>
+    /* Reset margins/padding */
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      background-color: #15170b;
+      color: #e5e7eb;
+      font-family: 'Consolas', 'Lucida Console', 'Roboto Mono', monospace;
+    }
+    /* Center the outer container on the page */
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    .outer-container {
+      display: flex;
+      align-items: center;
+      background-color: #232613;
+      color: #e5e7eb;
+      text-align: center;
+      padding: 2em;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    .drone-image {
+      width: 120px;
+      margin-right: 1em;
+    }
+    .container {
+      text-align: center;
+      width: 800px; /* adjust as needed */
+    }
+    label {
+      font-size: 1.3em;
+      font-weight: bold;
+      margin-bottom: 0.5em;
+      display: inline-block;
+    }
+    .input-container {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin-bottom: 1em;
+      padding-right: 1em;
+    }
+    input[type="text"] {
+      width: 70%;
+      font-size: 1.2em;
+      padding: 0.4em;
+      margin-right: 0.5em;
+      background: #3D4221;
+      color: #e5e7eb;
+      border: 1px solid #5D6532;
+      border-radius: 6px;
+      outline: none;
+    }
+    select {
+      font-size: 1.2em;
+      padding: 0.4em;
+      min-width: 120px;
+      background: #3D4221;
+      color: #e5e7eb;
+      border: 1px solid #5D6532;
+      border-radius: 6px;
+    }
+    button {
+      font-size: 1.3em;
+      padding: 0.6em 1.2em;
+      margin: 0.5em;
+      cursor: pointer;
+      background: #AFBD5E;
+      color: #0e1006;
+      border: 1px solid #AFBD5E;
+      border-radius: 6px;
+    }
+    button:hover {
+      background-color: #9EAD54;
+    }
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.6;
+    }
+    /* Match the "More" dropdown to the button style */
+    #moreSelect {
+      font-size: 1.3em;
+      padding: 0.6em 1.2em;
+      margin: 0.6em;
+      cursor: pointer;
+      background-color: #232613;
+      color: #e5e7eb;
+      border: 1px solid #5D6532;
+      border-radius: 6px;
+    }
+
+    /* Hover effect for the dropdown, same as buttons */
+    #moreSelect:hover {
+      background-color: #3D4221;      
+    }
+    #progressContainer {
+      display: none;
+      margin-top: 1em;
+      font-size: 1.1em;
+      font-weight: bold;
+    }
+    #progressError {
+      color: #C06100;
+    }
+    .version-label {
+      position: fixed;
+      bottom: 10px;
+      right: 10px;
+      font-size: 0.9em;
+      color: #b5be97;
+    }
+
+    /**********************************************
+     * Tooltip styling
+     **********************************************/
+    .tooltip {
+      position: relative;
+      display: inline-block; /* needed so :hover is recognized */
+    }
+    .tooltip .tooltiptext {
+      /* Hidden by default: */
+      visibility: hidden;
+      opacity: 0;
+
+      /* Adjust width / min-width as desired: */
+      width: auto;
+      min-width: 300px;
+
+      background-color: #3D4221;
+      color: #e5e7eb;
+      text-align: center;
+      border-radius: 6px;
+      padding: 10px;
+      border: 1px solid #5D6532;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+
+      /* Position the tooltip */
+      position: absolute;
+      z-index: 0;
+      top: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+
+      /* 
+        Appear only after some delay, 
+        disappear immediately 
+      */
+      transition: opacity 0s, visibility 0s;
+      /* No delay in default state => hides immediately when mouse leaves */
+      transition-delay: 0s;
+    }
+    .tooltip:hover .tooltiptext {
+      visibility: visible;
+      opacity: 1;
+      /* Appear after 1s (adjust if you want a different delay) */
+      transition-delay: 1s;
+    }    
+
+    .tooltip_right {
+      position: relative;
+      display: inline-block; /* needed so :hover is recognized */
+    }
+    .tooltip_right .tooltiptext {
+      /* Hidden by default: */
+      visibility: hidden;
+      opacity: 0;
+
+      /* Adjust width / min-width as desired: */
+      width: auto;
+      min-width: 300px;
+
+      background-color: #3D4221;
+      color: #e5e7eb;
+      text-align: center;
+      border-radius: 6px;
+      padding: 10px;
+      border: 1px solid #5D6532;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+
+      /* Position the tooltip */
+      position: absolute;
+      z-index: 0;
+      top: 100%;
+      left: 50%;
+      transform: translateX(115px) translateY(-65px);
+
+
+      /* 
+        Appear only after some delay, 
+        disappear immediately 
+      */
+      transition: opacity 0s, visibility 0s;
+      /* No delay in default state => hides immediately when mouse leaves */
+      transition-delay: 0s;
+    }
+    .tooltip_right:hover .tooltiptext {
+      visibility: visible;
+      opacity: 1;
+      /* Appear after 1s (adjust if you want a different delay) */
+      transition-delay: 1s;
+    }    
+  </style>
+</head>
+<body> 
+  <div class="outer-container">
+    <img src="/images/ua-drone.png" alt="UA Drone" class="drone-image" />
+
+    <div class="container">
+      <label for="secretWord">Please enter the secret word, choose the unlocking device:</label><br />
+
+      <div class="input-container" id="inputs">
+        <input type="text" id="secretWord" name="secretWord" onchange="countlic()" />
+        <select id="deviceSelect" onchange="onDeviceChange()">
+          <!-- Options populated dynamically from /devices -->
+        </select>
+      </div>
+      <div class="input-container" id="locker" style="display:none">
+        <button id="unlock" type="button" onclick="unlock()">The system locked, click there to unlock</button>
+      </div>
+
+      <div style="display: none; color: red;" id="updsd"><b>Треба <a href="https://drive.google.com/drive/folders/1O93PtcQ7vLsnBCP0gEJb-mrtUbRa1H6z">оновити</a> SD card image!</b></div>
+
+      <div>
+        <!-- Tooltip around the Download button -->
+        <div class="tooltip">
+          <button id="downloadBtn" type="button" onclick="downloadFile()" disabled>Download</button>
+          <span class="tooltiptext">
+            Download the latest firmware and pair with the device. You may pair multiple devices using this button. Be careful! User settings from the uapilot.online will overwrite the local autopilot settings!
+          </span>
+        </div>
+
+        <!-- Tooltip around Settings button -->
+        <div class="tooltip">
+          <button type="button" onclick="openSettings()">User Settings</button>
+          <span class="tooltiptext">Open settings on the uapilot.online, pay attention - if you change user settings they will be applied to the autopilot only after the Download!</span>
+        </div>
+
+        <!-- Tooltip around Drone button -->
+        <div class="tooltip">
+          <button type="button" onclick="drone()">Drone</button>
+          <span class="tooltiptext">Open the drone UI</span>
+        </div>
+
+        <!-- Wrap the select in .tooltip to use the same style -->
+        <div class="tooltip_right">
+          <select id="moreSelect" onchange="handleMoreActions()">
+            <option value="">-- More --</option>
+            <option value="paired">Paired devices</option>
+            <option value="unpair">Unpair all</option>
+            <option value="reboot">Reboot</option>
+            <option value="shutdown">Shutdown</option>
+            <option value="wipe">Wipe</option>
+            <option value="lock">Lock</option>
+            <option value="unlock">Unlock</option>
+            <option value="noRecords">Remove records</option>
+            <option value="accessPoint">Make access point</option>
+            <option value="wifiConnect">Connect wifi</option>
+          </select>
+          <span class="tooltiptext">
+            Advanced actions for the server: List paired devices, unpair, Reboot, shutdown, wipe all data. 
+            Wiping the data will remove all paired devices.
+            Unpairing will remove all paired devices but keep records.
+          </span>
+        </div>
+      </div>
+
+      <div id="progressContainer">
+        <span id="progressStatus">Checking download progress...</span>
+        <div id="progressError"></div>
+      </div>
+    </div>
+  </div>
+  <div class="version-label">UA-PILOT web client</div>
+
+  <script>
+    let progressInterval = null;
+
+    //request build date and place it in the version label: /buildinfo
+    fetch('/buildinfo')
+      .then(response => response.text())
+      .then(data => {
+        document.querySelector('.version-label').innerText = `UA-PILOT web client (${data})`;
+      });
+
+
+    let stopPolling = false; // Optional, in case you want to stop polling
+
+    async function fetchDevicesList() {
+      try {
+        const response = await fetch('/devices');
+        if (response.ok) {
+          const devices = await response.json(); // Should be array of strings
+          populateDeviceSelect(devices);
+        } else {
+          // Handle HTTP error (optionally show some UI error)
+          console.error('Failed to fetch devices:', response.statusText);
+        }
+      } catch (error) {
+        // Handle network or other errors
+        console.error('Error fetching devices:', error);
+      }
+    }
+
+    async function pollDevicesList() {
+      while (!stopPolling) {
+        await fetchDevicesList();
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second between polls
+      }
+    }
+
+    // Start polling
+    pollDevicesList();
+
+
+    fetch('/getlock')
+    .then(response => response.text())
+      .then(data => {
+        if(data == '1'){          
+          document.getElementById("inputs").style.display = "none";
+          document.getElementById("locker").style.display = "block";
+        }
+      });
+    fetch('/testnewimage')
+    .then(response => response.text())
+      .then(data => {
+        if(data == '0'){                    
+          document.getElementById("updsd").style.display = "block";
+        }
+      });
+
+    var in_device = 0;
+
+    function rebootMessage() {
+      alert("The server is rebooting. Please wait 20-30 seconds and refresh the page.");
+    }
+
+    function populateDeviceSelect(deviceArray) {
+      const selectElem = document.getElementById('deviceSelect');
+      const currentSelection = selectElem.value;
+      selectElem.innerHTML = '';
+
+      const placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.textContent = '-- Select a device --';
+      selectElem.appendChild(placeholder);
+
+      deviceArray.forEach(device => {
+        const option = document.createElement('option');
+        option.value = device;
+        option.textContent = device;
+        selectElem.appendChild(option);
+      });
+
+      // Attempt to preserve the user's current selection if it still exists.
+      selectElem.value = currentSelection;
+      onDeviceChange();
+    }
+
+    function onDeviceChange() {
+      const downloadBtn = document.getElementById('downloadBtn');
+      const deviceSelect = document.getElementById('deviceSelect');
+      downloadBtn.disabled = (deviceSelect.value === '');
+    }
+
+    let progressPollingActive = false;
+
+    function startProgress() {
+      if (progressPollingActive) return; // Already running
+
+      progressPollingActive = true;
+
+      async function pollProgress() {
+        while (progressPollingActive) {
+          let progressMessage = await sendRequest("/progress");
+
+          if (!progressMessage) {
+            // Could add retry/backoff here
+          } else if (progressMessage === "SUCCESS") {
+            hideProgressBox();
+            progressPollingActive = false;
+          } else if (progressMessage.startsWith("FAILURE")) {
+            let errorText = progressMessage.substring("FAILURE".length).trim();
+            showDownloadError(errorText);
+            hideProgressBox();
+            progressPollingActive = false;
+          } else {
+            updateProgressMessage(progressMessage);
+          }
+
+          if (progressPollingActive) {
+            await new Promise(resolve => setTimeout(resolve, 300));
+          }
+        }
+      }
+
+      pollProgress();
+    }
+
+    // Optional: a function to manually stop polling if needed
+    function stopProgress() {
+      progressPollingActive = false;
+    }
+
+    function downloadFile() {
+      let device = document.getElementById('deviceSelect').value;
+      if (!device) return; // do nothing if no device selected
+      document.getElementById("progressError").innerText = "";
+      showProgressBox("Sent download request...");
+      in_progress = 0;
+      in_device = 0;
+      let secretWord = document.getElementById("secretWord").value;
+      let downloadUrl = `/download/?KEY=${secretWord}&device=${device}`;
+      sendRequest(downloadUrl);
+      startProgress();
+    }
+
+    function openSettings() {
+      let secretWord = document.getElementById("secretWord").value;
+      sendRequest("/settings/" + secretWord).then(data => {
+        if (data) {
+          window.open("https://uapilot.online/" + data, "_blank");
+        }
+      });
+    }
+
+    function countlic() {
+      let secretWord = document.getElementById("secretWord").value;
+      let downloadUrl = `/count/?KEY=${secretWord}`;
+      sendRequest(downloadUrl);
+      document.getElementById("progressError").innerText = "";
+      showProgressBox("...");
+      startProgress();
+    }
+
+    function drone() {
+      let url = window.location.href;
+      let server = url.split(":")[1].replace("//", "");
+      let droneUrl = "http://" + server + ":8080";
+      window.open(droneUrl, "_blank");
+    }
+
+    function reboot() {
+      if (!confirm("Are you sure you want to reboot the server?")) return;
+      sendRequest("/reboot");
+      rebootMessage();
+    }
+
+    function shutdown() {
+      if (!confirm("Are you sure you want to shutdown the server?")) return;
+      sendRequest("/shutdown");
+    }
+
+    function wipe() {
+      if (!confirm("Are you sure you want to wipe all paired devices?")) return;
+      sendRequest("/wipe");      
+    }
+
+    function lock() {
+      if (!confirm("Are you sure you want to make the filesystem read-only? It is impossible to make any records in this case.\nThe system will reboot.")) return;
+      sendRequest("/lock");
+      rebootMessage();
+    }
+
+    function unlock() {
+      if(!confirm("Are you sure you want to make the filesystem writeable?\nThe system will reboot.")) return;
+      sendRequest("/unlock");
+      rebootMessage();
+    }
+
+    function noRecords() {
+      if (!confirm("Are you sure you want to remove all records?")) return;
+        sendRequest("/norecords").then(() => {
+        alert("All records removed.");
+      });
+    }
+
+    function accessPoint() {
+      sendRequest("/accesspoint").then(() => {
+        alert("The device is now an access point 'RPIHost'.");
+      });
+    }
+
+    function wifiConnect() {
+      sendRequest("/wificonnect").then(() => {
+        alert("The device is now trying to connect to the default Wi-Fi network.");
+      });
+    } 
+
+    function handleMoreActions() {
+      const action = document.getElementById("moreSelect").value;
+      switch (action) {
+        case "reboot":
+          reboot();
+          break;
+        case "shutdown":
+          shutdown();
+          break;
+        case "wipe":
+          wipe();
+          break;
+        case "paired":
+          // /paired returns json array, show the modal dialog:
+          sendRequest("/paired").then(data => {
+            if (data) {
+              // convert json array to string with newlines
+              var data = JSON.parse(data);
+              var list = "";
+              for (var i = 0; i < data.length; i++) {
+                list += data[i] + "\n";
+              }
+              alert("Paired devices:\n" + list);
+            }
+          });
+          break;
+        case "unpair":
+          if (!confirm("Are you sure you want to unpair all devices?")) return;
+          sendRequest("/unpair");
+          break;
+        case "lock":
+          lock();
+          break;
+        case "unlock":
+          unlock();
+        case "noRecords":
+          noRecords();
+          break;
+        case "accessPoint":
+          accessPoint();
+          break;
+        case "wifiConnect":
+          wifiConnect();
+          break;
+      }
+      // Reset dropdown to placeholder
+      document.getElementById("moreSelect").value = "";
+    }
+
+    function sendRequest(url) {
+      return fetch(url, { method: 'GET' })
+        .then(response => {
+          if (response.ok) {
+            return response.text();
+          } else {
+            //console.error('Request failed:', response.statusText);
+            return null;
+          }
+        })
+        .catch(error => {
+          //console.error('Error:', error);
+          return null;
+        });
+    }
+
+    function showProgressBox(message) {
+      document.getElementById("progressContainer").style.display = "block";
+      document.getElementById("progressStatus").innerText = message;
+      if (message.length === 0) hideProgressBox();
+    }
+
+    function hideProgressBox() {
+      document.getElementById("progressContainer").style.display = "none";
+    }
+
+    function updateProgressMessage(msg) {
+      document.getElementById("progressContainer").style.display = "block";
+      document.getElementById("progressStatus").innerText = msg;
+    }
+
+    function showDownloadError(msg) {
+      document.getElementById("progressError").style.display = "block";
+      document.getElementById("progressError").innerText = msg;
+    }
+  </script>
+</body>
+</html>

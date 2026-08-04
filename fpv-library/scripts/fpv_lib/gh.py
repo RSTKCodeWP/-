@@ -42,6 +42,25 @@ def list_owner_repos(owner: str, *, per_page: int = 100) -> list[dict[str, Any]]
     return gh_api(f"/users/{owner}/repos?per_page={per_page}&sort=updated", paginate=True)
 
 
+def list_org_repos(org: str, *, per_page: int = 100) -> list[dict[str, Any]]:
+    return gh_api(f"/orgs/{org}/repos?per_page={per_page}&sort=updated", paginate=True)
+
+
+def is_github_org(owner: str) -> bool:
+    try:
+        gh_api(f"/orgs/{owner}")
+        return True
+    except GhError:
+        return False
+
+
+def list_all_repos_for_owner(owner: str) -> list[dict[str, Any]]:
+    """List every repo for an org or user — no pagination cap beyond GitHub pages."""
+    if is_github_org(owner):
+        return list_org_repos(owner)
+    return list_owner_repos(owner)
+
+
 def repo_details(source: str) -> dict[str, Any]:
     return gh_api(f"/repos/{source}")
 

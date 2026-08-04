@@ -1,0 +1,74 @@
+<style>
+    #uploadProgress {
+      height: 20px;
+      margin-top: 10px;
+      border: 1px solid #5D6532;
+      border-radius: 5px;
+  }
+</style>
+
+<progress id="uploadProgress" value="0" max="100" style="width: 100%; display: none;"></progress>
+
+<script>
+  function preventDefaults(e) {
+    e.preventDefault(); 
+    e.stopPropagation();
+  }
+
+  ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+    document.body.addEventListener(eventName, preventDefaults, false);
+  });
+
+  document.body.addEventListener("drop", e => {
+    const dt = e.dataTransfer;
+    const files = dt.files;
+    handleFiles(files);
+  });
+
+  function handleFiles(files) {
+    const file = files[0];
+    if (file && (file.name.endsWith(".csv") || file.name.endsWith(".zip"))) {
+      console.log("Selected file name:", file.name);
+
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const xhr = new XMLHttpRequest();
+
+      const progressBar = document.getElementById("uploadProgress");
+      progressBar.style.display = "block";
+      progressBar.value = 0;
+
+      xhr.upload.addEventListener("progress", (e) => {lot-r
+        if (e.lengthComputable) {
+          const percent = (e.loaded / e.total) * 100;
+          progressBar.value = percent;
+        }
+      });
+
+      xhr.onreadystatechange = () => {
+        if (xhr.readyState === XMLHttpRequest.DONE) {
+          progressBar.style.display = "none";
+          const response = xhr.responseText;
+          console.log("Server response:", response);
+          if (response.includes("успішно")) {
+            alert(response);
+            location.reload();
+          } else {
+            alert("Помилка: " + response);
+          }
+        }
+      };
+
+      xhr.onerror = () => {
+        progressBar.style.display = "none";
+        alert("Помилка мережі або сервера");
+      };
+
+      xhr.open("POST", "/upload_record");
+      xhr.send(formData);
+    } else {
+      alert("Будь ласка, завантажте .csv або .zip файл");
+    }
+  }
+</script>

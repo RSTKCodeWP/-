@@ -39,6 +39,14 @@ def default_repo_path(source: str, description: str | None = None) -> str:
     return f"fpv-library/repos/{slug}"
 
 
+def org_repo_path(source: str) -> str:
+    """Layout for org mirrors: OpenIPC/firmware, OpenIPC/msposd, …"""
+    owner, _, name = source.partition("/")
+    if not name:
+        return default_repo_path(source)
+    return f"{owner}/{name}"
+
+
 def load_catalog() -> dict[str, Any]:
     path = catalog_path()
     if not path.exists():

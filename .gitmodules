@@ -1,0 +1,6 @@
+[submodule "OpenIPC/fpv"]
+	path = OpenIPC/fpv
+	url = https://github.com/OpenIPC/fpv.git
+[submodule "ardufleetcheck-Python-ArduPilot-Fleet-Check-Skills"]
+	path = ardufleetcheck-Python-ArduPilot-Fleet-Check-Skills
+	url = https://github.com/paulnurkkala/ardufleetcheck.git

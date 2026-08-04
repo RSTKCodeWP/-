@@ -1,0 +1,78 @@
+# AeroStab v0.5 — production: Pi Zero 2W + Frank-S01 → PosHold hover
+
+camera:
+  backend: auto
+  width: 640
+  height: 480
+  fps: 20
+  fov_deg: 72.4
+  rotation_deg: 0
+  show_grid: true
+
+estimator:
+  max_corners: 60
+  quality_level: 0.02
+  min_distance: 10
+  min_track_points: 8
+  velocity_lpf_alpha: 0.3
+  reset_interval_s: 60
+  use_visual_yaw: false
+
+altitude:
+  source: auto          # rangefinder → baro_relative → relative_alt → default
+  static_m: 2.0
+  min_m: 0.3
+  max_m: 500.0
+  default_m: 2.0
+
+odometry:
+  max_speed_m_s: 15.0
+  reset_on_arm: true
+
+gps_fusion:
+  enabled: false
+
+quality:
+  min_quality: 0.25
+  min_fps: 8.0
+  min_points_to_send: 8
+  hold_last_on_drop: true
+  hold_send_last_pose: true
+  nav_valid_warmup_s: 2.0
+
+mask:
+  enabled: true
+  cols: 16
+  rows: 12
+  path: /etc/aerostab/mask.json
+  max_roi_fill: 0.33
+  analysis_roi_scale: 0.5
+
+mavlink:
+  enabled: true
+  port: auto
+  baud: 230400
+  rate_hz: 20
+  send_vision_position: true
+
+web:
+  enabled: true
+  host: 0.0.0.0
+  port: 8080
+  mjpeg_quality: 70
+
+pmw3901:
+  enabled: false
+  blend_weight: 0.35
+
+rtl:
+  enabled: false
+  min_dist_m: 0.25
+  max_points: 2000
+  save_path: /var/log/aerostab/rtl_path.json
+
+runtime:
+  control_hz: 50
+  simulate: false
+  log_csv: false
+  log_dir: /var/log/aerostab

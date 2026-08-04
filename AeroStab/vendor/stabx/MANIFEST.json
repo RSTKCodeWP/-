@@ -1,0 +1,227 @@
+[
+  {
+    "path": "MANIFEST.md",
+    "bytes": 3743,
+    "sha256": "683770dc8404b3a61c05a17e98f9844851798eabeea2360d330d093873d6ae76"
+  },
+  {
+    "path": "drive-docs/StabX \u2013 ENG.pdf",
+    "bytes": 3170247,
+    "sha256": "ae5680aedee0eacb1aecea1f1b907116c6e2aba839e9c7e3cc2fafcb390f9a10"
+  },
+  {
+    "path": "drive-docs/StabX.pdf",
+    "bytes": 3367353,
+    "sha256": "03136d70958f94a3af3c43d8c987fd2f3871d9f69d4b9395c2d4c7684d28bfe1"
+  },
+  {
+    "path": "drive-manifest/files.tsv",
+    "bytes": 947,
+    "sha256": "dfe5fcd97a19112a92182dea78b8651963c4ee70bfc266988dfb38e59c2ccdff"
+  },
+  {
+    "path": "sd-image/binaries-refs/lserv.file.txt",
+    "bytes": 253,
+    "sha256": "6ff41dd0f1471c1e05578c0c5b4ba58abb194064e7dea5af3c8d7cb7fd7f7abf"
+  },
+  {
+    "path": "sd-image/binaries-refs/lserv.sha256",
+    "bytes": 105,
+    "sha256": "6bfd0c83c56467459dae98405c102195ceae02fcf9e6b624e3e550d87d388512"
+  },
+  {
+    "path": "sd-image/binaries-refs/lserv.strings-head.txt",
+    "bytes": 10571,
+    "sha256": "fd4a534a0f8cef74787f71e4e64c2349197a3e5eb31e6352de7947f3eb1f7f90"
+  },
+  {
+    "path": "sd-image/scripts/autorun.sh",
+    "bytes": 2635,
+    "sha256": "b5faceb9f193e78694c9056643434662ee5b273dd04690e73366c4ee33ca1212"
+  },
+  {
+    "path": "sd-image/scripts/clean.sh",
+    "bytes": 294,
+    "sha256": "9907d3a0e99e799015d0c28b2cae155b1c54472e372ff40bb41e70ea91598e08"
+  },
+  {
+    "path": "sd-image/scripts/expand.sh",
+    "bytes": 1226,
+    "sha256": "c8d5ca5847016c2df3adb1ca26eacda32443a5b6c18f7992c5be02ed52a897f4"
+  },
+  {
+    "path": "sd-image/scripts/firmware.sh",
+    "bytes": 1688,
+    "sha256": "a635f63b33f9d154848be2172a5e32c48421d834fb675dfa91153ffd14f7f8bf"
+  },
+  {
+    "path": "sd-image/scripts/inet.sh",
+    "bytes": 4282,
+    "sha256": "dbc4686d8d099b7f924fc98d5df1e627548a92dc188e514d3ffd626793546957"
+  },
+  {
+    "path": "sd-image/scripts/mediamtx.yml",
+    "bytes": 31977,
+    "sha256": "dd0f4e64f1ca83906ce74848fd66e4ebf969274146adbb6bf4f6de5049178463"
+  },
+  {
+    "path": "sd-image/scripts/rtsp.sh",
+    "bytes": 463,
+    "sha256": "6eb0ff8b63eb6c63eb4ad7358f2a7b6d6d4b4e33f5a33eaadca461de48f20388"
+  },
+  {
+    "path": "sd-image/scripts/run_usb.sh",
+    "bytes": 1891,
+    "sha256": "ea5a6018cbe58d147cbcc2fb273c9a3b9acdf9a0b23358c3d433c7032f11d5f9"
+  },
+  {
+    "path": "sd-image/scripts/shred.sh",
+    "bytes": 2001,
+    "sha256": "1036e6f4f42451f98cae76a9b070a6bccebe5342c407f858dcf9a3fb278318be"
+  },
+  {
+    "path": "sd-image/scripts/update.sh",
+    "bytes": 522,
+    "sha256": "be3b5985e56e751475349db6bee477a0dda796fb47dd1fd9eb5f258e7800e588"
+  },
+  {
+    "path": "sd-image/scripts/wifi.sh",
+    "bytes": 916,
+    "sha256": "cc60a2a35611e3e4bb6deff95984bd3229c244c0e85de94740f8ae53b9991cd0"
+  },
+  {
+    "path": "sd-image/scripts/wipe.sh",
+    "bytes": 2695,
+    "sha256": "34de8fd07460458b1c4177108dd5e9753523e6a850182851f5616be5bd2c58db"
+  },
+  {
+    "path": "sd-image/systemd/cpu_mem_logger.service",
+    "bytes": 252,
+    "sha256": "6b7475730c79f9a83912ab5c913b2a6b131a9d17767271b3645c78909ad7ea51"
+  },
+  {
+    "path": "sd-image/systemd/devmon@pilot.service",
+    "bytes": 189,
+    "sha256": "9db03510f7cdc74b20a57adcd11a9c85479c45c586ef904c429453125004c2f3"
+  },
+  {
+    "path": "sd-image/systemd/shred_logs_and_bt.service",
+    "bytes": 193,
+    "sha256": "b3cf2c93b9b09815ab5a75ec601a94cd1a40b9231d2131594176d276612ed9de"
+  },
+  {
+    "path": "sd-image/systemd/usb-autostart.service",
+    "bytes": 156,
+    "sha256": "09e29b7ff0e51454d4fec9b847853ab891f911648f4daa43ad14d6644501ab04"
+  },
+  {
+    "path": "sd-image/systemd/wifi-connect.service",
+    "bytes": 241,
+    "sha256": "bf30fb37f8d1175c1fe75773aba621be6022da647a93009be351893eb0c5b981"
+  },
+  {
+    "path": "sd-image/ui-res/ardupilot.html",
+    "bytes": 18216,
+    "sha256": "fbb3ed12fd59a67961f677c9e7f4df1105181a8dfbbd5fda245a2431e33c50c9"
+  },
+  {
+    "path": "sd-image/ui-res/changepass.html",
+    "bytes": 9627,
+    "sha256": "de39213f38e386136972457a572ee2a9900fdcb1f2d016c104c9c4ef8cdcf840"
+  },
+  {
+    "path": "sd-image/ui-res/charts.html",
+    "bytes": 18192,
+    "sha256": "69c218ccb9a007abb6e9e86fbbe7eda8379ee846bee7fb0e6ff34df165b03bdb"
+  },
+  {
+    "path": "sd-image/ui-res/console.html",
+    "bytes": 2071,
+    "sha256": "9c9a1f65f5651f1da219c175d76a16ed62427c25eb97e0711306f4a5313c8b5f"
+  },
+  {
+    "path": "sd-image/ui-res/decim.html",
+    "bytes": 2159,
+    "sha256": "144097c86f609d84a849eadfed6da055ca4d5bd50e615864da02aa8a6f82d17e"
+  },
+  {
+    "path": "sd-image/ui-res/editor.html",
+    "bytes": 28263,
+    "sha256": "c40d1a33f58a79431e0327ff1bc10e79fed18277b6bf52b36d8ce754d54686ca"
+  },
+  {
+    "path": "sd-image/ui-res/en.txt",
+    "bytes": 5909,
+    "sha256": "1383c0bba8a7372dbc61d9088652351b9f57e5e74d356ae9fa8075d9d53c42b2"
+  },
+  {
+    "path": "sd-image/ui-res/full_camera.html",
+    "bytes": 1519,
+    "sha256": "b0ce73b19338c7a4500ee487af1a46f3fc0558933da193f8f2a09c90d58e6746"
+  },
+  {
+    "path": "sd-image/ui-res/lic.html",
+    "bytes": 17693,
+    "sha256": "db828436fb6777b53cd2c7a73f472864dbbfdae8ef81cec424a610c48db4544b"
+  },
+  {
+    "path": "sd-image/ui-res/mp-hints.xml",
+    "bytes": 1051059,
+    "sha256": "1d1dec6da07f0a8b667c9a7a1eace26d099918b87a228cf5d17a29ae1e783bda"
+  },
+  {
+    "path": "sd-image/ui-res/pass.html",
+    "bytes": 5537,
+    "sha256": "0ba24d9a1f29bd6985f2ff06e523eb23a5fea253100b9da9255fb4ec8fe22401"
+  },
+  {
+    "path": "sd-image/ui-res/records.html",
+    "bytes": 10775,
+    "sha256": "9b85582b837327554f18c767bd5fd46525fddbb34195e2fc94b8b3263ce45b1e"
+  },
+  {
+    "path": "sd-image/ui-res/records_upload.html",
+    "bytes": 2074,
+    "sha256": "bd596192aa9fa0688206feca7a3a28790d1dc236c3598939b31bb6b57843e64c"
+  },
+  {
+    "path": "sd-image/ui-res/script_form.html",
+    "bytes": 2615,
+    "sha256": "529860706a8ead2bdaf36bcb742644bb1f8872545f0e0c3c02b43a3f53b66e63"
+  },
+  {
+    "path": "sd-image/ui-res/scripts.html",
+    "bytes": 4236,
+    "sha256": "f64f9cf8524f64c95de1eff029c349efb385c57ad2459ae3f080a7fbf277216c"
+  },
+  {
+    "path": "sd-image/ui-res/slideshow.html",
+    "bytes": 2779,
+    "sha256": "bbbab3e46f2eed1ad11ed93998288bb9d498adfc1c310599c5f1b9c566625f34"
+  },
+  {
+    "path": "sd-image/ui-res/slideshow_imgload.html",
+    "bytes": 3641,
+    "sha256": "cfe441c519c7f14302e6bad2debe6bfa9a4910efc918be81b595f9b8e8d8a86a"
+  },
+  {
+    "path": "sd-image/ui-res/tailwind.js",
+    "bytes": 1675318,
+    "sha256": "69114438c61cc4e830b083a85cbe9a1c163393acb4c03bf5820f0c1c217782f2"
+  },
+  {
+    "path": "sd-image/ui-res/ua.txt",
+    "bytes": 10085,
+    "sha256": "5e880adf1aa6215bda538932b45eabea01f3fd9936e910534b327a5a258b769b"
+  },
+  {
+    "path": "sd-image/ui-res/ui.html",
+    "bytes": 25702,
+    "sha256": "0dc66bf41338794d403c9c1a14d386b6ebd50a85f548dd1cba9dbd3a5a8a4fcf"
+  },
+  {
+    "path": "sd-image/ui-res/ui_new.html",
+    "bytes": 31498,
+    "sha256": "859ad5fb27700a5fcf5538742fa70f368de579a630d516af59c637eece774803"
+  }
+]

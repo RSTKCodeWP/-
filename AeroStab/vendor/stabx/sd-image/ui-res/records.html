@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="utf-8">
+    <title>Records</title>
+<style>
+    html, body { background:#15170b; color:#e5e7eb; font-family:'Consolas','Lucida Console','Roboto Mono',monospace; }
+        a, a:visited { color:#CFE27A; font-weight:700; }
+        a:hover { color:#E7F49A; }
+        a:active { color:#AFBD5E; }
+        .uploaded {
+            background: #2f6f3a;
+            color: #fff;
+            padding: 2px;
+            border-radius: 4px;
+        }
+        .record {
+            margin-bottom: 15px;
+        }
+        .remove-btn, .remove-all-btn {
+            cursor: pointer;
+            color: #C06100;
+            font-weight: bold;
+            margin-left: 10px;
+            font-size: 14px;
+        }
+        .remove-all-btn {
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+        #uploadProgress {
+            height: 20px;
+            margin-top: 10px;
+            border: 1px solid #5D6532;
+            border-radius: 5px;
+        }
+        /* Fullscreen semi-transparent overlay */
+        .overlay {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background-color: rgba(0,0,0,0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            z-index: 9999;
+            color: white;
+            font-family: Arial, sans-serif;
+            font-size: 18px;
+        }
+
+        /* Spinner */
+        .spinner {
+            border: 6px solid rgba(255, 255, 255, 0.3);
+            border-top: 6px solid #000000;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin-bottom: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .progress-text {
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>  
+
+    <h3>Records</h3>
+    <hr>
+    <div id="dropzone" style="border: 2px dashed #5D6532; padding: 20px; text-align: center;">
+        Перетягніть сюди .csv або .zip файл для завантаження
+    </div>
+    <progress id="uploadProgress" value="0" max="100" style="width: 100%; display: none;"></progress>
+    <br>
+    <button class="remove-all-btn" onclick="removeAllFolders()" style="background:#AFBD5E; color:#0e1006; border:1px solid #AFBD5E; border-radius:6px; padding:6px 12px;">✖ Видалити всі записи</button>
+    <div id="records-container"></div>
+
+    <script>
+        const folders = {{folders_json}};
+
+        function createOverlay() {
+            const overlay = document.createElement('div');
+            overlay.className = 'overlay';
+            overlay.innerHTML = `
+                <div class="spinner"></div>
+                <div class="progress-text">0%</div>`;
+            document.body.appendChild(overlay);
+            return overlay;
+        }
+
+        function updateProgressText(overlay, percent) {
+            overlay.querySelector('.progress-text').textContent = `${percent}%`;
+        }
+
+        function pollProgress(overlay) {
+            return setInterval(() => {
+                fetch('/globalprogress')
+                    .then(response => response.text())
+                    .then(percent => {
+                        percent = percent.trim();
+                        updateProgressText(overlay, percent);
+                    })
+                    .catch(() => {
+                        updateProgressText(overlay, 'Error');
+                    });
+            }, 1000); // Poll every second
+        }
+
+        function setupLink(link) {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+
+                const overlay = createOverlay();
+                const progressInterval = pollProgress(overlay);
+
+                fetch(link.href, { method: 'GET', redirect: 'follow' })
+                    .then(response => {
+                        clearInterval(progressInterval);
+                        window.location.href = response.url;
+                    })
+                    .catch(error => {
+                        clearInterval(progressInterval);
+                        updateProgressText(overlay, `Error: ${error}`);
+                        setTimeout(() => overlay.remove(), 2000);
+                    });
+            });
+        }
+
+        var id = 0;
+
+        function createRecordItem(folder) {
+            const container = document.createElement('div');
+            container.className = 'record';
+            container.dataset.folder = folder;
+
+            const isUploaded = folder.endsWith('-uploaded');
+            const styleClass = isUploaded ? 'uploaded' : '';
+            id++;
+
+            container.innerHTML = `
+                <a href="/summary/${folder}/stream">
+                    <img src="/summary/${folder}/stream" style="max-width: 99%;">
+                </a><br>
+                <div class="${styleClass}">
+                    ${folder}
+                    <span class="remove-btn" onclick="removeFolder('${folder}', this)">✖ Видалити</span>
+                </div><br>
+                <a href="/cloud/${folder}" target="_blank">☁ В хмару</a>&nbsp;&nbsp;
+                <a href="/download/${folder}" target="_blank">⇨ На флешку</a>&nbsp;&nbsp;
+                <a href="/downloadzip/${folder}" target="_blank">⇩ Завантажити</a>&nbsp;&nbsp;
+                <a id="slideshow_${id}" href="/slideshow/${folder}/stream/">🗇 Слайдшоу</a>&nbsp;&nbsp;
+                <a id="dec_${id}" href="/decimated/${folder}">🗇 Слайдшоу (чорно-біле)</a>&nbsp;&nbsp;
+                <a href="${folder}/flight/log.txt">🗉 Лог</a>&nbsp;&nbsp;
+                <a href="${folder}/flight/height.csv">🗉 Польотний лог</a>&nbsp;&nbsp;
+                <a href="/charts/${folder}/flight/height.csv">🗠 Графіки</a>&nbsp;&nbsp;
+                <a id="map_${id}" href="/greymap/${folder}">🗺 Мапа польоту</a>&nbsp;&nbsp;
+                <hr>
+            `;
+            const decLink = container.querySelector(`#dec_${id}`);
+            if (decLink) {
+                setupLink(decLink);                
+            }
+            const mapLink = container.querySelector(`#map_${id}`);
+            if (mapLink) {
+                setupLink(mapLink);
+            }
+            const slideshowLink = container.querySelector(`#slideshow_${id}`);
+            if (slideshowLink) {
+                setupLink(slideshowLink);
+            }
+            return container;
+        }
+
+        async function removeFolder(folder, btn) {
+            if (!confirm(`Ви впевнені, що хочете видалити запис "${folder}"?`)) return;
+
+            try {
+                const response = await fetch(`/remove/${folder}`, { method: 'POST' });
+                if (response.ok) {
+                    const recordDiv = btn.closest('.record');
+                    if (recordDiv) {
+                        recordDiv.style.display = 'none';
+                    }
+                } else {
+                    alert('Помилка при видаленні запису.');
+                }
+            } catch (e) {
+                alert('Помилка зв’язку із сервером.');
+            }
+        }
+
+        async function removeAllFolders() {
+            if (!confirm(`Ви впевнені, що хочете видалити ВСІ записи?`)) return;
+
+            try {
+                const response = await fetch('/remove_all', { method: 'POST' });
+                if (response.ok) {
+                    document.getElementById('records-container').innerHTML = '';
+                } else {
+                    alert('Помилка при видаленні записів.');
+                }
+            } catch (e) {
+                alert('Помилка зв’язку із сервером.');
+            }
+        }
+
+        function renderRecords() {
+            if (folders.length === 0) {
+                document.querySelector(".remove-all-btn").style.display = "none";
+            }
+            const container = document.getElementById('records-container');
+            folders.forEach(folder => container.appendChild(createRecordItem(folder)));
+        }
+
+        function preventDefaults(e) {
+            e.preventDefault(); 
+            e.stopPropagation();
+        }
+
+        const dropzone = document.getElementById("dropzone");
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropzone.addEventListener(eventName, preventDefaults, false);
+        });
+
+        dropzone.addEventListener("drop", e => {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            handleFiles(files);
+        });
+
+        function handleFiles(files) {
+            const file = files[0];
+            if (file && (file.name.endsWith(".csv") || file.name.endsWith(".zip"))) {
+            console.log("Selected file name:", file.name);
+
+            const formData = new FormData();
+            formData.append("file", file);
+
+            const xhr = new XMLHttpRequest();
+
+            const progressBar = document.getElementById("uploadProgress");
+            progressBar.style.display = "block";
+            progressBar.value = 0;
+
+            xhr.upload.addEventListener("progress", (e) => {
+                if (e.lengthComputable) {
+                const percent = (e.loaded / e.total) * 100;
+                progressBar.value = percent;
+                }
+            });
+
+            xhr.onreadystatechange = () => {
+                if (xhr.readyState === XMLHttpRequest.DONE) {
+                progressBar.style.display = "none";
+                const response = xhr.responseText;
+                console.log("Server response:", response);
+                if (response.includes("успішно")) {
+                    alert(response);
+                    location.reload();
+                } else {
+                    alert("Помилка: " + response);
+                }
+                }
+            };
+
+            xhr.onerror = () => {
+                progressBar.style.display = "none";
+                alert("Помилка мережі або сервера");
+            };
+
+            xhr.open("POST", "/upload_record");
+            xhr.send(formData);
+            } else {
+            alert("Будь ласка, завантажте .csv або .zip файл");
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', renderRecords);
+    </script>
+</body>
+</html>

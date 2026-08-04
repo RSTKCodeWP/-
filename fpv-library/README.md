@@ -22,12 +22,14 @@ fpv-library/
   catalog.json          # manifest of all tracked projects
   STRUCTURE.md          # what each folder/file means (UA + EN)
   repos/                # auto-synced mirrors (discovered repos)
+  ../OpenIPC/           # example: full git copies of a GitHub org
   manifests/            # release SHA256 manifests (Caddx firmware, ground config)
   ground-config/        # downloaded Caddx Ground Configuration binaries (gitignored)
   scripts/
     discover.py         # parse GitHub search + expand owners
     discover_themes.py  # multi-query themed discovery (GCS, fiber, WFB, …)
-    sync.py             # pull upstream updates when commit changes
+    sync.py             # full git mirror: clone, fetch, LFS, submodules
+    discover_org.py     # register all repos from a GitHub org (e.g. OpenIPC)
     generate_repo_index.py  # write ../REPOS.md (full project list)
     register_legacy.py  # register hand-copied example folders at repo root
   THEMED.md             # curated highlights by category
@@ -35,6 +37,7 @@ fpv-library/
 ```
 
 **Full project index (description, path, date, size):** [`../REPOS.md`](../REPOS.md)  
+**Daily mirror policy:** [`MIRROR.md`](MIRROR.md) · [`../docs/MIRROR_POLICY.md`](../docs/MIRROR_POLICY.md)  
 **Repository layout:** [`../docs/STRUCTURE.md`](../docs/STRUCTURE.md) · [`STRUCTURE.md`](STRUCTURE.md)
 
 ## Usage
@@ -55,9 +58,24 @@ python3 fpv-library/scripts/discover.py --search Fpv --pages 1-5 --expand-owners
 
 # Themed batch: GCS, fiber, WFB, OpenIPC, DroneBridge, owner ecosystems
 python3 fpv-library/scripts/discover_themes.py --pages 1-2 --min-score 2.5
+
+# Full org library (e.g. all OpenIPC repos → OpenIPC/<repo>/)
+python3 fpv-library/scripts/discover_org.py --org OpenIPC --verdict keep
+python3 fpv-library/scripts/sync.py --owner OpenIPC --verdict keep
 ```
 
 See [`THEMED.md`](THEMED.md) for curated project highlights.
+
+### Daily mirror (update + backfill)
+
+```bash
+# Full daily cycle (same as CI)
+python3 fpv-library/scripts/sync_daily.py
+
+# Or manually:
+python3 fpv-library/scripts/sync.py --all --verdict keep --update-only
+python3 fpv-library/scripts/sync.py --all --verdict keep --new-only --max-per-run 25
+```
 
 ### Sync upstream updates
 
@@ -76,16 +94,17 @@ python3 fpv-library/scripts/register_legacy.py
 
 ## Automation
 
-`.github/workflows/fpv-library-sync.yml` runs **daily**:
+`.github/workflows/fpv-library-sync.yml` runs **daily** (06:00 UTC):
 
-1. **Keyword discovery** — rotating batch from `keywords.txt` (FPV, betaflight, OpenIPC, ELRS, GCS, fiber, …)
+1. **Keyword discovery** — rotating batch from `keywords.txt`
 2. **Themed discovery** — GCS / link / fiber queries + owner ecosystems
-3. **Triage** — classify each repo: `keep` / `watch` / `skip`; write `HOOKS.md`
-4. **Sync** — pull upstream for `verdict=keep` repos (no size limit)
-5. **Index** — regenerate root `REPOS.md` (descriptions, sizes, dates)
-6. **Commit** — push catalog + mirror updates
+3. **Triage** — `keep` / `watch` / `skip`; write `HOOKS.md`
+4. **Register** — root-level project folders → catalog
+5. **Mirror** — `sync_daily.py`: update all existing + clone ~25 new `keep` repos
+6. **Index** — regenerate root `REPOS.md`
+7. **Commit** — push catalog + mirror updates
 
-Manual run: Actions → **FPV Library Sync** → Run workflow.
+Manual run: Actions → **FPV Library Sync** → Run workflow (adjust `backfill_per_run`).
 
 ### Keyword discovery
 

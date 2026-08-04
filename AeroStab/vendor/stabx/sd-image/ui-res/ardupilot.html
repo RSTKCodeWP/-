@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title id="title">Ardupilot Parameters</title>
+  <style>
+    /* --------- Dark Army Green theme --------- */
+    :root{
+      --bg: #15170b;
+      --ink: #e5e7eb;
+      --muted: #b5be97;
+      --border: #3e4522;
+      --input-bg: #3D4221;
+      --input-ink: #e5e7eb;
+      --input-border: #5D6532;
+      --accent: #AFBD5E;          /* green */
+      --accent-darker: #9EAD54;   /* hover */
+      --chip-bg: #232613;
+      --chip-border: #3e4522;
+      --table-row-gap: 0.2em;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--ink);
+      font-family: 'Consolas', 'Lucida Console', 'Roboto Mono', monospace;
+      margin: 0;
+      padding: 1em;
+    }
+
+    h1 { margin-top: 0; }
+
+    label {
+      display: inline-block;
+      margin-right: 0.5em;
+      color: var(--ink);
+    }
+
+    /* Search box */
+    #searchBox {
+      width: 200px;
+      padding: 0.35em 0.6em;
+      background-color: var(--input-bg);
+      color: var(--input-ink);
+      border: 1px solid var(--input-border);
+      border-radius: 8px;
+      font-size: 1rem;
+      line-height: 1.2;
+      outline: none;
+      box-shadow: 0 0 0 0 rgba(0,0,0,0);
+      transition: border-color .12s ease, box-shadow .12s ease;
+    }
+    #searchBox::placeholder { color: var(--muted); }
+    #searchBox:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(175,189,94,0.15);
+    }
+
+    /* Preset buttons container */
+    #presets { margin-top: 0.5em; }
+
+    #presets button {
+      margin-right: 0.5em;
+      background-color: var(--chip-bg);
+      color: var(--ink);
+      border: 1px solid var(--chip-border);
+      padding: 0.35em 0.6em;
+      cursor: pointer;
+      font-size: 1rem;
+      line-height: 1.2;
+      border-radius: 8px;
+      transition: border-color .12s ease, color .12s ease, background-color .12s;
+    }
+    #presets button:hover {
+      border-color: var(--accent);
+    }
+
+    #paramsContainer {
+      margin-top: 1em;
+      max-width: 800px;
+    }
+
+    /* TABLE & LAYOUT TWEAKS */
+    table {
+      border-collapse: separate;
+      border-spacing: var(--table-row-gap) var(--table-row-gap);
+      width: 100%;
+    }
+    table, tr, td { border: none; }
+
+    /* If param is changed, original CSS used a yellow highlight via class.
+       Keeping it for compatibility, even if you also change color inline via JS. */
+    td.name-cell.changed {
+      background-color: #fffd88; /* pale yellow */
+      color: #000;
+    }
+
+    /* Apply button: green like pass dialog, hidden until needed */
+    button.apply-btn {
+      background-color: var(--accent);
+      color: #0e1006;
+      border: 1px solid var(--accent);
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 1rem;
+      line-height: 1.2;
+      padding: 0.25em 0.6em;
+      visibility: hidden; /* always in DOM but hidden unless needed */
+      vertical-align: middle;
+      margin-left: 0.4em; /* gap to the input */
+      transition: background-color .12s ease, border-color .12s ease, opacity .12s ease;
+    }
+    button.apply-btn:hover {
+      background-color: var(--accent-darker);
+      border-color: var(--accent-darker);
+    }
+
+    /* Param inputs (kept your sizing; switched to light style) */
+    input {
+      width: 250px !important;
+      height: 12px !important;
+      padding: 0.4em 0.4em !important;
+      background-color: var(--input-bg) !important;
+      color: var(--input-ink) !important;
+      border: 1px solid var(--input-border) !important;
+      border-radius: 8px !important;
+      font-size: 1.0rem !important;
+      line-height: 1.0 !important;
+      vertical-align: middle;
+      outline: none;
+      box-shadow: 0 0 0 0 rgba(0,0,0,0);
+      transition: border-color .12s ease, box-shadow .12s ease;
+    }
+    input:focus {
+      border-color: var(--accent) !important;
+      box-shadow: 0 0 0 2px rgba(175,189,94,0.15) !important;
+    }
+  </style>
+</head>
+<body>
+  <h1 id="mainTitle">Ardupilot Parameters</h1>
+
+  <!-- Search box -->
+  <label for="searchBox">Search (comma-separated):</label>
+  <input type="text" id="searchBox" placeholder="type the search text" />
+
+  <!-- Preset search buttons -->
+  <div id="presets">
+    <button data-search="">All</button>
+    <button id="important" data-search="VISO_TYPE,EK3_SRC1,GPS1_TYPE,GPS_TYPE,AHRS_GPS_USE,FS_GCS_ENABLE,ARMING_CHECKS,COMPASS_ENABLE,PHLD_BRAKE_ANGLE,PHLD_BRAKE_ANGLE,FS_EKF_THRESH,EK3_IMU_MASK,MOT_BAT_CURR_MAX,EK3_ACC_P_NSE,.FLTMODE,FRAME_TYPE,WPNAV_SPEED_">Important</button>
+    <button data-search="ATC_RAT_">PIDs</button>
+    <button data-search="EK3_SRC">Sources</button>
+    <button data-search=".FS_">Failsafe</button>
+    <button data-search="VISO_">Viso</button>
+    <button data-search="GPS">GPS</button>
+    <button data-search="SPEED">Speed</button>
+    <button data-search="BATT">Battery</button>
+    <!-- Add more presets as needed -->
+  </div>
+
+  <!-- Container for parameters table -->
+  <div id="paramsContainer"></div>
+
+  <script>
+    // We'll store all parameters here as { paramName: stringValue }
+    let allParams = {};
+    const paramHints = {};
+
+    // Keep track of fields that are changed but not yet confirmed by the server.
+    // key: paramName, value: the new value we set
+    let changedFields = {};
+
+    // at start, take the data-search from id="important" button and set it to searchBox
+    var searchBox = document.getElementById('searchBox');
+    var importantButton = document.getElementById('important');
+    searchBox.value = importantButton.getAttribute('data-search');    
+    var auto_set = true;
+
+    // if auto_set is true, when edit focused, the edit value of the searchBox cleared and auto_set is set to false
+    searchBox.addEventListener('focus', function() {
+        if(auto_set) {
+            searchBox.value = "";
+            auto_set = false;
+        }
+    });
+
+
+
+    // On page load:
+    // 1) request all parameters
+    // 2) periodically "getparam:[]" to receive them in chunks
+    window.addEventListener('load', () => {
+      requestAllParams();
+      setInterval(getParams, 2000);
+    });
+
+    // 1) Tells the server we want ALL parameters
+    async function requestAllParams() {
+      const requestBody = { "requestparam": [] };
+      await fetch('/tell', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody)
+      });
+    }
+
+    // 2) Periodically fetch any parameters the server has ready
+    async function getParams() {
+      const requestBody = { "getparam": [] };
+      try {
+        const response = await fetch('/tell', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestBody)
+        });
+        // If the response isn't valid JSON, handle gracefully
+        const data = await response.json();
+        if (!data || typeof data !== 'object') {          
+          return;
+        }
+        if (data.params) {
+          // Merge new/updated params into allParams
+          for (const [name, value] of Object.entries(data.params)) {
+            allParams[name] = value;
+            // If the server's value now matches our changedFields value, remove highlight
+            if (changedFields[name] && changedFields[name] === value) {
+              delete changedFields[name];
+            }
+          }
+          const totalParams = Object.keys(allParams).length;
+          document.getElementById("mainTitle").textContent = 
+                `Ardupilot parameters [${totalParams}]`;
+          renderParams();
+        }
+      } catch (err) {
+        console.error('Failed to get parameters:', err);
+      }
+    }
+
+    // Utility: convert strings like "2.00000" -> "2", "3.1400" -> "3.14"
+    function formatValue(value) {
+      const floatVal = parseFloat(value);
+      if (isNaN(floatVal)) {
+        // If it's not a valid float, just return the raw string
+        return value;
+      }
+      return floatVal.toString();
+    }
+
+    function renderParams() {
+      const container = document.getElementById('paramsContainer');
+
+      // --- PRESERVE USER FOCUS & TYPING IF THEY ARE EDITING A FIELD ---
+      let activeElement = document.activeElement; // which element currently has focus?
+      let focusedParamName = null;
+      let userText = null;
+      let selectionStart = 0;
+      let selectionEnd = 0;
+      let wasValueChanged = false;
+
+      // If the user is focused on an <input> that has data-param-name, record param/cursor
+      if (activeElement && activeElement.tagName === 'INPUT' && activeElement.dataset.paramName) {
+        focusedParamName = activeElement.dataset.paramName;
+        userText = activeElement.value;
+        selectionStart = activeElement.selectionStart;
+        selectionEnd = activeElement.selectionEnd;
+        const originalVal = formatValue(allParams[focusedParamName]);
+        wasValueChanged = (userText.trim() !== originalVal);
+      }
+
+      container.innerHTML = ''; // Clear existing content
+
+      // Filter out parameters that don't match the comma-separated search
+      const searchText = document.getElementById('searchBox').value;
+      const searchTerms = searchText
+        .split(',')
+        .map(t => t.trim().toLowerCase())
+        .filter(t => t.length > 0);
+
+      const table = document.createElement('table');
+
+      // Sort param names for consistent ordering
+      const paramNames = Object.keys(allParams).sort();
+      for (const paramName of paramNames) {
+        // If there's a search term, filter out unmatched entries
+        if (searchTerms.length > 0) {
+            const lowerName = paramName.toLowerCase();
+
+            // For each term: 
+            //  - If it begins with '.', do "startsWith" the substring (minus '.')
+            //  - Otherwise, do the normal "includes"
+            const matches = searchTerms.some(term => {
+                if (term.startsWith('.')) {
+                // everything after the '.' should match from the start
+                const sub = term.slice(1); // remove leading '.'
+                return lowerName.startsWith(sub);
+                } else {
+                // normal "contains" check
+                return lowerName.includes(term);
+                }
+            });
+
+            if (!matches) continue;
+        }
+
+        const row = document.createElement('tr');
+
+        // Param name cell
+        const nameCell = document.createElement('td');
+        nameCell.textContent = paramName;
+        row.appendChild(nameCell);
+
+        // Value cell with input + Apply
+        const valueCell = document.createElement('td');
+        const originalVal = formatValue(allParams[paramName]);
+        const inputEl = document.createElement('input');
+        inputEl.dataset.paramName = paramName;
+        inputEl.value = originalVal;        
+
+        valueCell.appendChild(inputEl);
+
+        if (changedFields[paramName]) {      
+            nameCell.textContent = paramName + " *";
+            nameCell.style.color = 'orange';
+        }
+        var hint = paramHints[paramName];        
+        if (hint) {
+            var helper = hint.displayName + "\n";
+            if(hint.displayName != hint.description) {
+                helper += hint.description + "\n";
+            }
+            if(hint.units) {
+                helper += "Unit: " + hint.units + "\n";
+            }
+            if(hint.range) {
+                helper += "Range: " + hint.range + "\n";
+            }            
+            if(hint.increment) {
+                helper += "Increment: " + hint.increment + "\n";
+            }
+            if(hint.bitmask) {
+                helper += "Bitmask: " + hint.bitmask + "\n";
+            }
+            if(hint.values) {
+                helper += "Values: " + hint.values + "\n";
+            }
+            inputEl.title = helper;      
+        }
+
+        // Apply button
+        const applyBtn = document.createElement('button');
+        applyBtn.textContent = 'Apply';
+        applyBtn.className = 'apply-btn';
+        valueCell.appendChild(applyBtn);
+
+        // If user was editing, restore typed text & selection
+        if (paramName === focusedParamName && userText != null) {
+          inputEl.value = userText;
+          if (wasValueChanged) {
+            applyBtn.style.visibility = 'visible';
+          }
+        }
+
+        // Toggle the Apply button if the input changes
+        inputEl.addEventListener('input', () => {
+          const curVal = inputEl.value.trim();
+          applyBtn.style.visibility = (curVal !== originalVal) ? 'visible' : 'hidden';
+        });
+
+        // On "Apply" click:
+        applyBtn.addEventListener('click', async () => {
+          const newVal = inputEl.value.trim();
+          try {
+            await setParam(paramName, newVal);
+
+            // 1) Mark it as changed so we highlight it
+            changedFields[paramName] = newVal;
+            inputEl.classList.add('changed');
+
+            // 2) Hide Apply button
+            applyBtn.style.visibility = 'hidden';
+
+            // 3) Remove focus so no giant blinking cursor
+            inputEl.blur();
+
+          } catch (err) {
+            console.error('Failed to set parameter:', err);
+          }
+        });
+
+        row.appendChild(valueCell);
+        table.appendChild(row);
+      }
+
+      container.appendChild(table);
+
+      // Restore focus & selection (unless we just blurred on Apply)
+      if (focusedParamName) {
+        const newInput = container.querySelector(`input[data-param-name="${focusedParamName}"]`);
+        if (newInput) {
+          try {
+            newInput.focus();
+            newInput.setSelectionRange(selectionStart, selectionEnd);
+          } catch (err) {
+            // Some browsers might fail if range is out of bounds; ignore
+          }
+        }
+      }
+    }
+
+    // POST { "setparam": { [name]: value } } to the server
+    async function setParam(name, value) {
+      const requestBody = { "setparam": { [name]: value } };
+      const response = await fetch('/tell', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody)
+      });
+      if (!response.ok) {
+        throw new Error(`Server returned status ${response.status}`);
+      }
+    }
+
+    // Re-render whenever the user types in the search box
+    document.getElementById('searchBox').addEventListener('input', renderParams);
+
+    // For each preset button, set the search box to its data-search value and re-render
+    document.querySelectorAll('#presets button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const pattern = btn.getAttribute('data-search') || '';
+        document.getElementById('searchBox').value = pattern;
+        renderParams();
+      });
+    });
+
+    async function loadArduCopter2Hints() {
+        try {
+            // 1) Fetch the XML
+            const response = await fetch('/mp-hints'); // or your actual endpoint
+            const xmlText = await response.text();
+
+            // 2) Parse into a DOM
+            const parser = new DOMParser();
+            const xmlDoc = parser.parseFromString(xmlText, 'application/xml');
+
+            // 3) Find the <ArduCopter2> node
+            const copterNode = xmlDoc.querySelector('Params > ArduCopter2');
+            if (!copterNode) {
+                console.warn('No <ArduCopter2> node found in XML.');
+                return {};
+            }
+
+            // We'll store param hints in an object keyed by param name
+
+            // 4) For each child element of <ArduCopter2>, parse out the details
+            //    e.g. <ACCEL_Z_D> ... </ACCEL_Z_D>
+            //    The node name (tag) is the param name.
+            const paramNodes = [...copterNode.children]; // convert NodeList to array
+            paramNodes.forEach(paramEl => {
+            // The parameter ID is this element's tag name, e.g. "ACCEL_Z_D"
+            const paramName = paramEl.tagName;
+
+            // We'll read known child elements if they exist
+            const displayNameEl = paramEl.querySelector('DisplayName');
+            const descriptionEl = paramEl.querySelector('Description');
+            const rangeEl       = paramEl.querySelector('Range');
+            const unitsEl       = paramEl.querySelector('Units');
+            const userEl        = paramEl.querySelector('User');
+            const incrementEl   = paramEl.querySelector('Increment');
+            const bitmaskEl     = paramEl.querySelector('Bitmask');
+            const valuesEl      = paramEl.querySelector('Values');
+            const groupEl       = paramEl.querySelector('Group');
+            const pathEl        = paramEl.querySelector('Path');
+
+            // Pull out text, trimming extra whitespace
+            const displayName = displayNameEl ? displayNameEl.textContent.trim() : '';
+            const description = descriptionEl ? descriptionEl.textContent.trim() : '';
+            const range       = rangeEl       ? rangeEl.textContent.trim()       : '';
+            const units       = unitsEl       ? unitsEl.textContent.trim()       : '';
+            const user        = userEl        ? userEl.textContent.trim()        : '';
+            const increment   = incrementEl   ? incrementEl.textContent.trim()   : '';
+            const bitmask     = bitmaskEl     ? bitmaskEl.textContent.trim()     : '';
+            const values      = valuesEl      ? valuesEl.textContent.trim()      : '';
+            const group       = groupEl       ? groupEl.textContent.trim()       : '';
+            const path        = pathEl        ? pathEl.textContent.trim()        : '';
+
+            // Put them in a paramHints entry
+            paramHints[paramName] = {
+                    displayName,
+                    description,
+                    range,
+                    units,
+                    user,
+                    increment,
+                    bitmask,
+                    values,
+                    group,
+                    path
+                };
+            });            
+            return paramHints;
+        } catch (err) {
+            console.error('Failed to load or parse param hints:', err);
+            return {};
+        }
+    }
+    loadArduCopter2Hints();
+  </script>
+</body>
+</html>
