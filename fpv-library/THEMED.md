@@ -64,6 +64,14 @@ Curated index after multi-query discovery (GCS, datalink, fiber, IP control, Ope
 | [rmeadomavic/ax12-tac-tools](https://github.com/rmeadomavic/ax12-tac-tools) | RadioMaster AX12 → field GCS / CoT bridge |
 | [rmeadomavic/ardupilot-mcp](https://github.com/rmeadomavic/ardupilot-mcp) | MCP server for ArduPilot over MAVLink |
 | [ajain189/HADES](https://github.com/ajain189/HADES) | SAR desktop GCS with FPV + AI |
+| [ComBatVision/c4ds-tool-samples](https://github.com/ComBatVision/c4ds-tool-samples) | ComBat 4 DS (C4DS) external-tool SDK samples — Kotlin plugin tools, MAVLink/drone integration ([combat.vision](https://combat.vision)) |
+
+## C4ISR / tactical coordination (UA)
+
+| Source | Notes |
+|--------|-------|
+| [ComBatVision](https://github.com/ComBatVision) | ComBat Vision LLC — distributed battlefield reconnaissance & coordination (NATO STANAG 4677 JDSS, MIL-STD-2525C, 3D map, AR) |
+| [ComBatVision/c4ds-tool-samples](https://github.com/ComBatVision/c4ds-tool-samples) | Runnable SDK samples for ComBat 4 Dismounted Soldier external tools (Sample Gallery hub) |
 
 ## Fiber / specialty / non-RF links
 

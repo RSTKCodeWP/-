@@ -4,3 +4,6 @@
 [submodule "ardufleetcheck-Python-ArduPilot-Fleet-Check-Skills"]
 	path = ardufleetcheck-Python-ArduPilot-Fleet-Check-Skills
 	url = https://github.com/paulnurkkala/ardufleetcheck.git
+[submodule "ComBatVision/c4ds-tool-samples"]
+	path = ComBatVision/c4ds-tool-samples
+	url = https://github.com/ComBatVision/c4ds-tool-samples.git

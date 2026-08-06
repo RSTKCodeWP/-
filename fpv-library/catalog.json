@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-08-03T23:24:00+00:00",
+  "updated_at": "2026-08-06T19:47:04+00:00",
   "repos": [
     {
       "source": "johnboiles/Steer",
@@ -68377,6 +68377,41 @@
       "owner": "RSTKCodeWP",
       "verdict": "keep",
       "registered_at": "2026-08-03T23:23:38+00:00"
+    },
+    {
+      "source": "ComBatVision/c4ds-tool-samples",
+      "path": "ComBatVision/c4ds-tool-samples",
+      "added_at": "2026-08-06T19:46:55+00:00",
+      "discovered_via": "org:ComBatVision",
+      "description": "A copy-pasteable reference for every public SDK surface exposed to external ComBat 4 Dismounted Soldier (C4DS) tools — browsable in an in-app Sample Gallery.",
+      "stars": 17,
+      "score": 0.5,
+      "upstream_updated": "2026-07-29T18:37:12Z",
+      "owner": "ComBatVision",
+      "size_kb": 1142,
+      "topics": [
+        "android",
+        "c4",
+        "c4ds",
+        "jetpack-compose-",
+        "kotlin",
+        "plugin",
+        "sdk-samples"
+      ],
+      "verdict": "keep",
+      "triage_at": "2026-08-06T19:46:55+00:00",
+      "categories": [
+        "gcs",
+        "tools"
+      ],
+      "interesting": true,
+      "triage_reason": "curator:ComBatVision-C4ISR",
+      "synced_at": "2026-08-06T19:47:00+00:00",
+      "upstream_commit": "e3a53ee984614607eea7349483f98b6b415ef857",
+      "verified_at": "2026-08-06T19:47:00+00:00",
+      "upstream_commit": "e3a53ee984614607eea7349483f98b6b415ef857",
+      "synced_at": "2026-08-06T19:47:04+00:00",
+      "verified_at": "2026-08-06T19:47:04+00:00"
     }
   ],
   "search_queries": [
