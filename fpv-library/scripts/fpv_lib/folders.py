@@ -22,7 +22,7 @@ OWN_PRODUCTS = {
     "AeroStab": "own-product",
 }
 
-ORG_CONTAINERS = {"OpenIPC", "OpenHD", "DroneBridge", "ArduPilot"}
+ORG_CONTAINERS = {"OpenIPC", "OpenHD", "DroneBridge", "ArduPilot", "ComBatVision"}
 
 
 def workspace_root() -> Path:
