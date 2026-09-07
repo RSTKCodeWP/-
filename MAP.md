@@ -1,8 +1,8 @@
 # Карта монорепозиторію / Library Map
 
 > **Автогенерація:** `python3 fpv-library/scripts/generate_library_map.py`  
-> **Оновлено:** 2026-08-03 23:24 UTC  
-> **Повний каталог:** [REPOS.md](REPOS.md) (3045 записів)
+> **Оновлено:** 2026-09-07 11:58 UTC  
+> **Повний каталог:** [REPOS.md](REPOS.md) (4047 записів)
 
 ## Огляд
 
@@ -10,7 +10,7 @@
 |---------|----------|
 | Тек у корені | **43** |
 | fpv-library/repos | **191** |
-| Повні git-копії (submodule) | **2** |
+| Повні git-копії (submodule) | **1** |
 | Org-бібліотеки | ArduPilot, DroneBridge, OpenHD, OpenIPC |
 
 ## Дерево (корінь)
@@ -71,7 +71,7 @@ flowchart TB
 
 | Тека | Опис | Розмір |
 |---|---|---|
-| [AeroStab](AeroStab/) | Власна розробка (не mirror) | 10.55 GB |
+| [AeroStab](AeroStab/) | Власна розробка (не mirror) | 10.8 MB |
 
 ## Org-бібліотеки (повні git-копії)
 
@@ -79,13 +79,13 @@ flowchart TB
 
 | Репо | GitHub | Mirror | Verified | Розмір |
 |---|---|---|---|---|
-| [fpv](OpenIPC/fpv/) | [OpenIPC/fpv](https://github.com/OpenIPC/fpv) | ✅ git | — | 1.8 KB |
+| [fpv](OpenIPC/fpv/) | [OpenIPC/fpv](https://github.com/OpenIPC/fpv) | 📁 | — | 0 B |
 
 ## Корінь — дзеркала та теки
 
 | Тека | GitHub | Mirror | Verified | Розмір |
 |---|---|---|---|---|
-| [ardufleetcheck-Python-ArduPilot-Fleet-Check-Skills](ardufleetcheck-Python-ArduPilot-Fleet-Check-Skills/) | [paulnurkkala/ardufleetcheck](https://github.com/paulnurkkala/ardufleetcheck) | ✅ git | 2026-08-03 | 266.2 KB |
+| [ardufleetcheck-Python-ArduPilot-Fleet-Check-Skills](ardufleetcheck-Python-ArduPilot-Fleet-Check-Skills/) | [paulnurkkala/ardufleetcheck](https://github.com/paulnurkkala/ardufleetcheck) | 📁 files | 2026-08-03 | 0 B |
 | [at32f435-rgt7-manual-AT32-Flight-Controller-Manual](at32f435-rgt7-manual-AT32-Flight-Controller-Manual/) | [RSTKCodeWP/at32f435-rgt7-manual](https://github.com/RSTKCodeWP/at32f435-rgt7-manual) | 📁 files | — | 15.9 MB |
 | [claude-mgrsosd-Betaflight-OSD-Layout-Claude-Plugin](claude-mgrsosd-Betaflight-OSD-Layout-Claude-Plugin/) | [paulnurkkala/claude-mgrsosd](https://github.com/paulnurkkala/claude-mgrsosd) | 📁 files | — | 9.2 KB |
 | [claude-osdfont-Betaflight-OSD-Font-Claude-Plugin](claude-osdfont-Betaflight-OSD-Font-Claude-Plugin/) | [paulnurkkala/claude-osdfont](https://github.com/paulnurkkala/claude-osdfont) | 📁 files | — | 22.2 KB |
