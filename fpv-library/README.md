@@ -37,6 +37,7 @@ fpv-library/
 ```
 
 **Full project index (description, path, date, size):** [`../REPOS.md`](../REPOS.md)  
+**Exhibition wiki (one card per folder on disk):** [`../wiki/Home.md`](../wiki/Home.md)  
 **Daily mirror policy:** [`MIRROR.md`](MIRROR.md) · [`../docs/MIRROR_POLICY.md`](../docs/MIRROR_POLICY.md)  
 **Repository layout:** [`../docs/STRUCTURE.md`](../docs/STRUCTURE.md) · [`STRUCTURE.md`](STRUCTURE.md)
 

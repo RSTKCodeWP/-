@@ -13,6 +13,7 @@
 | [`REPOS.md`](../REPOS.md) | **Повний список** усіх проєктів: опис, шлях, дата, розмір (автогенерація) |
 | [`docs/MIRROR_POLICY.md`](../docs/MIRROR_POLICY.md) | Політика: кожен keep = тека + щоденне автооновлення |
 | [`README.md`](../README.md) | Головна навігація |
+| [`wiki/`](../wiki/Home.md) | Виставкові картки локальних тек. Генератор: `fpv-library/scripts/generate_wiki.py` |
 
 ### Legacy-копії (корінь)
 
