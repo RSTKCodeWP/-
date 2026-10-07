@@ -8,6 +8,7 @@
 | `triage_catalog.py` | keep / watch / skip → `HOOKS.md` |
 | `sync.py` | Оновлення дзеркал з upstream |
 | `generate_repo_index.py` | Генерація `REPOS.md` у корені |
+| `generate_wiki.py` | Виставкові картки `wiki/` з README і маніфестів |
 | `sync_caddx_ground_config.py` | Caddx Ground Configuration: маніфест + download |
 | `download_caddx_firmware.py` | Ascent firmware `.img` |
 | `download_caddx_ground_config.py` | Один asset Ground Config |
